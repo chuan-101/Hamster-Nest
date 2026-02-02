@@ -206,11 +206,15 @@ const ChatRoute = ({
   )
 
   useEffect(() => {
-    if (!activeSession) {
+  if (!activeSession) {
+    if (sessions.length > 0) {
+      navigate(`/chat/${sessions[0].id}`, { replace: true })
+    } else {
       const fallback = onCreateSession('新会话')
       navigate(`/chat/${fallback.id}`, { replace: true })
     }
-  }, [activeSession, navigate, onCreateSession])
+  }
+}, [activeSession, navigate, onCreateSession, sessions])
 
   if (!activeSession) {
     return null
