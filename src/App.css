@@ -1,0 +1,10 @@
+.app-shell {
+  min-height: 100vh;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+button {
+  font-family: inherit;
+}
