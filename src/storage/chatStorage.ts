@@ -69,6 +69,12 @@ export const loadSnapshot = (): StorageSnapshot => {
   }
 }
 
+export const setSnapshot = (next: StorageSnapshot) => {
+  snapshot.sessions = sortSessions(next.sessions)
+  snapshot.messages = sortMessages(next.messages)
+  scheduleWrite()
+}
+
 export const createSession = (title?: string): ChatSession => {
   const now = new Date().toISOString()
   const session: ChatSession = {

@@ -8,11 +8,12 @@ export type SessionsDrawerProps = {
   sessions: ChatSession[]
   messageCounts: Record<string, number>
   activeSessionId?: string
+  syncing?: boolean
   onClose: () => void
-  onCreateSession: () => void
+  onCreateSession: () => void | Promise<void>
   onSelectSession: (sessionId: string) => void
-  onRenameSession: (sessionId: string, title: string) => void
-  onDeleteSession: (sessionId: string) => void
+  onRenameSession: (sessionId: string, title: string) => Promise<void> | void
+  onDeleteSession: (sessionId: string) => Promise<void> | void
 }
 
 type SessionRowProps = {
@@ -101,6 +102,7 @@ const SessionsDrawer = ({
   sessions,
   messageCounts,
   activeSessionId,
+  syncing,
   onClose,
   onCreateSession,
   onSelectSession,
@@ -172,9 +174,12 @@ const SessionsDrawer = ({
       <aside className={`sessions-drawer ${open ? 'open' : ''}`}>
         <div className="drawer-header">
           <h2>会话</h2>
-          <button type="button" className="ghost" onClick={onClose}>
-            关闭
-          </button>
+          <div className="drawer-header-actions">
+            {syncing ? <span className="syncing">同步中...</span> : null}
+            <button type="button" className="ghost" onClick={onClose}>
+              关闭
+            </button>
+          </div>
         </div>
         <button type="button" className="primary" onClick={onCreateSession}>
           + 新建聊天
