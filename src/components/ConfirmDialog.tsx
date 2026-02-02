@@ -14,8 +14,8 @@ const ConfirmDialog = ({
   open,
   title,
   description,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel = '确认',
+  cancelLabel = '取消',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) => {

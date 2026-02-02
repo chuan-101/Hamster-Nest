@@ -60,7 +60,7 @@ export const createSession = (title?: string): ChatSession => {
   const now = new Date().toISOString()
   const session: ChatSession = {
     id: createId(),
-    title: title ?? 'New chat',
+    title: title ?? '新会话',
     createdAt: now,
     updatedAt: now,
   }

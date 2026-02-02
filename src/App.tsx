@@ -73,8 +73,8 @@ const App = () => {
   const sendMessage = useCallback(
     (sessionId: string, content: string) => {
       appendMessage(sessionId, 'user', content)
-      appendMessage(sessionId, 'assistant', 'This is a mocked reply for now.', {
-        model: 'mock-model',
+      appendMessage(sessionId, 'assistant', '这是一个模拟回复。', {
+        model: '模拟模型',
       })
     },
     [appendMessage],
@@ -189,7 +189,7 @@ const ChatRoute = ({
       if (remaining.length > 0) {
         nextSessionId = remaining[0].id
       } else {
-        const newSession = onCreateSession('Fresh start')
+        const newSession = onCreateSession('新的开始')
         nextSessionId = newSession.id
       }
     }
@@ -201,7 +201,7 @@ const ChatRoute = ({
 
   useEffect(() => {
     if (!activeSession) {
-      const fallback = onCreateSession('Recovered chat')
+      const fallback = onCreateSession('已恢复的会话')
       navigate(`/chat/${fallback.id}`, { replace: true })
     }
   }, [activeSession, navigate, onCreateSession])

@@ -63,21 +63,21 @@ const ChatPage = ({
   }
 
   const actionsLabel = useMemo(() => {
-    return openActionsId ? 'Close actions' : 'Open actions'
+    return openActionsId ? '关闭操作菜单' : '打开操作菜单'
   }, [openActionsId])
 
   return (
     <div className="chat-page">
       <header className="chat-header">
         <button type="button" className="ghost" onClick={onOpenDrawer}>
-          Sessions
+          会话
         </button>
         <div className="header-title">
           <h1>{session.title}</h1>
-          <span className="subtitle">Single chat</span>
+          <span className="subtitle">单聊</span>
         </div>
         <button type="button" className="ghost">
-          Chat actions
+          聊天操作
         </button>
       </header>
       <main className="chat-messages">
@@ -112,7 +112,7 @@ const ChatPage = ({
               {openActionsId === message.id ? (
                 <div className="actions-menu" role="menu">
                   <button type="button" role="menuitem" onClick={() => handleCopy(message)}>
-                    Copy
+                    复制
                   </button>
                   <button
                     type="button"
@@ -120,7 +120,7 @@ const ChatPage = ({
                     className="danger"
                     onClick={() => handleDelete(message)}
                   >
-                    Delete
+                    删除
                   </button>
                 </div>
               ) : null}
@@ -130,20 +130,20 @@ const ChatPage = ({
       </main>
       <form className="chat-composer" onSubmit={handleSubmit}>
         <textarea
-          placeholder="Type your message"
+          placeholder="输入你的消息"
           rows={2}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
         />
         <button type="submit" className="primary">
-          Send
+          发送
         </button>
       </form>
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Delete message?"
-        description="This will remove the message from this session."
-        confirmLabel="Delete"
+        title="删除这条消息？"
+        description="此操作会从当前会话中移除这条消息。"
+        confirmLabel="删除"
         onCancel={() => setPendingDelete(null)}
         onConfirm={handleConfirmDelete}
       />
