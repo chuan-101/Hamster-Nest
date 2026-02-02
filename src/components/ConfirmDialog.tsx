@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import './ConfirmDialog.css'
 
 export type ConfirmDialogProps = {
@@ -23,7 +24,7 @@ const ConfirmDialog = ({
     return null
   }
 
-  return (
+  const dialog = (
     <div className="confirm-backdrop" role="dialog" aria-modal="true">
       <div className="confirm-dialog">
         <h2>{title}</h2>
@@ -39,6 +40,12 @@ const ConfirmDialog = ({
       </div>
     </div>
   )
+
+  if (typeof document === 'undefined') {
+    return dialog
+  }
+
+  return createPortal(dialog, document.body)
 }
 
 export default ConfirmDialog

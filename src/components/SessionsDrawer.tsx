@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import type { ChatSession } from '../types'
 import ConfirmDialog from './ConfirmDialog'
 import './SessionsDrawer.css'
@@ -14,6 +14,87 @@ export type SessionsDrawerProps = {
   onRenameSession: (sessionId: string, title: string) => void
   onDeleteSession: (sessionId: string) => void
 }
+
+type SessionRowProps = {
+  session: ChatSession
+  isActive: boolean
+  isEditing: boolean
+  draftTitle: string
+  messageCount: number
+  onSelect: (sessionId: string) => void
+  onStartRename: (session: ChatSession) => void
+  onDraftTitleChange: (value: string) => void
+  onConfirmRename: () => void
+  onCancelRename: () => void
+  onRequestDelete: (sessionId: string) => void
+}
+
+const SessionRow = memo(
+  ({
+    session,
+    isActive,
+    isEditing,
+    draftTitle,
+    messageCount,
+    onSelect,
+    onStartRename,
+    onDraftTitleChange,
+    onConfirmRename,
+    onCancelRename,
+    onRequestDelete,
+  }: SessionRowProps) => {
+    const handleSelect = useCallback(() => {
+      onSelect(session.id)
+    }, [onSelect, session.id])
+
+    const handleRename = useCallback(() => {
+      onStartRename(session)
+    }, [onStartRename, session])
+
+    const handleDelete = useCallback(() => {
+      onRequestDelete(session.id)
+    }, [onRequestDelete, session.id])
+
+    return (
+      <div className={`session-row ${isActive ? 'active' : ''}`}>
+        {isEditing ? (
+          <div className="rename-row">
+            <input
+              value={draftTitle}
+              onChange={(event) => onDraftTitleChange(event.target.value)}
+              aria-label="重命名会话"
+            />
+            <div className="inline-actions">
+              <button type="button" onClick={onConfirmRename}>
+                保存
+              </button>
+              <button type="button" onClick={onCancelRename}>
+                取消
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="session-select" onClick={handleSelect}>
+            <span>{session.title}</span>
+            <span className="count">{messageCount} 条消息</span>
+          </button>
+        )}
+        {!isEditing ? (
+          <div className="session-actions">
+            <button type="button" className="ghost" onClick={handleRename}>
+              重命名
+            </button>
+            <button type="button" className="danger" onClick={handleDelete}>
+              删除
+            </button>
+          </div>
+        ) : null}
+      </div>
+    )
+  },
+)
+
+SessionRow.displayName = 'SessionRow'
 
 const SessionsDrawer = ({
   open,
@@ -41,12 +122,16 @@ const SessionsDrawer = ({
     )
   }, [search, sessions])
 
-  const handleStartRename = (session: ChatSession) => {
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value)
+  }, [])
+
+  const handleStartRename = useCallback((session: ChatSession) => {
     setEditingId(session.id)
     setDraftTitle(session.title)
-  }
+  }, [])
 
-  const handleConfirmRename = () => {
+  const handleConfirmRename = useCallback(() => {
     if (!editingId) {
       return
     }
@@ -56,19 +141,30 @@ const SessionsDrawer = ({
     }
     setEditingId(null)
     setDraftTitle('')
-  }
+  }, [draftTitle, editingId, onRenameSession])
 
-  const handleCancelRename = () => {
+  const handleCancelRename = useCallback(() => {
     setEditingId(null)
     setDraftTitle('')
-  }
+  }, [])
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     if (pendingDeleteId) {
       onDeleteSession(pendingDeleteId)
       setPendingDeleteId(null)
     }
-  }
+  }, [onDeleteSession, pendingDeleteId])
+
+  const handleRequestDelete = useCallback((sessionId: string) => {
+    setPendingDeleteId(sessionId)
+  }, [])
+
+  const handleSelectSession = useCallback(
+    (sessionId: string) => {
+      onSelectSession(sessionId)
+    },
+    [onSelectSession],
+  )
 
   return (
     <>
@@ -88,66 +184,27 @@ const SessionsDrawer = ({
           type="search"
           placeholder="搜索会话"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => handleSearchChange(event.target.value)}
         />
         <div className="sessions-list">
           {filteredSessions.length === 0 ? (
             <p className="empty">未找到会话。</p>
           ) : (
             filteredSessions.map((session) => (
-              <div
+              <SessionRow
                 key={session.id}
-                className={`session-row ${
-                  session.id === activeSessionId ? 'active' : ''
-                }`}
-              >
-                {editingId === session.id ? (
-                  <div className="rename-row">
-                    <input
-                      value={draftTitle}
-                      onChange={(event) => setDraftTitle(event.target.value)}
-                      aria-label="重命名会话"
-                    />
-                    <div className="inline-actions">
-                      <button type="button" onClick={handleConfirmRename}>
-                        保存
-                      </button>
-                      <button type="button" onClick={handleCancelRename}>
-                        取消
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="session-select"
-                    onClick={() => onSelectSession(session.id)}
-                  >
-                    <span>{session.title}</span>
-                    <span className="count">
-                      {messageCounts[session.id] ?? 0} 条消息
-                    </span>
-                  </button>
-                )}
-                {editingId !== session.id ? (
-                  <div className="session-actions">
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => handleStartRename(session)}
-                    >
-                      重命名
-                    </button>
-                    <button
-                      type="button"
-                      className="danger"
-                      onClick={() => setPendingDeleteId(session.id)}
-                    >
-                      删除
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+                session={session}
+                isActive={session.id === activeSessionId}
+                isEditing={editingId === session.id}
+                draftTitle={editingId === session.id ? draftTitle : ''}
+                messageCount={messageCounts[session.id] ?? 0}
+                onSelect={handleSelectSession}
+                onStartRename={handleStartRename}
+                onDraftTitleChange={setDraftTitle}
+                onConfirmRename={handleConfirmRename}
+                onCancelRename={handleCancelRename}
+                onRequestDelete={handleRequestDelete}
+              />
             ))
           )}
         </div>

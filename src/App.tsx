@@ -170,34 +170,40 @@ const ChatRoute = ({
       )
   }, [messages, sessionId])
 
-  const handleCreateSession = () => {
+  const handleCreateSession = useCallback(() => {
     const newSession = onCreateSession()
     navigate(`/chat/${newSession.id}`)
     onCloseDrawer()
-  }
+  }, [navigate, onCloseDrawer, onCreateSession])
 
-  const handleSelectSession = (id: string) => {
-    navigate(`/chat/${id}`)
-    onCloseDrawer()
-  }
+  const handleSelectSession = useCallback(
+    (id: string) => {
+      navigate(`/chat/${id}`)
+      onCloseDrawer()
+    },
+    [navigate, onCloseDrawer],
+  )
 
-  const handleDeleteSession = (id: string) => {
-    let nextSessionId: string | null = null
-    onDeleteSession(id)
-    if (activeSession?.id === id) {
-      const remaining = sessions.filter((session) => session.id !== id)
-      if (remaining.length > 0) {
-        nextSessionId = remaining[0].id
-      } else {
-        const newSession = onCreateSession('新的开始')
-        nextSessionId = newSession.id
+  const handleDeleteSession = useCallback(
+    (id: string) => {
+      let nextSessionId: string | null = null
+      onDeleteSession(id)
+      if (activeSession?.id === id) {
+        const remaining = sessions.filter((session) => session.id !== id)
+        if (remaining.length > 0) {
+          nextSessionId = remaining[0].id
+        } else {
+          const newSession = onCreateSession('新的开始')
+          nextSessionId = newSession.id
+        }
       }
-    }
 
-    if (nextSessionId) {
-      navigate(`/chat/${nextSessionId}`, { replace: true })
-    }
-  }
+      if (nextSessionId) {
+        navigate(`/chat/${nextSessionId}`, { replace: true })
+      }
+    },
+    [activeSession?.id, navigate, onCreateSession, onDeleteSession, sessions],
+  )
 
   useEffect(() => {
     if (!activeSession) {
