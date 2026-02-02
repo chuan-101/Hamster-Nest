@@ -1,12 +1,18 @@
-export type ChatMessage = {
-  id: string
-  author: 'user' | 'assistant'
-  text: string
-  timestamp: string
-}
-
 export type ChatSession = {
   id: string
   title: string
-  messages: ChatMessage[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type ChatMessage = {
+  id: string
+  sessionId: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+  meta?: {
+    provider?: string
+    model?: string
+  }
 }

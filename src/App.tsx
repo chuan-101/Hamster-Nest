@@ -1,90 +1,115 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import ChatPage from './pages/ChatPage'
 import SessionsDrawer from './components/SessionsDrawer'
-import { ChatMessage, ChatSession } from './types'
+import type { ChatMessage, ChatSession } from './types'
+import {
+  addMessage,
+  createSession,
+  deleteMessage,
+  deleteSession,
+  loadSnapshot,
+  renameSession,
+} from './storage/chatStorage'
 import './App.css'
 
-const nowLabel = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+const sortSessions = (sessions: ChatSession[]) =>
+  [...sessions].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  )
 
-const createSessionEntry = (title?: string): ChatSession => ({
-  id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-  title: title ?? 'New chat',
-  messages: [
-    {
-      id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-assistant`,
-      author: 'assistant',
-      text: 'Welcome! This is a mocked conversation starter.',
-      timestamp: nowLabel(),
-    },
-    {
-      id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-user`,
-      author: 'user',
-      text: 'Got it — ready to build out the UI shell!',
-      timestamp: nowLabel(),
-    },
-  ],
-})
-
-const initialSessions: ChatSession[] = [
-  createSessionEntry('Project kickoff'),
-  createSessionEntry('Design review'),
-]
+const initialSnapshot = loadSnapshot()
 
 const App = () => {
-  const [sessions, setSessions] = useState<ChatSession[]>(initialSessions)
+  const [sessions, setSessions] = useState<ChatSession[]>(initialSnapshot.sessions)
+  const [messages, setMessages] = useState<ChatMessage[]>(initialSnapshot.messages)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  const createSession = useCallback((title?: string) => {
-    const newSession = createSessionEntry(title)
-    setSessions((prev) => [newSession, ...prev])
+  const messageCounts = useMemo(() => {
+    return messages.reduce<Record<string, number>>((accumulator, message) => {
+      accumulator[message.sessionId] = (accumulator[message.sessionId] ?? 0) + 1
+      return accumulator
+    }, {})
+  }, [messages])
+
+  const createSessionEntry = useCallback((title?: string) => {
+    const newSession = createSession(title)
+    setSessions((prev) => sortSessions([...prev, newSession]))
     return newSession
   }, [])
 
-  const renameSession = useCallback((sessionId: string, title: string) => {
-    setSessions((prev) =>
-      prev.map((session) =>
-        session.id === sessionId ? { ...session, title } : session,
-      ),
-    )
-  }, [])
-
-  const addMessage = useCallback((sessionId: string, text: string) => {
-    const newMessage: ChatMessage = {
-      id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-user`,
-      author: 'user',
-      text,
-      timestamp: nowLabel(),
+  const renameSessionEntry = useCallback((sessionId: string, title: string) => {
+    const updated = renameSession(sessionId, title)
+    if (!updated) {
+      return
     }
     setSessions((prev) =>
-      prev.map((session) =>
-        session.id === sessionId
-          ? { ...session, messages: [...session.messages, newMessage] }
-          : session,
-      ),
+      prev.map((session) => (session.id === sessionId ? updated : session)),
     )
   }, [])
 
-  const deleteSession = useCallback((sessionId: string) => {
+  const appendMessage = useCallback(
+    (
+      sessionId: string,
+      role: ChatMessage['role'],
+      content: string,
+      meta?: ChatMessage['meta'],
+    ) => {
+      const result = addMessage(sessionId, role, content, meta)
+      if (!result) {
+        return null
+      }
+      setMessages((prev) => [...prev, result.message])
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === sessionId ? result.session : session,
+        ),
+      )
+      return result.message
+    },
+    [],
+  )
+
+  const sendMessage = useCallback(
+    (sessionId: string, content: string) => {
+      appendMessage(sessionId, 'user', content)
+      appendMessage(sessionId, 'assistant', 'This is a mocked reply for now.', {
+        model: 'mock-model',
+      })
+    },
+    [appendMessage],
+  )
+
+  const removeMessage = useCallback((messageId: string) => {
+    deleteMessage(messageId)
+    setMessages((prev) => prev.filter((message) => message.id !== messageId))
+  }, [])
+
+  const removeSession = useCallback((sessionId: string) => {
+    deleteSession(sessionId)
     setSessions((prev) => prev.filter((session) => session.id !== sessionId))
+    setMessages((prev) => prev.filter((message) => message.sessionId !== sessionId))
   }, [])
 
   return (
     <div className="app-shell">
       <Routes>
-        <Route path="/" element={<NewSessionRedirect onCreateSession={createSession} />} />
+        <Route path="/" element={<NewSessionRedirect onCreateSession={createSessionEntry} />} />
         <Route
           path="/chat/:sessionId"
           element={
             <ChatRoute
               sessions={sessions}
+              messages={messages}
+              messageCounts={messageCounts}
               drawerOpen={drawerOpen}
               onOpenDrawer={() => setDrawerOpen(true)}
               onCloseDrawer={() => setDrawerOpen(false)}
-              onCreateSession={createSession}
-              onRenameSession={renameSession}
-              onAddMessage={addMessage}
-              onDeleteSession={deleteSession}
+              onCreateSession={createSessionEntry}
+              onRenameSession={renameSessionEntry}
+              onSendMessage={sendMessage}
+              onDeleteMessage={removeMessage}
+              onDeleteSession={removeSession}
             />
           }
         />
@@ -109,27 +134,41 @@ const NewSessionRedirect = ({
 
 const ChatRoute = ({
   sessions,
+  messages,
+  messageCounts,
   drawerOpen,
   onOpenDrawer,
   onCloseDrawer,
   onCreateSession,
   onRenameSession,
-  onAddMessage,
+  onSendMessage,
+  onDeleteMessage,
   onDeleteSession,
 }: {
   sessions: ChatSession[]
+  messages: ChatMessage[]
+  messageCounts: Record<string, number>
   drawerOpen: boolean
   onOpenDrawer: () => void
   onCloseDrawer: () => void
   onCreateSession: (title?: string) => ChatSession
   onRenameSession: (sessionId: string, title: string) => void
-  onAddMessage: (sessionId: string, text: string) => void
+  onSendMessage: (sessionId: string, text: string) => void
+  onDeleteMessage: (messageId: string) => void
   onDeleteSession: (sessionId: string) => void
 }) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
 
   const activeSession = sessions.find((session) => session.id === sessionId)
+  const activeMessages = useMemo(() => {
+    return messages
+      .filter((message) => message.sessionId === sessionId)
+      .sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      )
+  }, [messages, sessionId])
 
   const handleCreateSession = () => {
     const newSession = onCreateSession()
@@ -175,12 +214,15 @@ const ChatRoute = ({
     <>
       <ChatPage
         session={activeSession}
+        messages={activeMessages}
         onOpenDrawer={onOpenDrawer}
-        onSendMessage={(text) => onAddMessage(activeSession.id, text)}
+        onSendMessage={(text) => onSendMessage(activeSession.id, text)}
+        onDeleteMessage={onDeleteMessage}
       />
       <SessionsDrawer
         open={drawerOpen}
         sessions={sessions}
+        messageCounts={messageCounts}
         activeSessionId={activeSession.id}
         onClose={onCloseDrawer}
         onCreateSession={handleCreateSession}
