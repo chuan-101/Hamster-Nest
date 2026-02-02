@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { ChatMessage, ChatSession } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -28,6 +28,7 @@ const ChatPage = ({
   const [draft, setDraft] = useState('')
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null)
+  const bottomRef = useRef<HTMLDivElement | null>(null)
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
@@ -66,6 +67,10 @@ const ChatPage = ({
     return openActionsId ? '关闭操作菜单' : '打开操作菜单'
   }, [openActionsId])
 
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages.length])
+
   return (
     <div className="chat-page">
       <header className="chat-header">
@@ -81,52 +86,59 @@ const ChatPage = ({
         </button>
       </header>
       <main className="chat-messages">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`message ${message.role === 'user' ? 'out' : 'in'}`}
-          >
-            <div className="bubble">
-              <p>{message.content}</p>
-              <div className="message-footer">
-                {message.role === 'assistant' && message.meta?.model ? (
-                  <span className="model-tag">{message.meta.model}</span>
+        {messages.length === 0 ? (
+          <div className="empty-state">
+            <p>暂无消息，开始聊点什么吧。</p>
+          </div>
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`message ${message.role === 'user' ? 'out' : 'in'}`}
+            >
+              <div className="bubble">
+                <p>{message.content}</p>
+                <div className="message-footer">
+                  {message.role === 'assistant' && message.meta?.model ? (
+                    <span className="model-tag">{message.meta.model}</span>
+                  ) : null}
+                  <span className="timestamp">{formatTime(message.createdAt)}</span>
+                </div>
+              </div>
+              <div className="message-actions">
+                <button
+                  type="button"
+                  className="ghost action-trigger"
+                  aria-expanded={openActionsId === message.id}
+                  aria-label={actionsLabel}
+                  onClick={() =>
+                    setOpenActionsId((current) =>
+                      current === message.id ? null : message.id,
+                    )
+                  }
+                >
+                  •••
+                </button>
+                {openActionsId === message.id ? (
+                  <div className="actions-menu" role="menu">
+                    <button type="button" role="menuitem" onClick={() => handleCopy(message)}>
+                      复制
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="danger"
+                      onClick={() => handleDelete(message)}
+                    >
+                      删除
+                    </button>
+                  </div>
                 ) : null}
-                <span className="timestamp">{formatTime(message.createdAt)}</span>
               </div>
             </div>
-            <div className="message-actions">
-              <button
-                type="button"
-                className="ghost action-trigger"
-                aria-expanded={openActionsId === message.id}
-                aria-label={actionsLabel}
-                onClick={() =>
-                  setOpenActionsId((current) =>
-                    current === message.id ? null : message.id,
-                  )
-                }
-              >
-                •••
-              </button>
-              {openActionsId === message.id ? (
-                <div className="actions-menu" role="menu">
-                  <button type="button" role="menuitem" onClick={() => handleCopy(message)}>
-                    复制
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="danger"
-                    onClick={() => handleDelete(message)}
-                  >
-                    删除
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ))}
+          ))
+        )}
+        <div ref={bottomRef} />
       </main>
       <form className="chat-composer" onSubmit={handleSubmit}>
         <textarea
