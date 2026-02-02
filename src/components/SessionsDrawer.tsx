@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { ChatSession } from '../types'
+import type { ChatSession } from '../types'
 import ConfirmDialog from './ConfirmDialog'
 import './SessionsDrawer.css'
 
 export type SessionsDrawerProps = {
   open: boolean
   sessions: ChatSession[]
+  messageCounts: Record<string, number>
   activeSessionId?: string
   onClose: () => void
   onCreateSession: () => void
@@ -17,6 +18,7 @@ export type SessionsDrawerProps = {
 const SessionsDrawer = ({
   open,
   sessions,
+  messageCounts,
   activeSessionId,
   onClose,
   onCreateSession,
@@ -73,24 +75,24 @@ const SessionsDrawer = ({
       <div className={`drawer-scrim ${open ? 'open' : ''}`} onClick={onClose} />
       <aside className={`sessions-drawer ${open ? 'open' : ''}`}>
         <div className="drawer-header">
-          <h2>Sessions</h2>
+          <h2>会话</h2>
           <button type="button" className="ghost" onClick={onClose}>
-            Close
+            关闭
           </button>
         </div>
         <button type="button" className="primary" onClick={onCreateSession}>
-          + New chat
+          + 新建聊天
         </button>
         <input
           className="search-input"
           type="search"
-          placeholder="Search sessions"
+          placeholder="搜索会话"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
         <div className="sessions-list">
           {filteredSessions.length === 0 ? (
-            <p className="empty">No sessions found.</p>
+            <p className="empty">未找到会话。</p>
           ) : (
             filteredSessions.map((session) => (
               <div
@@ -104,14 +106,14 @@ const SessionsDrawer = ({
                     <input
                       value={draftTitle}
                       onChange={(event) => setDraftTitle(event.target.value)}
-                      aria-label="Rename session"
+                      aria-label="重命名会话"
                     />
                     <div className="inline-actions">
                       <button type="button" onClick={handleConfirmRename}>
-                        Save
+                        保存
                       </button>
                       <button type="button" onClick={handleCancelRename}>
-                        Cancel
+                        取消
                       </button>
                     </div>
                   </div>
@@ -122,7 +124,9 @@ const SessionsDrawer = ({
                     onClick={() => onSelectSession(session.id)}
                   >
                     <span>{session.title}</span>
-                    <span className="count">{session.messages.length} msgs</span>
+                    <span className="count">
+                      {messageCounts[session.id] ?? 0} 条消息
+                    </span>
                   </button>
                 )}
                 {editingId !== session.id ? (
@@ -132,14 +136,14 @@ const SessionsDrawer = ({
                       className="ghost"
                       onClick={() => handleStartRename(session)}
                     >
-                      Rename
+                      重命名
                     </button>
                     <button
                       type="button"
                       className="danger"
                       onClick={() => setPendingDeleteId(session.id)}
                     >
-                      Delete
+                      删除
                     </button>
                   </div>
                 ) : null}
@@ -150,9 +154,9 @@ const SessionsDrawer = ({
       </aside>
       <ConfirmDialog
         open={pendingDeleteId !== null}
-        title="Delete session?"
-        description="This will remove the session and its messages."
-        confirmLabel="Delete"
+        title="删除该会话？"
+        description="此操作会删除该会话及其消息。"
+        confirmLabel="删除"
         onCancel={() => setPendingDeleteId(null)}
         onConfirm={handleDelete}
       />
