@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { ChatSession } from '../types'
+import type { ChatSession } from '../types'
 import ConfirmDialog from './ConfirmDialog'
 import './SessionsDrawer.css'
 
 export type SessionsDrawerProps = {
   open: boolean
   sessions: ChatSession[]
+  messageCounts: Record<string, number>
   activeSessionId?: string
   onClose: () => void
   onCreateSession: () => void
@@ -17,6 +18,7 @@ export type SessionsDrawerProps = {
 const SessionsDrawer = ({
   open,
   sessions,
+  messageCounts,
   activeSessionId,
   onClose,
   onCreateSession,
@@ -122,7 +124,9 @@ const SessionsDrawer = ({
                     onClick={() => onSelectSession(session.id)}
                   >
                     <span>{session.title}</span>
-                    <span className="count">{session.messages.length} msgs</span>
+                    <span className="count">
+                      {messageCounts[session.id] ?? 0} msgs
+                    </span>
                   </button>
                 )}
                 {editingId !== session.id ? (
