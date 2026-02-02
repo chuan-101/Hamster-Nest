@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../supabase/client'
@@ -17,6 +17,30 @@ const AuthPage = ({ user }: AuthPageProps) => {
   const [verifying, setVerifying] = useState(false)
   const navigate = useNavigate()
 
+  useEffect(() => {
+    if (!supabase) {
+      return
+    }
+    let active = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) {
+        return
+      }
+      if (data.session?.user) {
+        navigate('/')
+      }
+    })
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        navigate('/')
+      }
+    })
+    return () => {
+      active = false
+      data.subscription.unsubscribe()
+    }
+  }, [navigate])
+
   const handleSendOtp = useCallback(async () => {
     const trimmed = email.trim()
     if (!trimmed) {
@@ -32,6 +56,9 @@ const AuthPage = ({ user }: AuthPageProps) => {
     setStatus(null)
     const { error: signInError } = await supabase.auth.signInWithOtp({
       email: trimmed,
+      options: {
+        emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}#/auth`,
+      },
     })
     setSending(false)
     if (signInError) {

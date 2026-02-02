@@ -269,10 +269,7 @@ const App = () => {
   return (
     <div className="app-shell">
       <Routes>
-        <Route
-          path="/login"
-          element={<AuthPage user={user} />}
-        />
+        <Route path="/auth" element={<AuthPage user={user} />} />
         <Route
           path="/"
           element={
@@ -325,7 +322,7 @@ const RequireAuth = ({
     )
   }
   if (!user) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/auth" replace />
   }
   return children
 }
