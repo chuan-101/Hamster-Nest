@@ -1,0 +1,53 @@
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 40;
+}
+
+.confirm-dialog {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  width: min(360px, 100%);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+}
+
+.confirm-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.confirm-dialog p {
+  margin: 0 0 16px;
+  color: #475569;
+  font-size: 14px;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-actions .secondary {
+  background: #e2e8f0;
+  color: #1f2937;
+}
+
+.confirm-actions .primary {
+  background: #0f172a;
+  color: #fff;
+}
+
+.confirm-actions button {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
