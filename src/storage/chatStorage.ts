@@ -30,11 +30,24 @@ const readSnapshot = (): StorageSnapshot => {
   }
 }
 
-const writeSnapshot = (snapshot: StorageSnapshot) => {
+const snapshot: StorageSnapshot = readSnapshot()
+let pendingWrite: ReturnType<typeof setTimeout> | null = null
+
+const scheduleWrite = () => {
   if (typeof localStorage === 'undefined') {
     return
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+  if (pendingWrite) {
+    return
+  }
+  pendingWrite = setTimeout(() => {
+    pendingWrite = null
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+    } catch (error) {
+      console.warn('Failed to persist chat storage', error)
+    }
+  }, 150)
 }
 
 const sortSessions = (sessions: ChatSession[]) =>
@@ -48,7 +61,8 @@ const sortMessages = (messages: ChatMessage[]) =>
   )
 
 export const loadSnapshot = (): StorageSnapshot => {
-  const snapshot = readSnapshot()
+  snapshot.sessions = sortSessions(snapshot.sessions)
+  snapshot.messages = sortMessages(snapshot.messages)
   return {
     sessions: sortSessions(snapshot.sessions),
     messages: sortMessages(snapshot.messages),
@@ -56,7 +70,6 @@ export const loadSnapshot = (): StorageSnapshot => {
 }
 
 export const createSession = (title?: string): ChatSession => {
-  const snapshot = readSnapshot()
   const now = new Date().toISOString()
   const session: ChatSession = {
     id: createId(),
@@ -64,15 +77,14 @@ export const createSession = (title?: string): ChatSession => {
     createdAt: now,
     updatedAt: now,
   }
-  const sessions = sortSessions([...snapshot.sessions, session])
-  writeSnapshot({ ...snapshot, sessions })
+  snapshot.sessions = sortSessions([...snapshot.sessions, session])
+  scheduleWrite()
   return session
 }
 
 export const renameSession = (sessionId: string, title: string): ChatSession | null => {
-  const snapshot = readSnapshot()
   let updatedSession: ChatSession | null = null
-  const sessions = snapshot.sessions.map((session) => {
+  snapshot.sessions = snapshot.sessions.map((session) => {
     if (session.id !== sessionId) {
       return session
     }
@@ -82,7 +94,7 @@ export const renameSession = (sessionId: string, title: string): ChatSession | n
   if (!updatedSession) {
     return null
   }
-  writeSnapshot({ ...snapshot, sessions })
+  scheduleWrite()
   return updatedSession
 }
 
@@ -92,7 +104,6 @@ export const addMessage = (
   content: string,
   meta?: ChatMessage['meta'],
 ): { message: ChatMessage; session: ChatSession } | null => {
-  const snapshot = readSnapshot()
   const now = new Date().toISOString()
   const sessionIndex = snapshot.sessions.findIndex((session) => session.id === sessionId)
   if (sessionIndex === -1) {
@@ -109,20 +120,19 @@ export const addMessage = (
   const sessions = [...snapshot.sessions]
   const updatedSession = { ...sessions[sessionIndex], updatedAt: now }
   sessions[sessionIndex] = updatedSession
-  const messages = [...snapshot.messages, message]
-  writeSnapshot({ sessions, messages })
+  snapshot.sessions = sessions
+  snapshot.messages = [...snapshot.messages, message]
+  scheduleWrite()
   return { message, session: updatedSession }
 }
 
 export const deleteMessage = (messageId: string) => {
-  const snapshot = readSnapshot()
-  const messages = snapshot.messages.filter((message) => message.id !== messageId)
-  writeSnapshot({ ...snapshot, messages })
+  snapshot.messages = snapshot.messages.filter((message) => message.id !== messageId)
+  scheduleWrite()
 }
 
 export const deleteSession = (sessionId: string) => {
-  const snapshot = readSnapshot()
-  const sessions = snapshot.sessions.filter((session) => session.id !== sessionId)
-  const messages = snapshot.messages.filter((message) => message.sessionId !== sessionId)
-  writeSnapshot({ sessions, messages })
+  snapshot.sessions = snapshot.sessions.filter((session) => session.id !== sessionId)
+  snapshot.messages = snapshot.messages.filter((message) => message.sessionId !== sessionId)
+  scheduleWrite()
 }
