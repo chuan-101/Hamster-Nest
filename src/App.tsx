@@ -187,13 +187,12 @@ const ChatRoute = ({
   const handleDeleteSession = useCallback(
     (id: string) => {
       let nextSessionId: string | null = null
-      onDeleteSession(id)
       if (activeSession?.id === id) {
         const remaining = sessions.filter((session) => session.id !== id)
         if (remaining.length > 0) {
           nextSessionId = remaining[0].id
         } else {
-          const newSession = onCreateSession('新的开始')
+          const newSession = onCreateSession('新会话')
           nextSessionId = newSession.id
         }
       }
@@ -201,13 +200,14 @@ const ChatRoute = ({
       if (nextSessionId) {
         navigate(`/chat/${nextSessionId}`, { replace: true })
       }
+      onDeleteSession(id)
     },
     [activeSession?.id, navigate, onCreateSession, onDeleteSession, sessions],
   )
 
   useEffect(() => {
     if (!activeSession) {
-      const fallback = onCreateSession('已恢复的会话')
+      const fallback = onCreateSession('新会话')
       navigate(`/chat/${fallback.id}`, { replace: true })
     }
   }, [activeSession, navigate, onCreateSession])
