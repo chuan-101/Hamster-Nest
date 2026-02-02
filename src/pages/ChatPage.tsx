@@ -8,8 +8,8 @@ export type ChatPageProps = {
   session: ChatSession
   messages: ChatMessage[]
   onOpenDrawer: () => void
-  onSendMessage: (text: string) => void
-  onDeleteMessage: (messageId: string) => void
+  onSendMessage: (text: string) => void | Promise<void>
+  onDeleteMessage: (messageId: string) => void | Promise<void>
 }
 
 const formatTime = (timestamp: string) =>

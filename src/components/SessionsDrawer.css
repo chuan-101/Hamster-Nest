@@ -41,6 +41,17 @@
   justify-content: space-between;
 }
 
+.drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.syncing {
+  font-size: 12px;
+  color: #64748b;
+}
+
 .drawer-header h2 {
   margin: 0;
   font-size: 18px;
