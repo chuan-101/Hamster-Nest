@@ -690,6 +690,8 @@ const App = () => {
                 messageCounts={messageCounts}
                 drawerOpen={drawerOpen}
                 syncing={syncing}
+                isStreaming={isStreaming}
+                onStopStreaming={handleStopStreaming}
                 onOpenDrawer={() => setDrawerOpen(true)}
                 onCloseDrawer={() => setDrawerOpen(false)}
                 onCreateSession={createSessionEntry}
@@ -769,6 +771,8 @@ const ChatRoute = ({
   messageCounts,
   drawerOpen,
   syncing,
+  isStreaming,
+  onStopStreaming,
   onOpenDrawer,
   onCloseDrawer,
   onCreateSession,
@@ -776,12 +780,16 @@ const ChatRoute = ({
   onSendMessage,
   onDeleteMessage,
   onDeleteSession,
+  isStreaming,
+  onStopStreaming,
 }: {
   sessions: ChatSession[]
   messages: ChatMessage[]
   messageCounts: Record<string, number>
   drawerOpen: boolean
   syncing: boolean
+  isStreaming: boolean
+  onStopStreaming: () => void
   onOpenDrawer: () => void
   onCloseDrawer: () => void
   onCreateSession: (title?: string) => Promise<ChatSession>
