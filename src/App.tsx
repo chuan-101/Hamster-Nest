@@ -99,8 +99,11 @@ const App = () => {
   const [user, setUser] = useState<User | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [pingStatus, setPingStatus] = useState<string | null>(null)
+  const [pinging, setPinging] = useState(false)
   const sessionsRef = useRef(sessions)
   const messagesRef = useRef(messages)
+  const enableInvokePing = import.meta.env.DEV
 
   useEffect(() => {
     sessionsRef.current = sessions
@@ -118,7 +121,7 @@ const App = () => {
     setSessions(orderedSessions)
     setMessages(orderedMessages)
     setSnapshot({ sessions: orderedSessions, messages: orderedMessages })
-  }, [])
+  }, [supabase])
 
   const refreshRemoteSessions = useCallback(async () => {
     if (!user || !supabase) {
@@ -135,6 +138,36 @@ const App = () => {
       setSyncing(false)
     }
   }, [applySnapshot, user])
+
+  const handleInvokePing = useCallback(async () => {
+    if (!supabase) {
+      setPingStatus('Supabase 未初始化')
+      return
+    }
+    setPinging(true)
+    setPingStatus(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('openrouter-chat', {
+        body: { ping: true },
+      })
+      if (error) {
+        console.warn('Ping 函数失败', error)
+        setPingStatus(`Ping 失败：${error.message}`)
+        return
+      }
+      console.info('Ping 函数返回', data)
+      if (data?.ok) {
+        setPingStatus('Ping 成功：函数已响应')
+      } else {
+        setPingStatus('Ping 返回异常')
+      }
+    } catch (error) {
+      console.warn('Ping 函数异常', error)
+      setPingStatus('Ping 失败：请求异常')
+    } finally {
+      setPinging(false)
+    }
+  }, [supabase])
 
   useEffect(() => {
     if (!supabase) {
@@ -362,12 +395,12 @@ const App = () => {
           const { data } = await supabase.auth.getSession()
           const accessToken = data.session?.access_token
           if (!accessToken) {
-            window.alert('未获取到登录凭证，请重新登录。')
+            window.alert('登录状态异常，请重新登录')
             return
           }
           const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
           if (!anonKey) {
-            window.alert('服务未配置，请稍后重试。')
+            window.alert('Supabase 环境变量未配置')
             return
           }
           const messagesPayload = buildOpenAiMessages(sessionId, messagesRef.current)
@@ -542,6 +575,15 @@ const App = () => {
 
   return (
     <div className="app-shell">
+      {enableInvokePing ? (
+        <div className="dev-ping">
+          <span>调试：函数连接检查</span>
+          <button type="button" onClick={handleInvokePing} disabled={pinging}>
+            {pinging ? '检查中...' : 'Ping 函数'}
+          </button>
+          {pingStatus ? <span className="dev-ping__status">{pingStatus}</span> : null}
+        </div>
+      ) : null}
       <Routes>
         <Route path="/auth" element={<AuthPage user={user} />} />
         <Route

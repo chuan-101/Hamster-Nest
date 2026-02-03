@@ -14,6 +14,10 @@ type OpenRouterPayload = {
   stream?: boolean
 }
 
+type PingPayload = {
+  ping: true
+}
+
 const allowedOrigins = [/^https:\/\/.+\.github\.io$/, /^http:\/\/localhost:\d+$/]
 
 const isAllowedOrigin = (origin: string | null) => {
@@ -25,7 +29,7 @@ const isAllowedOrigin = (origin: string | null) => {
 
 const buildCorsHeaders = (origin: string | null) => ({
   'Access-Control-Allow-Origin': origin ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Max-Age': '86400',
 })
@@ -60,10 +64,12 @@ serve(async (req) => {
     })
   }
 
-  const apiKey = Deno.env.get('OPENROUTER_API_KEY')
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: '服务未配置' }), {
-      status: 500,
+  let payload: OpenRouterPayload | PingPayload
+  try {
+    payload = await req.json()
+  } catch {
+    return new Response(JSON.stringify({ error: '请求体格式错误' }), {
+      status: 400,
       headers: {
         ...buildCorsHeaders(origin),
         'Content-Type': 'application/json',
@@ -71,12 +77,20 @@ serve(async (req) => {
     })
   }
 
-  let payload: OpenRouterPayload
-  try {
-    payload = await req.json()
-  } catch {
-    return new Response(JSON.stringify({ error: '请求体格式错误' }), {
-      status: 400,
+  if ('ping' in payload && payload.ping) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: {
+        ...buildCorsHeaders(origin),
+        'Content-Type': 'application/json',
+      },
+    })
+  }
+
+  const apiKey = Deno.env.get('OPENROUTER_API_KEY')
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: '服务未配置' }), {
+      status: 500,
       headers: {
         ...buildCorsHeaders(origin),
         'Content-Type': 'application/json',
