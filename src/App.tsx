@@ -6,7 +6,6 @@ import AuthPage from './pages/AuthPage'
 import SessionsDrawer from './components/SessionsDrawer'
 import type { ChatMessage, ChatSession } from './types'
 import {
-  addMessage,
   createSession,
   deleteMessage,
   deleteSession,
@@ -33,7 +32,58 @@ const sortSessions = (sessions: ChatSession[]) =>
 
 const sortMessages = (messages: ChatMessage[]) =>
   [...messages].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    (a, b) =>
+      new Date(a.clientCreatedAt ?? a.createdAt).getTime() -
+        new Date(b.clientCreatedAt ?? b.createdAt).getTime() ||
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  )
+
+const mergeSessions = (localSessions: ChatSession[], remoteSessions: ChatSession[]) => {
+  const merged = new Map(localSessions.map((session) => [session.id, session]))
+  remoteSessions.forEach((session) => {
+    merged.set(session.id, session)
+  })
+  return sortSessions(Array.from(merged.values()))
+}
+
+const mergeMessages = (localMessages: ChatMessage[], remoteMessages: ChatMessage[]) => {
+  const merged = [...localMessages]
+  remoteMessages.forEach((message) => {
+    const index = merged.findIndex(
+      (existing) => existing.id === message.id || existing.clientId === message.clientId,
+    )
+    if (index === -1) {
+      merged.push(message)
+      return
+    }
+    const existing = merged[index]
+    merged[index] = {
+      ...existing,
+      ...message,
+      clientId: message.clientId ?? existing.clientId,
+      clientCreatedAt: message.clientCreatedAt ?? existing.clientCreatedAt,
+      pending: message.pending ?? false,
+    }
+  })
+  return sortMessages(merged)
+}
+
+const createClientId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+const updateMessage = (messages: ChatMessage[], next: ChatMessage) =>
+  sortMessages(
+    messages.map((message) =>
+      message.id === next.id || message.clientId === next.clientId
+        ? {
+            ...message,
+            ...next,
+            clientId: next.clientId ?? message.clientId,
+            clientCreatedAt: next.clientCreatedAt ?? message.clientCreatedAt,
+            pending: next.pending ?? false,
+          }
+        : message,
+    ),
   )
 
 const initialSnapshot = loadSnapshot()
@@ -104,7 +154,9 @@ const App = () => {
         if (!active) {
           return
         }
-        applySnapshot(remoteSessions, remoteMessages)
+        const nextSessions = mergeSessions(sessionsRef.current, remoteSessions)
+        const nextMessages = mergeMessages(messagesRef.current, remoteMessages)
+        applySnapshot(nextSessions, nextMessages)
       } catch (error) {
         console.warn('无法加载 Supabase 数据', error)
       } finally {
@@ -171,64 +223,125 @@ const App = () => {
     [applySnapshot, user],
   )
 
-  const appendMessage = useCallback(
-    async (
-      sessionId: string,
-      role: ChatMessage['role'],
-      content: string,
-      meta?: ChatMessage['meta'],
-    ) => {
-      if (user && supabase) {
+  const sendMessage = useCallback(
+    async (sessionId: string, content: string) => {
+      const clientId = createClientId()
+      const clientCreatedAt = new Date().toISOString()
+      const optimisticMessage: ChatMessage = {
+        id: clientId,
+        sessionId,
+        role: 'user',
+        content,
+        createdAt: clientCreatedAt,
+        clientId,
+        clientCreatedAt,
+        pending: true,
+      }
+      const nextMessages = sortMessages([...messagesRef.current, optimisticMessage])
+      const nextSessions = sessionsRef.current.map((session) =>
+        session.id === sessionId ? { ...session, updatedAt: clientCreatedAt } : session,
+      )
+      applySnapshot(nextSessions, nextMessages)
+
+      const persist = async () => {
+        const assistantContent = '这是一个模拟回复。'
+        const assistantClientId = createClientId()
+        const assistantClientCreatedAt = new Date(
+          new Date(clientCreatedAt).getTime() + 200,
+        ).toISOString()
+
+        if (!user || !supabase) {
+          const localMessages = updateMessage(messagesRef.current, {
+            ...optimisticMessage,
+            pending: false,
+          })
+          const assistantMessage: ChatMessage = {
+            id: assistantClientId,
+            sessionId,
+            role: 'assistant',
+            content: assistantContent,
+            createdAt: assistantClientCreatedAt,
+            clientId: assistantClientId,
+            clientCreatedAt: assistantClientCreatedAt,
+            meta: { model: 'mock-model' },
+            pending: false,
+          }
+          const localNextMessages = sortMessages([...localMessages, assistantMessage])
+          const localNextSessions = sessionsRef.current.map((session) =>
+            session.id === sessionId
+              ? { ...session, updatedAt: assistantClientCreatedAt }
+              : session,
+          )
+          applySnapshot(localNextSessions, localNextMessages)
+          return
+        }
+
         try {
-          const { message, updatedAt } = await addRemoteMessage(
+          const { message: savedUserMessage, updatedAt } = await addRemoteMessage(
             sessionId,
             user.id,
-            role,
+            'user',
             content,
-            meta,
+            clientId,
+            clientCreatedAt,
           )
-          const nextMessages = [...messagesRef.current, message]
-          const nextSessions = sessionsRef.current.map((session) =>
+          const updatedMessages = updateMessage(messagesRef.current, {
+            ...savedUserMessage,
+            pending: false,
+          })
+          const updatedSessions = sessionsRef.current.map((session) =>
             session.id === sessionId ? { ...session, updatedAt } : session,
           )
-          applySnapshot(nextSessions, nextMessages)
-          return message
+          applySnapshot(updatedSessions, updatedMessages)
         } catch (error) {
-          console.warn('写入云端消息失败，已切换本地存储', error)
+          console.warn('写入云端消息失败', error)
+          window.alert('发送失败，请稍后重试。')
+          return
+        }
+
+        try {
+          const { message: assistantMessage, updatedAt } = await addRemoteMessage(
+            sessionId,
+            user.id,
+            'assistant',
+            assistantContent,
+            assistantClientId,
+            assistantClientCreatedAt,
+            { model: 'mock-model' },
+          )
+          const updatedMessages = sortMessages([...messagesRef.current, assistantMessage])
+          const updatedSessions = sessionsRef.current.map((session) =>
+            session.id === sessionId ? { ...session, updatedAt } : session,
+          )
+          applySnapshot(updatedSessions, updatedMessages)
+        } catch (error) {
+          console.warn('写入云端模拟回复失败', error)
+          window.alert('模拟回复发送失败，请稍后重试。')
         }
       }
-      const result = addMessage(sessionId, role, content, meta)
-      if (!result) {
-        return null
-      }
-      setMessages((prev) => [...prev, result.message])
-      setSessions((prev) =>
-        prev.map((session) =>
-          session.id === sessionId ? result.session : session,
-        ),
-      )
-      return result.message
+
+      void persist()
     },
     [applySnapshot, user],
   )
 
-  const sendMessage = useCallback(
-    async (sessionId: string, content: string) => {
-      await appendMessage(sessionId, 'user', content)
-      await appendMessage(sessionId, 'assistant', '这是一个模拟回复。', {
-        model: '模拟模型',
-      })
-    },
-    [appendMessage],
-  )
-
   const removeMessage = useCallback(
     async (messageId: string) => {
+      const targetMessage = messagesRef.current.find(
+        (message) => message.id === messageId || message.clientId === messageId,
+      )
+      if (targetMessage?.pending) {
+        const nextMessages = messagesRef.current.filter(
+          (message) => message.id !== messageId && message.clientId !== messageId,
+        )
+        applySnapshot(sessionsRef.current, nextMessages)
+        return
+      }
       if (user && supabase) {
         try {
           await deleteRemoteMessage(messageId)
           const nextMessages = messagesRef.current.filter(
-            (message) => message.id !== messageId,
+            (message) => message.id !== messageId && message.clientId !== messageId,
           )
           applySnapshot(sessionsRef.current, nextMessages)
           return
@@ -237,7 +350,9 @@ const App = () => {
         }
       }
       deleteMessage(messageId)
-      setMessages((prev) => prev.filter((message) => message.id !== messageId))
+      setMessages((prev) =>
+        prev.filter((message) => message.id !== messageId && message.clientId !== messageId),
+      )
     },
     [applySnapshot, user],
   )
@@ -386,6 +501,8 @@ const ChatRoute = ({
       .filter((message) => message.sessionId === sessionId)
       .sort(
         (a, b) =>
+          new Date(a.clientCreatedAt ?? a.createdAt).getTime() -
+            new Date(b.clientCreatedAt ?? b.createdAt).getTime() ||
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       )
   }, [messages, sessionId])

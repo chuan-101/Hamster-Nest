@@ -10,6 +10,19 @@ type StorageSnapshot = {
 const createId = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
+const ensureMessageFields = (message: ChatMessage): ChatMessage => {
+  const clientId = message.clientId ?? message.id ?? createId()
+  const clientCreatedAt = message.clientCreatedAt ?? message.createdAt ?? null
+  return {
+    ...message,
+    id: message.id ?? clientId,
+    clientId,
+    clientCreatedAt,
+    createdAt: message.createdAt ?? clientCreatedAt ?? new Date().toISOString(),
+    pending: message.pending ?? false,
+  }
+}
+
 const readSnapshot = (): StorageSnapshot => {
   if (typeof localStorage === 'undefined') {
     return { sessions: [], messages: [] }
@@ -57,21 +70,24 @@ const sortSessions = (sessions: ChatSession[]) =>
 
 const sortMessages = (messages: ChatMessage[]) =>
   [...messages].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    (a, b) =>
+      new Date(a.clientCreatedAt ?? a.createdAt).getTime() -
+        new Date(b.clientCreatedAt ?? b.createdAt).getTime() ||
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   )
 
 export const loadSnapshot = (): StorageSnapshot => {
   snapshot.sessions = sortSessions(snapshot.sessions)
-  snapshot.messages = sortMessages(snapshot.messages)
+  snapshot.messages = sortMessages(snapshot.messages.map(ensureMessageFields))
   return {
     sessions: sortSessions(snapshot.sessions),
-    messages: sortMessages(snapshot.messages),
+    messages: sortMessages(snapshot.messages.map(ensureMessageFields)),
   }
 }
 
 export const setSnapshot = (next: StorageSnapshot) => {
   snapshot.sessions = sortSessions(next.sessions)
-  snapshot.messages = sortMessages(next.messages)
+  snapshot.messages = sortMessages(next.messages.map(ensureMessageFields))
   scheduleWrite()
 }
 
@@ -109,19 +125,30 @@ export const addMessage = (
   role: ChatMessage['role'],
   content: string,
   meta?: ChatMessage['meta'],
+  options?: {
+    clientId?: string
+    clientCreatedAt?: string
+    createdAt?: string
+    pending?: boolean
+  },
 ): { message: ChatMessage; session: ChatSession } | null => {
-  const now = new Date().toISOString()
+  const now = options?.createdAt ?? new Date().toISOString()
   const sessionIndex = snapshot.sessions.findIndex((session) => session.id === sessionId)
   if (sessionIndex === -1) {
     return null
   }
+  const clientId = options?.clientId ?? createId()
+  const clientCreatedAt = options?.clientCreatedAt ?? now
   const message: ChatMessage = {
-    id: createId(),
+    id: options?.pending ? clientId : createId(),
     sessionId,
     role,
     content,
     createdAt: now,
+    clientId,
+    clientCreatedAt,
     meta,
+    pending: options?.pending ?? false,
   }
   const sessions = [...snapshot.sessions]
   const updatedSession = { ...sessions[sessionIndex], updatedAt: now }
