@@ -25,7 +25,7 @@ const isAllowedOrigin = (origin: string | null) => {
 
 const buildCorsHeaders = (origin: string | null) => ({
   'Access-Control-Allow-Origin': origin ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Max-Age': '86400',
 })
