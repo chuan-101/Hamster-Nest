@@ -8,7 +8,7 @@ export type ChatPageProps = {
   session: ChatSession
   messages: ChatMessage[]
   onOpenDrawer: () => void
-  onSendMessage: (text: string) => void | Promise<void>
+  onSendMessage: (text: string) => Promise<void>
   onDeleteMessage: (messageId: string) => void | Promise<void>
 }
 
@@ -30,13 +30,13 @@ const ChatPage = ({
   const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     const trimmed = draft.trim()
     if (!trimmed) {
       return
     }
-    onSendMessage(trimmed)
+    await onSendMessage(trimmed)
     setDraft('')
   }
 
@@ -100,7 +100,9 @@ const ChatPage = ({
                 <p>{message.content}</p>
                 <div className="message-footer">
                   {message.role === 'assistant' && message.meta?.model ? (
-                    <span className="model-tag">{message.meta.model}</span>
+                    <span className="model-tag">
+                      {message.meta.model === 'mock-model' ? '模拟模型' : message.meta.model}
+                    </span>
                   ) : null}
                   <span className="timestamp">{formatTime(message.createdAt)}</span>
                 </div>
