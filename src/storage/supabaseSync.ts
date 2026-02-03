@@ -147,6 +147,7 @@ export const addRemoteMessage = async (
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const safeMeta = meta ?? {}
   const now = new Date().toISOString()
   const { data, error } = await supabase
     .from('messages')
@@ -158,7 +159,7 @@ export const addRemoteMessage = async (
       created_at: now,
       client_id: clientId,
       client_created_at: clientCreatedAt,
-      meta: meta ?? null,
+      meta: safeMeta,
     })
     .select('id,session_id,user_id,role,content,created_at,client_id,client_created_at,meta')
     .single()

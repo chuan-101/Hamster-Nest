@@ -235,6 +235,7 @@ const App = () => {
         createdAt: clientCreatedAt,
         clientId,
         clientCreatedAt,
+        meta: {},
         pending: true,
       }
       const nextMessages = sortMessages([...messagesRef.current, optimisticMessage])
@@ -263,7 +264,7 @@ const App = () => {
             createdAt: assistantClientCreatedAt,
             clientId: assistantClientId,
             clientCreatedAt: assistantClientCreatedAt,
-            meta: { model: 'mock-model' },
+            meta: { model: 'mock-model', provider: 'mock' },
             pending: false,
           }
           const localNextMessages = sortMessages([...localMessages, assistantMessage])
@@ -284,6 +285,7 @@ const App = () => {
             content,
             clientId,
             clientCreatedAt,
+            {},
           )
           const updatedMessages = updateMessage(messagesRef.current, {
             ...savedUserMessage,
@@ -307,7 +309,7 @@ const App = () => {
             assistantContent,
             assistantClientId,
             assistantClientCreatedAt,
-            { model: 'mock-model' },
+            { model: 'mock-model', provider: 'mock' },
           )
           const updatedMessages = sortMessages([...messagesRef.current, assistantMessage])
           const updatedSessions = sessionsRef.current.map((session) =>
@@ -389,7 +391,10 @@ const App = () => {
           path="/"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <NewSessionRedirect onCreateSession={createSessionEntry} />
+              <NewSessionRedirect
+                sessions={sessions}
+                onCreateSession={createSessionEntry}
+              />
             </RequireAuth>
           }
         />
@@ -443,14 +448,25 @@ const RequireAuth = ({
 }
 
 const NewSessionRedirect = ({
+  sessions,
   onCreateSession,
 }: {
+  sessions: ChatSession[]
   onCreateSession: (title?: string) => Promise<ChatSession>
 }) => {
   const navigate = useNavigate()
+  const hasInitializedRef = useRef(false)
   useEffect(() => {
+    if (hasInitializedRef.current) {
+      return
+    }
+    hasInitializedRef.current = true
     let active = true
     const create = async () => {
+      if (sessions.length > 0) {
+        navigate(`/chat/${sessions[0].id}`, { replace: true })
+        return
+      }
       const newSession = await onCreateSession()
       if (!active) {
         return
@@ -461,7 +477,7 @@ const NewSessionRedirect = ({
     return () => {
       active = false
     }
-  }, [navigate, onCreateSession])
+  }, [navigate, onCreateSession, sessions])
   return null
 }
 
@@ -543,18 +559,10 @@ const ChatRoute = ({
   )
 
   useEffect(() => {
-    if (!activeSession) {
-      if (sessions.length > 0) {
-        navigate(`/chat/${sessions[0].id}`, { replace: true })
-      } else {
-        const ensureSession = async () => {
-          const fallback = await onCreateSession('新会话')
-          navigate(`/chat/${fallback.id}`, { replace: true })
-        }
-        ensureSession()
-      }
+    if (!activeSession && sessions.length > 0) {
+      navigate(`/chat/${sessions[0].id}`, { replace: true })
     }
-  }, [activeSession, navigate, onCreateSession, sessions])
+  }, [activeSession, navigate, sessions])
 
   if (!activeSession) {
     return null
