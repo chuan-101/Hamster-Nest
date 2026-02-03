@@ -362,7 +362,13 @@ const App = () => {
           const { data } = await supabase.auth.getSession()
           const accessToken = data.session?.access_token
           if (!accessToken) {
-            throw new Error('未获取到登录凭证')
+            window.alert('未获取到登录凭证，请重新登录。')
+            return
+          }
+          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+          if (!anonKey) {
+            window.alert('服务未配置，请稍后重试。')
+            return
           }
           const messagesPayload = buildOpenAiMessages(sessionId, messagesRef.current)
           const response = await fetch(
@@ -371,6 +377,7 @@ const App = () => {
               method: 'POST',
               headers: {
                 Authorization: `Bearer ${accessToken}`,
+                apikey: anonKey,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
@@ -416,19 +423,15 @@ const App = () => {
                   assistantContent += delta
                   const streamingUpdate = updateMessage(messagesRef.current, {
                     id: assistantClientId,
-                    sessionId,
-                    role: 'assistant',
                     clientId: assistantClientId,
                     content: assistantContent,
-                    createdAt: assistantClientCreatedAt,
-                    clientCreatedAt: assistantClientCreatedAt,
                     meta: {
                       model: actualModel,
                       provider: 'openrouter',
                       streaming: true,
-                     },
-                     pending: true,
-                   })
+                    },
+                    pending: true,
+                  })
                   applySnapshot(sessionsRef.current, streamingUpdate)
                 }
               } catch (error) {
@@ -458,12 +461,8 @@ const App = () => {
           console.warn('流式回复失败', error)
           const failedMessages = updateMessage(messagesRef.current, {
             id: assistantClientId,
-            sessionId,
-            role: 'assistant',
             clientId: assistantClientId,
             content: assistantContent || '回复失败，请稍后重试。',
-            createdAt: assistantClientCreatedAt,
-            clientCreatedAt: assistantClientCreatedAt,
             meta: { model: actualModel, provider: 'openrouter', streaming: false },
             pending: false,
           })
