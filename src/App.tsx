@@ -416,15 +416,19 @@ const App = () => {
                   assistantContent += delta
                   const streamingUpdate = updateMessage(messagesRef.current, {
                     id: assistantClientId,
+                    sessionId,
+                    role: 'assistant',
                     clientId: assistantClientId,
                     content: assistantContent,
+                    createdAt: assistantClientCreatedAt,
+                    clientCreatedAt: assistantClientCreatedAt,
                     meta: {
                       model: actualModel,
                       provider: 'openrouter',
                       streaming: true,
-                    },
-                    pending: true,
-                  })
+                     },
+                     pending: true,
+                   })
                   applySnapshot(sessionsRef.current, streamingUpdate)
                 }
               } catch (error) {
@@ -454,8 +458,12 @@ const App = () => {
           console.warn('流式回复失败', error)
           const failedMessages = updateMessage(messagesRef.current, {
             id: assistantClientId,
+            sessionId,
+            role: 'assistant',
             clientId: assistantClientId,
             content: assistantContent || '回复失败，请稍后重试。',
+            createdAt: assistantClientCreatedAt,
+            clientCreatedAt: assistantClientCreatedAt,
             meta: { model: actualModel, provider: 'openrouter', streaming: false },
             pending: false,
           })
