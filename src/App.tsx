@@ -362,12 +362,12 @@ const App = () => {
           const { data } = await supabase.auth.getSession()
           const accessToken = data.session?.access_token
           if (!accessToken) {
-            window.alert('未获取到登录凭证，请重新登录。')
+            window.alert('登录状态异常，请重新登录')
             return
           }
           const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
           if (!anonKey) {
-            window.alert('服务未配置，请稍后重试。')
+            window.alert('Supabase 环境变量未配置')
             return
           }
           const messagesPayload = buildOpenAiMessages(sessionId, messagesRef.current)
