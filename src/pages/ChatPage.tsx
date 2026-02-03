@@ -10,6 +10,8 @@ export type ChatPageProps = {
   onOpenDrawer: () => void
   onSendMessage: (text: string) => Promise<void>
   onDeleteMessage: (messageId: string) => void | Promise<void>
+  isStreaming: boolean
+  onStopStreaming: () => void
 }
 
 const formatTime = (timestamp: string) =>
@@ -24,6 +26,8 @@ const ChatPage = ({
   onOpenDrawer,
   onSendMessage,
   onDeleteMessage,
+  isStreaming,
+  onStopStreaming,
 }: ChatPageProps) => {
   const [draft, setDraft] = useState('')
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
@@ -143,15 +147,25 @@ const ChatPage = ({
         <div ref={bottomRef} />
       </main>
       <form className="chat-composer" onSubmit={handleSubmit}>
-        <textarea
-          placeholder="输入你的消息"
-          rows={2}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <button type="submit" className="primary">
-          发送
-        </button>
+        {isStreaming ? (
+          <div className="streaming-status">
+            <span>生成中…</span>
+            <button type="button" className="ghost stop-button" onClick={onStopStreaming}>
+              停止生成
+            </button>
+          </div>
+        ) : null}
+        <div className="composer-row">
+          <textarea
+            placeholder="输入你的消息"
+            rows={2}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+          />
+          <button type="submit" className="primary">
+            发送
+          </button>
+        </div>
       </form>
       <ConfirmDialog
         open={pendingDelete !== null}

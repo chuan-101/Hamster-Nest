@@ -101,8 +101,10 @@ const App = () => {
   const [syncing, setSyncing] = useState(false)
   const [pingStatus, setPingStatus] = useState<string | null>(null)
   const [pinging, setPinging] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
   const sessionsRef = useRef(sessions)
   const messagesRef = useRef(messages)
+  const streamingControllerRef = useRef<AbortController | null>(null)
   const enableInvokePing = import.meta.env.DEV
 
   useEffect(() => {
@@ -391,6 +393,43 @@ const App = () => {
 
         let assistantContent = ''
         let actualModel = defaultOpenRouterModel
+        let pendingDelta = ''
+        let flushTimer: number | null = null
+
+        const flushPending = () => {
+          if (!pendingDelta) {
+            return
+          }
+          assistantContent += pendingDelta
+          pendingDelta = ''
+          const streamingUpdate = updateMessage(messagesRef.current, {
+            id: assistantClientId,
+            sessionId,
+            role: 'assistant',
+            clientId: assistantClientId,
+            content: assistantContent,
+            createdAt: assistantClientCreatedAt,
+            clientCreatedAt: assistantClientCreatedAt,
+            meta: {
+              model: actualModel,
+              provider: 'openrouter',
+              streaming: true,
+            },
+            pending: true,
+          })
+          applySnapshot(sessionsRef.current, streamingUpdate)
+        }
+
+        const scheduleFlush = () => {
+          if (flushTimer !== null) {
+            return
+          }
+          flushTimer = window.setTimeout(() => {
+            flushTimer = null
+            flushPending()
+          }, 50)
+        }
+
         try {
           const { data } = await supabase.auth.getSession()
           const accessToken = data.session?.access_token
@@ -404,6 +443,10 @@ const App = () => {
             return
           }
           const messagesPayload = buildOpenAiMessages(sessionId, messagesRef.current)
+          const controller = new AbortController()
+          streamingControllerRef.current?.abort()
+          streamingControllerRef.current = controller
+          setIsStreaming(true)
           const response = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`,
             {
@@ -418,6 +461,7 @@ const App = () => {
                 messages: messagesPayload,
                 stream: true,
               }),
+              signal: controller.signal,
             },
           )
           if (!response.ok || !response.body) {
@@ -453,29 +497,20 @@ const App = () => {
                   actualModel = payload.model
                 }
                 if (delta) {
-                  assistantContent += delta
-                  const streamingUpdate = updateMessage(messagesRef.current, {
-                    id: assistantClientId,
-                    sessionId,
-                    role: 'assistant',
-                    clientId: assistantClientId,
-                    content: assistantContent,
-                    createdAt: assistantClientCreatedAt,
-                    clientCreatedAt: assistantClientCreatedAt,
-                    meta: {
-                      model: actualModel,
-                      provider: 'openrouter',
-                      streaming: true,
-                    },
-                    pending: true,
-                  })
-                  applySnapshot(sessionsRef.current, streamingUpdate)
+                  pendingDelta += delta
+                  scheduleFlush()
                 }
               } catch (error) {
                 console.warn('解析流式响应失败', error)
               }
             }
           }
+
+          if (flushTimer !== null) {
+            window.clearTimeout(flushTimer)
+            flushTimer = null
+          }
+          flushPending()
 
           const { message: assistantMessage, updatedAt } = await addRemoteMessage(
             sessionId,
@@ -495,6 +530,46 @@ const App = () => {
           )
           applySnapshot(updatedSessions, updatedMessages)
         } catch (error) {
+          if (flushTimer !== null) {
+            window.clearTimeout(flushTimer)
+            flushTimer = null
+          }
+          flushPending()
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            if (assistantContent.trim().length > 0) {
+              const { message: assistantMessage, updatedAt } = await addRemoteMessage(
+                sessionId,
+                user.id,
+                'assistant',
+                assistantContent,
+                assistantClientId,
+                assistantClientCreatedAt,
+                { model: actualModel, provider: 'openrouter' },
+              )
+              const updatedMessages = updateMessage(messagesRef.current, {
+                ...assistantMessage,
+                pending: false,
+              })
+              const updatedSessions = sessionsRef.current.map((session) =>
+                session.id === sessionId ? { ...session, updatedAt } : session,
+              )
+              applySnapshot(updatedSessions, updatedMessages)
+            } else {
+              const abortedMessages = updateMessage(messagesRef.current, {
+                id: assistantClientId,
+                sessionId,
+                role: 'assistant',
+                clientId: assistantClientId,
+                content: assistantContent,
+                createdAt: assistantClientCreatedAt,
+                clientCreatedAt: assistantClientCreatedAt,
+                meta: { model: actualModel, provider: 'openrouter', streaming: false },
+                pending: false,
+              })
+              applySnapshot(sessionsRef.current, abortedMessages)
+            }
+            return
+          }
           console.warn('流式回复失败', error)
           const failedMessages = updateMessage(messagesRef.current, {
             id: assistantClientId,
@@ -509,6 +584,9 @@ const App = () => {
           })
           applySnapshot(sessionsRef.current, failedMessages)
           window.alert('回复失败，请稍后重试。')
+        } finally {
+          setIsStreaming(false)
+          streamingControllerRef.current = null
         }
       }
 
@@ -516,6 +594,11 @@ const App = () => {
     },
     [applySnapshot, user],
   )
+
+  const handleStopStreaming = useCallback(() => {
+    streamingControllerRef.current?.abort()
+    setIsStreaming(false)
+  }, [])
 
   const removeMessage = useCallback(
     async (messageId: string) => {
@@ -793,6 +876,8 @@ const ChatRoute = ({
         onOpenDrawer={onOpenDrawer}
         onSendMessage={(text) => onSendMessage(activeSession.id, text)}
         onDeleteMessage={onDeleteMessage}
+        isStreaming={isStreaming}
+        onStopStreaming={handleStopStreaming}
       />
       <SessionsDrawer
         open={drawerOpen}
