@@ -148,7 +148,7 @@ serve(async (req) => {
 
     if (!upstream.ok) {
       const errorText = await upstream.text()
-      return new Response(errorText || JSON.stringify({ error: '上游服务错误' }), {
+      return new Response(JSON.stringify({ error: errorText || '上游服务错误' }), {
         status: upstream.status,
         headers: {
           ...buildCorsHeaders(origin),
