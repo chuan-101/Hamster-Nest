@@ -157,23 +157,34 @@ serve(async (req) => {
       })
     }
 
-    if (!upstream.body) {
-      return new Response(JSON.stringify({ error: '无响应内容' }), {
-        status: 502,
+    if (stream) {
+      if (!upstream.body) {
+        return new Response(JSON.stringify({ error: '无响应内容' }), {
+          status: 502,
+          headers: {
+            ...buildCorsHeaders(origin),
+            'Content-Type': 'application/json',
+          },
+        })
+      }
+
+      return new Response(upstream.body, {
+        status: 200,
         headers: {
           ...buildCorsHeaders(origin),
-          'Content-Type': 'application/json',
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
         },
       })
     }
 
-    return new Response(upstream.body, {
+    const payloadText = await upstream.text()
+    return new Response(payloadText, {
       status: 200,
       headers: {
         ...buildCorsHeaders(origin),
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
+        'Content-Type': 'application/json',
       },
     })
   } catch {
