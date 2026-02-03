@@ -16,6 +16,8 @@ type MessageRow = {
   role: ChatMessage['role']
   content: string
   created_at: string
+  client_id: string | null
+  client_created_at: string | null
   meta: ChatMessage['meta'] | null
 }
 
@@ -32,7 +34,10 @@ const mapMessageRow = (row: MessageRow): ChatMessage => ({
   role: row.role,
   content: row.content,
   createdAt: row.created_at,
+  clientId: row.client_id ?? row.id,
+  clientCreatedAt: row.client_created_at,
   meta: row.meta ?? undefined,
+  pending: false,
 })
 
 export const fetchRemoteSessions = async (userId: string): Promise<ChatSession[]> => {
@@ -56,8 +61,9 @@ export const fetchRemoteMessages = async (userId: string): Promise<ChatMessage[]
   }
   const { data, error } = await supabase
     .from('messages')
-    .select('id,session_id,user_id,role,content,created_at,meta')
+    .select('id,session_id,user_id,role,content,created_at,client_id,client_created_at,meta')
     .eq('user_id', userId)
+    .order('client_created_at', { ascending: true })
     .order('created_at', { ascending: true })
   if (error) {
     throw error
@@ -134,11 +140,14 @@ export const addRemoteMessage = async (
   userId: string,
   role: ChatMessage['role'],
   content: string,
+  clientId: string,
+  clientCreatedAt: string,
   meta?: ChatMessage['meta'],
 ): Promise<{ message: ChatMessage; updatedAt: string }> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const safeMeta = meta ?? {}
   const now = new Date().toISOString()
   const { data, error } = await supabase
     .from('messages')
@@ -148,9 +157,11 @@ export const addRemoteMessage = async (
       role,
       content,
       created_at: now,
-      meta: meta ?? null,
+      client_id: clientId,
+      client_created_at: clientCreatedAt,
+      meta: safeMeta,
     })
-    .select('id,session_id,user_id,role,content,created_at,meta')
+    .select('id,session_id,user_id,role,content,created_at,client_id,client_created_at,meta')
     .single()
   if (error || !data) {
     throw error ?? new Error('发送消息失败')

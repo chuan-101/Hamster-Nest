@@ -11,8 +11,11 @@ export type ChatMessage = {
   role: 'user' | 'assistant'
   content: string
   createdAt: string
+  clientId: string
+  clientCreatedAt: string | null
   meta?: {
     provider?: string
     model?: string
   }
+  pending?: boolean
 }
