@@ -38,14 +38,6 @@ const sortMessages = (messages: ChatMessage[]) =>
       new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   )
 
-const mergeSessions = (localSessions: ChatSession[], remoteSessions: ChatSession[]) => {
-  const merged = new Map(localSessions.map((session) => [session.id, session]))
-  remoteSessions.forEach((session) => {
-    merged.set(session.id, session)
-  })
-  return sortSessions(Array.from(merged.values()))
-}
-
 const mergeMessages = (localMessages: ChatMessage[], remoteMessages: ChatMessage[]) => {
   const merged = [...localMessages]
   remoteMessages.forEach((message) => {
@@ -116,6 +108,22 @@ const App = () => {
     setSnapshot({ sessions: orderedSessions, messages: orderedMessages })
   }, [])
 
+  const refreshRemoteSessions = useCallback(async () => {
+    if (!user || !supabase) {
+      return
+    }
+    setSyncing(true)
+    try {
+      const remoteSessions = await fetchRemoteSessions(user.id)
+      const nextSessions = sortSessions(remoteSessions)
+      applySnapshot(nextSessions, messagesRef.current)
+    } catch (error) {
+      console.warn('无法加载 Supabase 会话数据', error)
+    } finally {
+      setSyncing(false)
+    }
+  }, [applySnapshot, user])
+
   useEffect(() => {
     if (!supabase) {
       setAuthReady(true)
@@ -154,7 +162,7 @@ const App = () => {
         if (!active) {
           return
         }
-        const nextSessions = mergeSessions(sessionsRef.current, remoteSessions)
+        const nextSessions = sortSessions(remoteSessions)
         const nextMessages = mergeMessages(messagesRef.current, remoteMessages)
         applySnapshot(nextSessions, nextMessages)
       } catch (error) {
@@ -170,6 +178,28 @@ const App = () => {
       active = false
     }
   }, [applySnapshot, authReady, user])
+
+  useEffect(() => {
+    if (!drawerOpen) {
+      return
+    }
+    void refreshRemoteSessions()
+  }, [drawerOpen, refreshRemoteSessions])
+
+  useEffect(() => {
+    if (!user) {
+      return
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshRemoteSessions()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [refreshRemoteSessions, user])
 
   const messageCounts = useMemo(() => {
     return messages.reduce<Record<string, number>>((accumulator, message) => {
@@ -563,6 +593,24 @@ const ChatRoute = ({
       navigate(`/chat/${sessions[0].id}`, { replace: true })
     }
   }, [activeSession, navigate, sessions])
+
+  useEffect(() => {
+    if (activeSession || syncing || sessions.length > 0) {
+      return
+    }
+    let active = true
+    const createSession = async () => {
+      const newSession = await onCreateSession('新会话')
+      if (!active) {
+        return
+      }
+      navigate(`/chat/${newSession.id}`, { replace: true })
+    }
+    void createSession()
+    return () => {
+      active = false
+    }
+  }, [activeSession, navigate, onCreateSession, sessions.length, syncing])
 
   if (!activeSession) {
     return null
