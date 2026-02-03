@@ -780,8 +780,6 @@ const ChatRoute = ({
   onSendMessage,
   onDeleteMessage,
   onDeleteSession,
-  isStreaming,
-  onStopStreaming,
 }: {
   sessions: ChatSession[]
   messages: ChatMessage[]
