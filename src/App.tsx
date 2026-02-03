@@ -798,6 +798,8 @@ const ChatRoute = ({
 }) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
+  void isStreaming
+  void onStopStreaming
 
   const activeSession = sessions.find((session) => session.id === sessionId)
   const activeMessages = useMemo(() => {
@@ -883,7 +885,7 @@ const ChatRoute = ({
         onSendMessage={(text) => onSendMessage(activeSession.id, text)}
         onDeleteMessage={onDeleteMessage}
         isStreaming={isStreaming}
-        onStopStreaming={handleStopStreaming}
+        onStopStreaming={onStopStreaming}
       />
       <SessionsDrawer
         open={drawerOpen}
