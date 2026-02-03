@@ -16,6 +16,7 @@ export type ChatMessage = {
   meta?: {
     provider?: string
     model?: string
+    streaming?: boolean
   }
   pending?: boolean
 }
