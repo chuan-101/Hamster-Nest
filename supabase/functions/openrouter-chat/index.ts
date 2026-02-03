@@ -54,8 +54,36 @@ serve(async (req) => {
   }
 
   const authHeader = req.headers.get('authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
+  const apiKeyHeader = req.headers.get('apikey')
+  if (!authHeader || !apiKeyHeader) {
     return new Response(JSON.stringify({ error: '缺少身份令牌' }), {
+      status: 401,
+      headers: {
+        ...buildCorsHeaders(origin),
+        'Content-Type': 'application/json',
+      },
+    })
+  }
+
+  try {
+    const authUrl = new URL('/auth/v1/user', new URL(req.url).origin)
+    const authResponse = await fetch(authUrl, {
+      headers: {
+        apikey: apiKeyHeader,
+        Authorization: authHeader,
+      },
+    })
+    if (!authResponse.ok) {
+      return new Response(JSON.stringify({ error: '身份令牌无效' }), {
+        status: 401,
+        headers: {
+          ...buildCorsHeaders(origin),
+          'Content-Type': 'application/json',
+        },
+      })
+    }
+  } catch {
+    return new Response(JSON.stringify({ error: '身份令牌无效' }), {
       status: 401,
       headers: {
         ...buildCorsHeaders(origin),
@@ -120,7 +148,7 @@ serve(async (req) => {
 
     if (!upstream.ok) {
       const errorText = await upstream.text()
-      return new Response(errorText || JSON.stringify({ error: '上游服务错误' }), {
+      return new Response(JSON.stringify({ error: errorText || '上游服务错误' }), {
         status: upstream.status,
         headers: {
           ...buildCorsHeaders(origin),
@@ -144,7 +172,7 @@ serve(async (req) => {
       headers: {
         ...buildCorsHeaders(origin),
         'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-transform',
         Connection: 'keep-alive',
       },
     })
