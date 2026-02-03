@@ -424,8 +424,10 @@ const App = () => {
                   const streamingUpdate = updateMessage(messagesRef.current, {
                     id: assistantClientId,
                     sessionId,
+                    role: 'assistant',
                     clientId: assistantClientId,
                     content: assistantContent,
+                    createdAt: assistantClientCreatedAt,
                     clientCreatedAt: assistantClientCreatedAt,
                     meta: {
                       model: actualModel,
