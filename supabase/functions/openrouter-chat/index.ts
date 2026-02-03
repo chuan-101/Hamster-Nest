@@ -172,7 +172,7 @@ serve(async (req) => {
       headers: {
         ...buildCorsHeaders(origin),
         'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-transform',
         Connection: 'keep-alive',
       },
     })
