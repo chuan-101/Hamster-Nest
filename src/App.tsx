@@ -63,6 +63,8 @@ const mergeMessages = (localMessages: ChatMessage[], remoteMessages: ChatMessage
 const createClientId = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
+const defaultOpenRouterModel = 'openrouter/auto'
+
 const updateMessage = (messages: ChatMessage[], next: ChatMessage) =>
   sortMessages(
     messages.map((message) =>
@@ -79,6 +81,16 @@ const updateMessage = (messages: ChatMessage[], next: ChatMessage) =>
   )
 
 const initialSnapshot = loadSnapshot()
+
+const buildOpenAiMessages = (sessionId: string, messages: ChatMessage[]) =>
+  messages
+    .filter(
+      (message) =>
+        message.sessionId === sessionId &&
+        message.content.trim().length > 0 &&
+        !message.meta?.streaming,
+    )
+    .map((message) => ({ role: message.role, content: message.content }))
 
 const App = () => {
   const [sessions, setSessions] = useState<ChatSession[]>(initialSnapshot.sessions)
@@ -268,19 +280,32 @@ const App = () => {
         meta: {},
         pending: true,
       }
-      const nextMessages = sortMessages([...messagesRef.current, optimisticMessage])
+      const assistantClientId = createClientId()
+      const assistantClientCreatedAt = new Date(
+        new Date(clientCreatedAt).getTime() + 200,
+      ).toISOString()
+      const optimisticAssistant: ChatMessage = {
+        id: assistantClientId,
+        sessionId,
+        role: 'assistant',
+        content: '',
+        createdAt: assistantClientCreatedAt,
+        clientId: assistantClientId,
+        clientCreatedAt: assistantClientCreatedAt,
+        meta: { model: defaultOpenRouterModel, provider: 'openrouter', streaming: true },
+        pending: true,
+      }
+      const nextMessages = sortMessages([
+        ...messagesRef.current,
+        optimisticMessage,
+        optimisticAssistant,
+      ])
       const nextSessions = sessionsRef.current.map((session) =>
         session.id === sessionId ? { ...session, updatedAt: clientCreatedAt } : session,
       )
       applySnapshot(nextSessions, nextMessages)
 
       const persist = async () => {
-        const assistantContent = '这是一个模拟回复。'
-        const assistantClientId = createClientId()
-        const assistantClientCreatedAt = new Date(
-          new Date(clientCreatedAt).getTime() + 200,
-        ).toISOString()
-
         if (!user || !supabase) {
           const localMessages = updateMessage(messagesRef.current, {
             ...optimisticMessage,
@@ -290,11 +315,11 @@ const App = () => {
             id: assistantClientId,
             sessionId,
             role: 'assistant',
-            content: assistantContent,
+            content: '当前未登录或服务未配置，无法获取回复。',
             createdAt: assistantClientCreatedAt,
             clientId: assistantClientId,
             clientCreatedAt: assistantClientCreatedAt,
-            meta: { model: 'mock-model', provider: 'mock' },
+            meta: { model: 'offline', provider: 'openrouter' },
             pending: false,
           }
           const localNextMessages = sortMessages([...localMessages, assistantMessage])
@@ -331,7 +356,90 @@ const App = () => {
           return
         }
 
+        let assistantContent = ''
+        let actualModel = defaultOpenRouterModel
         try {
+          const { data } = await supabase.auth.getSession()
+          const accessToken = data.session?.access_token
+          if (!accessToken) {
+            window.alert('未获取到登录凭证，请重新登录。')
+            return
+          }
+          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+          if (!anonKey) {
+            window.alert('服务未配置，请稍后重试。')
+            return
+          }
+          const messagesPayload = buildOpenAiMessages(sessionId, messagesRef.current)
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                apikey: anonKey,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: defaultOpenRouterModel,
+                messages: messagesPayload,
+                stream: true,
+              }),
+            },
+          )
+          if (!response.ok || !response.body) {
+            const errorText = await response.text()
+            throw new Error(errorText || '请求失败')
+          }
+          const reader = response.body.getReader()
+          const decoder = new TextDecoder('utf-8')
+          let buffer = ''
+          let done = false
+          while (!done) {
+            const { value, done: readerDone } = await reader.read()
+            if (readerDone) {
+              break
+            }
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() ?? ''
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (!trimmed.startsWith('data:')) {
+                continue
+              }
+              const data = trimmed.replace(/^data:\s*/, '')
+              if (data === '[DONE]') {
+                done = true
+                break
+              }
+              try {
+                const payload = JSON.parse(data)
+                const delta = payload?.choices?.[0]?.delta?.content ?? ''
+                if (payload?.model) {
+                  actualModel = payload.model
+                }
+                if (delta) {
+                  assistantContent += delta
+                  const streamingUpdate = updateMessage(messagesRef.current, {
+                    id: assistantClientId,
+                    clientId: assistantClientId,
+                    content: assistantContent,
+                    meta: {
+                      model: actualModel,
+                      provider: 'openrouter',
+                      streaming: true,
+                    },
+                    pending: true,
+                  })
+                  applySnapshot(sessionsRef.current, streamingUpdate)
+                }
+              } catch (error) {
+                console.warn('解析流式响应失败', error)
+              }
+            }
+          }
+
           const { message: assistantMessage, updatedAt } = await addRemoteMessage(
             sessionId,
             user.id,
@@ -339,16 +447,27 @@ const App = () => {
             assistantContent,
             assistantClientId,
             assistantClientCreatedAt,
-            { model: 'mock-model', provider: 'mock' },
+            { model: actualModel, provider: 'openrouter' },
           )
-          const updatedMessages = sortMessages([...messagesRef.current, assistantMessage])
+          const updatedMessages = updateMessage(messagesRef.current, {
+            ...assistantMessage,
+            pending: false,
+          })
           const updatedSessions = sessionsRef.current.map((session) =>
             session.id === sessionId ? { ...session, updatedAt } : session,
           )
           applySnapshot(updatedSessions, updatedMessages)
         } catch (error) {
-          console.warn('写入云端模拟回复失败', error)
-          window.alert('模拟回复发送失败，请稍后重试。')
+          console.warn('流式回复失败', error)
+          const failedMessages = updateMessage(messagesRef.current, {
+            id: assistantClientId,
+            clientId: assistantClientId,
+            content: assistantContent || '回复失败，请稍后重试。',
+            meta: { model: actualModel, provider: 'openrouter', streaming: false },
+            pending: false,
+          })
+          applySnapshot(sessionsRef.current, failedMessages)
+          window.alert('回复失败，请稍后重试。')
         }
       }
 
