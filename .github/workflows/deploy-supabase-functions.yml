@@ -25,4 +25,4 @@ jobs:
       - name: Deploy openrouter-chat
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: supabase functions deploy openrouter-chat --no-verify-jwt=false
+        run: supabase functions deploy openrouter-chat --no-verify-jwt
