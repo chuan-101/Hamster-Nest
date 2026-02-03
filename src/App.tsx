@@ -423,8 +423,10 @@ const App = () => {
                   assistantContent += delta
                   const streamingUpdate = updateMessage(messagesRef.current, {
                     id: assistantClientId,
+                    sessionId,
                     clientId: assistantClientId,
                     content: assistantContent,
+                    clientCreatedAt: assistantClientCreatedAt,
                     meta: {
                       model: actualModel,
                       provider: 'openrouter',
@@ -461,8 +463,12 @@ const App = () => {
           console.warn('流式回复失败', error)
           const failedMessages = updateMessage(messagesRef.current, {
             id: assistantClientId,
+            sessionId,
+            role: 'assistant',
             clientId: assistantClientId,
             content: assistantContent || '回复失败，请稍后重试。',
+            createdAt: assistantClientCreatedAt,
+            clientCreatedAt: assistantClientCreatedAt,
             meta: { model: actualModel, provider: 'openrouter', streaming: false },
             pending: false,
           })
