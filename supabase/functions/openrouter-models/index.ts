@@ -1,12 +1,14 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 
-const allowedOrigins = [/^https:\/\/.+\.github\.io$/, /^http:\/\/localhost:\d+$/]
+const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]
 
 const isAllowedOrigin = (origin: string | null) => {
   if (!origin) {
     return true
   }
-  return allowedOrigins.some((pattern) => pattern.test(origin))
+  return allowedOrigins.some((pattern) =>
+    typeof pattern === 'string' ? pattern === origin : pattern.test(origin),
+  )
 }
 
 const buildCorsHeaders = (origin: string | null) => ({

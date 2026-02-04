@@ -17,32 +17,3 @@ button {
   font-size: 16px;
   color: #475569;
 }
-
-.dev-ping {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 20px;
-  background: #e2e8f0;
-  color: #0f172a;
-  font-size: 14px;
-}
-
-.dev-ping button {
-  border: 1px solid #94a3b8;
-  background: #f8fafc;
-  color: #0f172a;
-  border-radius: 999px;
-  padding: 6px 14px;
-  cursor: pointer;
-}
-
-.dev-ping button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.dev-ping__status {
-  color: #0f766e;
-}

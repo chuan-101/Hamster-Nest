@@ -14,17 +14,15 @@ type OpenRouterPayload = {
   stream?: boolean
 }
 
-type PingPayload = {
-  ping: true
-}
-
-const allowedOrigins = [/^https:\/\/.+\.github\.io$/, /^http:\/\/localhost:\d+$/]
+const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]
 
 const isAllowedOrigin = (origin: string | null) => {
   if (!origin) {
     return true
   }
-  return allowedOrigins.some((pattern) => pattern.test(origin))
+  return allowedOrigins.some((pattern) =>
+    typeof pattern === 'string' ? pattern === origin : pattern.test(origin),
+  )
 }
 
 const buildCorsHeaders = (origin: string | null) => ({
@@ -92,22 +90,12 @@ serve(async (req) => {
     })
   }
 
-  let payload: OpenRouterPayload | PingPayload
+  let payload: OpenRouterPayload
   try {
     payload = await req.json()
   } catch {
     return new Response(JSON.stringify({ error: '请求体格式错误' }), {
       status: 400,
-      headers: {
-        ...buildCorsHeaders(origin),
-        'Content-Type': 'application/json',
-      },
-    })
-  }
-
-  if ('ping' in payload && payload.ping) {
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
       headers: {
         ...buildCorsHeaders(origin),
         'Content-Type': 'application/json',
