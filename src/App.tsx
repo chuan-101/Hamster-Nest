@@ -13,6 +13,7 @@ import {
   renameSession,
   setSnapshot,
   updateSessionOverride,
+  updateSessionReasoningOverride,
 } from './storage/chatStorage'
 import {
   createDefaultSettings,
@@ -28,6 +29,7 @@ import {
   fetchRemoteSessions,
   renameRemoteSession,
   updateRemoteSessionOverride,
+  updateRemoteSessionReasoningOverride,
 } from './storage/supabaseSync'
 import { supabase } from './supabase/client'
 import './App.css'
@@ -343,6 +345,14 @@ const App = () => {
     [user?.id],
   )
 
+  const resolveSessionReasoning = useCallback((sessionId: string) => {
+    const fallback = createDefaultSettings(user?.id ?? 'local')
+    const settings = settingsRef.current ?? fallback
+    const overrideReasoning = sessionsRef.current.find((session) => session.id === sessionId)
+      ?.overrideReasoning
+    return overrideReasoning ?? settings.enableReasoning
+  }, [user?.id])
+
   const createSessionEntry = useCallback(
     async (title?: string) => {
       const sessionTitle = title ?? '新会话'
@@ -414,11 +424,40 @@ const App = () => {
     [applySnapshot, user],
   )
 
+  const handleSessionReasoningOverrideChange = useCallback(
+    async (sessionId: string, overrideReasoning: boolean | null) => {
+      if (user && supabase) {
+        try {
+          const updated = await updateRemoteSessionReasoningOverride(
+            sessionId,
+            overrideReasoning,
+          )
+          const nextSessions = sessionsRef.current.map((session) =>
+            session.id === sessionId ? updated : session,
+          )
+          applySnapshot(nextSessions, messagesRef.current)
+          return
+        } catch (error) {
+          console.warn('更新云端会话思考链失败，已切换本地存储', error)
+        }
+      }
+      const updated = updateSessionReasoningOverride(sessionId, overrideReasoning)
+      if (!updated) {
+        return
+      }
+      setSessions((prev) =>
+        prev.map((session) => (session.id === sessionId ? updated : session)),
+      )
+    },
+    [applySnapshot, user],
+  )
+
   const sendMessage = useCallback(
     async (sessionId: string, content: string) => {
       const fallbackSettings = createDefaultSettings(user?.id ?? 'local')
       const activeSettings = settingsRef.current ?? fallbackSettings
       const effectiveModel = resolveSessionModel(sessionId)
+      const reasoningEnabled = resolveSessionReasoning(sessionId)
       const paramsSnapshot = {
         temperature: activeSettings.temperature,
         top_p: activeSettings.topP,
@@ -659,6 +698,7 @@ const App = () => {
                 temperature: paramsSnapshot.temperature,
                 top_p: paramsSnapshot.top_p,
                 max_tokens: paramsSnapshot.max_tokens,
+                reasoning: reasoningEnabled,
                 stream: true,
               }),
               signal: controller.signal,
@@ -825,7 +865,7 @@ const App = () => {
 
       void persist()
     },
-    [applySnapshot, user],
+    [applySnapshot, resolveSessionReasoning, resolveSessionModel, user],
   )
 
   const handleStopStreaming = useCallback(() => {
@@ -930,6 +970,8 @@ const App = () => {
                 enabledModels={enabledModels}
                 defaultModel={defaultModelId}
                 onSelectModel={handleSessionOverrideChange}
+                defaultReasoning={activeSettings.enableReasoning}
+                onSelectReasoning={handleSessionReasoningOverrideChange}
               />
             </RequireAuth>
           }
@@ -1027,6 +1069,8 @@ const ChatRoute = ({
   enabledModels,
   defaultModel,
   onSelectModel,
+  defaultReasoning,
+  onSelectReasoning,
 }: {
   sessions: ChatSession[]
   messages: ChatMessage[]
@@ -1045,6 +1089,8 @@ const ChatRoute = ({
   enabledModels: string[]
   defaultModel: string
   onSelectModel: (sessionId: string, model: string | null) => Promise<void>
+  defaultReasoning: boolean
+  onSelectReasoning: (sessionId: string, reasoning: boolean | null) => Promise<void>
 }) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
@@ -1137,6 +1183,10 @@ const ChatRoute = ({
         enabledModels={enabledModels}
         defaultModel={defaultModel}
         onSelectModel={(model) => onSelectModel(activeSession.id, model)}
+        defaultReasoning={defaultReasoning}
+        onSelectReasoning={(reasoning) =>
+          onSelectReasoning(activeSession.id, reasoning)
+        }
       />
       <SessionsDrawer
         open={drawerOpen}

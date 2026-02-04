@@ -99,6 +99,7 @@ export const createSession = (title?: string): ChatSession => {
     createdAt: now,
     updatedAt: now,
     overrideModel: null,
+    overrideReasoning: null,
   }
   snapshot.sessions = sortSessions([...snapshot.sessions, session])
   scheduleWrite()
@@ -181,6 +182,25 @@ export const updateSessionOverride = (
       return session
     }
     updatedSession = { ...session, overrideModel }
+    return updatedSession
+  })
+  if (!updatedSession) {
+    return null
+  }
+  scheduleWrite()
+  return updatedSession
+}
+
+export const updateSessionReasoningOverride = (
+  sessionId: string,
+  overrideReasoning: boolean | null,
+): ChatSession | null => {
+  let updatedSession: ChatSession | null = null
+  snapshot.sessions = snapshot.sessions.map((session) => {
+    if (session.id !== sessionId) {
+      return session
+    }
+    updatedSession = { ...session, overrideReasoning }
     return updatedSession
   })
   if (!updatedSession) {

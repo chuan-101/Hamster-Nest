@@ -11,6 +11,7 @@ type OpenRouterPayload = {
   temperature?: number
   top_p?: number
   max_tokens?: number
+  reasoning?: boolean
   stream?: boolean
 }
 
@@ -114,7 +115,7 @@ serve(async (req) => {
     })
   }
 
-  const { messages, model, temperature, top_p, max_tokens } = payload
+  const { messages, model, temperature, top_p, max_tokens, reasoning } = payload
   const stream = payload.stream ?? true
 
   try {
@@ -130,6 +131,7 @@ serve(async (req) => {
         temperature,
         top_p,
         max_tokens,
+        ...(reasoning ? { reasoning: { effort: 'medium' } } : {}),
         stream,
       }),
     })
