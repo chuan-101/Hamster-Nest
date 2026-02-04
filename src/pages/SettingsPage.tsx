@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { useBlocker, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import type { UserSettings } from '../types'
 import { supabase } from '../supabase/client'
@@ -37,6 +37,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string }>(
     {},
   )
+  const pendingNavigationRef = useRef<null | (() => void)>(null)
 
   useEffect(() => {
     if (!settings) {
@@ -121,13 +122,20 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
   const hasUnsavedSystemPrompt = settings
     ? draftSystemPrompt !== settings.systemPrompt
     : false
-  const promptBlocker = useBlocker(hasUnsavedSystemPrompt)
 
   useEffect(() => {
-    if (promptBlocker.state === 'blocked') {
-      setShowUnsavedPromptDialog(true)
+    if (!hasUnsavedSystemPrompt) {
+      return
     }
-  }, [promptBlocker.state])
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedSystemPrompt])
 
   useEffect(() => {
     if (!settings) {
@@ -272,8 +280,17 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     setSystemPromptStatus('saved')
   }
 
+  const requestNavigation = (action: () => void) => {
+    if (!hasUnsavedSystemPrompt) {
+      action()
+      return
+    }
+    pendingNavigationRef.current = action
+    setShowUnsavedPromptDialog(true)
+  }
+
   const handleStayOnPage = () => {
-    promptBlocker.reset?.()
+    pendingNavigationRef.current = null
     setShowUnsavedPromptDialog(false)
   }
 
@@ -282,7 +299,9 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       setDraftSystemPrompt(settings.systemPrompt)
     }
     setShowUnsavedPromptDialog(false)
-    promptBlocker.proceed?.()
+    const pendingAction = pendingNavigationRef.current
+    pendingNavigationRef.current = null
+    pendingAction?.()
   }
 
   const handleSaveAndLeave = () => {
@@ -290,7 +309,9 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       handleSaveSystemPrompt()
     }
     setShowUnsavedPromptDialog(false)
-    promptBlocker.proceed?.()
+    const pendingAction = pendingNavigationRef.current
+    pendingNavigationRef.current = null
+    pendingAction?.()
   }
 
   const selectedModelId = settings?.enabledModels.includes(settings.defaultModel)
@@ -301,7 +322,11 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     return (
       <div className="settings-page">
         <header className="settings-header">
-          <button type="button" className="ghost" onClick={() => navigate(-1)}>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => requestNavigation(() => navigate(-1))}
+          >
             返回
           </button>
           <h1>API设置</h1>
@@ -314,13 +339,17 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
 
   return (
     <div className="settings-page">
-        <header className="settings-header">
-          <button type="button" className="ghost" onClick={() => navigate(-1)}>
-            返回
-          </button>
-          <h1>API设置</h1>
-          <span className="header-spacer" />
-        </header>
+      <header className="settings-header">
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => requestNavigation(() => navigate(-1))}
+        >
+          返回
+        </button>
+        <h1>API设置</h1>
+        <span className="header-spacer" />
+      </header>
 
       <section className="settings-section">
         <div className="section-title">
