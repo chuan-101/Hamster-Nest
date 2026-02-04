@@ -17,6 +17,7 @@ export type ChatMessage = {
     provider?: string
     model?: string
     streaming?: boolean
+    reasoning?: string
     params?: {
       temperature?: number
       top_p?: number

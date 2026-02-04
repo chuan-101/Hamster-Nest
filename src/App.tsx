@@ -461,16 +461,79 @@ const App = () => {
         }
 
         let assistantContent = ''
+        let reasoningContent = ''
         let actualModel = effectiveModel
         let pendingDelta = ''
+        let pendingReasoningDelta = ''
         let flushTimer: number | null = null
+        let thinkCarry = ''
+        let isInThink = false
+
+        const openTag = '<think>'
+        const closeTag = '</think>'
+
+        const findPartialSuffix = (text: string, tag: string) => {
+          const maxLength = Math.min(tag.length - 1, text.length)
+          for (let length = maxLength; length > 0; length -= 1) {
+            const fragment = tag.slice(0, length)
+            if (text.endsWith(fragment)) {
+              return fragment
+            }
+          }
+          return ''
+        }
+
+        const splitReasoningFromContent = (delta: string) => {
+          let text = `${thinkCarry}${delta}`
+          thinkCarry = ''
+          let contentChunk = ''
+          let reasoningChunk = ''
+
+          while (text.length > 0) {
+            if (isInThink) {
+              const closeIndex = text.indexOf(closeTag)
+              if (closeIndex === -1) {
+                const partial = findPartialSuffix(text, closeTag)
+                const cutoff = text.length - partial.length
+                reasoningChunk += text.slice(0, cutoff)
+                thinkCarry = partial
+                text = ''
+              } else {
+                reasoningChunk += text.slice(0, closeIndex)
+                text = text.slice(closeIndex + closeTag.length)
+                isInThink = false
+              }
+            } else {
+              const openIndex = text.indexOf(openTag)
+              if (openIndex === -1) {
+                const partial = findPartialSuffix(text, openTag)
+                const cutoff = text.length - partial.length
+                contentChunk += text.slice(0, cutoff)
+                thinkCarry = partial
+                text = ''
+              } else {
+                contentChunk += text.slice(0, openIndex)
+                text = text.slice(openIndex + openTag.length)
+                isInThink = true
+              }
+            }
+          }
+
+          return { contentChunk, reasoningChunk }
+        }
 
         const flushPending = () => {
-          if (!pendingDelta) {
+          if (!pendingDelta && !pendingReasoningDelta) {
             return
           }
-          assistantContent += pendingDelta
-          pendingDelta = ''
+          if (pendingDelta) {
+            assistantContent += pendingDelta
+            pendingDelta = ''
+          }
+          if (pendingReasoningDelta) {
+            reasoningContent += pendingReasoningDelta
+            pendingReasoningDelta = ''
+          }
           const streamingUpdate = updateMessage(messagesRef.current, {
             id: assistantClientId,
             sessionId,
@@ -483,6 +546,7 @@ const App = () => {
               model: actualModel,
               provider: 'openrouter',
               streaming: true,
+              reasoning: reasoningContent,
               params: paramsSnapshot,
             },
             pending: true,
@@ -570,11 +634,22 @@ const App = () => {
               try {
                 const payload = JSON.parse(data)
                 const delta = payload?.choices?.[0]?.delta?.content ?? ''
+                const reasoningDelta = payload?.choices?.[0]?.delta?.reasoning ?? ''
                 if (payload?.model) {
                   actualModel = payload.model
                 }
+                if (reasoningDelta) {
+                  pendingReasoningDelta += reasoningDelta
+                  scheduleFlush()
+                }
                 if (delta) {
-                  pendingDelta += delta
+                  const { contentChunk, reasoningChunk } = splitReasoningFromContent(delta)
+                  if (contentChunk) {
+                    pendingDelta += contentChunk
+                  }
+                  if (reasoningChunk) {
+                    pendingReasoningDelta += reasoningChunk
+                  }
                   scheduleFlush()
                 }
               } catch (error) {
@@ -596,7 +671,12 @@ const App = () => {
             assistantContent,
             assistantClientId,
             assistantClientCreatedAt,
-            { model: actualModel, provider: 'openrouter', params: paramsSnapshot },
+            {
+              model: actualModel,
+              provider: 'openrouter',
+              params: paramsSnapshot,
+              reasoning: reasoningContent,
+            },
           )
           const updatedMessages = updateMessage(messagesRef.current, {
             ...assistantMessage,
@@ -621,7 +701,12 @@ const App = () => {
                 assistantContent,
                 assistantClientId,
                 assistantClientCreatedAt,
-                { model: actualModel, provider: 'openrouter', params: paramsSnapshot },
+                {
+                  model: actualModel,
+                  provider: 'openrouter',
+                  params: paramsSnapshot,
+                  reasoning: reasoningContent,
+                },
               )
               const updatedMessages = updateMessage(messagesRef.current, {
                 ...assistantMessage,
@@ -644,6 +729,7 @@ const App = () => {
                   model: actualModel,
                   provider: 'openrouter',
                   streaming: false,
+                  reasoning: reasoningContent,
                   params: paramsSnapshot,
                 },
                 pending: false,
@@ -665,6 +751,7 @@ const App = () => {
               model: actualModel,
               provider: 'openrouter',
               streaming: false,
+              reasoning: reasoningContent,
               params: paramsSnapshot,
             },
             pending: false,

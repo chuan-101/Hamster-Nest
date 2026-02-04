@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ChatMessage, ChatSession } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
+import ReasoningPanel from '../components/ReasoningPanel'
 import './ChatPage.css'
 
 export type ChatPageProps = {
@@ -147,6 +148,9 @@ const ChatPage = ({
             >
               <div className="bubble">
                 <p>{message.content}</p>
+                {message.meta?.reasoning?.trim() ? (
+                  <ReasoningPanel reasoning={message.meta.reasoning} />
+                ) : null}
                 <div className="message-footer">
                   {message.role === 'assistant' && message.meta?.model ? (
                     <span className="model-tag">

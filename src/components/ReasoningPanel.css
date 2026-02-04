@@ -1,0 +1,44 @@
+.reasoning-panel {
+  margin-top: 12px;
+}
+
+.reasoning-panel__toggle {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reasoning-panel__toggle:hover {
+  color: #374151;
+}
+
+.reasoning-panel__content {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.25s ease;
+}
+
+.reasoning-panel__content.is-open {
+  max-height: 240px;
+  opacity: 1;
+}
+
+.reasoning-panel__body {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.8);
+  color: #6b7280;
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
