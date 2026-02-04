@@ -1,39 +1,17 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 
-const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]
-
-const isAllowedOrigin = (origin: string | null) => {
-  if (!origin) {
-    return true
-  }
-  return allowedOrigins.some((pattern) =>
-    typeof pattern === 'string' ? pattern === origin : pattern.test(origin),
-  )
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 }
 
-const buildCorsHeaders = (origin: string | null) => ({
-  'Access-Control-Allow-Origin': origin ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-})
-
 serve(async (req) => {
-  const origin = req.headers.get('origin')
-  if (!isAllowedOrigin(origin)) {
-    return new Response(JSON.stringify({ error: '不允许的来源' }), {
-      status: 403,
-      headers: {
-        ...buildCorsHeaders(origin),
-        'Content-Type': 'application/json',
-      },
-    })
-  }
-
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: buildCorsHeaders(origin),
+      headers: corsHeaders,
     })
   }
 
@@ -43,7 +21,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: '缺少身份令牌' }), {
       status: 401,
       headers: {
-        ...buildCorsHeaders(origin),
+        ...corsHeaders,
         'Content-Type': 'application/json',
       },
     })
@@ -61,7 +39,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: '身份令牌无效' }), {
         status: 401,
         headers: {
-          ...buildCorsHeaders(origin),
+          ...corsHeaders,
           'Content-Type': 'application/json',
         },
       })
@@ -70,7 +48,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: '身份令牌无效' }), {
       status: 401,
       headers: {
-        ...buildCorsHeaders(origin),
+        ...corsHeaders,
         'Content-Type': 'application/json',
       },
     })
@@ -81,7 +59,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: '服务未配置' }), {
       status: 500,
       headers: {
-        ...buildCorsHeaders(origin),
+        ...corsHeaders,
         'Content-Type': 'application/json',
       },
     })
@@ -100,7 +78,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: errorText || '上游服务错误' }), {
         status: upstream.status,
         headers: {
-          ...buildCorsHeaders(origin),
+          ...corsHeaders,
           'Content-Type': 'application/json',
         },
       })
@@ -118,7 +96,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ models }), {
       status: 200,
       headers: {
-        ...buildCorsHeaders(origin),
+        ...corsHeaders,
         'Content-Type': 'application/json',
       },
     })
@@ -126,7 +104,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: '请求失败' }), {
       status: 500,
       headers: {
-        ...buildCorsHeaders(origin),
+        ...corsHeaders,
         'Content-Type': 'application/json',
       },
     })
