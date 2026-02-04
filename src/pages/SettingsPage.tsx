@@ -93,12 +93,39 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     })
   }, [catalog, searchTerm])
 
+  const visibleCatalog = useMemo(() => {
+    const term = searchTerm.trim()
+    if (!term) {
+      return []
+    }
+    return filteredCatalog.slice(0, 20)
+  }, [filteredCatalog, searchTerm])
+
   const applySettingsUpdate = (updater: (current: UserSettings) => UserSettings) => {
     onUpdateSettings((current) => ({
       ...updater(current),
       updatedAt: new Date().toISOString(),
     }))
   }
+
+  useEffect(() => {
+    if (!settings) {
+      return
+    }
+    if (settings.enabledModels.includes(settings.defaultModel)) {
+      return
+    }
+    const fallback = settings.enabledModels.includes(defaultModelId)
+      ? defaultModelId
+      : settings.enabledModels[0] ?? defaultModelId
+    if (fallback === settings.defaultModel) {
+      return
+    }
+    applySettingsUpdate((current) => ({
+      ...current,
+      defaultModel: fallback,
+    }))
+  }, [settings, applySettingsUpdate])
 
   const handleDisableModel = () => {
     if (!settings || !pendingDisable) {
@@ -205,6 +232,10 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     }
   }
 
+  const selectedModelId = settings?.enabledModels.includes(settings.defaultModel)
+    ? settings.defaultModel
+    : settings?.enabledModels[0] ?? settings?.defaultModel ?? ''
+
   if (!ready || !settings) {
     return (
       <div className="settings-page">
@@ -238,32 +269,33 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
         {settings.enabledModels.length === 0 ? (
           <div className="empty-state">暂无启用模型，请从下方模型库启用。</div>
         ) : (
-          <ul className="model-list">
-            {settings.enabledModels.map((modelId) => (
-              <li key={modelId} className="model-item">
-                <div className="model-meta">
-                  <strong>{catalogMap.get(modelId) ?? modelId}</strong>
-                  <span className="model-id">{modelId}</span>
-                </div>
-                <div className="model-actions">
-                  {settings.defaultModel === modelId ? (
-                    <span className="badge">默认</span>
-                  ) : (
-                    <button type="button" className="ghost" onClick={() => handleSetDefault(modelId)}>
-                      设为默认
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="ghost danger"
-                    onClick={() => setPendingDisable(modelId)}
-                  >
-                    停用
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="model-select-card">
+            <div className="model-select-row">
+              <label htmlFor="enabled-models">默认模型</label>
+              <select
+                id="enabled-models"
+                value={selectedModelId}
+                onChange={(event) => handleSetDefault(event.target.value)}
+              >
+                {settings.enabledModels.map((modelId) => (
+                  <option key={modelId} value={modelId}>
+                    {catalogMap.get(modelId) ?? modelId}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="ghost danger small"
+                onClick={() => setPendingDisable(selectedModelId)}
+              >
+                停用
+              </button>
+            </div>
+            <div className="model-selected-meta">
+              <strong>{catalogMap.get(selectedModelId) ?? selectedModelId}</strong>
+              <span className="model-id">{selectedModelId}</span>
+            </div>
+          </div>
         )}
       </section>
 
@@ -349,45 +381,44 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
         {catalogStatus === 'error' ? (
           <div className="catalog-status error">{catalogError}</div>
         ) : null}
-        <ul className="catalog-list">
-          {filteredCatalog.map((model) => {
-            const enabled = settings.enabledModels.includes(model.id)
-            return (
-              <li key={model.id} className="catalog-item">
-                <div className="catalog-meta">
-                  <strong>{model.name ?? model.id}</strong>
-                  <span className="model-id">{model.id}</span>
-                  {model.context_length ? (
-                    <span className="context-length">上下文 {model.context_length}</span>
-                  ) : null}
-                </div>
-                <div className="catalog-actions">
-                  {enabled ? (
-                    <>
-                      {settings.defaultModel === model.id ? (
-                        <span className="badge">默认</span>
+        {searchTerm.trim().length === 0 ? (
+          <div className="catalog-hint">继续输入以缩小范围。</div>
+        ) : null}
+        {searchTerm.trim().length > 0 ? (
+          <div className="catalog-dropdown">
+            {visibleCatalog.length === 0 && catalogStatus !== 'loading' ? (
+              <div className="catalog-empty">未找到匹配模型。</div>
+            ) : null}
+            <ul className="catalog-results">
+              {visibleCatalog.map((model) => {
+                const enabled = settings.enabledModels.includes(model.id)
+                return (
+                  <li key={model.id} className="catalog-result-item">
+                    <div className="catalog-meta">
+                      <strong>{model.name ?? model.id}</strong>
+                      <span className="model-id">{model.id}</span>
+                      {model.context_length ? (
+                        <span className="context-length">上下文 {model.context_length}</span>
+                      ) : null}
+                    </div>
+                    <div className="catalog-actions">
+                      {enabled ? (
+                        <span className="badge subtle">已启用</span>
                       ) : (
-                        <button type="button" className="ghost" onClick={() => handleSetDefault(model.id)}>
-                          设为默认
+                        <button type="button" onClick={() => handleEnableModel(model.id, false)}>
+                          启用
                         </button>
                       )}
-                      <span className="badge subtle">已启用</span>
-                    </>
-                  ) : (
-                    <>
-                      <button type="button" onClick={() => handleEnableModel(model.id, false)}>
-                        启用
-                      </button>
-                      <button type="button" className="ghost" onClick={() => handleEnableModel(model.id, true)}>
-                        启用并设为默认
-                      </button>
-                    </>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            {filteredCatalog.length > visibleCatalog.length ? (
+              <div className="catalog-hint">结果较多，请继续输入以缩小范围。</div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <ConfirmDialog
