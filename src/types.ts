@@ -4,6 +4,7 @@ export type ChatSession = {
   createdAt: string
   updatedAt: string
   overrideModel?: string | null
+  overrideReasoning?: boolean | null
 }
 
 export type ChatMessage = {
@@ -36,5 +37,6 @@ export type UserSettings = {
   topP: number
   maxTokens: number
   systemPrompt: string
+  enableReasoning: boolean
   updatedAt: string
 }

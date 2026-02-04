@@ -261,6 +261,16 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     }
   }
 
+  const handleReasoningToggle = (enabled: boolean) => {
+    if (!settings) {
+      return
+    }
+    applySettingsUpdate((current) => ({
+      ...current,
+      enableReasoning: enabled,
+    }))
+  }
+
   const handleSystemPromptChange = (value: string) => {
     setDraftSystemPrompt(value)
     if (systemPromptStatus !== 'idle') {
@@ -432,6 +442,18 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
             onChange={(event) => handleMaxTokensChange(event.target.value)}
           />
           {errors.maxTokens ? <span className="field-error">{errors.maxTokens}</span> : null}
+        </div>
+        <div className="field-group">
+          <label htmlFor="enableReasoning">思考链（默认）</label>
+          <label className="toggle-control">
+            <input
+              id="enableReasoning"
+              type="checkbox"
+              checked={settings.enableReasoning}
+              onChange={(event) => handleReasoningToggle(event.target.checked)}
+            />
+            <span>{settings.enableReasoning ? '已开启' : '已关闭'}</span>
+          </label>
         </div>
       </section>
 

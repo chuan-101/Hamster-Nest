@@ -316,6 +316,25 @@
   color: #64748b;
 }
 
+.composer-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+
+.composer-toggle input {
+  accent-color: #0f172a;
+}
+
+.composer-toggle .toggle-hint {
+  color: #64748b;
+}
+
 .composer-row {
   display: flex;
   gap: 8px;

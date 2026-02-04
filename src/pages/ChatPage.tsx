@@ -19,6 +19,8 @@ export type ChatPageProps = {
   enabledModels: string[]
   defaultModel: string
   onSelectModel: (model: string | null) => void
+  defaultReasoning: boolean
+  onSelectReasoning: (reasoning: boolean | null) => void
 }
 
 const formatTime = (timestamp: string) =>
@@ -38,6 +40,8 @@ const ChatPage = ({
   enabledModels,
   defaultModel,
   onSelectModel,
+  defaultReasoning,
+  onSelectReasoning,
 }: ChatPageProps) => {
   const [draft, setDraft] = useState('')
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
@@ -87,6 +91,9 @@ const ChatPage = ({
   const sessionOverride = session.overrideModel?.trim() || null
   const selectedModel = sessionOverride ?? defaultModel
   const hasOverride = Boolean(sessionOverride && sessionOverride !== defaultModel)
+  const sessionOverrideReasoning = session.overrideReasoning ?? null
+  const reasoningEnabled = sessionOverrideReasoning ?? defaultReasoning
+  const reasoningHint = sessionOverrideReasoning === null ? '（默认）' : '（会话覆盖）'
   const modelOptions = useMemo(() => {
     const unique = new Set<string>()
     enabledModels.forEach((model) => unique.add(model))
@@ -254,6 +261,15 @@ const ChatPage = ({
             当前：{selectedModel}
             {hasOverride ? '（会话覆盖）' : '（默认）'}
           </span>
+          <label className="composer-toggle">
+            <input
+              type="checkbox"
+              checked={reasoningEnabled}
+              onChange={(event) => onSelectReasoning(event.target.checked)}
+            />
+            <span>思考链</span>
+            <span className="toggle-hint">{reasoningHint}</span>
+          </label>
         </div>
         <div className="composer-row">
           <textarea

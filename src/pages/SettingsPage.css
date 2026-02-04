@@ -210,6 +210,23 @@
   font-family: inherit;
 }
 
+.toggle-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  width: fit-content;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.toggle-control input {
+  accent-color: #0f172a;
+}
+
 .field-error {
   color: #b91c1c;
   font-size: 12px;
