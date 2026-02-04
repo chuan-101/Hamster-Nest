@@ -153,9 +153,11 @@ const ChatPage = ({
                   <ReasoningPanel reasoning={message.meta.reasoning} />
                 ) : null}
                 {message.role === 'assistant' ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} className="assistant-markdown">
-                    {message.content}
-                  </ReactMarkdown>
+                  <div className="assistant-markdown">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                 ) : (
                   <p>{message.content}</p>
                 )}
