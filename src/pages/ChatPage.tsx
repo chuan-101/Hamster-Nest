@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { ChatMessage, ChatSession } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import ReasoningPanel from '../components/ReasoningPanel'
@@ -150,7 +152,13 @@ const ChatPage = ({
                 {message.meta?.reasoning?.trim() ? (
                   <ReasoningPanel reasoning={message.meta.reasoning} />
                 ) : null}
-                <p>{message.content}</p>
+                {message.role === 'assistant' ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} className="assistant-markdown">
+                    {message.content}
+                  </ReactMarkdown>
+                ) : (
+                  <p>{message.content}</p>
+                )}
                 <div className="message-footer">
                   {message.role === 'assistant' && message.meta?.model ? (
                     <span className="model-tag">
