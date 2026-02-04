@@ -48,6 +48,17 @@ const sortMessages = (messages: ChatMessage[]) =>
       new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   )
 
+const selectMostRecentSession = (sessions: ChatSession[]) => {
+  if (sessions.length === 0) {
+    return null
+  }
+  return sessions.reduce<ChatSession>((latest, session) => {
+    const latestTime = new Date(latest.updatedAt ?? latest.createdAt).getTime()
+    const sessionTime = new Date(session.updatedAt ?? session.createdAt).getTime()
+    return sessionTime > latestTime ? session : latest
+  }, sessions[0])
+}
+
 const mergeMessages = (localMessages: ChatMessage[], remoteMessages: ChatMessage[]) => {
   const merged = [...localMessages]
   remoteMessages.forEach((message) => {
@@ -122,6 +133,7 @@ const App = () => {
   const [isStreaming, setIsStreaming] = useState(false)
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
   const [settingsReady, setSettingsReady] = useState(false)
+  const [sessionsReady, setSessionsReady] = useState(false)
   const sessionsRef = useRef(sessions)
   const messagesRef = useRef(messages)
   const streamingControllerRef = useRef<AbortController | null>(null)
@@ -267,10 +279,12 @@ const App = () => {
     if (!user) {
       const fallback = loadSnapshot()
       applySnapshot(fallback.sessions, fallback.messages)
+      setSessionsReady(true)
       return
     }
     let active = true
     const loadRemote = async () => {
+      setSessionsReady(false)
       setSyncing(true)
       try {
         const [remoteSessions, remoteMessages] = await Promise.all([
@@ -288,6 +302,7 @@ const App = () => {
       } finally {
         if (active) {
           setSyncing(false)
+          setSessionsReady(true)
         }
       }
     }
@@ -943,6 +958,7 @@ const App = () => {
             <RequireAuth ready={authReady} user={user}>
               <NewSessionRedirect
                 sessions={sessions}
+                sessionsReady={sessionsReady}
                 onCreateSession={createSessionEntry}
               />
             </RequireAuth>
@@ -958,6 +974,7 @@ const App = () => {
                 messageCounts={messageCounts}
                 drawerOpen={drawerOpen}
                 syncing={syncing}
+                sessionsReady={sessionsReady}
                 isStreaming={isStreaming}
                 onStopStreaming={handleStopStreaming}
                 onOpenDrawer={() => setDrawerOpen(true)}
@@ -1019,9 +1036,11 @@ const RequireAuth = ({
 
 const NewSessionRedirect = ({
   sessions,
+  sessionsReady,
   onCreateSession,
 }: {
   sessions: ChatSession[]
+  sessionsReady: boolean
   onCreateSession: (title?: string) => Promise<ChatSession>
 }) => {
   const navigate = useNavigate()
@@ -1030,11 +1049,17 @@ const NewSessionRedirect = ({
     if (hasInitializedRef.current) {
       return
     }
+    if (!sessionsReady) {
+      return
+    }
     hasInitializedRef.current = true
     let active = true
     const create = async () => {
       if (sessions.length > 0) {
-        navigate(`/chat/${sessions[0].id}`, { replace: true })
+        const targetSession = selectMostRecentSession(sessions)
+        if (targetSession) {
+          navigate(`/chat/${targetSession.id}`, { replace: true })
+        }
         return
       }
       const newSession = await onCreateSession()
@@ -1047,7 +1072,7 @@ const NewSessionRedirect = ({
     return () => {
       active = false
     }
-  }, [navigate, onCreateSession, sessions])
+  }, [navigate, onCreateSession, sessions, sessionsReady])
   return null
 }
 
@@ -1057,6 +1082,7 @@ const ChatRoute = ({
   messageCounts,
   drawerOpen,
   syncing,
+  sessionsReady,
   isStreaming,
   onStopStreaming,
   onOpenDrawer,
@@ -1077,6 +1103,7 @@ const ChatRoute = ({
   messageCounts: Record<string, number>
   drawerOpen: boolean
   syncing: boolean
+  sessionsReady: boolean
   isStreaming: boolean
   onStopStreaming: () => void
   onOpenDrawer: () => void
@@ -1144,12 +1171,15 @@ const ChatRoute = ({
 
   useEffect(() => {
     if (!activeSession && sessions.length > 0) {
-      navigate(`/chat/${sessions[0].id}`, { replace: true })
+      const targetSession = selectMostRecentSession(sessions)
+      if (targetSession) {
+        navigate(`/chat/${targetSession.id}`, { replace: true })
+      }
     }
   }, [activeSession, navigate, sessions])
 
   useEffect(() => {
-    if (activeSession || syncing || sessions.length > 0) {
+    if (activeSession || syncing || !sessionsReady || sessions.length > 0) {
       return
     }
     let active = true
@@ -1164,7 +1194,7 @@ const ChatRoute = ({
     return () => {
       active = false
     }
-  }, [activeSession, navigate, onCreateSession, sessions.length, syncing])
+  }, [activeSession, navigate, onCreateSession, sessions.length, sessionsReady, syncing])
 
   if (!activeSession) {
     return null
