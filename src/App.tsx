@@ -324,6 +324,25 @@ const App = () => {
     }, {})
   }, [messages])
 
+  const resolveSessionModel = useCallback(
+    (sessionId: string) => {
+      const fallback = createDefaultSettings(user?.id ?? 'local')
+      const settings = settingsRef.current ?? fallback
+      const baseDefaultModel =
+        settings.defaultModel?.trim().length > 0
+          ? settings.defaultModel
+          : defaultOpenRouterModel
+      const override = sessionsRef.current.find((session) => session.id === sessionId)
+        ?.overrideModel
+      const overrideModel = override?.trim()
+      if (overrideModel) {
+        return overrideModel
+      }
+      return baseDefaultModel
+    },
+    [user?.id],
+  )
+
   const createSessionEntry = useCallback(
     async (title?: string) => {
       const sessionTitle = title ?? '新会话'
@@ -341,7 +360,7 @@ const App = () => {
       setSessions((prev) => sortSessions([...prev, newSession]))
       return newSession
     },
-    [applySnapshot, resolveSessionModel, user],
+    [applySnapshot, user],
   )
 
   const renameSessionEntry = useCallback(
@@ -367,25 +386,6 @@ const App = () => {
       )
     },
     [applySnapshot, user],
-  )
-
-  const resolveSessionModel = useCallback(
-    (sessionId: string) => {
-      const fallback = createDefaultSettings(user?.id ?? 'local')
-      const settings = settingsRef.current ?? fallback
-      const baseDefaultModel =
-        settings.defaultModel?.trim().length > 0
-          ? settings.defaultModel
-          : defaultOpenRouterModel
-      const override = sessionsRef.current.find((session) => session.id === sessionId)
-        ?.overrideModel
-      const overrideModel = override?.trim()
-      if (overrideModel) {
-        return overrideModel
-      }
-      return baseDefaultModel
-    },
-    [user?.id],
   )
 
   const handleSessionOverrideChange = useCallback(
@@ -927,6 +927,9 @@ const App = () => {
                 onSendMessage={sendMessage}
                 onDeleteMessage={removeMessage}
                 onDeleteSession={removeSession}
+                enabledModels={enabledModels}
+                defaultModel={defaultModelId}
+                onSelectModel={handleSessionOverrideChange}
               />
             </RequireAuth>
           }
@@ -1021,6 +1024,9 @@ const ChatRoute = ({
   onSendMessage,
   onDeleteMessage,
   onDeleteSession,
+  enabledModels,
+  defaultModel,
+  onSelectModel,
 }: {
   sessions: ChatSession[]
   messages: ChatMessage[]
@@ -1036,11 +1042,12 @@ const ChatRoute = ({
   onSendMessage: (sessionId: string, text: string) => Promise<void>
   onDeleteMessage: (messageId: string) => Promise<void>
   onDeleteSession: (sessionId: string) => Promise<void>
+  enabledModels: string[]
+  defaultModel: string
+  onSelectModel: (sessionId: string, model: string | null) => Promise<void>
 }) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
-  void isStreaming
-  void onStopStreaming
 
   const activeSession = sessions.find((session) => session.id === sessionId)
   const activeMessages = useMemo(() => {
@@ -1128,8 +1135,8 @@ const ChatRoute = ({
         isStreaming={isStreaming}
         onStopStreaming={onStopStreaming}
         enabledModels={enabledModels}
-        defaultModel={defaultModelId}
-        onSelectModel={(model) => handleSessionOverrideChange(activeSession.id, model)}
+        defaultModel={defaultModel}
+        onSelectModel={(model) => onSelectModel(activeSession.id, model)}
       />
       <SessionsDrawer
         open={drawerOpen}
