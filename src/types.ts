@@ -3,6 +3,7 @@ export type ChatSession = {
   title: string
   createdAt: string
   updatedAt: string
+  overrideModel?: string | null
 }
 
 export type ChatMessage = {

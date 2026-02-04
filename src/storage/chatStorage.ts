@@ -98,6 +98,7 @@ export const createSession = (title?: string): ChatSession => {
     title: title ?? '新会话',
     createdAt: now,
     updatedAt: now,
+    overrideModel: null,
   }
   snapshot.sessions = sortSessions([...snapshot.sessions, session])
   scheduleWrite()
@@ -168,4 +169,23 @@ export const deleteSession = (sessionId: string) => {
   snapshot.sessions = snapshot.sessions.filter((session) => session.id !== sessionId)
   snapshot.messages = snapshot.messages.filter((message) => message.sessionId !== sessionId)
   scheduleWrite()
+}
+
+export const updateSessionOverride = (
+  sessionId: string,
+  overrideModel: string | null,
+): ChatSession | null => {
+  let updatedSession: ChatSession | null = null
+  snapshot.sessions = snapshot.sessions.map((session) => {
+    if (session.id !== sessionId) {
+      return session
+    }
+    updatedSession = { ...session, overrideModel }
+    return updatedSession
+  })
+  if (!updatedSession) {
+    return null
+  }
+  scheduleWrite()
+  return updatedSession
 }

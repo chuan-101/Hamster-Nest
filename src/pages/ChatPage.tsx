@@ -16,6 +16,9 @@ export type ChatPageProps = {
   onDeleteMessage: (messageId: string) => void | Promise<void>
   isStreaming: boolean
   onStopStreaming: () => void
+  enabledModels: string[]
+  defaultModel: string
+  onSelectModel: (model: string | null) => void
 }
 
 const formatTime = (timestamp: string) =>
@@ -32,6 +35,9 @@ const ChatPage = ({
   onDeleteMessage,
   isStreaming,
   onStopStreaming,
+  enabledModels,
+  defaultModel,
+  onSelectModel,
 }: ChatPageProps) => {
   const [draft, setDraft] = useState('')
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
@@ -77,6 +83,19 @@ const ChatPage = ({
   const actionsLabel = useMemo(() => {
     return openActionsId ? '关闭操作菜单' : '打开操作菜单'
   }, [openActionsId])
+
+  const sessionOverride = session.overrideModel?.trim() || null
+  const selectedModel = sessionOverride ?? defaultModel
+  const hasOverride = Boolean(sessionOverride && sessionOverride !== defaultModel)
+  const modelOptions = useMemo(() => {
+    const unique = new Set<string>()
+    enabledModels.forEach((model) => unique.add(model))
+    unique.add(defaultModel)
+    if (sessionOverride) {
+      unique.add(sessionOverride)
+    }
+    return Array.from(unique)
+  }, [defaultModel, enabledModels, sessionOverride])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -214,6 +233,28 @@ const ChatPage = ({
             </button>
           </div>
         ) : null}
+        <div className="composer-toolbar">
+          <label className="model-selector">
+            <span>模型</span>
+            <select
+              value={selectedModel}
+              onChange={(event) => {
+                const next = event.target.value
+                onSelectModel(next === defaultModel ? null : next)
+              }}
+            >
+              {modelOptions.map((modelId) => (
+                <option key={modelId} value={modelId}>
+                  {modelId === defaultModel ? `默认：${modelId}` : modelId}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="model-hint">
+            当前：{selectedModel}
+            {hasOverride ? '（会话覆盖）' : '（默认）'}
+          </span>
+        </div>
         <div className="composer-row">
           <textarea
             placeholder="输入你的消息"
