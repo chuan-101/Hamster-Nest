@@ -273,7 +273,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
   }
 
   const handleStayOnPage = () => {
-    promptBlocker.reset()
+    promptBlocker.reset?.()
     setShowUnsavedPromptDialog(false)
   }
 
@@ -282,7 +282,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       setDraftSystemPrompt(settings.systemPrompt)
     }
     setShowUnsavedPromptDialog(false)
-    promptBlocker.proceed()
+    promptBlocker.proceed?.()
   }
 
   const handleSaveAndLeave = () => {
@@ -290,7 +290,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       handleSaveSystemPrompt()
     }
     setShowUnsavedPromptDialog(false)
-    promptBlocker.proceed()
+    promptBlocker.proceed?.()
   }
 
   const selectedModelId = settings?.enabledModels.includes(settings.defaultModel)
