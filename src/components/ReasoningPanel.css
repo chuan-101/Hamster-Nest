@@ -1,5 +1,5 @@
 .reasoning-panel {
-  margin-top: 12px;
+  margin-bottom: 8px;
 }
 
 .reasoning-panel__toggle {
@@ -26,19 +26,35 @@
 }
 
 .reasoning-panel__content.is-open {
-  max-height: 240px;
+  max-height: 360px;
   opacity: 1;
 }
 
-.reasoning-panel__body {
+.reasoning-panel__body,
+.reasoning-content {
   margin-top: 8px;
-  padding: 10px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 10px;
-  background: rgba(248, 250, 252, 0.8);
+  max-height: min(300px, 50vh);
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.03);
   color: #6b7280;
-  font-size: 13px;
+  font-size: 0.9em;
   font-style: italic;
-  line-height: 1.5;
+  line-height: 1.6;
   white-space: pre-wrap;
+  word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+.reasoning-panel__body::-webkit-scrollbar,
+.reasoning-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.reasoning-panel__body::-webkit-scrollbar-thumb,
+.reasoning-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
 }

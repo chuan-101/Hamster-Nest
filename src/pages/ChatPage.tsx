@@ -147,10 +147,10 @@ const ChatPage = ({
               className={`message ${message.role === 'user' ? 'out' : 'in'}`}
             >
               <div className="bubble">
-                <p>{message.content}</p>
                 {message.meta?.reasoning?.trim() ? (
                   <ReasoningPanel reasoning={message.meta.reasoning} />
                 ) : null}
+                <p>{message.content}</p>
                 <div className="message-footer">
                   {message.role === 'assistant' && message.meta?.model ? (
                     <span className="model-tag">
