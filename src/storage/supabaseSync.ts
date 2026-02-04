@@ -7,6 +7,7 @@ type SessionRow = {
   title: string
   created_at: string
   updated_at: string
+  override_model: string | null
 }
 
 type MessageRow = {
@@ -26,6 +27,7 @@ const mapSessionRow = (row: SessionRow): ChatSession => ({
   title: row.title,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+  overrideModel: row.override_model ?? null,
 })
 
 const mapMessageRow = (row: MessageRow): ChatMessage => ({
@@ -46,7 +48,7 @@ export const fetchRemoteSessions = async (userId: string): Promise<ChatSession[]
   }
   const { data, error } = await supabase
     .from('sessions')
-    .select('id,user_id,title,created_at,updated_at')
+    .select('id,user_id,title,created_at,updated_at,override_model')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
   if (error) {
@@ -87,7 +89,7 @@ export const createRemoteSession = async (
       created_at: now,
       updated_at: now,
     })
-    .select('id,user_id,title,created_at,updated_at')
+    .select('id,user_id,title,created_at,updated_at,override_model')
     .single()
   if (error || !data) {
     throw error ?? new Error('创建会话失败')
@@ -107,10 +109,30 @@ export const renameRemoteSession = async (
     .from('sessions')
     .update({ title, updated_at: now })
     .eq('id', sessionId)
-    .select('id,user_id,title,created_at,updated_at')
+    .select('id,user_id,title,created_at,updated_at,override_model')
     .single()
   if (error || !data) {
     throw error ?? new Error('更新会话失败')
+  }
+  return mapSessionRow(data as SessionRow)
+}
+
+export const updateRemoteSessionOverride = async (
+  sessionId: string,
+  overrideModel: string | null,
+): Promise<ChatSession> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('sessions')
+    .update({ override_model: overrideModel, updated_at: now })
+    .eq('id', sessionId)
+    .select('id,user_id,title,created_at,updated_at,override_model')
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('更新会话模型失败')
   }
   return mapSessionRow(data as SessionRow)
 }

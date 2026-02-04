@@ -12,6 +12,7 @@ import {
   loadSnapshot,
   renameSession,
   setSnapshot,
+  updateSessionOverride,
 } from './storage/chatStorage'
 import {
   createDefaultSettings,
@@ -26,6 +27,7 @@ import {
   fetchRemoteMessages,
   fetchRemoteSessions,
   renameRemoteSession,
+  updateRemoteSessionOverride,
 } from './storage/supabaseSync'
 import { supabase } from './supabase/client'
 import './App.css'
@@ -124,6 +126,21 @@ const App = () => {
   const settingsRef = useRef<UserSettings | null>(null)
   const settingsSaveTimerRef = useRef<number | null>(null)
   const skipSettingsSaveRef = useRef(true)
+  const fallbackSettings = useMemo(
+    () => createDefaultSettings(user?.id ?? 'local'),
+    [user?.id],
+  )
+  const activeSettings = userSettings ?? fallbackSettings
+  const defaultModelId =
+    activeSettings.defaultModel?.trim().length > 0
+      ? activeSettings.defaultModel
+      : defaultOpenRouterModel
+  const enabledModels = useMemo(() => {
+    const unique = new Set<string>()
+    activeSettings.enabledModels.forEach((model) => unique.add(model))
+    unique.add(defaultModelId)
+    return Array.from(unique)
+  }, [activeSettings.enabledModels, defaultModelId])
 
   useEffect(() => {
     sessionsRef.current = sessions
@@ -324,7 +341,7 @@ const App = () => {
       setSessions((prev) => sortSessions([...prev, newSession]))
       return newSession
     },
-    [applySnapshot, user],
+    [applySnapshot, resolveSessionModel, user],
   )
 
   const renameSessionEntry = useCallback(
@@ -352,14 +369,56 @@ const App = () => {
     [applySnapshot, user],
   )
 
+  const resolveSessionModel = useCallback(
+    (sessionId: string) => {
+      const fallback = createDefaultSettings(user?.id ?? 'local')
+      const settings = settingsRef.current ?? fallback
+      const baseDefaultModel =
+        settings.defaultModel?.trim().length > 0
+          ? settings.defaultModel
+          : defaultOpenRouterModel
+      const override = sessionsRef.current.find((session) => session.id === sessionId)
+        ?.overrideModel
+      const overrideModel = override?.trim()
+      if (overrideModel) {
+        return overrideModel
+      }
+      return baseDefaultModel
+    },
+    [user?.id],
+  )
+
+  const handleSessionOverrideChange = useCallback(
+    async (sessionId: string, overrideModel: string | null) => {
+      const normalized = overrideModel?.trim().length ? overrideModel.trim() : null
+      if (user && supabase) {
+        try {
+          const updated = await updateRemoteSessionOverride(sessionId, normalized)
+          const nextSessions = sessionsRef.current.map((session) =>
+            session.id === sessionId ? updated : session,
+          )
+          applySnapshot(nextSessions, messagesRef.current)
+          return
+        } catch (error) {
+          console.warn('更新云端会话模型失败，已切换本地存储', error)
+        }
+      }
+      const updated = updateSessionOverride(sessionId, normalized)
+      if (!updated) {
+        return
+      }
+      setSessions((prev) =>
+        prev.map((session) => (session.id === sessionId ? updated : session)),
+      )
+    },
+    [applySnapshot, user],
+  )
+
   const sendMessage = useCallback(
     async (sessionId: string, content: string) => {
       const fallbackSettings = createDefaultSettings(user?.id ?? 'local')
       const activeSettings = settingsRef.current ?? fallbackSettings
-      const effectiveModel =
-        activeSettings.defaultModel?.trim().length > 0
-          ? activeSettings.defaultModel
-          : defaultOpenRouterModel
+      const effectiveModel = resolveSessionModel(sessionId)
       const paramsSnapshot = {
         temperature: activeSettings.temperature,
         top_p: activeSettings.topP,
@@ -1068,6 +1127,9 @@ const ChatRoute = ({
         onDeleteMessage={onDeleteMessage}
         isStreaming={isStreaming}
         onStopStreaming={onStopStreaming}
+        enabledModels={enabledModels}
+        defaultModel={defaultModelId}
+        onSelectModel={(model) => handleSessionOverrideChange(activeSession.id, model)}
       />
       <SessionsDrawer
         open={drawerOpen}
