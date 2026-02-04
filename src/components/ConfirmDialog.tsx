@@ -7,8 +7,10 @@ export type ConfirmDialogProps = {
   description?: string
   confirmLabel?: string
   cancelLabel?: string
+  neutralLabel?: string
   onConfirm: () => void
   onCancel: () => void
+  onNeutral?: () => void
 }
 
 const ConfirmDialog = ({
@@ -17,8 +19,10 @@ const ConfirmDialog = ({
   description,
   confirmLabel = '确认',
   cancelLabel = '取消',
+  neutralLabel,
   onConfirm,
   onCancel,
+  onNeutral,
 }: ConfirmDialogProps) => {
   if (!open) {
     return null
@@ -33,6 +37,11 @@ const ConfirmDialog = ({
           <button type="button" className="secondary" onClick={onCancel}>
             {cancelLabel}
           </button>
+          {neutralLabel && onNeutral ? (
+            <button type="button" className="tertiary" onClick={onNeutral}>
+              {neutralLabel}
+            </button>
+          ) : null}
           <button type="button" className="primary" onClick={onConfirm}>
             {confirmLabel}
           </button>

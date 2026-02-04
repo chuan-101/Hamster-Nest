@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { useNavigate } from 'react-router-dom'
+import { useBlocker, useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import type { UserSettings } from '../types'
 import { supabase } from '../supabase/client'
@@ -31,6 +31,9 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
   const [temperatureInput, setTemperatureInput] = useState('')
   const [topPInput, setTopPInput] = useState('')
   const [maxTokensInput, setMaxTokensInput] = useState('')
+  const [draftSystemPrompt, setDraftSystemPrompt] = useState('')
+  const [systemPromptStatus, setSystemPromptStatus] = useState<'idle' | 'saved'>('idle')
+  const [showUnsavedPromptDialog, setShowUnsavedPromptDialog] = useState(false)
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string }>(
     {},
   )
@@ -43,6 +46,13 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     setTopPInput(settings.topP.toString())
     setMaxTokensInput(settings.maxTokens.toString())
   }, [settings])
+
+  useEffect(() => {
+    if (!settings) {
+      return
+    }
+    setDraftSystemPrompt(settings.systemPrompt)
+  }, [settings?.systemPrompt])
 
   useEffect(() => {
     if (!user || !supabase) {
@@ -107,6 +117,17 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       updatedAt: new Date().toISOString(),
     }))
   }
+
+  const hasUnsavedSystemPrompt = settings
+    ? draftSystemPrompt !== settings.systemPrompt
+    : false
+  const promptBlocker = useBlocker(hasUnsavedSystemPrompt)
+
+  useEffect(() => {
+    if (promptBlocker.state === 'blocked') {
+      setShowUnsavedPromptDialog(true)
+    }
+  }, [promptBlocker.state])
 
   useEffect(() => {
     if (!settings) {
@@ -232,6 +253,46 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     }
   }
 
+  const handleSystemPromptChange = (value: string) => {
+    setDraftSystemPrompt(value)
+    if (systemPromptStatus !== 'idle') {
+      setSystemPromptStatus('idle')
+    }
+  }
+
+  const handleSaveSystemPrompt = () => {
+    if (!settings || !hasUnsavedSystemPrompt) {
+      return
+    }
+    const nextPrompt = draftSystemPrompt
+    applySettingsUpdate((current) => ({
+      ...current,
+      systemPrompt: nextPrompt,
+    }))
+    setSystemPromptStatus('saved')
+  }
+
+  const handleStayOnPage = () => {
+    promptBlocker.reset()
+    setShowUnsavedPromptDialog(false)
+  }
+
+  const handleLeaveWithoutSave = () => {
+    if (settings) {
+      setDraftSystemPrompt(settings.systemPrompt)
+    }
+    setShowUnsavedPromptDialog(false)
+    promptBlocker.proceed()
+  }
+
+  const handleSaveAndLeave = () => {
+    if (hasUnsavedSystemPrompt) {
+      handleSaveSystemPrompt()
+    }
+    setShowUnsavedPromptDialog(false)
+    promptBlocker.proceed()
+  }
+
   const selectedModelId = settings?.enabledModels.includes(settings.defaultModel)
     ? settings.defaultModel
     : settings?.enabledModels[0] ?? settings?.defaultModel ?? ''
@@ -353,14 +414,22 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
         <textarea
           className="system-prompt"
           placeholder="例如：你是一个耐心的助手，请用简洁的方式回答。"
-          value={settings.systemPrompt}
-          onChange={(event) =>
-            applySettingsUpdate((current) => ({
-              ...current,
-              systemPrompt: event.target.value,
-            }))
-          }
+          value={draftSystemPrompt}
+          onChange={(event) => handleSystemPromptChange(event.target.value)}
         />
+        <div className="system-prompt-actions">
+          <button
+            type="button"
+            className="primary"
+            disabled={!hasUnsavedSystemPrompt}
+            onClick={handleSaveSystemPrompt}
+          >
+            保存
+          </button>
+          {systemPromptStatus === 'saved' ? (
+            <span className="system-prompt-status">已保存</span>
+          ) : null}
+        </div>
       </section>
 
       <section className="settings-section">
@@ -428,6 +497,18 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
         confirmLabel="停用"
         onCancel={() => setPendingDisable(null)}
         onConfirm={handleDisableModel}
+      />
+
+      <ConfirmDialog
+        open={showUnsavedPromptDialog}
+        title="有未保存的系统提示词"
+        description="离开当前页面前是否保存修改？"
+        confirmLabel="保存并离开"
+        cancelLabel="取消"
+        neutralLabel="不保存离开"
+        onCancel={handleStayOnPage}
+        onNeutral={handleLeaveWithoutSave}
+        onConfirm={handleSaveAndLeave}
       />
     </div>
   )

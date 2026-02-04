@@ -39,6 +39,11 @@
   color: #1f2937;
 }
 
+.confirm-actions .tertiary {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
 .confirm-actions .primary {
   background: #0f172a;
   color: #fff;
