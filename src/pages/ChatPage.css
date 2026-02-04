@@ -41,6 +41,39 @@
   color: #94a3b8;
 }
 
+.header-actions {
+  position: relative;
+}
+
+.header-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.16);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  z-index: 3;
+}
+
+.header-menu button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.header-menu button:hover {
+  background: #f1f5f9;
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
