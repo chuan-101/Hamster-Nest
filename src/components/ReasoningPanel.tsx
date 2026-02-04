@@ -19,7 +19,7 @@ const ReasoningPanel = ({ reasoning }: ReasoningPanelProps) => {
         💭 思考过程
       </button>
       <div className={`reasoning-panel__content ${isOpen ? 'is-open' : ''}`}>
-        <div className="reasoning-panel__body">{reasoning}</div>
+        <div className="reasoning-panel__body reasoning-content">{reasoning}</div>
       </div>
     </div>
   )
