@@ -4,7 +4,7 @@ import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-do
 import ChatPage from './pages/ChatPage'
 import AuthPage from './pages/AuthPage'
 import SessionsDrawer from './components/SessionsDrawer'
-import type { ChatMessage, ChatSession } from './types'
+import type { ChatMessage, ChatSession, UserSettings } from './types'
 import {
   createSession,
   deleteMessage,
@@ -13,6 +13,11 @@ import {
   renameSession,
   setSnapshot,
 } from './storage/chatStorage'
+import {
+  createDefaultSettings,
+  ensureUserSettings,
+  updateUserSettings,
+} from './storage/userSettings'
 import {
   addRemoteMessage,
   createRemoteSession,
@@ -24,6 +29,7 @@ import {
 } from './storage/supabaseSync'
 import { supabase } from './supabase/client'
 import './App.css'
+import SettingsPage from './pages/SettingsPage'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -82,8 +88,13 @@ const updateMessage = (messages: ChatMessage[], next: ChatMessage) =>
 
 const initialSnapshot = loadSnapshot()
 
-const buildOpenAiMessages = (sessionId: string, messages: ChatMessage[]) =>
-  messages
+const buildOpenAiMessages = (
+  sessionId: string,
+  messages: ChatMessage[],
+  systemPrompt?: string,
+) => {
+  const trimmedPrompt = systemPrompt?.trim()
+  const history = messages
     .filter(
       (message) =>
         message.sessionId === sessionId &&
@@ -91,6 +102,11 @@ const buildOpenAiMessages = (sessionId: string, messages: ChatMessage[]) =>
         !message.meta?.streaming,
     )
     .map((message) => ({ role: message.role, content: message.content }))
+  if (trimmedPrompt) {
+    return [{ role: 'system', content: trimmedPrompt }, ...history]
+  }
+  return history
+}
 
 const App = () => {
   const [sessions, setSessions] = useState<ChatSession[]>(initialSnapshot.sessions)
@@ -102,9 +118,14 @@ const App = () => {
   const [pingStatus, setPingStatus] = useState<string | null>(null)
   const [pinging, setPinging] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
+  const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
+  const [settingsReady, setSettingsReady] = useState(false)
   const sessionsRef = useRef(sessions)
   const messagesRef = useRef(messages)
   const streamingControllerRef = useRef<AbortController | null>(null)
+  const settingsRef = useRef<UserSettings | null>(null)
+  const settingsSaveTimerRef = useRef<number | null>(null)
+  const skipSettingsSaveRef = useRef(true)
   const enableInvokePing = import.meta.env.DEV
 
   useEffect(() => {
@@ -114,6 +135,10 @@ const App = () => {
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  useEffect(() => {
+    settingsRef.current = userSettings
+  }, [userSettings])
 
   const applySnapshot = useCallback((nextSessions: ChatSession[], nextMessages: ChatMessage[]) => {
     const orderedSessions = sortSessions(nextSessions)
@@ -188,6 +213,66 @@ const App = () => {
       data.subscription.unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (!authReady) {
+      return
+    }
+    if (!user) {
+      setUserSettings(null)
+      setSettingsReady(true)
+      return
+    }
+    let active = true
+    setSettingsReady(false)
+    skipSettingsSaveRef.current = true
+    const loadSettings = async () => {
+      try {
+        const settings = await ensureUserSettings(user.id)
+        if (!active) {
+          return
+        }
+        setUserSettings(settings)
+      } catch (error) {
+        console.warn('无法加载用户设置', error)
+        if (!active) {
+          return
+        }
+        setUserSettings(createDefaultSettings(user.id))
+      } finally {
+        if (active) {
+          setSettingsReady(true)
+        }
+      }
+    }
+    loadSettings()
+    return () => {
+      active = false
+    }
+  }, [authReady, user])
+
+  useEffect(() => {
+    if (!user || !userSettings || !settingsReady) {
+      return
+    }
+    if (skipSettingsSaveRef.current) {
+      skipSettingsSaveRef.current = false
+      return
+    }
+    if (settingsSaveTimerRef.current !== null) {
+      window.clearTimeout(settingsSaveTimerRef.current)
+    }
+    settingsSaveTimerRef.current = window.setTimeout(() => {
+      void updateUserSettings(userSettings).catch((error) => {
+        console.warn('同步用户设置失败', error)
+      })
+    }, 400)
+    return () => {
+      if (settingsSaveTimerRef.current !== null) {
+        window.clearTimeout(settingsSaveTimerRef.current)
+      }
+    }
+  }, [settingsReady, user, userSettings])
 
   useEffect(() => {
     if (!authReady) {
@@ -302,6 +387,18 @@ const App = () => {
 
   const sendMessage = useCallback(
     async (sessionId: string, content: string) => {
+      const fallbackSettings = createDefaultSettings(user?.id ?? 'local')
+      const activeSettings = settingsRef.current ?? fallbackSettings
+      const effectiveModel =
+        activeSettings.defaultModel?.trim().length > 0
+          ? activeSettings.defaultModel
+          : defaultOpenRouterModel
+      const paramsSnapshot = {
+        temperature: activeSettings.temperature,
+        top_p: activeSettings.topP,
+        max_tokens: activeSettings.maxTokens,
+      }
+      const systemPrompt = activeSettings.systemPrompt
       const clientId = createClientId()
       const clientCreatedAt = new Date().toISOString()
       const optimisticMessage: ChatMessage = {
@@ -327,7 +424,12 @@ const App = () => {
         createdAt: assistantClientCreatedAt,
         clientId: assistantClientId,
         clientCreatedAt: assistantClientCreatedAt,
-        meta: { model: defaultOpenRouterModel, provider: 'openrouter', streaming: true },
+        meta: {
+          model: effectiveModel,
+          provider: 'openrouter',
+          streaming: true,
+          params: paramsSnapshot,
+        },
         pending: true,
       }
       const nextMessages = sortMessages([
@@ -392,7 +494,7 @@ const App = () => {
         }
 
         let assistantContent = ''
-        let actualModel = defaultOpenRouterModel
+        let actualModel = effectiveModel
         let pendingDelta = ''
         let flushTimer: number | null = null
 
@@ -414,6 +516,7 @@ const App = () => {
               model: actualModel,
               provider: 'openrouter',
               streaming: true,
+              params: paramsSnapshot,
             },
             pending: true,
           })
@@ -442,7 +545,11 @@ const App = () => {
             window.alert('Supabase 环境变量未配置')
             return
           }
-          const messagesPayload = buildOpenAiMessages(sessionId, messagesRef.current)
+          const messagesPayload = buildOpenAiMessages(
+            sessionId,
+            messagesRef.current,
+            systemPrompt,
+          )
           const controller = new AbortController()
           streamingControllerRef.current?.abort()
           streamingControllerRef.current = controller
@@ -457,8 +564,11 @@ const App = () => {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                model: defaultOpenRouterModel,
+                model: effectiveModel,
                 messages: messagesPayload,
+                temperature: paramsSnapshot.temperature,
+                top_p: paramsSnapshot.top_p,
+                max_tokens: paramsSnapshot.max_tokens,
                 stream: true,
               }),
               signal: controller.signal,
@@ -519,7 +629,7 @@ const App = () => {
             assistantContent,
             assistantClientId,
             assistantClientCreatedAt,
-            { model: actualModel, provider: 'openrouter' },
+            { model: actualModel, provider: 'openrouter', params: paramsSnapshot },
           )
           const updatedMessages = updateMessage(messagesRef.current, {
             ...assistantMessage,
@@ -544,7 +654,7 @@ const App = () => {
                 assistantContent,
                 assistantClientId,
                 assistantClientCreatedAt,
-                { model: actualModel, provider: 'openrouter' },
+                { model: actualModel, provider: 'openrouter', params: paramsSnapshot },
               )
               const updatedMessages = updateMessage(messagesRef.current, {
                 ...assistantMessage,
@@ -563,7 +673,12 @@ const App = () => {
                 content: assistantContent,
                 createdAt: assistantClientCreatedAt,
                 clientCreatedAt: assistantClientCreatedAt,
-                meta: { model: actualModel, provider: 'openrouter', streaming: false },
+                meta: {
+                  model: actualModel,
+                  provider: 'openrouter',
+                  streaming: false,
+                  params: paramsSnapshot,
+                },
                 pending: false,
               })
               applySnapshot(sessionsRef.current, abortedMessages)
@@ -579,7 +694,12 @@ const App = () => {
             content: assistantContent || '回复失败，请稍后重试。',
             createdAt: assistantClientCreatedAt,
             clientCreatedAt: assistantClientCreatedAt,
-            meta: { model: actualModel, provider: 'openrouter', streaming: false },
+            meta: {
+              model: actualModel,
+              provider: 'openrouter',
+              streaming: false,
+              params: paramsSnapshot,
+            },
             pending: false,
           })
           applySnapshot(sessionsRef.current, failedMessages)
@@ -656,6 +776,10 @@ const App = () => {
     [applySnapshot, user],
   )
 
+  const handleUpdateSettings = useCallback((updater: (current: UserSettings) => UserSettings) => {
+    setUserSettings((current) => (current ? updater(current) : current))
+  }, [])
+
   return (
     <div className="app-shell">
       {enableInvokePing ? (
@@ -699,6 +823,19 @@ const App = () => {
                 onSendMessage={sendMessage}
                 onDeleteMessage={removeMessage}
                 onDeleteSession={removeSession}
+              />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <SettingsPage
+                user={user}
+                settings={userSettings}
+                ready={settingsReady}
+                onUpdateSettings={handleUpdateSettings}
               />
             </RequireAuth>
           }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { ChatMessage, ChatSession } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import './ChatPage.css'
@@ -31,8 +32,11 @@ const ChatPage = ({
 }: ChatPageProps) => {
   const [draft, setDraft] = useState('')
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
+  const [openHeaderMenu, setOpenHeaderMenu] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const headerMenuRef = useRef<HTMLDivElement | null>(null)
+  const navigate = useNavigate()
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -75,6 +79,25 @@ const ChatPage = ({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length])
 
+  useEffect(() => {
+    if (!openHeaderMenu) {
+      return
+    }
+    const handleClick = (event: MouseEvent) => {
+      if (!headerMenuRef.current) {
+        return
+      }
+      if (headerMenuRef.current.contains(event.target as Node)) {
+        return
+      }
+      setOpenHeaderMenu(false)
+    }
+    document.addEventListener('click', handleClick)
+    return () => {
+      document.removeEventListener('click', handleClick)
+    }
+  }, [openHeaderMenu])
+
   return (
     <div className="chat-page">
       <header className="chat-header">
@@ -85,9 +108,31 @@ const ChatPage = ({
           <h1>{session.title}</h1>
           <span className="subtitle">单聊</span>
         </div>
-        <button type="button" className="ghost">
-          聊天操作
-        </button>
+        <div className="header-actions" ref={headerMenuRef}>
+          <button
+            type="button"
+            className="ghost"
+            onClick={(event) => {
+              event.stopPropagation()
+              setOpenHeaderMenu((current) => !current)
+            }}
+          >
+            聊天操作
+          </button>
+          {openHeaderMenu ? (
+            <div className="header-menu">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenHeaderMenu(false)
+                  navigate('/settings')
+                }}
+              >
+                API设置
+              </button>
+            </div>
+          ) : null}
+        </div>
       </header>
       <main className="chat-messages">
         {messages.length === 0 ? (
