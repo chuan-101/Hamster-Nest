@@ -77,7 +77,7 @@ const SnacksPage = ({ user }: SnacksPageProps) => {
     setPublishing(true)
     setError(null)
     try {
-      const created = await createSnackPost(user.id, trimmed)
+      const created = await createSnackPost(trimmed)
       setPosts((current) => [created, ...current])
       setDraft('')
     } catch (publishError) {
@@ -93,7 +93,7 @@ const SnacksPage = ({ user }: SnacksPageProps) => {
       return
     }
     try {
-      await softDeleteSnackPost(pendingDelete.id, user.id)
+      await softDeleteSnackPost(pendingDelete.id)
       setPosts((current) => current.filter((post) => post.id !== pendingDelete.id))
       setPendingDelete(null)
     } catch (deleteError) {
