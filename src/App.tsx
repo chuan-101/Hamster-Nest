@@ -34,6 +34,7 @@ import {
 import { supabase } from './supabase/client'
 import './App.css'
 import SettingsPage from './pages/SettingsPage'
+import SnacksPage from './pages/SnacksPage'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -176,7 +177,7 @@ const App = () => {
     setSessions(orderedSessions)
     setMessages(orderedMessages)
     setSnapshot({ sessions: orderedSessions, messages: orderedMessages })
-  }, [supabase])
+  }, [])
 
   const refreshRemoteSessions = useCallback(async () => {
     if (!user || !supabase) {
@@ -1003,6 +1004,14 @@ const App = () => {
                 ready={settingsReady}
                 onUpdateSettings={handleUpdateSettings}
               />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/snacks"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <SnacksPage user={user} />
             </RequireAuth>
           }
         />
