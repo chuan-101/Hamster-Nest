@@ -281,7 +281,7 @@ export const createSnackPost = async (content: string): Promise<SnackPost> => {
   return mapSnackPostRow(data as SnackPostRow)
 }
 
-export const softDeleteSnackPost = async (postId: string, userId: string): Promise<void> => {
+export const softDeleteSnackPost = async (postId: string): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
