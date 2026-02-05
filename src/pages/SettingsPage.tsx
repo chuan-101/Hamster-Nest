@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -43,25 +43,37 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     if (!settings) {
       return
     }
-    setTemperatureInput(settings.temperature.toString())
-    setTopPInput(settings.topP.toString())
-    setMaxTokensInput(settings.maxTokens.toString())
+    const timer = window.setTimeout(() => {
+      setTemperatureInput(settings.temperature.toString())
+      setTopPInput(settings.topP.toString())
+      setMaxTokensInput(settings.maxTokens.toString())
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [settings])
 
   useEffect(() => {
     if (!settings) {
       return
     }
-    setDraftSystemPrompt(settings.systemPrompt)
-  }, [settings?.systemPrompt])
+    const timer = window.setTimeout(() => {
+      setDraftSystemPrompt(settings.systemPrompt)
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [settings])
 
   useEffect(() => {
     if (!user || !supabase) {
       return
     }
     let active = true
-    setCatalogStatus('loading')
-    setCatalogError(null)
+    const timer = window.setTimeout(() => {
+      setCatalogStatus('loading')
+      setCatalogError(null)
+    }, 0)
     supabase.functions
       .invoke('openrouter-models')
       .then(({ data, error }) => {
@@ -86,6 +98,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       })
     return () => {
       active = false
+      window.clearTimeout(timer)
     }
   }, [user])
 
@@ -112,12 +125,12 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     return filteredCatalog.slice(0, 20)
   }, [filteredCatalog, searchTerm])
 
-  const applySettingsUpdate = (updater: (current: UserSettings) => UserSettings) => {
+  const applySettingsUpdate = useCallback((updater: (current: UserSettings) => UserSettings) => {
     onUpdateSettings((current) => ({
       ...updater(current),
       updatedAt: new Date().toISOString(),
     }))
-  }
+  }, [onUpdateSettings])
 
   const hasUnsavedSystemPrompt = settings
     ? draftSystemPrompt !== settings.systemPrompt

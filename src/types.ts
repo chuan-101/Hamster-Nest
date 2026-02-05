@@ -40,3 +40,12 @@ export type UserSettings = {
   enableReasoning: boolean
   updatedAt: string
 }
+
+export type SnackPost = {
+  id: string
+  userId: string
+  content: string
+  createdAt: string
+  updatedAt: string
+  isDeleted: boolean
+}

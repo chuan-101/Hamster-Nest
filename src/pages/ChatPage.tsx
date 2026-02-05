@@ -154,6 +154,15 @@ const ChatPage = ({
                 type="button"
                 onClick={() => {
                   setOpenHeaderMenu(false)
+                  navigate('/snacks')
+                }}
+              >
+                零食罐
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenHeaderMenu(false)
                   navigate('/settings')
                 }}
               >
