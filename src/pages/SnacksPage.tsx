@@ -98,7 +98,7 @@ const SnacksPage = ({ user }: SnacksPageProps) => {
       setPendingDelete(null)
     } catch (deleteError) {
       console.warn('删除零食记录失败', deleteError)
-      setError('删除失败，请稍后重试。')
+      setError('删除失败，请重试；若仍失败请稍后再试。')
       setPendingDelete(null)
     }
   }
