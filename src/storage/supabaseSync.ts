@@ -265,20 +265,13 @@ export const fetchSnackPosts = async (): Promise<SnackPost[]> => {
   return (data ?? []).map((row) => mapSnackPostRow(row as SnackPostRow))
 }
 
-export const createSnackPost = async (userId: string, content: string): Promise<SnackPost> => {
+export const createSnackPost = async (content: string): Promise<SnackPost> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
-  const now = new Date().toISOString()
   const { data, error } = await supabase
     .from('snack_posts')
-    .insert({
-      user_id: userId,
-      content,
-      created_at: now,
-      updated_at: now,
-      is_deleted: false,
-    })
+    .insert({ content })
     .select('id,user_id,content,created_at,updated_at,is_deleted')
     .single()
 
