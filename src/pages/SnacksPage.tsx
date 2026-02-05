@@ -89,11 +89,11 @@ const SnacksPage = ({ user }: SnacksPageProps) => {
   }
 
   const handleDelete = async () => {
-    if (!pendingDelete) {
+    if (!pendingDelete || !user) {
       return
     }
     try {
-      await softDeleteSnackPost(pendingDelete.id)
+      await softDeleteSnackPost(pendingDelete.id, user.id)
       setPosts((current) => current.filter((post) => post.id !== pendingDelete.id))
       setPendingDelete(null)
     } catch (deleteError) {
