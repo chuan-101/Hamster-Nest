@@ -89,16 +89,16 @@ const SnacksPage = ({ user }: SnacksPageProps) => {
   }
 
   const handleDelete = async () => {
-    if (!pendingDelete) {
+    if (!pendingDelete || !user) {
       return
     }
     try {
-      await softDeleteSnackPost(pendingDelete.id)
+      await softDeleteSnackPost(pendingDelete.id, user.id)
       setPosts((current) => current.filter((post) => post.id !== pendingDelete.id))
       setPendingDelete(null)
     } catch (deleteError) {
       console.warn('删除零食记录失败', deleteError)
-      setError('删除失败，请稍后重试。')
+      setError('删除失败，请重试；若仍失败请稍后再试。')
       setPendingDelete(null)
     }
   }
