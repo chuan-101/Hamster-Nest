@@ -292,12 +292,7 @@ export const softDeleteSnackPost = async (postId: string, userId: string): Promi
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
-  const now = new Date().toISOString()
-  const { error } = await supabase
-    .from('snack_posts')
-    .update({ is_deleted: true, updated_at: now })
-    .eq('id', postId)
-    .eq('user_id', userId)
+  const { error } = await supabase.from('snack_posts').update({ is_deleted: true }).eq('id', postId)
 
   if (error) {
     throw error
