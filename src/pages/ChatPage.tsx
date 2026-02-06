@@ -184,9 +184,11 @@ const ChatPage = ({
               className={`message ${message.role === 'user' ? 'out' : 'in'}`}
             >
               <div className="bubble">
-                {message.meta?.reasoning?.trim() ? (
-                  <ReasoningPanel reasoning={message.meta.reasoning} />
-                ) : null}
+                {(() => {
+                  const reasoningText =
+                    message.meta?.reasoning_text?.trim() ?? message.meta?.reasoning?.trim()
+                  return reasoningText ? <ReasoningPanel reasoning={reasoningText} /> : null
+                })()}
                 {message.role === 'assistant' ? (
                   <div className="assistant-markdown">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>

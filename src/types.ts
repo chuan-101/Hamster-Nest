@@ -20,6 +20,8 @@ export type ChatMessage = {
     model?: string
     streaming?: boolean
     reasoning?: string
+    reasoning_text?: string
+    reasoning_type?: 'reasoning' | 'thinking'
     params?: {
       temperature?: number
       top_p?: number
