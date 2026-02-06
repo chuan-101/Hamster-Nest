@@ -576,6 +576,7 @@ const App = () => {
 
         let assistantContent = ''
         let reasoningContent = ''
+        let reasoningType: 'reasoning' | 'thinking' | null = null
         let actualModel = effectiveModel
         let pendingDelta = ''
         let pendingReasoningDelta = ''
@@ -585,6 +586,35 @@ const App = () => {
 
         const openTag = '<think>'
         const closeTag = '</think>'
+        const reasoningFields: Array<{
+          key: 'reasoning' | 'thinking' | 'reasoning_content' | 'thinking_content'
+          type: 'reasoning' | 'thinking'
+        }> = [
+          { key: 'reasoning', type: 'reasoning' },
+          { key: 'thinking', type: 'thinking' },
+          { key: 'reasoning_content', type: 'reasoning' },
+          { key: 'thinking_content', type: 'thinking' },
+        ]
+
+        const collectReasoningFromObject = (
+          source: Record<string, unknown> | null | undefined,
+        ) => {
+          if (!source) {
+            return { text: '', type: null as typeof reasoningType }
+          }
+          let text = ''
+          let type: typeof reasoningType = null
+          for (const field of reasoningFields) {
+            const value = source[field.key]
+            if (typeof value === 'string' && value.length > 0) {
+              text += value
+              if (!type) {
+                type = field.type
+              }
+            }
+          }
+          return { text, type }
+        }
 
         const findPartialSuffix = (text: string, tag: string) => {
           const maxLength = Math.min(tag.length - 1, text.length)
@@ -636,6 +666,41 @@ const App = () => {
           return { contentChunk, reasoningChunk }
         }
 
+        const appendReasoningDelta = (
+          text: string,
+          type: typeof reasoningType,
+          target: 'pending' | 'final' = 'pending',
+        ) => {
+          if (!text) {
+            return
+          }
+          if (target === 'pending') {
+            pendingReasoningDelta += text
+          } else {
+            reasoningContent += text
+          }
+          if (!reasoningType && type) {
+            reasoningType = type
+          }
+        }
+
+        const buildAssistantMeta = (streaming: boolean): ChatMessage['meta'] => {
+          const meta: ChatMessage['meta'] = {
+            model: actualModel,
+            provider: 'openrouter',
+            streaming,
+            params: paramsSnapshot,
+          }
+          if (reasoningContent) {
+            meta.reasoning = reasoningContent
+            meta.reasoning_text = reasoningContent
+          }
+          if (reasoningType) {
+            meta.reasoning_type = reasoningType
+          }
+          return meta
+        }
+
         const flushPending = () => {
           if (!pendingDelta && !pendingReasoningDelta) {
             return
@@ -656,13 +721,7 @@ const App = () => {
             content: assistantContent,
             createdAt: assistantClientCreatedAt,
             clientCreatedAt: assistantClientCreatedAt,
-            meta: {
-              model: actualModel,
-              provider: 'openrouter',
-              streaming: true,
-              reasoning: reasoningContent,
-              params: paramsSnapshot,
-            },
+            meta: buildAssistantMeta(true),
             pending: true,
           })
           applySnapshot(sessionsRef.current, streamingUpdate)
@@ -695,6 +754,23 @@ const App = () => {
             messagesRef.current,
             systemPrompt,
           )
+          const isClaudeModel = (model: string) => /claude|anthropic/i.test(model)
+          const requestBody: Record<string, unknown> = {
+            model: effectiveModel,
+            messages: messagesPayload,
+            temperature: paramsSnapshot.temperature,
+            top_p: paramsSnapshot.top_p,
+            max_tokens: paramsSnapshot.max_tokens,
+            reasoning: reasoningEnabled,
+            stream: true,
+          }
+          if (reasoningEnabled && isClaudeModel(effectiveModel)) {
+            const maxTokens = paramsSnapshot.max_tokens ?? 1024
+            requestBody.thinking = {
+              type: 'enabled',
+              budget_tokens: Math.max(256, Math.min(1024, maxTokens)),
+            }
+          }
           const controller = new AbortController()
           streamingControllerRef.current?.abort()
           streamingControllerRef.current = controller
@@ -708,21 +784,80 @@ const App = () => {
                 apikey: anonKey,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({
-                model: effectiveModel,
-                messages: messagesPayload,
-                temperature: paramsSnapshot.temperature,
-                top_p: paramsSnapshot.top_p,
-                max_tokens: paramsSnapshot.max_tokens,
-                reasoning: reasoningEnabled,
-                stream: true,
-              }),
+              body: JSON.stringify(requestBody),
               signal: controller.signal,
             },
           )
-          if (!response.ok || !response.body) {
+          if (!response.ok) {
             const errorText = await response.text()
             throw new Error(errorText || '请求失败')
+          }
+          const contentType = response.headers.get('content-type') ?? ''
+          const isEventStream = contentType.includes('text/event-stream')
+          if (!isEventStream) {
+            try {
+              const payload = (await response.json()) as Record<string, unknown>
+              if (typeof payload?.model === 'string') {
+                actualModel = payload.model
+              }
+              const choice = (payload as { choices?: unknown[] })?.choices?.[0] as
+                | Record<string, unknown>
+                | undefined
+              const message = (choice?.message as Record<string, unknown>) ?? choice ?? {}
+              const content =
+                typeof message?.content === 'string'
+                  ? (message.content as string)
+                  : typeof (choice as { text?: unknown })?.text === 'string'
+                    ? ((choice as { text?: unknown }).text as string)
+                    : ''
+              if (content) {
+                const { contentChunk, reasoningChunk } = splitReasoningFromContent(content)
+                assistantContent = contentChunk
+                if (reasoningChunk) {
+                  appendReasoningDelta(reasoningChunk, 'thinking', 'final')
+                }
+              }
+              const messageReasoning = collectReasoningFromObject(message)
+              if (messageReasoning.text) {
+                appendReasoningDelta(messageReasoning.text, messageReasoning.type, 'final')
+              }
+              if (choice && choice !== message) {
+                const choiceReasoning = collectReasoningFromObject(choice)
+                if (choiceReasoning.text) {
+                  appendReasoningDelta(choiceReasoning.text, choiceReasoning.type, 'final')
+                }
+              }
+              if (payload && payload !== choice) {
+                const payloadReasoning = collectReasoningFromObject(payload)
+                if (payloadReasoning.text) {
+                  appendReasoningDelta(payloadReasoning.text, payloadReasoning.type, 'final')
+                }
+              }
+              const { message: assistantMessage, updatedAt } = await addRemoteMessage(
+                sessionId,
+                user.id,
+                'assistant',
+                assistantContent,
+                assistantClientId,
+                assistantClientCreatedAt,
+                buildAssistantMeta(false),
+              )
+              const updatedMessages = updateMessage(messagesRef.current, {
+                ...assistantMessage,
+                pending: false,
+              })
+              const updatedSessions = sessionsRef.current.map((session) =>
+                session.id === sessionId ? { ...session, updatedAt } : session,
+              )
+              applySnapshot(updatedSessions, updatedMessages)
+            } catch (error) {
+              console.warn('解析非流式响应失败', error)
+              throw error
+            }
+            return
+          }
+          if (!response.body) {
+            throw new Error('响应体为空')
           }
           const reader = response.body.getReader()
           const decoder = new TextDecoder('utf-8')
@@ -748,13 +883,16 @@ const App = () => {
               }
               try {
                 const payload = JSON.parse(data)
-                const delta = payload?.choices?.[0]?.delta?.content ?? ''
-                const reasoningDelta = payload?.choices?.[0]?.delta?.reasoning ?? ''
+                const deltaPayload = payload?.choices?.[0]?.delta ?? {}
+                const delta = typeof deltaPayload?.content === 'string' ? deltaPayload.content : ''
                 if (payload?.model) {
                   actualModel = payload.model
                 }
-                if (reasoningDelta) {
-                  pendingReasoningDelta += reasoningDelta
+                const deltaReasoning = collectReasoningFromObject(
+                  deltaPayload as Record<string, unknown>,
+                )
+                if (deltaReasoning.text) {
+                  appendReasoningDelta(deltaReasoning.text, deltaReasoning.type)
                   scheduleFlush()
                 }
                 if (delta) {
@@ -763,7 +901,7 @@ const App = () => {
                     pendingDelta += contentChunk
                   }
                   if (reasoningChunk) {
-                    pendingReasoningDelta += reasoningChunk
+                    appendReasoningDelta(reasoningChunk, 'thinking')
                   }
                   scheduleFlush()
                 }
@@ -786,12 +924,7 @@ const App = () => {
             assistantContent,
             assistantClientId,
             assistantClientCreatedAt,
-            {
-              model: actualModel,
-              provider: 'openrouter',
-              params: paramsSnapshot,
-              reasoning: reasoningContent,
-            },
+            buildAssistantMeta(false),
           )
           const updatedMessages = updateMessage(messagesRef.current, {
             ...assistantMessage,
@@ -816,12 +949,7 @@ const App = () => {
                 assistantContent,
                 assistantClientId,
                 assistantClientCreatedAt,
-                {
-                  model: actualModel,
-                  provider: 'openrouter',
-                  params: paramsSnapshot,
-                  reasoning: reasoningContent,
-                },
+                buildAssistantMeta(false),
               )
               const updatedMessages = updateMessage(messagesRef.current, {
                 ...assistantMessage,
@@ -840,13 +968,7 @@ const App = () => {
                 content: assistantContent,
                 createdAt: assistantClientCreatedAt,
                 clientCreatedAt: assistantClientCreatedAt,
-                meta: {
-                  model: actualModel,
-                  provider: 'openrouter',
-                  streaming: false,
-                  reasoning: reasoningContent,
-                  params: paramsSnapshot,
-                },
+                meta: buildAssistantMeta(false),
                 pending: false,
               })
               applySnapshot(sessionsRef.current, abortedMessages)
@@ -862,13 +984,7 @@ const App = () => {
             content: assistantContent || '回复失败，请稍后重试。',
             createdAt: assistantClientCreatedAt,
             clientCreatedAt: assistantClientCreatedAt,
-            meta: {
-              model: actualModel,
-              provider: 'openrouter',
-              streaming: false,
-              reasoning: reasoningContent,
-              params: paramsSnapshot,
-            },
+            meta: buildAssistantMeta(false),
             pending: false,
           })
           applySnapshot(sessionsRef.current, failedMessages)

@@ -16,7 +16,7 @@ const ReasoningPanel = ({ reasoning }: ReasoningPanelProps) => {
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
-        💭 思考过程
+        查看思考
       </button>
       <div className={`reasoning-panel__content ${isOpen ? 'is-open' : ''}`}>
         <div className="reasoning-panel__body reasoning-content">{reasoning}</div>
