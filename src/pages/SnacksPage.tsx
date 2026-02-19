@@ -11,6 +11,7 @@ import {
   fetchDeletedSnackPosts,
   fetchSnackPosts,
   fetchSnackReplies,
+  fetchSnackRepliesByPost,
   restoreSnackPost,
   softDeleteSnackPost,
   softDeleteSnackReply,
@@ -31,6 +32,9 @@ type SnacksPageProps = {
 }
 
 const maxLength = 1000
+
+const createPendingReplyId = (postId: string) =>
+  `pending-${postId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 const formatChineseTime = (timestamp: string) =>
   new Date(timestamp).toLocaleString('zh-CN', {
@@ -241,17 +245,38 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     if (!user || submittingReplyPostId || content.length === 0) {
       return
     }
+    const pendingId = createPendingReplyId(postId)
+    const pendingReply: SnackReply = {
+      id: pendingId,
+      postId,
+      role: 'user',
+      content,
+      createdAt: new Date().toISOString(),
+      userId: user.id,
+      isDeleted: false,
+      meta: {},
+    }
+
     setSubmittingReplyPostId(postId)
     setError(null)
+    setRepliesByPost((current) => ({
+      ...current,
+      [postId]: [...(current[postId] ?? []), pendingReply],
+    }))
+    setReplyDrafts((current) => ({ ...current, [postId]: '' }))
+
     try {
       const reply = await createSnackReply(postId, 'user', content, {})
       setRepliesByPost((current) => ({
         ...current,
-        [postId]: [...(current[postId] ?? []), reply],
+        [postId]: (current[postId] ?? []).map((item) => (item.id === pendingId ? reply : item)),
       }))
-      setReplyDrafts((current) => ({ ...current, [postId]: '' }))
     } catch (submitError) {
       console.warn('提交追问失败', submitError)
+      setRepliesByPost((current) => ({
+        ...current,
+        [postId]: (current[postId] ?? []).filter((item) => item.id !== pendingId),
+      }))
       setError('发送失败，请稍后重试。')
     } finally {
       setSubmittingReplyPostId(null)
@@ -265,6 +290,23 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     setExpandedPostIds((current) => ({ ...current, [post.id]: true }))
     setGeneratingPostId(post.id)
     setError(null)
+    const pendingAssistantId = createPendingReplyId(post.id)
+    const pendingAssistantReply: SnackReply = {
+      id: pendingAssistantId,
+      postId: post.id,
+      role: 'assistant',
+      content: '生成中…',
+      createdAt: new Date().toISOString(),
+      userId: user.id,
+      isDeleted: false,
+      meta: {
+        model: snackAiConfig.model,
+      },
+    }
+    setRepliesByPost((current) => ({
+      ...current,
+      [post.id]: [...(current[post.id] ?? []), pendingAssistantReply],
+    }))
 
     try {
       const { data } = await supabase.auth.getSession()
@@ -327,6 +369,13 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
             ? choice.text
             : ''
 
+      setRepliesByPost((current) => ({
+        ...current,
+        [post.id]: (current[post.id] ?? []).map((item) =>
+          item.id === pendingAssistantId ? { ...item, content: content || '（空回复）' } : item,
+        ),
+      }))
+
       const reasoningCandidates = [
         message.reasoning,
         message.thinking,
@@ -341,17 +390,22 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
         .filter((value): value is string => typeof value === 'string' && value.length > 0)
         .join('')
 
-      const reply = await createSnackReply(post.id, 'assistant', content || '（空回复）', {
+      await createSnackReply(post.id, 'assistant', content || '（空回复）', {
         provider: 'openrouter',
         model: typeof payload.model === 'string' ? payload.model : snackAiConfig.model,
         reasoning_text: reasoningText || undefined,
       })
+      const latestReplies = await fetchSnackRepliesByPost(post.id)
       setRepliesByPost((current) => ({
         ...current,
-        [post.id]: [...(current[post.id] ?? []), reply],
+        [post.id]: latestReplies,
       }))
     } catch (generateError) {
       console.warn('生成零食回复失败', generateError)
+      setRepliesByPost((current) => ({
+        ...current,
+        [post.id]: (current[post.id] ?? []).filter((item) => item.id !== pendingAssistantId),
+      }))
       setError('生成失败，请稍后重试。')
     } finally {
       setGeneratingPostId(null)
@@ -471,7 +525,16 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
                       {replies.map((reply) => (
                         <div key={reply.id} className={`reply-bubble ${reply.role === 'assistant' ? 'assistant' : 'user'}`}>
                           <div className="reply-content-wrap">
-                            <div className="reply-role">{reply.role === 'assistant' ? 'AI' : '你'}</div>
+                            <div className="reply-role">
+                              {reply.role === 'assistant' ? (
+                                <>
+                                  <span>Syzygy</span>
+                                  <span className="reply-model-badge">{reply.meta?.model || '未知模型'}</span>
+                                </>
+                              ) : (
+                                <span>串串</span>
+                              )}
+                            </div>
                             {reply.role === 'assistant' ? (
                               <div className="assistant-markdown">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{reply.content}</ReactMarkdown>

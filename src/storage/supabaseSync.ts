@@ -351,8 +351,26 @@ export const fetchSnackReplies = async (postIds: string[]): Promise<SnackReply[]
     .from('snack_replies')
     .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
     .in('post_id', postIds)
+    .in('role', ['user', 'assistant'])
     .eq('is_deleted', false)
     .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapSnackReplyRow(row as SnackReplyRow))
+}
+
+export const fetchSnackRepliesByPost = async (postId: string): Promise<SnackReply[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('snack_replies')
+    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .eq('post_id', postId)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: true })
+
   if (error) {
     throw error
   }

@@ -162,10 +162,24 @@
   min-width: 0;
 }
 
+
 .reply-role {
   font-size: 12px;
   color: #475569;
   margin-bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reply-model-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .reply-bubble p {
