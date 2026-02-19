@@ -285,7 +285,7 @@ export const softDeleteSnackPost = async (postId: string): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
-  const { error } = await supabase.from('snack_posts').update({ is_deleted: true }).eq('id', postId)
+  const { error } = await supabase.rpc('soft_delete_snack_post', { p_post_id: postId })
 
   if (error) {
     throw error
