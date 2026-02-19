@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatSession, SnackPost } from '../types'
+import type { ChatMessage, ChatSession, SnackPost, SnackReply } from '../types'
 import { supabase } from '../supabase/client'
 
 type SessionRow = {
@@ -33,6 +33,16 @@ type SnackPostRow = {
   is_deleted: boolean
 }
 
+type SnackReplyRow = {
+  id: string
+  user_id: string
+  post_id: string
+  content: string
+  meta: SnackReply['meta'] | null
+  created_at: string
+  is_deleted: boolean
+}
+
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
   userId: row.user_id,
@@ -40,6 +50,16 @@ const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   isDeleted: row.is_deleted,
+})
+
+const mapSnackReplyRow = (row: SnackReplyRow): SnackReply => ({
+  id: row.id,
+  userId: row.user_id,
+  postId: row.post_id,
+  content: row.content,
+  createdAt: row.created_at,
+  isDeleted: row.is_deleted,
+  meta: row.meta ?? undefined,
 })
 
 const mapSessionRow = (row: SessionRow): ChatSession => ({
@@ -315,6 +335,52 @@ export const softDeleteSnackPost = async (postId: string): Promise<void> => {
     throw new Error('Supabase 客户端未配置')
   }
   const { error } = await supabase.rpc('soft_delete_snack_post', { p_post_id: postId })
+
+  if (error) {
+    throw error
+  }
+}
+
+export const fetchSnackReplies = async (postIds: string[]): Promise<SnackReply[]> => {
+  if (!supabase || postIds.length === 0) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('snack_replies')
+    .select('id,user_id,post_id,content,meta,created_at,is_deleted')
+    .in('post_id', postIds)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapSnackReplyRow(row as SnackReplyRow))
+}
+
+export const createSnackReply = async (
+  postId: string,
+  content: string,
+  meta: SnackReply['meta'],
+): Promise<SnackReply> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { data, error } = await supabase
+    .from('snack_replies')
+    .insert({ post_id: postId, content, meta: meta ?? {} })
+    .select('id,user_id,post_id,content,meta,created_at,is_deleted')
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('保存零食回复失败')
+  }
+  return mapSnackReplyRow(data as SnackReplyRow)
+}
+
+export const softDeleteSnackReply = async (replyId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.rpc('soft_delete_snack_reply', { p_reply_id: replyId })
 
   if (error) {
     throw error

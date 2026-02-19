@@ -88,3 +88,44 @@
   padding: 4px 10px;
   font-size: 13px;
 }
+
+.post-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reply-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reply-bubble {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reply-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.reply-bubble.pending {
+  color: #64748b;
+}
+
+.reply-time {
+  display: inline-block;
+  margin-top: 6px;
+  color: #94a3b8;
+  font-size: 12px;
+}

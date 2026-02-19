@@ -157,6 +157,19 @@ const App = () => {
     return Array.from(unique)
   }, [activeSettings.enabledModels, defaultModelId])
 
+  const latestSession = useMemo(() => selectMostRecentSession(sessions), [sessions])
+  const snackAiConfig = useMemo(() => {
+    const overrideModel = latestSession?.overrideModel?.trim() || null
+    return {
+      model: overrideModel ?? defaultModelId,
+      reasoning: latestSession?.overrideReasoning ?? activeSettings.enableReasoning,
+      temperature: activeSettings.temperature,
+      topP: activeSettings.topP,
+      maxTokens: activeSettings.maxTokens,
+      systemPrompt: activeSettings.systemPrompt,
+    }
+  }, [activeSettings, defaultModelId, latestSession])
+
   useEffect(() => {
     sessionsRef.current = sessions
   }, [sessions])
@@ -1127,7 +1140,7 @@ const App = () => {
           path="/snacks"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <SnacksPage user={user} />
+              <SnacksPage user={user} snackAiConfig={snackAiConfig} />
             </RequireAuth>
           }
         />
