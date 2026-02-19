@@ -51,14 +51,18 @@ const ChatPage = ({
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
   const navigate = useNavigate()
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault()
+  const submitDraft = async () => {
     const trimmed = draft.trim()
     if (!trimmed) {
       return
     }
     await onSendMessage(trimmed)
     setDraft('')
+  }
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    await submitDraft()
   }
 
   const handleCopy = async (message: ChatMessage) => {
@@ -288,6 +292,15 @@ const ChatPage = ({
             rows={2}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) {
+                return
+              }
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault()
+                void submitDraft()
+              }
+            }}
           />
           <button type="submit" className="primary">
             发送
