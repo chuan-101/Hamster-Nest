@@ -265,6 +265,23 @@ export const fetchSnackPosts = async (): Promise<SnackPost[]> => {
   return (data ?? []).map((row) => mapSnackPostRow(row as SnackPostRow))
 }
 
+
+export const fetchDeletedSnackPosts = async (): Promise<SnackPost[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('snack_posts')
+    .select('id,user_id,content,created_at,updated_at,is_deleted')
+    .eq('is_deleted', true)
+    .order('updated_at', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapSnackPostRow(row as SnackPostRow))
+}
+
 export const createSnackPost = async (content: string): Promise<SnackPost> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
@@ -281,11 +298,23 @@ export const createSnackPost = async (content: string): Promise<SnackPost> => {
   return mapSnackPostRow(data as SnackPostRow)
 }
 
+
+export const restoreSnackPost = async (postId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.rpc('restore_snack_post', { p_post_id: postId })
+
+  if (error) {
+    throw error
+  }
+}
+
 export const softDeleteSnackPost = async (postId: string): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
-  const { error } = await supabase.from('snack_posts').update({ is_deleted: true }).eq('id', postId)
+  const { error } = await supabase.rpc('soft_delete_snack_post', { p_post_id: postId })
 
   if (error) {
     throw error

@@ -83,3 +83,8 @@
   color: #64748b;
   text-align: center;
 }
+
+.compact-action {
+  padding: 4px 10px;
+  font-size: 13px;
+}
