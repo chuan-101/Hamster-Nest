@@ -51,3 +51,17 @@ export type SnackPost = {
   updatedAt: string
   isDeleted: boolean
 }
+
+export type SnackReply = {
+  id: string
+  userId: string
+  postId: string
+  content: string
+  createdAt: string
+  isDeleted: boolean
+  meta?: {
+    provider?: string
+    model?: string
+    reasoning_text?: string
+  }
+}
