@@ -351,6 +351,7 @@ export const fetchSnackReplies = async (postIds: string[]): Promise<SnackReply[]
     .from('snack_replies')
     .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
     .in('post_id', postIds)
+    .in('role', ['user', 'assistant'])
     .eq('is_deleted', false)
     .order('created_at', { ascending: true })
   if (error) {

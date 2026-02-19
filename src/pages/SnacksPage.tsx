@@ -471,7 +471,16 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
                       {replies.map((reply) => (
                         <div key={reply.id} className={`reply-bubble ${reply.role === 'assistant' ? 'assistant' : 'user'}`}>
                           <div className="reply-content-wrap">
-                            <div className="reply-role">{reply.role === 'assistant' ? 'AI' : '你'}</div>
+                            <div className="reply-role">
+                              {reply.role === 'assistant' ? (
+                                <>
+                                  <span>Syzygy</span>
+                                  <span className="reply-model-badge">{reply.meta?.model || '未知模型'}</span>
+                                </>
+                              ) : (
+                                <span>串串</span>
+                              )}
+                            </div>
                             {reply.role === 'assistant' ? (
                               <div className="assistant-markdown">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{reply.content}</ReactMarkdown>
