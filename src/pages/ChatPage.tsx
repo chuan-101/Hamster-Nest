@@ -293,14 +293,13 @@ const ChatPage = ({
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key !== 'Enter') {
+              if (event.nativeEvent.isComposing) {
                 return
               }
-              if (!event.metaKey && !event.ctrlKey) {
-                return
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault()
+                void submitDraft()
               }
-              event.preventDefault()
-              void submitDraft()
             }}
           />
           <button type="submit" className="primary">
