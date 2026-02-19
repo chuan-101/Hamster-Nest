@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import ConfirmDialog from '../components/ConfirmDialog'
 import type { SnackPost, SnackReply } from '../types'
 import {
@@ -39,13 +41,23 @@ const formatChineseTime = (timestamp: string) =>
     minute: '2-digit',
   })
 
+const getReplyPreview = (reply: SnackReply | undefined) => {
+  if (!reply) {
+    return '暂无回复'
+  }
+  return reply.content.length > 30 ? `${reply.content.slice(0, 30)}…` : reply.content
+}
+
 const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
   const navigate = useNavigate()
   const [draft, setDraft] = useState('')
   const [posts, setPosts] = useState<SnackPost[]>([])
   const [repliesByPost, setRepliesByPost] = useState<Record<string, SnackReply[]>>({})
+  const [expandedPostIds, setExpandedPostIds] = useState<Record<string, boolean>>({})
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
+  const [submittingReplyPostId, setSubmittingReplyPostId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<SnackPost | null>(null)
   const [pendingDeleteReply, setPendingDeleteReply] = useState<SnackReply | null>(null)
@@ -54,6 +66,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
   const [trashLoading, setTrashLoading] = useState(false)
   const [restoringPostId, setRestoringPostId] = useState<string | null>(null)
   const [generatingPostId, setGeneratingPostId] = useState<string | null>(null)
+  const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
 
   const refreshPosts = useCallback(async () => {
     setLoading(true)
@@ -202,10 +215,54 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     }
   }
 
+  const toggleExpanded = (postId: string) => {
+    setExpandedPostIds((current) => ({
+      ...current,
+      [postId]: !current[postId],
+    }))
+  }
+
+  const expandAndFocusReply = (postId: string) => {
+    setExpandedPostIds((current) => ({ ...current, [postId]: true }))
+    setTimeout(() => {
+      replyInputRefs.current[postId]?.focus()
+    }, 0)
+  }
+
+  const handleReplyDraftChange = (postId: string, value: string) => {
+    setReplyDrafts((current) => ({
+      ...current,
+      [postId]: value,
+    }))
+  }
+
+  const handleSubmitReply = async (postId: string) => {
+    const content = (replyDrafts[postId] ?? '').trim()
+    if (!user || submittingReplyPostId || content.length === 0) {
+      return
+    }
+    setSubmittingReplyPostId(postId)
+    setError(null)
+    try {
+      const reply = await createSnackReply(postId, 'user', content, {})
+      setRepliesByPost((current) => ({
+        ...current,
+        [postId]: [...(current[postId] ?? []), reply],
+      }))
+      setReplyDrafts((current) => ({ ...current, [postId]: '' }))
+    } catch (submitError) {
+      console.warn('提交追问失败', submitError)
+      setError('发送失败，请稍后重试。')
+    } finally {
+      setSubmittingReplyPostId(null)
+    }
+  }
+
   const handleGenerateReply = async (post: SnackPost) => {
     if (!user || !supabase || generatingPostId) {
       return
     }
+    setExpandedPostIds((current) => ({ ...current, [post.id]: true }))
     setGeneratingPostId(post.id)
     setError(null)
 
@@ -284,7 +341,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
         .filter((value): value is string => typeof value === 'string' && value.length > 0)
         .join('')
 
-      const reply = await createSnackReply(post.id, content || '（空回复）', {
+      const reply = await createSnackReply(post.id, 'assistant', content || '（空回复）', {
         provider: 'openrouter',
         model: typeof payload.model === 'string' ? payload.model : snackAiConfig.model,
         reasoning_text: reasoningText || undefined,
@@ -366,12 +423,35 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
           <main className="snacks-feed">
             {loading ? <p className="tips">加载中…</p> : null}
             {!loading && posts.length === 0 ? <p className="tips">还没有记录，来发布第一条吧。</p> : null}
-            {posts.map((post) => (
-              <article key={post.id} className="post-card">
-                <p className="post-content">{post.content}</p>
-                <div className="post-footer">
-                  <span>{formatChineseTime(post.createdAt)}</span>
-                  <div className="post-actions">
+            {posts.map((post) => {
+              const replies = repliesByPost[post.id] ?? []
+              const isExpanded = expandedPostIds[post.id] ?? false
+              const isGenerating = generatingPostId === post.id
+              const latestReply = replies.at(-1)
+              const replyDraft = replyDrafts[post.id] ?? ''
+              return (
+                <article key={post.id} className="post-card">
+                  <p className="post-content">{post.content}</p>
+                  <div className="post-footer">
+                    <span>{formatChineseTime(post.createdAt)}</span>
+                    <div className="post-actions">
+                      <button type="button" className="ghost danger" onClick={() => setPendingDelete(post)}>
+                        删除
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="reply-collapsed-row">
+                    <button
+                      type="button"
+                      className="reply-toggle"
+                      onClick={() => toggleExpanded(post.id)}
+                      aria-expanded={isExpanded}
+                    >
+                      <span className="reply-toggle-main">回复（{replies.length}）</span>
+                      <span className="reply-preview">{getReplyPreview(latestReply)}</span>
+                      <span className="reply-chevron">{isExpanded ? '▾' : '▸'}</span>
+                    </button>
                     <button
                       type="button"
                       className="ghost"
@@ -381,28 +461,57 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
                     >
                       🐹
                     </button>
-                    <button type="button" className="ghost danger" onClick={() => setPendingDelete(post)}>
-                      删除
+                    <button type="button" className="ghost" onClick={() => expandAndFocusReply(post.id)}>
+                      回复
                     </button>
                   </div>
-                </div>
 
-                <div className="reply-list">
-                  {(repliesByPost[post.id] ?? []).map((reply) => (
-                    <div key={reply.id} className="reply-bubble">
-                      <div>
-                        <p>{reply.content}</p>
-                        <span className="reply-time">{formatChineseTime(reply.createdAt)}</span>
+                  {isExpanded ? (
+                    <div className="reply-list">
+                      {replies.map((reply) => (
+                        <div key={reply.id} className={`reply-bubble ${reply.role === 'assistant' ? 'assistant' : 'user'}`}>
+                          <div className="reply-content-wrap">
+                            <div className="reply-role">{reply.role === 'assistant' ? 'AI' : '你'}</div>
+                            {reply.role === 'assistant' ? (
+                              <div className="assistant-markdown">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{reply.content}</ReactMarkdown>
+                              </div>
+                            ) : (
+                              <p>{reply.content}</p>
+                            )}
+                            <span className="reply-time">{formatChineseTime(reply.createdAt)}</span>
+                          </div>
+                          <button type="button" className="ghost danger" onClick={() => setPendingDeleteReply(reply)}>
+                            删除
+                          </button>
+                        </div>
+                      ))}
+                      {isGenerating ? <div className="reply-bubble pending">生成中…</div> : null}
+
+                      <div className="reply-composer">
+                        <textarea
+                          ref={(node) => {
+                            replyInputRefs.current[post.id] = node
+                          }}
+                          rows={2}
+                          placeholder="写下你的回复…"
+                          value={replyDraft}
+                          onChange={(event) => handleReplyDraftChange(post.id, event.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="primary"
+                          onClick={() => void handleSubmitReply(post.id)}
+                          disabled={submittingReplyPostId === post.id || replyDraft.trim().length === 0}
+                        >
+                          {submittingReplyPostId === post.id ? '发送中…' : '发送'}
+                        </button>
                       </div>
-                      <button type="button" className="ghost danger" onClick={() => setPendingDeleteReply(reply)}>
-                        删除
-                      </button>
                     </div>
-                  ))}
-                  {generatingPostId === post.id ? <div className="reply-bubble pending">生成中…</div> : null}
-                </div>
-              </article>
-            ))}
+                  ) : null}
+                </article>
+              )
+            })}
           </main>
 
           <ConfirmDialog

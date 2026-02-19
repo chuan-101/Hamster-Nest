@@ -56,6 +56,7 @@ export type SnackReply = {
   id: string
   userId: string
   postId: string
+  role: 'user' | 'assistant'
   content: string
   createdAt: string
   isDeleted: boolean

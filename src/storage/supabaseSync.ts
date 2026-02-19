@@ -37,6 +37,7 @@ type SnackReplyRow = {
   id: string
   user_id: string
   post_id: string
+  role: SnackReply['role']
   content: string
   meta: SnackReply['meta'] | null
   created_at: string
@@ -56,6 +57,7 @@ const mapSnackReplyRow = (row: SnackReplyRow): SnackReply => ({
   id: row.id,
   userId: row.user_id,
   postId: row.post_id,
+  role: row.role,
   content: row.content,
   createdAt: row.created_at,
   isDeleted: row.is_deleted,
@@ -347,7 +349,7 @@ export const fetchSnackReplies = async (postIds: string[]): Promise<SnackReply[]
   }
   const { data, error } = await supabase
     .from('snack_replies')
-    .select('id,user_id,post_id,content,meta,created_at,is_deleted')
+    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
     .in('post_id', postIds)
     .eq('is_deleted', false)
     .order('created_at', { ascending: true })
@@ -359,6 +361,7 @@ export const fetchSnackReplies = async (postIds: string[]): Promise<SnackReply[]
 
 export const createSnackReply = async (
   postId: string,
+  role: SnackReply['role'],
   content: string,
   meta: SnackReply['meta'],
 ): Promise<SnackReply> => {
@@ -367,8 +370,8 @@ export const createSnackReply = async (
   }
   const { data, error } = await supabase
     .from('snack_replies')
-    .insert({ post_id: postId, content, meta: meta ?? {} })
-    .select('id,user_id,post_id,content,meta,created_at,is_deleted')
+    .insert({ post_id: postId, role, content, meta: meta ?? {} })
+    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
     .single()
   if (error || !data) {
     throw error ?? new Error('保存零食回复失败')

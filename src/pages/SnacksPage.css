@@ -95,6 +95,46 @@
   gap: 8px;
 }
 
+.reply-collapsed-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reply-toggle {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.reply-toggle-main {
+  color: #334155;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.reply-preview {
+  color: #64748b;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reply-chevron {
+  color: #64748b;
+  font-size: 12px;
+}
+
 .reply-list {
   margin-top: 10px;
   display: flex;
@@ -108,9 +148,24 @@
   border-radius: 10px;
   padding: 8px 10px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+}
+
+.reply-bubble.user {
+  background: #eff6ff;
+}
+
+.reply-content-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-role {
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 4px;
 }
 
 .reply-bubble p {
@@ -128,4 +183,42 @@
   margin-top: 6px;
   color: #94a3b8;
   font-size: 12px;
+}
+
+.reply-composer {
+  display: flex;
+  gap: 8px;
+}
+
+.reply-composer textarea {
+  flex: 1;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+.reply-composer button {
+  align-self: flex-end;
+}
+
+.assistant-markdown > :first-child {
+  margin-top: 0;
+}
+
+.assistant-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.assistant-markdown p {
+  margin: 0 0 8px;
+}
+
+.assistant-markdown ul,
+.assistant-markdown ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
 }
