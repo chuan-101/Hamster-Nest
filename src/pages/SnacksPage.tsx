@@ -316,12 +316,22 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
         throw new Error('登录状态异常或环境变量未配置')
       }
 
-      const messagesPayload = [] as Array<{ role: 'system' | 'user'; content: string }>
+      const messagesPayload = [] as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
       const prompt = snackAiConfig.systemPrompt.trim()
       if (prompt) {
         messagesPayload.push({ role: 'system', content: prompt })
-      }
-      messagesPayload.push({ role: 'user', content: post.content })
+}
+messagesPayload.push({ role: 'user', content: post.content })
+
+const existingReplies = repliesByPost[post.id] ?? []
+for (const reply of existingReplies) {
+  if (reply.content && reply.content !== '生成中…') {
+    messagesPayload.push({
+      role: reply.role === 'assistant' ? 'assistant' : 'user',
+      content: reply.content,
+    })
+  }
+}
 
       const requestBody: Record<string, unknown> = {
         model: snackAiConfig.model,
