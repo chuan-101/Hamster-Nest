@@ -13,6 +13,11 @@ type OpenRouterPayload = {
   max_tokens?: number
   reasoning?: boolean
   stream?: boolean
+  isFirstMessage?: boolean
+}
+
+type AuthUserResponse = {
+  id: string
 }
 
 const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]
@@ -32,6 +37,57 @@ const buildCorsHeaders = (origin: string | null) => ({
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Max-Age': '86400',
 })
+
+const buildMemoryMessage = (memories: string[]): OpenAiMessage => ({
+  role: 'system',
+  content: `MEMORY:\n${memories.map((content) => `- ${content}`).join('\n')}`,
+})
+
+const injectMemoryBlock = (messages: OpenAiMessage[], memoryMessage: OpenAiMessage) => {
+  if (messages.length === 0) {
+    return [memoryMessage]
+  }
+  const firstUserIndex = messages.findIndex((message) => message.role === 'user')
+  if (firstUserIndex <= 0) {
+    return [memoryMessage, ...messages]
+  }
+  const firstSystemIndex = messages.findIndex((message) => message.role === 'system')
+  if (firstSystemIndex >= 0 && firstSystemIndex < firstUserIndex) {
+    const insertIndex = firstSystemIndex + 1
+    return [...messages.slice(0, insertIndex), memoryMessage, ...messages.slice(insertIndex)]
+  }
+  return [...messages.slice(0, firstUserIndex), memoryMessage, ...messages.slice(firstUserIndex)]
+}
+
+const fetchConfirmedMemories = async (
+  origin: string,
+  authHeader: string,
+  apikey: string,
+  userId: string,
+): Promise<string[]> => {
+  const query = new URLSearchParams({
+    select: 'content',
+    user_id: `eq.${userId}`,
+    status: 'eq.confirmed',
+    is_deleted: 'eq.false',
+    order: 'created_at.desc',
+    limit: '50',
+  })
+  const memoriesUrl = `${origin}/rest/v1/memory_entries?${query.toString()}`
+  const response = await fetch(memoriesUrl, {
+    headers: {
+      apikey,
+      Authorization: authHeader,
+    },
+  })
+  if (!response.ok) {
+    return []
+  }
+  const data = (await response.json()) as Array<{ content?: unknown }>
+  return data
+    .map((entry) => (typeof entry.content === 'string' ? entry.content.trim() : ''))
+    .filter((content) => content.length > 0)
+}
 
 serve(async (req) => {
   const origin = req.headers.get('origin')
@@ -64,6 +120,7 @@ serve(async (req) => {
     })
   }
 
+  let userId: string | null = null
   try {
     const authUrl = new URL('/auth/v1/user', new URL(req.url).origin)
     const authResponse = await fetch(authUrl, {
@@ -81,6 +138,8 @@ serve(async (req) => {
         },
       })
     }
+    const authData = (await authResponse.json()) as AuthUserResponse
+    userId = authData.id
   } catch {
     return new Response(JSON.stringify({ error: '身份令牌无效' }), {
       status: 401,
@@ -115,8 +174,25 @@ serve(async (req) => {
     })
   }
 
-  const { messages, model, temperature, top_p, max_tokens, reasoning } = payload
+  const { model, temperature, top_p, max_tokens, reasoning } = payload
   const stream = payload.stream ?? true
+  let messages = payload.messages
+
+  if (payload.isFirstMessage && userId) {
+    try {
+      const memories = await fetchConfirmedMemories(
+        new URL(req.url).origin,
+        authHeader,
+        apiKeyHeader,
+        userId,
+      )
+      if (memories.length > 0) {
+        messages = injectMemoryBlock(messages, buildMemoryMessage(memories))
+      }
+    } catch {
+      // 如果记忆加载失败，则不注入，避免阻塞主流程。
+    }
+  }
 
   try {
     const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {

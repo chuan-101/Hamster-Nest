@@ -1,0 +1,66 @@
+.memory-page {
+  min-height: 100vh;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.memory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.memory-header h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.memory-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+}
+
+.memory-section h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.memory-section textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.memory-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.memory-card p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.memory-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}

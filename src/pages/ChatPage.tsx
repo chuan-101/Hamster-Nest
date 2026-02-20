@@ -176,6 +176,15 @@ const ChatPage = ({
                 type="button"
                 onClick={() => {
                   setOpenHeaderMenu(false)
+                  navigate('/memory-vault')
+                }}
+              >
+                Memory Vault
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenHeaderMenu(false)
                   navigate('/settings')
                 }}
               >
