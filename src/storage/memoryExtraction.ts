@@ -13,31 +13,6 @@ type InvokeResponse = {
   items?: unknown
 }
 
-const parseInvokeErrorMessage = (error: unknown) => {
-  if (!error || typeof error !== 'object') {
-    return null
-  }
-
-  const maybeMessage = (error as { message?: unknown }).message
-  if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
-    return maybeMessage
-  }
-
-  const context = (error as { context?: unknown }).context
-  if (typeof context === 'string' && context.trim()) {
-    try {
-      const parsed = JSON.parse(context) as { error?: unknown }
-      if (typeof parsed.error === 'string' && parsed.error.trim()) {
-        return parsed.error
-      }
-    } catch {
-      return context
-    }
-  }
-
-  return null
-}
-
 export const invokeMemoryExtraction = async (
   recentMessages: ExtractMessageInput[],
 ): Promise<ExtractMemoriesResult> => {
