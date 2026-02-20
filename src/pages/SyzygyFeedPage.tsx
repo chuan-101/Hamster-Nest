@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import ConfirmDialog from '../components/ConfirmDialog'
+import MarkdownRenderer from '../components/MarkdownRenderer'
 import type { SyzygyPost, SyzygyReply } from '../types'
 import {
   createSyzygyPost,
@@ -520,9 +519,15 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
           {trashPosts.map((post) => (
             <article key={post.id} className="post-card">
               <div className="post-header">
-                    <span className="feed-badge">Syzygy动态</span>
-                  </div>
-                  <p className="post-content">{post.content}</p>
+                <span className="feed-badge">Syzygy动态</span>
+              </div>
+              {post.modelId ? (
+                <div className="post-content assistant-markdown">
+                  <MarkdownRenderer content={post.content} />
+                </div>
+              ) : (
+                <p className="post-content">{post.content}</p>
+              )}
               <div className="post-footer">
                 <span>{formatChineseTime(post.updatedAt || post.createdAt)}</span>
                 <button
@@ -581,7 +586,13 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
                   <div className="post-header">
                     <span className="feed-badge">Syzygy动态</span>
                   </div>
-                  <p className="post-content">{post.content}</p>
+                  {post.modelId ? (
+                    <div className="post-content assistant-markdown">
+                      <MarkdownRenderer content={post.content} />
+                    </div>
+                  ) : (
+                    <p className="post-content">{post.content}</p>
+                  )}
                   <div className="post-footer">
                     <span>{formatChineseTime(post.createdAt)}</span>
                     <div className="post-actions">
@@ -633,7 +644,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
                             </div>
                             {reply.authorRole === 'ai' ? (
                               <div className="assistant-markdown">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{reply.content}</ReactMarkdown>
+                                <MarkdownRenderer content={reply.content} />
                               </div>
                             ) : (
                               <p>{reply.content}</p>
