@@ -163,6 +163,16 @@ const ChatPage = ({
               >
                 零食罐
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenHeaderMenu(false)
+                  navigate('/syzygy')
+                }}
+              >
+                仓鼠观察日志
+              </button>
               <button
                 type="button"
                 onClick={() => {

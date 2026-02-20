@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatSession, SnackPost, SnackReply } from '../types'
+import type { ChatMessage, ChatSession, SnackPost, SnackReply, SyzygyPost, SyzygyReply } from '../types'
 import { supabase } from '../supabase/client'
 
 type SessionRow = {
@@ -44,6 +44,27 @@ type SnackReplyRow = {
   is_deleted: boolean
 }
 
+
+type SyzygyPostRow = {
+  id: string
+  user_id: string
+  content: string
+  created_at: string
+  updated_at: string
+  is_deleted: boolean
+}
+
+type SyzygyReplyRow = {
+  id: string
+  user_id: string
+  post_id: string
+  role: SyzygyReply['role']
+  content: string
+  meta: SyzygyReply['meta'] | null
+  created_at: string
+  is_deleted: boolean
+}
+
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
   userId: row.user_id,
@@ -54,6 +75,27 @@ const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
 })
 
 const mapSnackReplyRow = (row: SnackReplyRow): SnackReply => ({
+  id: row.id,
+  userId: row.user_id,
+  postId: row.post_id,
+  role: row.role,
+  content: row.content,
+  createdAt: row.created_at,
+  isDeleted: row.is_deleted,
+  meta: row.meta ?? undefined,
+})
+
+
+const mapSyzygyPostRow = (row: SyzygyPostRow): SyzygyPost => ({
+  id: row.id,
+  userId: row.user_id,
+  content: row.content,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  isDeleted: row.is_deleted,
+})
+
+const mapSyzygyReplyRow = (row: SyzygyReplyRow): SyzygyReply => ({
   id: row.id,
   userId: row.user_id,
   postId: row.post_id,
@@ -402,6 +444,150 @@ export const softDeleteSnackReply = async (replyId: string): Promise<void> => {
     throw new Error('Supabase 客户端未配置')
   }
   const { error } = await supabase.rpc('soft_delete_snack_reply', { p_reply_id: replyId })
+
+  if (error) {
+    throw error
+  }
+}
+
+
+export const fetchSyzygyPosts = async (): Promise<SyzygyPost[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('syzygy_posts')
+    .select('id,user_id,content,created_at,updated_at,is_deleted')
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapSyzygyPostRow(row as SyzygyPostRow))
+}
+
+export const fetchDeletedSyzygyPosts = async (): Promise<SyzygyPost[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('syzygy_posts')
+    .select('id,user_id,content,created_at,updated_at,is_deleted')
+    .eq('is_deleted', true)
+    .order('updated_at', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapSyzygyPostRow(row as SyzygyPostRow))
+}
+
+export const createSyzygyPost = async (content: string): Promise<SyzygyPost> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { data, error } = await supabase
+    .from('syzygy_posts')
+    .insert({ content })
+    .select('id,user_id,content,created_at,updated_at,is_deleted')
+    .single()
+
+  if (error || !data) {
+    throw error ?? new Error('发布观察日志失败')
+  }
+  return mapSyzygyPostRow(data as SyzygyPostRow)
+}
+
+export const restoreSyzygyPost = async (postId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('syzygy_posts')
+    .update({ is_deleted: false })
+    .eq('id', postId)
+
+  if (error) {
+    throw error
+  }
+}
+
+export const softDeleteSyzygyPost = async (postId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('syzygy_posts')
+    .update({ is_deleted: true })
+    .eq('id', postId)
+
+  if (error) {
+    throw error
+  }
+}
+
+export const fetchSyzygyReplies = async (postIds: string[]): Promise<SyzygyReply[]> => {
+  if (!supabase || postIds.length === 0) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('syzygy_replies')
+    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .in('post_id', postIds)
+    .in('role', ['user', 'assistant'])
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapSyzygyReplyRow(row as SyzygyReplyRow))
+}
+
+export const fetchSyzygyRepliesByPost = async (postId: string): Promise<SyzygyReply[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('syzygy_replies')
+    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .eq('post_id', postId)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapSyzygyReplyRow(row as SyzygyReplyRow))
+}
+
+export const createSyzygyReply = async (
+  postId: string,
+  role: SyzygyReply['role'],
+  content: string,
+  meta: SyzygyReply['meta'],
+): Promise<SyzygyReply> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { data, error } = await supabase
+    .from('syzygy_replies')
+    .insert({ post_id: postId, role, content, meta: meta ?? {} })
+    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('保存观察日志回复失败')
+  }
+  return mapSyzygyReplyRow(data as SyzygyReplyRow)
+}
+
+export const softDeleteSyzygyReply = async (replyId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('syzygy_replies')
+    .update({ is_deleted: true })
+    .eq('id', replyId)
 
   if (error) {
     throw error

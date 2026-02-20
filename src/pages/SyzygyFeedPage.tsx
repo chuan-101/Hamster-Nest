@@ -4,27 +4,29 @@ import { useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import ConfirmDialog from '../components/ConfirmDialog'
-import type { SnackPost, SnackReply } from '../types'
+import type { SyzygyPost, SyzygyReply } from '../types'
 import {
-  createSnackPost,
-  createSnackReply,
-  fetchDeletedSnackPosts,
-  fetchSnackPosts,
-  fetchSnackReplies,
-  fetchSnackRepliesByPost,
-  restoreSnackPost,
-  softDeleteSnackPost,
-  softDeleteSnackReply,
+  createSyzygyPost,
+  createSyzygyReply,
+  fetchDeletedSyzygyPosts,
+  fetchSyzygyPosts,
+  fetchSyzygyReplies,
+  fetchSyzygyRepliesByPost,
+  restoreSyzygyPost,
+  softDeleteSyzygyPost,
+  softDeleteSyzygyReply,
 } from '../storage/supabaseSync'
 import { supabase } from '../supabase/client'
 import { withTimePrefix } from '../utils/time'
 import {
+  DEFAULT_SYZYGY_POST_PROMPT,
   DEFAULT_SYZYGY_REPLY_PROMPT,
+  resolveSyzygyPostPrompt,
   resolveSyzygyReplyPrompt,
 } from '../constants/aiOverlays'
 import './SnacksPage.css'
 
-type SnacksPageProps = {
+type SyzygyFeedPageProps = {
   user: User | null
   snackAiConfig: {
     model: string
@@ -52,28 +54,29 @@ const formatChineseTime = (timestamp: string) =>
     minute: '2-digit',
   })
 
-const getReplyPreview = (reply: SnackReply | undefined) => {
+const getReplyPreview = (reply: SyzygyReply | undefined) => {
   if (!reply) {
     return '暂无回复'
   }
   return reply.content.length > 30 ? `${reply.content.slice(0, 30)}…` : reply.content
 }
 
-const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
+const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
   const navigate = useNavigate()
   const [draft, setDraft] = useState('')
-  const [posts, setPosts] = useState<SnackPost[]>([])
-  const [repliesByPost, setRepliesByPost] = useState<Record<string, SnackReply[]>>({})
+  const [posts, setPosts] = useState<SyzygyPost[]>([])
+  const [repliesByPost, setRepliesByPost] = useState<Record<string, SyzygyReply[]>>({})
   const [expandedPostIds, setExpandedPostIds] = useState<Record<string, boolean>>({})
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
+  const [generatingPost, setGeneratingPost] = useState(false)
   const [submittingReplyPostId, setSubmittingReplyPostId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<SnackPost | null>(null)
-  const [pendingDeleteReply, setPendingDeleteReply] = useState<SnackReply | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<SyzygyPost | null>(null)
+  const [pendingDeleteReply, setPendingDeleteReply] = useState<SyzygyReply | null>(null)
   const [showTrash, setShowTrash] = useState(false)
-  const [trashPosts, setTrashPosts] = useState<SnackPost[]>([])
+  const [trashPosts, setTrashPosts] = useState<SyzygyPost[]>([])
   const [trashLoading, setTrashLoading] = useState(false)
   const [restoringPostId, setRestoringPostId] = useState<string | null>(null)
   const [generatingPostId, setGeneratingPostId] = useState<string | null>(null)
@@ -83,11 +86,11 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     setLoading(true)
     setError(null)
     try {
-      const list = await fetchSnackPosts()
+      const list = await fetchSyzygyPosts()
       setPosts(list)
       const postIds = list.map((post) => post.id)
-      const replies = await fetchSnackReplies(postIds)
-      const nextReplies: Record<string, SnackReply[]> = {}
+      const replies = await fetchSyzygyReplies(postIds)
+      const nextReplies: Record<string, SyzygyReply[]> = {}
       replies.forEach((reply) => {
         if (!nextReplies[reply.postId]) {
           nextReplies[reply.postId] = []
@@ -96,7 +99,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
       })
       setRepliesByPost(nextReplies)
     } catch (loadError) {
-      console.warn('加载零食记录失败', loadError)
+      console.warn('加载观察日志失败', loadError)
       setError('加载失败，请稍后重试。')
     } finally {
       setLoading(false)
@@ -107,7 +110,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     setTrashLoading(true)
     setError(null)
     try {
-      const list = await fetchDeletedSnackPosts()
+      const list = await fetchDeletedSyzygyPosts()
       setTrashPosts(list)
     } catch (loadError) {
       console.warn('加载回收站失败', loadError)
@@ -155,7 +158,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
 
   const trimmed = draft.trim()
   const draftTooLong = trimmed.length > maxLength
-  const publishDisabled = !user || publishing || trimmed.length === 0 || draftTooLong
+  const publishDisabled = !user || publishing || generatingPost || trimmed.length === 0 || draftTooLong
   const draftHint = useMemo(() => `${trimmed.length}/${maxLength}`, [trimmed.length])
 
   const handlePublish = async () => {
@@ -165,11 +168,11 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     setPublishing(true)
     setError(null)
     try {
-      const created = await createSnackPost(trimmed)
+      const created = await createSyzygyPost(trimmed)
       setPosts((current) => [created, ...current])
       setDraft('')
     } catch (publishError) {
-      console.warn('发布零食记录失败', publishError)
+      console.warn('发布观察日志失败', publishError)
       setError('发布失败，请稍后重试。')
     } finally {
       setPublishing(false)
@@ -181,11 +184,11 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
       return
     }
     try {
-      await softDeleteSnackPost(pendingDelete.id)
+      await softDeleteSyzygyPost(pendingDelete.id)
       setPosts((current) => current.filter((post) => post.id !== pendingDelete.id))
       setPendingDelete(null)
     } catch (deleteError) {
-      console.warn('删除零食记录失败', deleteError)
+      console.warn('删除观察日志失败', deleteError)
       setError('删除失败，请重试；若仍失败请稍后再试。')
       setPendingDelete(null)
     }
@@ -196,7 +199,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
       return
     }
     try {
-      await softDeleteSnackReply(pendingDeleteReply.id)
+      await softDeleteSyzygyReply(pendingDeleteReply.id)
       setRepliesByPost((current) => ({
         ...current,
         [pendingDeleteReply.postId]: (current[pendingDeleteReply.postId] ?? []).filter(
@@ -205,7 +208,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
       }))
       setPendingDeleteReply(null)
     } catch (deleteError) {
-      console.warn('删除零食回复失败', deleteError)
+      console.warn('删除观察日志回复失败', deleteError)
       setError('删除回复失败，请稍后重试。')
       setPendingDeleteReply(null)
     }
@@ -215,11 +218,11 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     setRestoringPostId(postId)
     setError(null)
     try {
-      await restoreSnackPost(postId)
+      await restoreSyzygyPost(postId)
       setTrashPosts((current) => current.filter((post) => post.id !== postId))
       await refreshPosts()
     } catch (restoreError) {
-      console.warn('恢复零食记录失败', restoreError)
+      console.warn('恢复观察日志失败', restoreError)
       setError('恢复失败，请稍后重试。')
     } finally {
       setRestoringPostId(null)
@@ -253,7 +256,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
       return
     }
     const pendingId = createPendingReplyId(postId)
-    const pendingReply: SnackReply = {
+    const pendingReply: SyzygyReply = {
       id: pendingId,
       postId,
       role: 'user',
@@ -273,7 +276,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     setReplyDrafts((current) => ({ ...current, [postId]: '' }))
 
     try {
-      const reply = await createSnackReply(postId, 'user', content, {})
+      const reply = await createSyzygyReply(postId, 'user', content, {})
       setRepliesByPost((current) => ({
         ...current,
         [postId]: (current[postId] ?? []).map((item) => (item.id === pendingId ? reply : item)),
@@ -370,7 +373,41 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     }
   }
 
-  const handleGenerateReply = async (post: SnackPost) => {
+  const handleGeneratePost = async () => {
+    if (!user || !supabase || generatingPost || publishing) {
+      return
+    }
+    setGeneratingPost(true)
+    setError(null)
+    try {
+      const basePrompt = snackAiConfig.systemPrompt.trim()
+      const syzygyPostPrompt = resolveSyzygyPostPrompt(snackAiConfig.syzygyPostSystemPrompt)
+      const now = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      const messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+      if (basePrompt) {
+        messagesPayload.push({ role: 'system', content: basePrompt })
+      }
+      messagesPayload.push({ role: 'system', content: syzygyPostPrompt || DEFAULT_SYZYGY_POST_PROMPT })
+      messagesPayload.push({ role: 'user', content: `本地时间：${now}\nWrite a short post.` })
+
+      const result = await requestOpenRouter(messagesPayload)
+      const created = await createSyzygyPost(result.content)
+      setPosts((current) => [created, ...current])
+    } catch (generateError) {
+      console.warn('生成观察日志失败', generateError)
+      setError('生成失败，请稍后重试。')
+    } finally {
+      setGeneratingPost(false)
+    }
+  }
+
+  const handleGenerateReply = async (post: SyzygyPost) => {
     if (!user || !supabase || generatingPostId) {
       return
     }
@@ -378,7 +415,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     setGeneratingPostId(post.id)
     setError(null)
     const pendingAssistantId = createPendingReplyId(post.id)
-    const pendingAssistantReply: SnackReply = {
+    const pendingAssistantReply: SyzygyReply = {
       id: pendingAssistantId,
       postId: post.id,
       role: 'assistant',
@@ -434,18 +471,18 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
         ),
       }))
 
-      await createSnackReply(post.id, 'assistant', result.content, {
+      await createSyzygyReply(post.id, 'assistant', result.content, {
         provider: 'openrouter',
         model: result.model,
         reasoning_text: result.reasoningText,
       })
-      const latestReplies = await fetchSnackRepliesByPost(post.id)
+      const latestReplies = await fetchSyzygyRepliesByPost(post.id)
       setRepliesByPost((current) => ({
         ...current,
         [post.id]: latestReplies,
       }))
     } catch (generateError) {
-      console.warn('生成零食回复失败', generateError)
+      console.warn('生成观察日志回复失败', generateError)
       setRepliesByPost((current) => ({
         ...current,
         [post.id]: (current[post.id] ?? []).filter((item) => item.id !== pendingAssistantId),
@@ -466,7 +503,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
         <button type="button" className="ghost" onClick={() => navigate('/')}>
           返回聊天
         </button>
-        <h1>{showTrash ? '零食回收站' : '零食罐罐区'}</h1>
+        <h1>{showTrash ? '观察日志回收站' : '仓鼠观察日志'}</h1>
         <button
           type="button"
           className="ghost compact-action"
@@ -484,7 +521,10 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
           {!trashLoading && trashPosts.length === 0 ? <p className="tips">回收站是空的。</p> : null}
           {trashPosts.map((post) => (
             <article key={post.id} className="post-card">
-              <p className="post-content">{post.content}</p>
+              <div className="post-header">
+                    <span className="feed-badge">Syzygy动态</span>
+                  </div>
+                  <p className="post-content">{post.content}</p>
               <div className="post-footer">
                 <span>{formatChineseTime(post.updatedAt || post.createdAt)}</span>
                 <button
@@ -504,7 +544,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
           <section className="snacks-composer">
             <textarea
               rows={3}
-              placeholder="写点今天的零食…"
+              placeholder="写点今天的观察…"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               maxLength={maxLength + 10}
@@ -513,7 +553,15 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
               <span className={draftTooLong ? 'danger' : ''}>{draftHint}</span>
               <div className="post-actions">
                 <button
-                  type="button" className="primary" onClick={handlePublish} disabled={publishDisabled}>
+                  type="button"
+                  className="ghost"
+                  onClick={() => void handleGeneratePost()}
+                  disabled={generatingPost || publishing}
+                  title="生成 Syzygy 动态"
+                >
+                  {generatingPost ? '🤖 生成中…' : '🤖'}
+                </button>
+                <button type="button" className="primary" onClick={handlePublish} disabled={publishDisabled}>
                   {publishing ? '发布中…' : '发布'}
                 </button>
               </div>
@@ -523,7 +571,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
 
           <main className="snacks-feed">
             {loading ? <p className="tips">加载中…</p> : null}
-            {!loading && posts.length === 0 ? <p className="tips">还没有记录，来发布第一条吧。</p> : null}
+            {!loading && posts.length === 0 ? <p className="tips">还没有日志，来发布第一条吧。</p> : null}
             {posts.map((post) => {
               const replies = repliesByPost[post.id] ?? []
               const isExpanded = expandedPostIds[post.id] ?? false
@@ -533,7 +581,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
               return (
                 <article key={post.id} className="post-card">
                   <div className="post-header">
-                    <span className="feed-badge">串串动态</span>
+                    <span className="feed-badge">Syzygy动态</span>
                   </div>
                   <p className="post-content">{post.content}</p>
                   <div className="post-footer">
@@ -649,4 +697,4 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
   )
 }
 
-export default SnacksPage
+export default SyzygyFeedPage
