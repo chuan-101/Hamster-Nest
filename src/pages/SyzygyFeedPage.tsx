@@ -263,7 +263,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
     const pendingReply: SyzygyReply = {
       id: pendingId,
       postId,
-      role: 'user',
+      authorRole: 'user',
       content,
       createdAt: new Date().toISOString(),
       userId: user.id,
@@ -422,7 +422,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
     const pendingAssistantReply: SyzygyReply = {
       id: pendingAssistantId,
       postId: post.id,
-      role: 'assistant',
+      authorRole: 'ai',
       content: '生成中…',
       createdAt: new Date().toISOString(),
       userId: user.id,
@@ -457,11 +457,11 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
         messagesPayload.push({
           role: 'user',
           content: `最近回复：\n${lastReplies
-            .map((reply) => `${reply.role === 'assistant' ? 'Syzygy' : '串串'}：${reply.content}`)
+            .map((reply) => `${reply.authorRole === 'ai' ? 'Syzygy' : '串串'}：${reply.content}`)
             .join('\n')}`,
         })
       }
-      const latestUserComment = [...existingReplies].reverse().find((reply) => reply.role === 'user')
+      const latestUserComment = [...existingReplies].reverse().find((reply) => reply.authorRole === 'user')
       if (latestUserComment) {
         messagesPayload.push({ role: 'user', content: `串串最新留言：${latestUserComment.content}` })
       }
@@ -475,7 +475,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
         ),
       }))
 
-      await createSyzygyReply(post.id, 'assistant', result.content, {
+      await createSyzygyReply(post.id, 'ai', result.content, {
         provider: 'openrouter',
         model: result.model,
         reasoning_text: result.reasoningText,
@@ -625,10 +625,10 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
                   {isExpanded ? (
                     <div className="reply-list">
                       {replies.map((reply) => (
-                        <div key={reply.id} className={`reply-bubble ${reply.role === 'assistant' ? 'assistant' : 'user'}`}>
+                        <div key={reply.id} className={`reply-bubble ${reply.authorRole === 'ai' ? 'assistant' : 'user'}`}>
                           <div className="reply-content-wrap">
                             <div className="reply-role">
-                              {reply.role === 'assistant' ? (
+                              {reply.authorRole === 'ai' ? (
                                 <>
                                   <span>Syzygy</span>
                                   <span className="reply-model-badge">{reply.meta?.model || '未知模型'}</span>
@@ -637,7 +637,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
                                 <span>串串</span>
                               )}
                             </div>
-                            {reply.role === 'assistant' ? (
+                            {reply.authorRole === 'ai' ? (
                               <div className="assistant-markdown">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{reply.content}</ReactMarkdown>
                               </div>

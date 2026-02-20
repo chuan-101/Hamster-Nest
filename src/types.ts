@@ -84,7 +84,7 @@ export type SyzygyReply = {
   id: string
   userId: string
   postId: string
-  role: 'user' | 'assistant'
+  authorRole: 'user' | 'ai'
   content: string
   createdAt: string
   isDeleted: boolean

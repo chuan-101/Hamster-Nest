@@ -58,7 +58,7 @@ type SyzygyReplyRow = {
   id: string
   user_id: string
   post_id: string
-  role: SyzygyReply['role']
+  author_role: SyzygyReply['authorRole']
   content: string
   meta: SyzygyReply['meta'] | null
   created_at: string
@@ -99,7 +99,7 @@ const mapSyzygyReplyRow = (row: SyzygyReplyRow): SyzygyReply => ({
   id: row.id,
   userId: row.user_id,
   postId: row.post_id,
-  role: row.role,
+  authorRole: row.author_role,
   content: row.content,
   createdAt: row.created_at,
   isDeleted: row.is_deleted,
@@ -553,9 +553,9 @@ export const fetchSyzygyReplies = async (postIds: string[]): Promise<SyzygyReply
   }
   const { data, error } = await supabase
     .from('syzygy_replies')
-    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .select('id,user_id,post_id,author_role,content,meta,created_at,is_deleted')
     .in('post_id', postIds)
-    .in('role', ['user', 'assistant'])
+    .in('author_role', ['user', 'ai'])
     .eq('is_deleted', false)
     .order('created_at', { ascending: true })
   if (error) {
@@ -570,7 +570,7 @@ export const fetchSyzygyRepliesByPost = async (postId: string): Promise<SyzygyRe
   }
   const { data, error } = await supabase
     .from('syzygy_replies')
-    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .select('id,user_id,post_id,author_role,content,meta,created_at,is_deleted')
     .eq('post_id', postId)
     .eq('is_deleted', false)
     .order('created_at', { ascending: true })
@@ -583,7 +583,7 @@ export const fetchSyzygyRepliesByPost = async (postId: string): Promise<SyzygyRe
 
 export const createSyzygyReply = async (
   postId: string,
-  role: SyzygyReply['role'],
+  authorRole: SyzygyReply['authorRole'],
   content: string,
   meta: SyzygyReply['meta'],
   selectedModelId: string | null = null,
@@ -597,12 +597,12 @@ export const createSyzygyReply = async (
     .insert({
       user_id: userId,
       post_id: postId,
-      role,
+      author_role: authorRole,
       content,
       meta: meta ?? {},
       model_id: selectedModelId ?? null,
     })
-    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .select('id,user_id,post_id,author_role,content,meta,created_at,is_deleted')
     .single()
   if (error || !data) {
     throw error ?? new Error('保存观察日志回复失败')
