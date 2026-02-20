@@ -39,6 +39,7 @@ export type UserSettings = {
   topP: number
   maxTokens: number
   systemPrompt: string
+  snackSystemOverlay: string
   enableReasoning: boolean
   updatedAt: string
 }

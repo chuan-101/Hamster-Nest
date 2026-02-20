@@ -35,6 +35,7 @@ import { supabase } from './supabase/client'
 import './App.css'
 import SettingsPage from './pages/SettingsPage'
 import SnacksPage from './pages/SnacksPage'
+import { resolveSnackSystemOverlay } from './constants/aiOverlays'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -139,8 +140,6 @@ const App = () => {
   const messagesRef = useRef(messages)
   const streamingControllerRef = useRef<AbortController | null>(null)
   const settingsRef = useRef<UserSettings | null>(null)
-  const settingsSaveTimerRef = useRef<number | null>(null)
-  const skipSettingsSaveRef = useRef(true)
   const fallbackSettings = useMemo(
     () => createDefaultSettings(user?.id ?? 'local'),
     [user?.id],
@@ -167,6 +166,7 @@ const App = () => {
       topP: activeSettings.topP,
       maxTokens: activeSettings.maxTokens,
       systemPrompt: activeSettings.systemPrompt,
+      snackSystemOverlay: resolveSnackSystemOverlay(activeSettings.snackSystemOverlay),
     }
   }, [activeSettings, defaultModelId, latestSession])
 
@@ -237,7 +237,6 @@ const App = () => {
     }
     let active = true
     setSettingsReady(false)
-    skipSettingsSaveRef.current = true
     const loadSettings = async () => {
       try {
         const settings = await ensureUserSettings(user.id)
@@ -262,29 +261,6 @@ const App = () => {
       active = false
     }
   }, [authReady, user])
-
-  useEffect(() => {
-    if (!user || !userSettings || !settingsReady) {
-      return
-    }
-    if (skipSettingsSaveRef.current) {
-      skipSettingsSaveRef.current = false
-      return
-    }
-    if (settingsSaveTimerRef.current !== null) {
-      window.clearTimeout(settingsSaveTimerRef.current)
-    }
-    settingsSaveTimerRef.current = window.setTimeout(() => {
-      void updateUserSettings(userSettings).catch((error) => {
-        console.warn('同步用户设置失败', error)
-      })
-    }, 400)
-    return () => {
-      if (settingsSaveTimerRef.current !== null) {
-        window.clearTimeout(settingsSaveTimerRef.current)
-      }
-    }
-  }, [settingsReady, user, userSettings])
 
   useEffect(() => {
     if (!authReady) {
@@ -1074,9 +1050,12 @@ const App = () => {
     [applySnapshot, user],
   )
 
-  const handleUpdateSettings = useCallback((updater: (current: UserSettings) => UserSettings) => {
-    setUserSettings((current) => (current ? updater(current) : current))
-  }, [])
+  const handleSaveSettings = useCallback(async (nextSettings: UserSettings) => {
+    if (user && supabase) {
+      await updateUserSettings(nextSettings)
+    }
+    setUserSettings(nextSettings)
+  }, [user])
 
   return (
     <div className="app-shell">
@@ -1131,7 +1110,7 @@ const App = () => {
                 user={user}
                 settings={userSettings}
                 ready={settingsReady}
-                onUpdateSettings={handleUpdateSettings}
+                onSaveSettings={handleSaveSettings}
               />
             </RequireAuth>
           }
