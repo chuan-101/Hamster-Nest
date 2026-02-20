@@ -88,9 +88,5 @@ export type SyzygyReply = {
   content: string
   createdAt: string
   isDeleted: boolean
-  meta?: {
-    provider?: string
-    model?: string
-    reasoning_text?: string
-  }
+  modelId?: string | null
 }

@@ -60,7 +60,7 @@ type SyzygyReplyRow = {
   post_id: string
   author_role: SyzygyReply['authorRole']
   content: string
-  meta: SyzygyReply['meta'] | null
+  model_id: string | null
   created_at: string
   is_deleted: boolean
 }
@@ -103,7 +103,7 @@ const mapSyzygyReplyRow = (row: SyzygyReplyRow): SyzygyReply => ({
   content: row.content,
   createdAt: row.created_at,
   isDeleted: row.is_deleted,
-  meta: row.meta ?? undefined,
+  modelId: row.model_id ?? null,
 })
 
 const mapSessionRow = (row: SessionRow): ChatSession => ({
@@ -553,7 +553,7 @@ export const fetchSyzygyReplies = async (postIds: string[]): Promise<SyzygyReply
   }
   const { data, error } = await supabase
     .from('syzygy_replies')
-    .select('id,user_id,post_id,author_role,content,meta,created_at,is_deleted')
+    .select('id,user_id,post_id,author_role,content,model_id,created_at,is_deleted')
     .in('post_id', postIds)
     .in('author_role', ['user', 'ai'])
     .eq('is_deleted', false)
@@ -570,7 +570,7 @@ export const fetchSyzygyRepliesByPost = async (postId: string): Promise<SyzygyRe
   }
   const { data, error } = await supabase
     .from('syzygy_replies')
-    .select('id,user_id,post_id,author_role,content,meta,created_at,is_deleted')
+    .select('id,user_id,post_id,author_role,content,model_id,created_at,is_deleted')
     .eq('post_id', postId)
     .eq('is_deleted', false)
     .order('created_at', { ascending: true })
@@ -585,7 +585,6 @@ export const createSyzygyReply = async (
   postId: string,
   authorRole: SyzygyReply['authorRole'],
   content: string,
-  meta: SyzygyReply['meta'],
   selectedModelId: string | null = null,
 ): Promise<SyzygyReply> => {
   if (!supabase) {
@@ -599,10 +598,9 @@ export const createSyzygyReply = async (
       post_id: postId,
       author_role: authorRole,
       content,
-      meta: meta ?? {},
       model_id: selectedModelId ?? null,
     })
-    .select('id,user_id,post_id,author_role,content,meta,created_at,is_deleted')
+    .select('id,user_id,post_id,author_role,content,model_id,created_at,is_deleted')
     .single()
   if (error || !data) {
     throw error ?? new Error('保存观察日志回复失败')

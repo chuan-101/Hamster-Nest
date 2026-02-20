@@ -268,7 +268,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
       createdAt: new Date().toISOString(),
       userId: user.id,
       isDeleted: false,
-      meta: {},
+      modelId: null,
     }
 
     setSubmittingReplyPostId(postId)
@@ -280,7 +280,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
     setReplyDrafts((current) => ({ ...current, [postId]: '' }))
 
     try {
-      const reply = await createSyzygyReply(postId, 'user', content, {}, null)
+      const reply = await createSyzygyReply(postId, 'user', content, null)
       setRepliesByPost((current) => ({
         ...current,
         [postId]: (current[postId] ?? []).map((item) => (item.id === pendingId ? reply : item)),
@@ -427,9 +427,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
       createdAt: new Date().toISOString(),
       userId: user.id,
       isDeleted: false,
-      meta: {
-        model: snackAiConfig.model,
-      },
+      modelId: snackAiConfig.model,
     }
     setRepliesByPost((current) => ({
       ...current,
@@ -475,11 +473,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
         ),
       }))
 
-      await createSyzygyReply(post.id, 'ai', result.content, {
-        provider: 'openrouter',
-        model: result.model,
-        reasoning_text: result.reasoningText,
-      }, result.model)
+      await createSyzygyReply(post.id, 'ai', result.content, result.model)
       const latestReplies = await fetchSyzygyRepliesByPost(post.id)
       setRepliesByPost((current) => ({
         ...current,
@@ -631,7 +625,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
                               {reply.authorRole === 'ai' ? (
                                 <>
                                   <span>Syzygy</span>
-                                  <span className="reply-model-badge">{reply.meta?.model || '未知模型'}</span>
+                                  <span className="reply-model-badge">{reply.modelId || '未知模型'}</span>
                                 </>
                               ) : (
                                 <span>串串</span>
