@@ -4,7 +4,14 @@ import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import type { UserSettings } from '../types'
 import { supabase } from '../supabase/client'
-import { DEFAULT_SNACK_SYSTEM_OVERLAY, resolveSnackSystemOverlay } from '../constants/aiOverlays'
+import {
+  DEFAULT_SNACK_SYSTEM_OVERLAY,
+  DEFAULT_SYZYGY_POST_PROMPT,
+  DEFAULT_SYZYGY_REPLY_PROMPT,
+  resolveSnackSystemOverlay,
+  resolveSyzygyPostPrompt,
+  resolveSyzygyReplyPrompt,
+} from '../constants/aiOverlays'
 import './SettingsPage.css'
 
 type OpenRouterModel = {
@@ -19,11 +26,21 @@ type SettingsPageProps = {
   ready: boolean
   onSaveSettings: (nextSettings: UserSettings) => Promise<void>
   onSaveSnackSystemPrompt: (value: string) => Promise<void>
+  onSaveSyzygyPostPrompt: (value: string) => Promise<void>
+  onSaveSyzygyReplyPrompt: (value: string) => Promise<void>
 }
 
 const defaultModelId = 'openrouter/auto'
 
-const SettingsPage = ({ user, settings, ready, onSaveSettings, onSaveSnackSystemPrompt }: SettingsPageProps) => {
+const SettingsPage = ({
+  user,
+  settings,
+  ready,
+  onSaveSettings,
+  onSaveSnackSystemPrompt,
+  onSaveSyzygyPostPrompt,
+  onSaveSyzygyReplyPrompt,
+}: SettingsPageProps) => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [catalog, setCatalog] = useState<OpenRouterModel[]>([])
@@ -42,6 +59,10 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings, onSaveSnackSystem
   const [systemPromptStatus, setSystemPromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [draftSnackSystemPrompt, setDraftSnackSystemPrompt] = useState('')
   const [snackOverlayStatus, setSnackOverlayStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [draftSyzygyPostPrompt, setDraftSyzygyPostPrompt] = useState(DEFAULT_SYZYGY_POST_PROMPT)
+  const [draftSyzygyReplyPrompt, setDraftSyzygyReplyPrompt] = useState(DEFAULT_SYZYGY_REPLY_PROMPT)
+  const [syzygyPostStatus, setSyzygyPostStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [syzygyReplyStatus, setSyzygyReplyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [showUnsavedPromptDialog, setShowUnsavedPromptDialog] = useState(false)
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string }>(
     {},
@@ -88,6 +109,47 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings, onSaveSnackSystem
       window.clearTimeout(timer)
     }
   }, [settings])
+
+  useEffect(() => {
+    if (!settings) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setDraftSyzygyPostPrompt(resolveSyzygyPostPrompt(settings.syzygyPostSystemPrompt))
+      setDraftSyzygyReplyPrompt(resolveSyzygyReplyPrompt(settings.syzygyReplySystemPrompt))
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [settings])
+
+  useEffect(() => {
+    if (!user || !supabase) {
+      return
+    }
+    const client = supabase
+    let active = true
+    const loadSyzygyPrompts = async () => {
+      try {
+        const { data, error } = await client
+          .from('user_settings')
+          .select('syzygy_post_system_prompt,syzygy_reply_system_prompt')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if (!active || error) {
+          return
+        }
+        setDraftSyzygyPostPrompt(resolveSyzygyPostPrompt(data?.syzygy_post_system_prompt))
+        setDraftSyzygyReplyPrompt(resolveSyzygyReplyPrompt(data?.syzygy_reply_system_prompt))
+      } catch {
+        // ignore and keep local fallback
+      }
+    }
+    void loadSyzygyPrompts()
+    return () => {
+      active = false
+    }
+  }, [user])
 
   useEffect(() => {
     if (!user || !supabase) {
@@ -180,7 +242,18 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings, onSaveSnackSystem
   const hasUnsavedSnackOverlay = settings
     ? draftSnackSystemPrompt !== resolveSnackSystemOverlay(settings.snackSystemOverlay)
     : false
-  const hasUnsavedPrompt = hasUnsavedSystemPrompt || hasUnsavedSnackOverlay || hasUnsavedGeneration
+  const hasUnsavedSyzygyPostPrompt = settings
+    ? draftSyzygyPostPrompt !== resolveSyzygyPostPrompt(settings.syzygyPostSystemPrompt)
+    : false
+  const hasUnsavedSyzygyReplyPrompt = settings
+    ? draftSyzygyReplyPrompt !== resolveSyzygyReplyPrompt(settings.syzygyReplySystemPrompt)
+    : false
+  const hasUnsavedPrompt =
+    hasUnsavedSystemPrompt ||
+    hasUnsavedSnackOverlay ||
+    hasUnsavedSyzygyPostPrompt ||
+    hasUnsavedSyzygyReplyPrompt ||
+    hasUnsavedGeneration
 
   useEffect(() => {
     if (!hasUnsavedPrompt) {
@@ -367,6 +440,63 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings, onSaveSnackSystem
     setSnackOverlayStatus('idle')
   }
 
+
+  const handleSyzygyPostPromptChange = (value: string) => {
+    setDraftSyzygyPostPrompt(value)
+    if (syzygyPostStatus !== 'idle') {
+      setSyzygyPostStatus('idle')
+    }
+  }
+
+  const handleSyzygyReplyPromptChange = (value: string) => {
+    setDraftSyzygyReplyPrompt(value)
+    if (syzygyReplyStatus !== 'idle') {
+      setSyzygyReplyStatus('idle')
+    }
+  }
+
+  const handleSaveSyzygyPostPrompt = async () => {
+    if (!settings || !hasUnsavedSyzygyPostPrompt) {
+      return
+    }
+    const nextPrompt = resolveSyzygyPostPrompt(draftSyzygyPostPrompt)
+    setDraftSyzygyPostPrompt(nextPrompt)
+    setSyzygyPostStatus('saving')
+    try {
+      await onSaveSyzygyPostPrompt(nextPrompt)
+      setSyzygyPostStatus('saved')
+    } catch (error) {
+      console.warn('保存 Syzygy 发帖提示词失败', error)
+      setSyzygyPostStatus('error')
+    }
+  }
+
+  const handleSaveSyzygyReplyPrompt = async () => {
+    if (!settings || !hasUnsavedSyzygyReplyPrompt) {
+      return
+    }
+    const nextPrompt = resolveSyzygyReplyPrompt(draftSyzygyReplyPrompt)
+    setDraftSyzygyReplyPrompt(nextPrompt)
+    setSyzygyReplyStatus('saving')
+    try {
+      await onSaveSyzygyReplyPrompt(nextPrompt)
+      setSyzygyReplyStatus('saved')
+    } catch (error) {
+      console.warn('保存 Syzygy 回复提示词失败', error)
+      setSyzygyReplyStatus('error')
+    }
+  }
+
+  const handleResetSyzygyPostPrompt = () => {
+    setDraftSyzygyPostPrompt(DEFAULT_SYZYGY_POST_PROMPT)
+    setSyzygyPostStatus('idle')
+  }
+
+  const handleResetSyzygyReplyPrompt = () => {
+    setDraftSyzygyReplyPrompt(DEFAULT_SYZYGY_REPLY_PROMPT)
+    setSyzygyReplyStatus('idle')
+  }
+
   const requestNavigation = (action: () => void) => {
     if (!hasUnsavedPrompt) {
       action()
@@ -395,6 +525,10 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings, onSaveSnackSystem
       setGenerationError(null)
       setSystemPromptStatus('idle')
       setSnackOverlayStatus('idle')
+      setDraftSyzygyPostPrompt(resolveSyzygyPostPrompt(settings.syzygyPostSystemPrompt))
+      setDraftSyzygyReplyPrompt(resolveSyzygyReplyPrompt(settings.syzygyReplySystemPrompt))
+      setSyzygyPostStatus('idle')
+      setSyzygyReplyStatus('idle')
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
@@ -411,6 +545,12 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings, onSaveSnackSystem
     }
     if (hasUnsavedGeneration) {
       void handleSaveGenerationSettings()
+    }
+    if (hasUnsavedSyzygyPostPrompt) {
+      void handleSaveSyzygyPostPrompt()
+    }
+    if (hasUnsavedSyzygyReplyPrompt) {
+      void handleSaveSyzygyReplyPrompt()
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
@@ -617,6 +757,58 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings, onSaveSnackSystem
           {snackOverlayStatus === 'saved' ? (
             <span className="system-prompt-status">已保存</span>
           ) : null}
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="section-title">
+          <h2>仓鼠观察日志 - 发帖风格（Syzygy Post Prompt）</h2>
+          <p>控制 🤖 发帖按钮的文风与输出约束。</p>
+        </div>
+        <textarea
+          className="system-prompt"
+          value={draftSyzygyPostPrompt}
+          onChange={(event) => handleSyzygyPostPromptChange(event.target.value)}
+        />
+        <div className="system-prompt-actions">
+          <button
+            type="button"
+            className="primary"
+            disabled={!hasUnsavedSyzygyPostPrompt}
+            onClick={() => void handleSaveSyzygyPostPrompt()}
+          >
+            保存
+          </button>
+          <button type="button" className="ghost" onClick={handleResetSyzygyPostPrompt}>
+            恢复默认
+          </button>
+          {syzygyPostStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="section-title">
+          <h2>仓鼠观察日志 - 回复风格（Syzygy Reply Prompt）</h2>
+          <p>控制 🤖 AI 回复的语气与长度。</p>
+        </div>
+        <textarea
+          className="system-prompt"
+          value={draftSyzygyReplyPrompt}
+          onChange={(event) => handleSyzygyReplyPromptChange(event.target.value)}
+        />
+        <div className="system-prompt-actions">
+          <button
+            type="button"
+            className="primary"
+            disabled={!hasUnsavedSyzygyReplyPrompt}
+            onClick={() => void handleSaveSyzygyReplyPrompt()}
+          >
+            保存
+          </button>
+          <button type="button" className="ghost" onClick={handleResetSyzygyReplyPrompt}>
+            恢复默认
+          </button>
+          {syzygyReplyStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
         </div>
       </section>
 

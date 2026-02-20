@@ -1,6 +1,13 @@
 import type { UserSettings } from '../types'
 import { supabase } from '../supabase/client'
-import { DEFAULT_SNACK_SYSTEM_OVERLAY, resolveSnackSystemOverlay } from '../constants/aiOverlays'
+import {
+  DEFAULT_SNACK_SYSTEM_OVERLAY,
+  DEFAULT_SYZYGY_POST_PROMPT,
+  DEFAULT_SYZYGY_REPLY_PROMPT,
+  resolveSnackSystemOverlay,
+  resolveSyzygyPostPrompt,
+  resolveSyzygyReplyPrompt,
+} from '../constants/aiOverlays'
 
 type UserSettingsRow = {
   user_id: string
@@ -11,6 +18,8 @@ type UserSettingsRow = {
   max_tokens: number | null
   system_prompt: string | null
   snack_system_prompt: string | null
+  syzygy_post_system_prompt: string | null
+  syzygy_reply_system_prompt: string | null
   enable_reasoning: boolean | null
   updated_at: string
 }
@@ -26,6 +35,8 @@ export const createDefaultSettings = (userId: string): UserSettings => ({
   maxTokens: 1024,
   systemPrompt: '',
   snackSystemOverlay: DEFAULT_SNACK_SYSTEM_OVERLAY,
+  syzygyPostSystemPrompt: DEFAULT_SYZYGY_POST_PROMPT,
+  syzygyReplySystemPrompt: DEFAULT_SYZYGY_REPLY_PROMPT,
   enableReasoning: false,
   updatedAt: new Date().toISOString(),
 })
@@ -39,6 +50,8 @@ const mapSettingsRow = (row: UserSettingsRow): UserSettings => ({
   maxTokens: row.max_tokens ?? 1024,
   systemPrompt: row.system_prompt ?? '',
   snackSystemOverlay: resolveSnackSystemOverlay(row.snack_system_prompt),
+  syzygyPostSystemPrompt: resolveSyzygyPostPrompt(row.syzygy_post_system_prompt),
+  syzygyReplySystemPrompt: resolveSyzygyReplyPrompt(row.syzygy_reply_system_prompt),
   enableReasoning: row.enable_reasoning ?? false,
   updatedAt: row.updated_at,
 })
@@ -50,7 +63,7 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
   const { data, error } = await supabase
     .from('user_settings')
     .select(
-      'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,enable_reasoning,updated_at',
+      'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
     )
     .eq('user_id', userId)
     .maybeSingle()
@@ -71,11 +84,13 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
         max_tokens: defaults.maxTokens,
         system_prompt: defaults.systemPrompt,
         snack_system_prompt: defaults.snackSystemOverlay,
+        syzygy_post_system_prompt: defaults.syzygyPostSystemPrompt,
+        syzygy_reply_system_prompt: defaults.syzygyReplySystemPrompt,
         enable_reasoning: defaults.enableReasoning,
         updated_at: now,
       })
       .select(
-        'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,enable_reasoning,updated_at',
+        'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
       )
       .single()
     if (insertError || !inserted) {
@@ -101,6 +116,8 @@ export const updateUserSettings = async (settings: UserSettings): Promise<void> 
       max_tokens: settings.maxTokens,
       system_prompt: settings.systemPrompt,
       snack_system_prompt: settings.snackSystemOverlay,
+      syzygy_post_system_prompt: settings.syzygyPostSystemPrompt,
+      syzygy_reply_system_prompt: settings.syzygyReplySystemPrompt,
       enable_reasoning: settings.enableReasoning,
       updated_at: now,
     })
@@ -119,6 +136,41 @@ export const saveSnackSystemPrompt = async (userId: string, value: string): Prom
     .from('user_settings')
     .update({
       snack_system_prompt: value,
+      updated_at: now,
+    })
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+
+export const saveSyzygyPostSystemPrompt = async (userId: string, value: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('user_settings')
+    .update({
+      syzygy_post_system_prompt: value,
+      updated_at: now,
+    })
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const saveSyzygyReplySystemPrompt = async (userId: string, value: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('user_settings')
+    .update({
+      syzygy_reply_system_prompt: value,
       updated_at: now,
     })
     .eq('user_id', userId)

@@ -19,6 +19,8 @@ import {
   createDefaultSettings,
   ensureUserSettings,
   saveSnackSystemPrompt,
+  saveSyzygyPostSystemPrompt,
+  saveSyzygyReplySystemPrompt,
   updateUserSettings,
 } from './storage/userSettings'
 import {
@@ -36,7 +38,11 @@ import { supabase } from './supabase/client'
 import './App.css'
 import SettingsPage from './pages/SettingsPage'
 import SnacksPage from './pages/SnacksPage'
-import { resolveSnackSystemOverlay } from './constants/aiOverlays'
+import {
+  resolveSnackSystemOverlay,
+  resolveSyzygyPostPrompt,
+  resolveSyzygyReplyPrompt,
+} from './constants/aiOverlays'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -168,6 +174,8 @@ const App = () => {
       maxTokens: activeSettings.maxTokens,
       systemPrompt: activeSettings.systemPrompt,
       snackSystemOverlay: resolveSnackSystemOverlay(activeSettings.snackSystemOverlay),
+      syzygyPostSystemPrompt: resolveSyzygyPostPrompt(activeSettings.syzygyPostSystemPrompt),
+      syzygyReplySystemPrompt: resolveSyzygyReplyPrompt(activeSettings.syzygyReplySystemPrompt),
     }
   }, [activeSettings, defaultModelId, latestSession])
 
@@ -1073,6 +1081,38 @@ const App = () => {
     }
     setUserSettings(nextSettings)
   }, [user])
+  const handleSaveSyzygyPostSystemPrompt = useCallback(async (nextPrompt: string) => {
+    if (!user) {
+      return
+    }
+    const nextSettings = {
+      ...(settingsRef.current ?? createDefaultSettings(user.id)),
+      userId: user.id,
+      syzygyPostSystemPrompt: nextPrompt,
+      updatedAt: new Date().toISOString(),
+    }
+    if (supabase) {
+      await saveSyzygyPostSystemPrompt(user.id, nextPrompt)
+    }
+    setUserSettings(nextSettings)
+  }, [user])
+
+  const handleSaveSyzygyReplySystemPrompt = useCallback(async (nextPrompt: string) => {
+    if (!user) {
+      return
+    }
+    const nextSettings = {
+      ...(settingsRef.current ?? createDefaultSettings(user.id)),
+      userId: user.id,
+      syzygyReplySystemPrompt: nextPrompt,
+      updatedAt: new Date().toISOString(),
+    }
+    if (supabase) {
+      await saveSyzygyReplySystemPrompt(user.id, nextPrompt)
+    }
+    setUserSettings(nextSettings)
+  }, [user])
+
 
   return (
     <div className="app-shell">
@@ -1129,6 +1169,8 @@ const App = () => {
                 ready={settingsReady}
                 onSaveSettings={handleSaveSettings}
                 onSaveSnackSystemPrompt={handleSaveSnackSystemPrompt}
+                onSaveSyzygyPostPrompt={handleSaveSyzygyPostSystemPrompt}
+                onSaveSyzygyReplyPrompt={handleSaveSyzygyReplySystemPrompt}
               />
             </RequireAuth>
           }
