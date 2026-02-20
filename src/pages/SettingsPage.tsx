@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import type { UserSettings } from '../types'
 import { supabase } from '../supabase/client'
+import { DEFAULT_SNACK_SYSTEM_OVERLAY, resolveSnackSystemOverlay } from '../constants/aiOverlays'
 import './SettingsPage.css'
 
 type OpenRouterModel = {
@@ -33,6 +34,8 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
   const [maxTokensInput, setMaxTokensInput] = useState('')
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('')
   const [systemPromptStatus, setSystemPromptStatus] = useState<'idle' | 'saved'>('idle')
+  const [draftSnackOverlay, setDraftSnackOverlay] = useState('')
+  const [snackOverlayStatus, setSnackOverlayStatus] = useState<'idle' | 'saved'>('idle')
   const [showUnsavedPromptDialog, setShowUnsavedPromptDialog] = useState(false)
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string }>(
     {},
@@ -47,6 +50,18 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       setTemperatureInput(settings.temperature.toString())
       setTopPInput(settings.topP.toString())
       setMaxTokensInput(settings.maxTokens.toString())
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [settings])
+
+  useEffect(() => {
+    if (!settings) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setDraftSnackOverlay(resolveSnackSystemOverlay(settings.snackSystemOverlay))
     }, 0)
     return () => {
       window.clearTimeout(timer)
@@ -135,9 +150,13 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
   const hasUnsavedSystemPrompt = settings
     ? draftSystemPrompt !== settings.systemPrompt
     : false
+  const hasUnsavedSnackOverlay = settings
+    ? draftSnackOverlay !== resolveSnackSystemOverlay(settings.snackSystemOverlay)
+    : false
+  const hasUnsavedPrompt = hasUnsavedSystemPrompt || hasUnsavedSnackOverlay
 
   useEffect(() => {
-    if (!hasUnsavedSystemPrompt) {
+    if (!hasUnsavedPrompt) {
       return
     }
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -148,7 +167,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [hasUnsavedSystemPrompt])
+  }, [hasUnsavedPrompt])
 
   useEffect(() => {
     if (!settings) {
@@ -303,8 +322,33 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     setSystemPromptStatus('saved')
   }
 
+  const handleSnackOverlayChange = (value: string) => {
+    setDraftSnackOverlay(value)
+    if (snackOverlayStatus !== 'idle') {
+      setSnackOverlayStatus('idle')
+    }
+  }
+
+  const handleSaveSnackOverlay = () => {
+    if (!settings || !hasUnsavedSnackOverlay) {
+      return
+    }
+    const nextOverlay = resolveSnackSystemOverlay(draftSnackOverlay)
+    setDraftSnackOverlay(nextOverlay)
+    applySettingsUpdate((current) => ({
+      ...current,
+      snackSystemOverlay: nextOverlay,
+    }))
+    setSnackOverlayStatus('saved')
+  }
+
+  const handleResetSnackOverlay = () => {
+    setDraftSnackOverlay(DEFAULT_SNACK_SYSTEM_OVERLAY)
+    setSnackOverlayStatus('idle')
+  }
+
   const requestNavigation = (action: () => void) => {
-    if (!hasUnsavedSystemPrompt) {
+    if (!hasUnsavedPrompt) {
       action()
       return
     }
@@ -320,6 +364,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
   const handleLeaveWithoutSave = () => {
     if (settings) {
       setDraftSystemPrompt(settings.systemPrompt)
+      setDraftSnackOverlay(resolveSnackSystemOverlay(settings.snackSystemOverlay))
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
@@ -330,6 +375,9 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
   const handleSaveAndLeave = () => {
     if (hasUnsavedSystemPrompt) {
       handleSaveSystemPrompt()
+    }
+    if (hasUnsavedSnackOverlay) {
+      handleSaveSnackOverlay()
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
@@ -491,6 +539,34 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
             保存
           </button>
           {systemPromptStatus === 'saved' ? (
+            <span className="system-prompt-status">已保存</span>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="section-title">
+          <h2>Snack Feed Style (Model Overlay)</h2>
+          <p>仅用于零食罐罐区；基础系统提示词保持不变。</p>
+        </div>
+        <textarea
+          className="system-prompt"
+          value={draftSnackOverlay}
+          onChange={(event) => handleSnackOverlayChange(event.target.value)}
+        />
+        <div className="system-prompt-actions">
+          <button
+            type="button"
+            className="primary"
+            disabled={!hasUnsavedSnackOverlay}
+            onClick={handleSaveSnackOverlay}
+          >
+            保存
+          </button>
+          <button type="button" className="ghost" onClick={handleResetSnackOverlay}>
+            恢复默认
+          </button>
+          {snackOverlayStatus === 'saved' ? (
             <span className="system-prompt-status">已保存</span>
           ) : null}
         </div>
