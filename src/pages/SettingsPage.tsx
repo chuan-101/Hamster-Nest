@@ -81,18 +81,6 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
       return
     }
     const timer = window.setTimeout(() => {
-      setDraftSnackOverlay(resolveSnackSystemOverlay(settings.snackSystemOverlay))
-    }, 0)
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [settings])
-
-  useEffect(() => {
-    if (!settings) {
-      return
-    }
-    const timer = window.setTimeout(() => {
       setDraftSystemPrompt(settings.systemPrompt)
     }, 0)
     return () => {
@@ -382,31 +370,6 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
     setSnackOverlayStatus('idle')
   }
 
-  const handleSnackOverlayChange = (value: string) => {
-    setDraftSnackOverlay(value)
-    if (snackOverlayStatus !== 'idle') {
-      setSnackOverlayStatus('idle')
-    }
-  }
-
-  const handleSaveSnackOverlay = () => {
-    if (!settings || !hasUnsavedSnackOverlay) {
-      return
-    }
-    const nextOverlay = resolveSnackSystemOverlay(draftSnackOverlay)
-    setDraftSnackOverlay(nextOverlay)
-    applySettingsUpdate((current) => ({
-      ...current,
-      snackSystemOverlay: nextOverlay,
-    }))
-    setSnackOverlayStatus('saved')
-  }
-
-  const handleResetSnackOverlay = () => {
-    setDraftSnackOverlay(DEFAULT_SNACK_SYSTEM_OVERLAY)
-    setSnackOverlayStatus('idle')
-  }
-
   const requestNavigation = (action: () => void) => {
     if (!hasUnsavedPrompt) {
       action()
@@ -423,8 +386,18 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
 
   const handleLeaveWithoutSave = () => {
     if (settings) {
+      setTemperatureInput(settings.temperature.toString())
+      setTopPInput(settings.topP.toString())
+      setMaxTokensInput(settings.maxTokens.toString())
+      setDraftEnabledModels(settings.enabledModels)
+      setDraftDefaultModel(settings.defaultModel)
+      setDraftReasoning(settings.enableReasoning)
       setDraftSystemPrompt(settings.systemPrompt)
       setDraftSnackOverlay(resolveSnackSystemOverlay(settings.snackSystemOverlay))
+      setGenerationStatus('idle')
+      setGenerationError(null)
+      setSystemPromptStatus('idle')
+      setSnackOverlayStatus('idle')
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
@@ -441,9 +414,6 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
     }
     if (hasUnsavedGeneration) {
       void handleSaveGenerationSettings()
-    }
-    if (hasUnsavedSnackOverlay) {
-      handleSaveSnackOverlay()
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
