@@ -17,6 +17,7 @@ import {
   softDeleteSnackReply,
 } from '../storage/supabaseSync'
 import { supabase } from '../supabase/client'
+import { formatLocalTimestamp, withTimePrefix } from '../utils/time'
 import './SnacksPage.css'
 
 type SnacksPageProps = {
@@ -32,6 +33,7 @@ type SnacksPageProps = {
 }
 
 const maxLength = 1000
+const timestampUsageInstruction = 'Use timestamps only when relevant; otherwise don’t mention them.'
 
 const createPendingReplyId = (postId: string) =>
   `pending-${postId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -320,18 +322,28 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
       const prompt = snackAiConfig.systemPrompt.trim()
       if (prompt) {
         messagesPayload.push({ role: 'system', content: prompt })
-}
-messagesPayload.push({ role: 'user', content: post.content })
+      }
+      messagesPayload.push({ role: 'system', content: timestampUsageInstruction })
 
-const existingReplies = repliesByPost[post.id] ?? []
-for (const reply of existingReplies) {
-  if (reply.content && reply.content !== '生成中…') {
-    messagesPayload.push({
-      role: reply.role === 'assistant' ? 'assistant' : 'user',
-      content: reply.content,
-    })
-  }
-}
+      const requestTimeIso = new Date().toISOString()
+      messagesPayload.push({
+        role: 'user',
+        content: `评论请求时间: [${formatLocalTimestamp(requestTimeIso)}]`,
+      })
+      messagesPayload.push({
+        role: 'user',
+        content: withTimePrefix(post.content, post.createdAt),
+      })
+
+      const existingReplies = repliesByPost[post.id] ?? []
+      for (const reply of existingReplies) {
+        if (reply.content && reply.content !== '生成中…') {
+          messagesPayload.push({
+            role: reply.role === 'assistant' ? 'assistant' : 'user',
+            content: reply.content,
+          })
+        }
+      }
 
       const requestBody: Record<string, unknown> = {
         model: snackAiConfig.model,
