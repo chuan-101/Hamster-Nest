@@ -64,6 +64,8 @@ const SettingsPage = ({
   const [syzygyPostStatus, setSyzygyPostStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [syzygyReplyStatus, setSyzygyReplyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [showUnsavedPromptDialog, setShowUnsavedPromptDialog] = useState(false)
+  const [snackSectionExpanded, setSnackSectionExpanded] = useState(false)
+  const [syzygySectionExpanded, setSyzygySectionExpanded] = useState(false)
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string }>(
     {},
   )
@@ -733,83 +735,109 @@ const SettingsPage = ({
       </section>
 
       <section className="settings-section">
-        <div className="section-title">
-          <h2>Snack Feed Style (Model Overlay)</h2>
-          <p>仅用于零食罐罐区；基础系统提示词保持不变。</p>
-        </div>
-        <textarea
-          className="system-prompt"
-          value={draftSnackSystemPrompt}
-          onChange={(event) => handleSnackOverlayChange(event.target.value)}
-        />
-        <div className="system-prompt-actions">
-          <button
-            type="button"
-            className="primary"
-            disabled={!hasUnsavedSnackOverlay}
-            onClick={() => void handleSaveSnackOverlay()}
-          >
-            保存
-          </button>
-          <button type="button" className="ghost" onClick={handleResetSnackOverlay}>
-            恢复默认
-          </button>
-          {snackOverlayStatus === 'saved' ? (
-            <span className="system-prompt-status">已保存</span>
-          ) : null}
-        </div>
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setSnackSectionExpanded((current) => !current)}
+          aria-expanded={snackSectionExpanded}
+        >
+          <span className="section-title">
+            <h2>Snack Feed</h2>
+            <p>仅用于零食罐罐区；基础系统提示词保持不变。</p>
+          </span>
+          <span className="collapse-indicator">{snackSectionExpanded ? '收起' : '展开'}</span>
+        </button>
+        {snackSectionExpanded ? (
+          <>
+            <textarea
+              className="system-prompt"
+              value={draftSnackSystemPrompt}
+              onChange={(event) => handleSnackOverlayChange(event.target.value)}
+            />
+            <div className="system-prompt-actions">
+              <button
+                type="button"
+                className="primary"
+                disabled={!hasUnsavedSnackOverlay}
+                onClick={() => void handleSaveSnackOverlay()}
+              >
+                保存
+              </button>
+              <button type="button" className="ghost" onClick={handleResetSnackOverlay}>
+                恢复默认
+              </button>
+              {snackOverlayStatus === 'saved' ? (
+                <span className="system-prompt-status">已保存</span>
+              ) : null}
+            </div>
+          </>
+        ) : null}
       </section>
 
       <section className="settings-section">
-        <div className="section-title">
-          <h2>仓鼠观察日志 - 发帖风格（Syzygy Post Prompt）</h2>
-          <p>控制 🤖 发帖按钮的文风与输出约束。</p>
-        </div>
-        <textarea
-          className="system-prompt"
-          value={draftSyzygyPostPrompt}
-          onChange={(event) => handleSyzygyPostPromptChange(event.target.value)}
-        />
-        <div className="system-prompt-actions">
-          <button
-            type="button"
-            className="primary"
-            disabled={!hasUnsavedSyzygyPostPrompt}
-            onClick={() => void handleSaveSyzygyPostPrompt()}
-          >
-            保存
-          </button>
-          <button type="button" className="ghost" onClick={handleResetSyzygyPostPrompt}>
-            恢复默认
-          </button>
-          {syzygyPostStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
-        </div>
-      </section>
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setSyzygySectionExpanded((current) => !current)}
+          aria-expanded={syzygySectionExpanded}
+        >
+          <span className="section-title">
+            <h2>仓鼠观察日志</h2>
+            <p>控制发帖与回复时的提示词行为。</p>
+          </span>
+          <span className="collapse-indicator">{syzygySectionExpanded ? '收起' : '展开'}</span>
+        </button>
+        {syzygySectionExpanded ? (
+          <>
+            <div className="section-title">
+              <h2>发帖风格（Syzygy Post Prompt）</h2>
+              <p>控制 🤖 发帖按钮的文风与输出约束。</p>
+            </div>
+            <textarea
+              className="system-prompt"
+              value={draftSyzygyPostPrompt}
+              onChange={(event) => handleSyzygyPostPromptChange(event.target.value)}
+            />
+            <div className="system-prompt-actions">
+              <button
+                type="button"
+                className="primary"
+                disabled={!hasUnsavedSyzygyPostPrompt}
+                onClick={() => void handleSaveSyzygyPostPrompt()}
+              >
+                保存
+              </button>
+              <button type="button" className="ghost" onClick={handleResetSyzygyPostPrompt}>
+                恢复默认
+              </button>
+              {syzygyPostStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+            </div>
 
-      <section className="settings-section">
-        <div className="section-title">
-          <h2>仓鼠观察日志 - 回复风格（Syzygy Reply Prompt）</h2>
-          <p>控制 🤖 AI 回复的语气与长度。</p>
-        </div>
-        <textarea
-          className="system-prompt"
-          value={draftSyzygyReplyPrompt}
-          onChange={(event) => handleSyzygyReplyPromptChange(event.target.value)}
-        />
-        <div className="system-prompt-actions">
-          <button
-            type="button"
-            className="primary"
-            disabled={!hasUnsavedSyzygyReplyPrompt}
-            onClick={() => void handleSaveSyzygyReplyPrompt()}
-          >
-            保存
-          </button>
-          <button type="button" className="ghost" onClick={handleResetSyzygyReplyPrompt}>
-            恢复默认
-          </button>
-          {syzygyReplyStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
-        </div>
+            <div className="section-title nested-prompt-title">
+              <h2>回复风格（Syzygy Reply Prompt）</h2>
+              <p>控制 🤖 AI 回复的语气与长度。</p>
+            </div>
+            <textarea
+              className="system-prompt"
+              value={draftSyzygyReplyPrompt}
+              onChange={(event) => handleSyzygyReplyPromptChange(event.target.value)}
+            />
+            <div className="system-prompt-actions">
+              <button
+                type="button"
+                className="primary"
+                disabled={!hasUnsavedSyzygyReplyPrompt}
+                onClick={() => void handleSaveSyzygyReplyPrompt()}
+              >
+                保存
+              </button>
+              <button type="button" className="ghost" onClick={handleResetSyzygyReplyPrompt}>
+                恢复默认
+              </button>
+              {syzygyReplyStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+            </div>
+          </>
+        ) : null}
       </section>
 
       <section className="settings-section">
