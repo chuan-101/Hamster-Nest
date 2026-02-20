@@ -58,9 +58,9 @@ type SyzygyReplyRow = {
   id: string
   user_id: string
   post_id: string
-  role: SyzygyReply['role']
+  author_role: SyzygyReply['authorRole']
   content: string
-  meta: SyzygyReply['meta'] | null
+  model_id: string | null
   created_at: string
   is_deleted: boolean
 }
@@ -99,11 +99,11 @@ const mapSyzygyReplyRow = (row: SyzygyReplyRow): SyzygyReply => ({
   id: row.id,
   userId: row.user_id,
   postId: row.post_id,
-  role: row.role,
+  authorRole: row.author_role,
   content: row.content,
   createdAt: row.created_at,
   isDeleted: row.is_deleted,
-  meta: row.meta ?? undefined,
+  modelId: row.model_id ?? null,
 })
 
 const mapSessionRow = (row: SessionRow): ChatSession => ({
@@ -126,6 +126,23 @@ const mapMessageRow = (row: MessageRow): ChatMessage => ({
   meta: row.meta ?? undefined,
   pending: false,
 })
+
+const requireAuthenticatedUserId = async (): Promise<string> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
+  if (error) {
+    throw error
+  }
+  if (!user) {
+    throw new Error('登录状态异常，请重新登录')
+  }
+  return user.id
+}
 
 export const fetchRemoteSessions = async (userId: string): Promise<ChatSession[]> => {
   if (!supabase) {
@@ -482,13 +499,17 @@ export const fetchDeletedSyzygyPosts = async (): Promise<SyzygyPost[]> => {
   return (data ?? []).map((row) => mapSyzygyPostRow(row as SyzygyPostRow))
 }
 
-export const createSyzygyPost = async (content: string): Promise<SyzygyPost> => {
+export const createSyzygyPost = async (
+  content: string,
+  selectedModelId: string | null = null,
+): Promise<SyzygyPost> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('syzygy_posts')
-    .insert({ content })
+    .insert({ user_id: userId, content, model_id: selectedModelId ?? null })
     .select('id,user_id,content,created_at,updated_at,is_deleted')
     .single()
 
@@ -532,9 +553,9 @@ export const fetchSyzygyReplies = async (postIds: string[]): Promise<SyzygyReply
   }
   const { data, error } = await supabase
     .from('syzygy_replies')
-    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .select('id,user_id,post_id,author_role,content,model_id,created_at,is_deleted')
     .in('post_id', postIds)
-    .in('role', ['user', 'assistant'])
+    .in('author_role', ['user', 'ai'])
     .eq('is_deleted', false)
     .order('created_at', { ascending: true })
   if (error) {
@@ -549,7 +570,7 @@ export const fetchSyzygyRepliesByPost = async (postId: string): Promise<SyzygyRe
   }
   const { data, error } = await supabase
     .from('syzygy_replies')
-    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .select('id,user_id,post_id,author_role,content,model_id,created_at,is_deleted')
     .eq('post_id', postId)
     .eq('is_deleted', false)
     .order('created_at', { ascending: true })
@@ -562,17 +583,24 @@ export const fetchSyzygyRepliesByPost = async (postId: string): Promise<SyzygyRe
 
 export const createSyzygyReply = async (
   postId: string,
-  role: SyzygyReply['role'],
+  authorRole: SyzygyReply['authorRole'],
   content: string,
-  meta: SyzygyReply['meta'],
+  selectedModelId: string | null = null,
 ): Promise<SyzygyReply> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('syzygy_replies')
-    .insert({ post_id: postId, role, content, meta: meta ?? {} })
-    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .insert({
+      user_id: userId,
+      post_id: postId,
+      author_role: authorRole,
+      content,
+      model_id: selectedModelId ?? null,
+    })
+    .select('id,user_id,post_id,author_role,content,model_id,created_at,is_deleted')
     .single()
   if (error || !data) {
     throw error ?? new Error('保存观察日志回复失败')
