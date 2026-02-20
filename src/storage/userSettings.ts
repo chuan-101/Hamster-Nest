@@ -10,9 +10,7 @@ type UserSettingsRow = {
   top_p: number | null
   max_tokens: number | null
   system_prompt: string | null
-  ai_overlays: {
-    snack_system?: string | null
-  } | null
+  snack_system_prompt: string | null
   enable_reasoning: boolean | null
   updated_at: string
 }
@@ -40,7 +38,7 @@ const mapSettingsRow = (row: UserSettingsRow): UserSettings => ({
   topP: row.top_p ?? 0.9,
   maxTokens: row.max_tokens ?? 1024,
   systemPrompt: row.system_prompt ?? '',
-  snackSystemOverlay: resolveSnackSystemOverlay(row.ai_overlays?.snack_system),
+  snackSystemOverlay: resolveSnackSystemOverlay(row.snack_system_prompt),
   enableReasoning: row.enable_reasoning ?? false,
   updatedAt: row.updated_at,
 })
@@ -52,7 +50,7 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
   const { data, error } = await supabase
     .from('user_settings')
     .select(
-      'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,ai_overlays,enable_reasoning,updated_at',
+      'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,enable_reasoning,updated_at',
     )
     .eq('user_id', userId)
     .maybeSingle()
@@ -72,14 +70,12 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
         top_p: defaults.topP,
         max_tokens: defaults.maxTokens,
         system_prompt: defaults.systemPrompt,
-        ai_overlays: {
-          snack_system: defaults.snackSystemOverlay,
-        },
+        snack_system_prompt: defaults.snackSystemOverlay,
         enable_reasoning: defaults.enableReasoning,
         updated_at: now,
       })
       .select(
-        'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,ai_overlays,enable_reasoning,updated_at',
+        'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,enable_reasoning,updated_at',
       )
       .single()
     if (insertError || !inserted) {
@@ -104,13 +100,28 @@ export const updateUserSettings = async (settings: UserSettings): Promise<void> 
       top_p: settings.topP,
       max_tokens: settings.maxTokens,
       system_prompt: settings.systemPrompt,
-      ai_overlays: {
-        snack_system: settings.snackSystemOverlay,
-      },
+      snack_system_prompt: settings.snackSystemOverlay,
       enable_reasoning: settings.enableReasoning,
       updated_at: now,
     })
     .eq('user_id', settings.userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const saveSnackSystemPrompt = async (userId: string, value: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('user_settings')
+    .update({
+      snack_system_prompt: value,
+      updated_at: now,
+    })
+    .eq('user_id', userId)
   if (error) {
     throw error
   }

@@ -17,7 +17,7 @@ import {
   softDeleteSnackReply,
 } from '../storage/supabaseSync'
 import { supabase } from '../supabase/client'
-import { formatLocalTimestamp, withTimePrefix } from '../utils/time'
+import { withTimePrefix } from '../utils/time'
 import './SnacksPage.css'
 
 type SnacksPageProps = {
@@ -34,8 +34,6 @@ type SnacksPageProps = {
 }
 
 const maxLength = 1000
-const timestampUsageInstruction = 'Use timestamps only when relevant; otherwise don’t mention them.'
-
 const createPendingReplyId = (postId: string) =>
   `pending-${postId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -325,13 +323,6 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
         messagesPayload.push({ role: 'system', content: prompt })
       }
       messagesPayload.push({ role: 'system', content: snackAiConfig.snackSystemOverlay })
-      messagesPayload.push({ role: 'system', content: timestampUsageInstruction })
-
-      const requestTimeIso = new Date().toISOString()
-      messagesPayload.push({
-        role: 'user',
-        content: `评论请求时间: [${formatLocalTimestamp(requestTimeIso)}]`,
-      })
       messagesPayload.push({
         role: 'user',
         content: withTimePrefix(post.content, post.createdAt),
