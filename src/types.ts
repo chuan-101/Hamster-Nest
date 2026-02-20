@@ -35,6 +35,7 @@ export type UserSettings = {
   userId: string
   enabledModels: string[]
   defaultModel: string
+  memoryExtractModel: string | null
   temperature: number
   topP: number
   maxTokens: number
@@ -44,6 +45,11 @@ export type UserSettings = {
   syzygyReplySystemPrompt: string
   enableReasoning: boolean
   updatedAt: string
+}
+
+export type ExtractMessageInput = {
+  role: 'user' | 'assistant' | 'system'
+  content: string
 }
 
 export type SnackPost = {

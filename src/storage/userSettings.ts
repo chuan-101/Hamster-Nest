@@ -13,6 +13,7 @@ type UserSettingsRow = {
   user_id: string
   enabled_models: string[] | null
   default_model: string | null
+  memory_extract_model: string | null
   temperature: number | null
   top_p: number | null
   max_tokens: number | null
@@ -30,6 +31,7 @@ export const createDefaultSettings = (userId: string): UserSettings => ({
   userId,
   enabledModels: [defaultModel],
   defaultModel,
+  memoryExtractModel: null,
   temperature: 0.7,
   topP: 0.9,
   maxTokens: 1024,
@@ -45,6 +47,7 @@ const mapSettingsRow = (row: UserSettingsRow): UserSettings => ({
   userId: row.user_id,
   enabledModels: row.enabled_models ?? [defaultModel],
   defaultModel: row.default_model ?? defaultModel,
+  memoryExtractModel: row.memory_extract_model?.trim() ? row.memory_extract_model : null,
   temperature: row.temperature ?? 0.7,
   topP: row.top_p ?? 0.9,
   maxTokens: row.max_tokens ?? 1024,
@@ -63,7 +66,7 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
   const { data, error } = await supabase
     .from('user_settings')
     .select(
-      'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
+      'user_id,enabled_models,default_model,memory_extract_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
     )
     .eq('user_id', userId)
     .maybeSingle()
@@ -79,6 +82,7 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
         user_id: defaults.userId,
         enabled_models: defaults.enabledModels,
         default_model: defaults.defaultModel,
+        memory_extract_model: defaults.memoryExtractModel,
         temperature: defaults.temperature,
         top_p: defaults.topP,
         max_tokens: defaults.maxTokens,
@@ -90,7 +94,7 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
         updated_at: now,
       })
       .select(
-        'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
+        'user_id,enabled_models,default_model,memory_extract_model,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
       )
       .single()
     if (insertError || !inserted) {
@@ -111,6 +115,7 @@ export const updateUserSettings = async (settings: UserSettings): Promise<void> 
     .update({
       enabled_models: settings.enabledModels,
       default_model: settings.defaultModel,
+      memory_extract_model: settings.memoryExtractModel,
       temperature: settings.temperature,
       top_p: settings.topP,
       max_tokens: settings.maxTokens,
@@ -136,6 +141,26 @@ export const saveSnackSystemPrompt = async (userId: string, value: string): Prom
     .from('user_settings')
     .update({
       snack_system_prompt: value,
+      updated_at: now,
+    })
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const saveMemoryExtractModel = async (
+  userId: string,
+  modelId: string | null,
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('user_settings')
+    .update({
+      memory_extract_model: modelId,
       updated_at: now,
     })
     .eq('user_id', userId)
