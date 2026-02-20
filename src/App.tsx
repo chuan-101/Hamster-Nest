@@ -39,6 +39,7 @@ import './App.css'
 import SettingsPage from './pages/SettingsPage'
 import SnacksPage from './pages/SnacksPage'
 import SyzygyFeedPage from './pages/SyzygyFeedPage'
+import MemoryVaultPage from './pages/MemoryVaultPage'
 import {
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
@@ -479,6 +480,12 @@ const App = () => {
         max_tokens: activeSettings.maxTokens,
       }
       const systemPrompt = activeSettings.systemPrompt
+      const isFirstMessageInSession = !messagesRef.current.some(
+        (message) =>
+          message.sessionId === sessionId &&
+          message.role === 'user' &&
+          message.content.trim().length > 0,
+      )
       const clientId = createClientId()
       const clientCreatedAt = new Date().toISOString()
       const optimisticMessage: ChatMessage = {
@@ -762,6 +769,7 @@ const App = () => {
             max_tokens: paramsSnapshot.max_tokens,
             reasoning: reasoningEnabled,
             stream: true,
+            isFirstMessage: isFirstMessageInSession,
           }
           if (reasoningEnabled && isClaudeModel(effectiveModel)) {
             const maxTokens = paramsSnapshot.max_tokens ?? 1024
@@ -1185,6 +1193,14 @@ const App = () => {
           }
         />
 
+        <Route
+          path="/memory-vault"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <MemoryVaultPage />
+            </RequireAuth>
+          }
+        />
         <Route
           path="/syzygy"
           element={

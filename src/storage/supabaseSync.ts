@@ -1,4 +1,13 @@
-import type { ChatMessage, ChatSession, SnackPost, SnackReply, SyzygyPost, SyzygyReply } from '../types'
+import type {
+  ChatMessage,
+  ChatSession,
+  MemoryEntry,
+  MemoryStatus,
+  SnackPost,
+  SnackReply,
+  SyzygyPost,
+  SyzygyReply,
+} from '../types'
 import { supabase } from '../supabase/client'
 
 type SessionRow = {
@@ -66,6 +75,17 @@ type SyzygyReplyRow = {
   is_deleted: boolean
 }
 
+type MemoryEntryRow = {
+  id: string
+  user_id: string
+  content: string
+  source: string
+  status: MemoryStatus
+  created_at: string
+  updated_at: string
+  is_deleted: boolean
+}
+
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
   userId: row.user_id,
@@ -106,6 +126,17 @@ const mapSyzygyReplyRow = (row: SyzygyReplyRow): SyzygyReply => ({
   createdAt: row.created_at,
   isDeleted: row.is_deleted,
   modelId: row.model_id ?? null,
+})
+
+const mapMemoryEntryRow = (row: MemoryEntryRow): MemoryEntry => ({
+  id: row.id,
+  userId: row.user_id,
+  content: row.content,
+  source: row.source,
+  status: row.status,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  isDeleted: row.is_deleted,
 })
 
 const mapSessionRow = (row: SessionRow): ChatSession => ({
@@ -619,6 +650,106 @@ export const softDeleteSyzygyReply = async (replyId: string): Promise<void> => {
     .update({ is_deleted: true })
     .eq('id', replyId)
 
+  if (error) {
+    throw error
+  }
+}
+
+export const listMemories = async (status: MemoryStatus): Promise<MemoryEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('memory_entries')
+    .select('id,user_id,content,source,status,created_at,updated_at,is_deleted')
+    .eq('user_id', userId)
+    .eq('status', status)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapMemoryEntryRow(row as MemoryEntryRow))
+}
+
+export const createMemory = async (content: string): Promise<MemoryEntry> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('memory_entries')
+    .insert({
+      user_id: userId,
+      content,
+      source: 'user_created',
+      status: 'confirmed',
+      created_at: now,
+      updated_at: now,
+      is_deleted: false,
+    })
+    .select('id,user_id,content,source,status,created_at,updated_at,is_deleted')
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('创建记忆失败')
+  }
+  return mapMemoryEntryRow(data as MemoryEntryRow)
+}
+
+export const updateMemory = async (id: string, content: string): Promise<MemoryEntry> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('memory_entries')
+    .update({ content, source: 'user_edited', updated_at: now })
+    .eq('id', id)
+    .eq('is_deleted', false)
+    .select('id,user_id,content,source,status,created_at,updated_at,is_deleted')
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('更新记忆失败')
+  }
+  return mapMemoryEntryRow(data as MemoryEntryRow)
+}
+
+export const confirmMemory = async (id: string, content?: string): Promise<MemoryEntry> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const updates: Record<string, unknown> = {
+    status: 'confirmed',
+    updated_at: now,
+  }
+  if (typeof content === 'string') {
+    updates.content = content
+    updates.source = 'user_edited'
+  }
+  const { data, error } = await supabase
+    .from('memory_entries')
+    .update(updates)
+    .eq('id', id)
+    .eq('is_deleted', false)
+    .select('id,user_id,content,source,status,created_at,updated_at,is_deleted')
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('确认记忆失败')
+  }
+  return mapMemoryEntryRow(data as MemoryEntryRow)
+}
+
+export const discardMemory = async (id: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('memory_entries')
+    .update({ is_deleted: true, updated_at: new Date().toISOString() })
+    .eq('id', id)
   if (error) {
     throw error
   }

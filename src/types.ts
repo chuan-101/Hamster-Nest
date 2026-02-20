@@ -91,3 +91,16 @@ export type SyzygyReply = {
   isDeleted: boolean
   modelId?: string | null
 }
+
+export type MemoryStatus = 'confirmed' | 'pending'
+
+export type MemoryEntry = {
+  id: string
+  userId: string
+  content: string
+  source: string
+  status: MemoryStatus
+  createdAt: string
+  updatedAt: string
+  isDeleted: boolean
+}
