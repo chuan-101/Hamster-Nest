@@ -17,12 +17,12 @@ type SettingsPageProps = {
   user: User | null
   settings: UserSettings | null
   ready: boolean
-  onUpdateSettings: (updater: (current: UserSettings) => UserSettings) => void
+  onSaveSettings: (nextSettings: UserSettings) => Promise<void>
 }
 
 const defaultModelId = 'openrouter/auto'
 
-const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageProps) => {
+const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPageProps) => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [catalog, setCatalog] = useState<OpenRouterModel[]>([])
@@ -32,10 +32,15 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
   const [temperatureInput, setTemperatureInput] = useState('')
   const [topPInput, setTopPInput] = useState('')
   const [maxTokensInput, setMaxTokensInput] = useState('')
+  const [draftEnabledModels, setDraftEnabledModels] = useState<string[]>([])
+  const [draftDefaultModel, setDraftDefaultModel] = useState(defaultModelId)
+  const [draftReasoning, setDraftReasoning] = useState(false)
+  const [generationStatus, setGenerationStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [generationError, setGenerationError] = useState<string | null>(null)
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('')
-  const [systemPromptStatus, setSystemPromptStatus] = useState<'idle' | 'saved'>('idle')
+  const [systemPromptStatus, setSystemPromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [draftSnackOverlay, setDraftSnackOverlay] = useState('')
-  const [snackOverlayStatus, setSnackOverlayStatus] = useState<'idle' | 'saved'>('idle')
+  const [snackOverlayStatus, setSnackOverlayStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [showUnsavedPromptDialog, setShowUnsavedPromptDialog] = useState(false)
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string }>(
     {},
@@ -50,6 +55,21 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       setTemperatureInput(settings.temperature.toString())
       setTopPInput(settings.topP.toString())
       setMaxTokensInput(settings.maxTokens.toString())
+      setDraftEnabledModels(settings.enabledModels)
+      setDraftDefaultModel(settings.defaultModel)
+      setDraftReasoning(settings.enableReasoning)
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [settings])
+
+  useEffect(() => {
+    if (!settings) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setDraftSnackOverlay(resolveSnackSystemOverlay(settings.snackSystemOverlay))
     }, 0)
     return () => {
       window.clearTimeout(timer)
@@ -140,20 +160,38 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     return filteredCatalog.slice(0, 20)
   }, [filteredCatalog, searchTerm])
 
-  const applySettingsUpdate = useCallback((updater: (current: UserSettings) => UserSettings) => {
-    onUpdateSettings((current) => ({
-      ...updater(current),
+  const buildNextSettings = useCallback((overrides: Partial<UserSettings> = {}) => {
+    if (!settings) {
+      return null
+    }
+    return {
+      ...settings,
+      ...overrides,
       updatedAt: new Date().toISOString(),
-    }))
-  }, [onUpdateSettings])
+    }
+  }, [settings])
 
-  const hasUnsavedSystemPrompt = settings
-    ? draftSystemPrompt !== settings.systemPrompt
+  const parsedTemperature = Number(temperatureInput)
+  const parsedTopP = Number(topPInput)
+  const parsedMaxTokens = Number.parseInt(maxTokensInput, 10)
+  const temperatureValid = !Number.isNaN(parsedTemperature) && parsedTemperature >= 0 && parsedTemperature <= 2
+  const topPValid = !Number.isNaN(parsedTopP) && parsedTopP >= 0 && parsedTopP <= 1
+  const maxTokensValid = !Number.isNaN(parsedMaxTokens) && parsedMaxTokens >= 32 && parsedMaxTokens <= 4000
+  const generationDraftValid = temperatureValid && topPValid && maxTokensValid
+
+  const hasUnsavedGeneration = settings
+    ? settings.temperature !== parsedTemperature ||
+      settings.topP !== parsedTopP ||
+      settings.maxTokens !== parsedMaxTokens ||
+      settings.defaultModel !== draftDefaultModel ||
+      settings.enableReasoning !== draftReasoning ||
+      settings.enabledModels.join('|') !== draftEnabledModels.join('|')
     : false
+  const hasUnsavedSystemPrompt = settings ? draftSystemPrompt !== settings.systemPrompt : false
   const hasUnsavedSnackOverlay = settings
     ? draftSnackOverlay !== resolveSnackSystemOverlay(settings.snackSystemOverlay)
     : false
-  const hasUnsavedPrompt = hasUnsavedSystemPrompt || hasUnsavedSnackOverlay
+  const hasUnsavedPrompt = hasUnsavedSystemPrompt || hasUnsavedSnackOverlay || hasUnsavedGeneration
 
   useEffect(() => {
     if (!hasUnsavedPrompt) {
@@ -169,40 +207,16 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     }
   }, [hasUnsavedPrompt])
 
-  useEffect(() => {
-    if (!settings) {
-      return
-    }
-    if (settings.enabledModels.includes(settings.defaultModel)) {
-      return
-    }
-    const fallback = settings.enabledModels.includes(defaultModelId)
-      ? defaultModelId
-      : settings.enabledModels[0] ?? defaultModelId
-    if (fallback === settings.defaultModel) {
-      return
-    }
-    applySettingsUpdate((current) => ({
-      ...current,
-      defaultModel: fallback,
-    }))
-  }, [settings, applySettingsUpdate])
-
   const handleDisableModel = () => {
     if (!settings || !pendingDisable) {
       return
     }
     const modelId = pendingDisable
-    applySettingsUpdate((current) => {
-      const nextEnabled = current.enabledModels.filter((id) => id !== modelId)
-      const nextDefault =
-        current.defaultModel === modelId ? nextEnabled[0] ?? defaultModelId : current.defaultModel
-      return {
-        ...current,
-        enabledModels: nextEnabled,
-        defaultModel: nextDefault,
-      }
-    })
+    const nextEnabled = draftEnabledModels.filter((id) => id !== modelId)
+    const nextDefault = draftDefaultModel === modelId ? nextEnabled[0] ?? defaultModelId : draftDefaultModel
+    setDraftEnabledModels(nextEnabled)
+    setDraftDefaultModel(nextDefault)
+    setGenerationStatus('idle')
     setPendingDisable(null)
   }
 
@@ -210,36 +224,24 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     if (!settings) {
       return
     }
-    applySettingsUpdate((current) => {
-      const alreadyEnabled = current.enabledModels.includes(modelId)
-      const nextEnabled = alreadyEnabled
-        ? current.enabledModels
-        : [...current.enabledModels, modelId]
-      const nextDefault = setDefault
-        ? modelId
-        : current.defaultModel || (alreadyEnabled ? current.defaultModel : modelId)
-      return {
-        ...current,
-        enabledModels: nextEnabled,
-        defaultModel: nextDefault,
-      }
-    })
+    const alreadyEnabled = draftEnabledModels.includes(modelId)
+    const nextEnabled = alreadyEnabled ? draftEnabledModels : [...draftEnabledModels, modelId]
+    const nextDefault = setDefault ? modelId : draftDefaultModel || (alreadyEnabled ? draftDefaultModel : modelId)
+    setDraftEnabledModels(nextEnabled)
+    setDraftDefaultModel(nextDefault)
+    setGenerationStatus('idle')
   }
 
   const handleSetDefault = (modelId: string) => {
     if (!settings) {
       return
     }
-    applySettingsUpdate((current) => {
-      const nextEnabled = current.enabledModels.includes(modelId)
-        ? current.enabledModels
-        : [...current.enabledModels, modelId]
-      return {
-        ...current,
-        enabledModels: nextEnabled,
-        defaultModel: modelId,
-      }
-    })
+    const nextEnabled = draftEnabledModels.includes(modelId)
+      ? draftEnabledModels
+      : [...draftEnabledModels, modelId]
+    setDraftEnabledModels(nextEnabled)
+    setDraftDefaultModel(modelId)
+    setGenerationStatus('idle')
   }
 
   const handleTemperatureChange = (value: string) => {
@@ -254,9 +256,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       return
     }
     setErrors((prev) => ({ ...prev, temperature: undefined }))
-    if (settings) {
-      applySettingsUpdate((current) => ({ ...current, temperature: parsed }))
-    }
+    setGenerationStatus('idle')
   }
 
   const handleTopPChange = (value: string) => {
@@ -271,9 +271,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       return
     }
     setErrors((prev) => ({ ...prev, topP: undefined }))
-    if (settings) {
-      applySettingsUpdate((current) => ({ ...current, topP: parsed }))
-    }
+    setGenerationStatus('idle')
   }
 
   const handleMaxTokensChange = (value: string) => {
@@ -288,19 +286,42 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
       return
     }
     setErrors((prev) => ({ ...prev, maxTokens: undefined }))
-    if (settings) {
-      applySettingsUpdate((current) => ({ ...current, maxTokens: parsed }))
-    }
+    setGenerationStatus('idle')
   }
 
   const handleReasoningToggle = (enabled: boolean) => {
-    if (!settings) {
+    setDraftReasoning(enabled)
+    setGenerationStatus('idle')
+  }
+
+  const handleSaveGenerationSettings = async () => {
+    if (!settings || !generationDraftValid || !hasUnsavedGeneration) {
       return
     }
-    applySettingsUpdate((current) => ({
-      ...current,
-      enableReasoning: enabled,
-    }))
+    const nextEnabledModels = draftEnabledModels.includes(draftDefaultModel)
+      ? draftEnabledModels
+      : [...draftEnabledModels, draftDefaultModel]
+    const nextSettings = buildNextSettings({
+      enabledModels: nextEnabledModels,
+      defaultModel: draftDefaultModel,
+      temperature: parsedTemperature,
+      topP: parsedTopP,
+      maxTokens: parsedMaxTokens,
+      enableReasoning: draftReasoning,
+    })
+    if (!nextSettings) {
+      return
+    }
+    setGenerationStatus('saving')
+    setGenerationError(null)
+    try {
+      await onSaveSettings(nextSettings)
+      setGenerationStatus('saved')
+    } catch (error) {
+      console.warn('保存生成参数失败', error)
+      setGenerationStatus('error')
+      setGenerationError('保存失败，请稍后重试。')
+    }
   }
 
   const handleSystemPromptChange = (value: string) => {
@@ -310,16 +331,55 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     }
   }
 
-  const handleSaveSystemPrompt = () => {
+  const handleSaveSystemPrompt = async () => {
     if (!settings || !hasUnsavedSystemPrompt) {
       return
     }
     const nextPrompt = draftSystemPrompt
-    applySettingsUpdate((current) => ({
-      ...current,
-      systemPrompt: nextPrompt,
-    }))
-    setSystemPromptStatus('saved')
+    const nextSettings = buildNextSettings({ systemPrompt: nextPrompt })
+    if (!nextSettings) {
+      return
+    }
+    setSystemPromptStatus('saving')
+    try {
+      await onSaveSettings(nextSettings)
+      setSystemPromptStatus('saved')
+    } catch (error) {
+      console.warn('保存系统提示词失败', error)
+      setSystemPromptStatus('error')
+    }
+  }
+
+  const handleSnackOverlayChange = (value: string) => {
+    setDraftSnackOverlay(value)
+    if (snackOverlayStatus !== 'idle') {
+      setSnackOverlayStatus('idle')
+    }
+  }
+
+  const handleSaveSnackOverlay = async () => {
+    if (!settings || !hasUnsavedSnackOverlay) {
+      return
+    }
+    const nextOverlay = resolveSnackSystemOverlay(draftSnackOverlay)
+    setDraftSnackOverlay(nextOverlay)
+    const nextSettings = buildNextSettings({ snackSystemOverlay: nextOverlay })
+    if (!nextSettings) {
+      return
+    }
+    setSnackOverlayStatus('saving')
+    try {
+      await onSaveSettings(nextSettings)
+      setSnackOverlayStatus('saved')
+    } catch (error) {
+      console.warn('保存零食风格覆盖失败', error)
+      setSnackOverlayStatus('error')
+    }
+  }
+
+  const handleResetSnackOverlay = () => {
+    setDraftSnackOverlay(DEFAULT_SNACK_SYSTEM_OVERLAY)
+    setSnackOverlayStatus('idle')
   }
 
   const handleSnackOverlayChange = (value: string) => {
@@ -374,7 +434,13 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
 
   const handleSaveAndLeave = () => {
     if (hasUnsavedSystemPrompt) {
-      handleSaveSystemPrompt()
+      void handleSaveSystemPrompt()
+    }
+    if (hasUnsavedSnackOverlay) {
+      void handleSaveSnackOverlay()
+    }
+    if (hasUnsavedGeneration) {
+      void handleSaveGenerationSettings()
     }
     if (hasUnsavedSnackOverlay) {
       handleSaveSnackOverlay()
@@ -385,9 +451,11 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
     pendingAction?.()
   }
 
-  const selectedModelId = settings?.enabledModels.includes(settings.defaultModel)
-    ? settings.defaultModel
-    : settings?.enabledModels[0] ?? settings?.defaultModel ?? ''
+  const selectedModelId = draftEnabledModels.includes(draftDefaultModel)
+    ? draftDefaultModel
+    : draftEnabledModels.includes(defaultModelId)
+      ? defaultModelId
+      : draftEnabledModels[0] ?? draftDefaultModel ?? defaultModelId
 
   if (!ready || !settings) {
     return (
@@ -427,7 +495,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
           <h2>仓鼠模型库</h2>
           <p>管理已启用的 OpenRouter 模型，并选择默认模型。</p>
         </div>
-        {settings.enabledModels.length === 0 ? (
+        {draftEnabledModels.length === 0 ? (
           <div className="empty-state">暂无启用模型，请从下方模型库启用。</div>
         ) : (
           <div className="model-select-card">
@@ -438,7 +506,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
                 value={selectedModelId}
                 onChange={(event) => handleSetDefault(event.target.value)}
               >
-                {settings.enabledModels.map((modelId) => (
+                {draftEnabledModels.map((modelId) => (
                   <option key={modelId} value={modelId}>
                     {catalogMap.get(modelId) ?? modelId}
                   </option>
@@ -510,11 +578,24 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
             <input
               id="enableReasoning"
               type="checkbox"
-              checked={settings.enableReasoning}
+              checked={draftReasoning}
               onChange={(event) => handleReasoningToggle(event.target.checked)}
             />
-            <span>{settings.enableReasoning ? '已开启' : '已关闭'}</span>
+            <span>{draftReasoning ? '已开启' : '已关闭'}</span>
           </label>
+        </div>
+        <div className="system-prompt-actions">
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void handleSaveGenerationSettings()}
+            disabled={!hasUnsavedGeneration || !generationDraftValid || generationStatus === 'saving'}
+          >
+            {generationStatus === 'saving' ? '保存中…' : '保存参数'}
+          </button>
+          {hasUnsavedGeneration ? <span className="system-prompt-status">有未保存修改</span> : null}
+          {generationStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+          {generationStatus === 'error' ? <span className="field-error">{generationError}</span> : null}
         </div>
       </section>
 
@@ -534,7 +615,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
             type="button"
             className="primary"
             disabled={!hasUnsavedSystemPrompt}
-            onClick={handleSaveSystemPrompt}
+            onClick={() => void handleSaveSystemPrompt()}
           >
             保存
           </button>
@@ -559,7 +640,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
             type="button"
             className="primary"
             disabled={!hasUnsavedSnackOverlay}
-            onClick={handleSaveSnackOverlay}
+            onClick={() => void handleSaveSnackOverlay()}
           >
             保存
           </button>
@@ -600,7 +681,7 @@ const SettingsPage = ({ user, settings, ready, onUpdateSettings }: SettingsPageP
             ) : null}
             <ul className="catalog-results">
               {visibleCatalog.map((model) => {
-                const enabled = settings.enabledModels.includes(model.id)
+                const enabled = draftEnabledModels.includes(model.id)
                 return (
                   <li key={model.id} className="catalog-result-item">
                     <div className="catalog-meta">
