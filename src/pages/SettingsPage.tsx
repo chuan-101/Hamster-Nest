@@ -18,11 +18,12 @@ type SettingsPageProps = {
   settings: UserSettings | null
   ready: boolean
   onSaveSettings: (nextSettings: UserSettings) => Promise<void>
+  onSaveSnackSystemPrompt: (value: string) => Promise<void>
 }
 
 const defaultModelId = 'openrouter/auto'
 
-const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPageProps) => {
+const SettingsPage = ({ user, settings, ready, onSaveSettings, onSaveSnackSystemPrompt }: SettingsPageProps) => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [catalog, setCatalog] = useState<OpenRouterModel[]>([])
@@ -39,7 +40,7 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('')
   const [systemPromptStatus, setSystemPromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [draftSnackOverlay, setDraftSnackOverlay] = useState('')
+  const [draftSnackSystemPrompt, setDraftSnackSystemPrompt] = useState('')
   const [snackOverlayStatus, setSnackOverlayStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [showUnsavedPromptDialog, setShowUnsavedPromptDialog] = useState(false)
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string }>(
@@ -69,7 +70,7 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
       return
     }
     const timer = window.setTimeout(() => {
-      setDraftSnackOverlay(resolveSnackSystemOverlay(settings.snackSystemOverlay))
+      setDraftSnackSystemPrompt(resolveSnackSystemOverlay(settings.snackSystemOverlay))
     }, 0)
     return () => {
       window.clearTimeout(timer)
@@ -177,7 +178,7 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
     : false
   const hasUnsavedSystemPrompt = settings ? draftSystemPrompt !== settings.systemPrompt : false
   const hasUnsavedSnackOverlay = settings
-    ? draftSnackOverlay !== resolveSnackSystemOverlay(settings.snackSystemOverlay)
+    ? draftSnackSystemPrompt !== resolveSnackSystemOverlay(settings.snackSystemOverlay)
     : false
   const hasUnsavedPrompt = hasUnsavedSystemPrompt || hasUnsavedSnackOverlay || hasUnsavedGeneration
 
@@ -339,7 +340,7 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
   }
 
   const handleSnackOverlayChange = (value: string) => {
-    setDraftSnackOverlay(value)
+    setDraftSnackSystemPrompt(value)
     if (snackOverlayStatus !== 'idle') {
       setSnackOverlayStatus('idle')
     }
@@ -349,15 +350,11 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
     if (!settings || !hasUnsavedSnackOverlay) {
       return
     }
-    const nextOverlay = resolveSnackSystemOverlay(draftSnackOverlay)
-    setDraftSnackOverlay(nextOverlay)
-    const nextSettings = buildNextSettings({ snackSystemOverlay: nextOverlay })
-    if (!nextSettings) {
-      return
-    }
+    const nextOverlay = resolveSnackSystemOverlay(draftSnackSystemPrompt)
+    setDraftSnackSystemPrompt(nextOverlay)
     setSnackOverlayStatus('saving')
     try {
-      await onSaveSettings(nextSettings)
+      await onSaveSnackSystemPrompt(nextOverlay)
       setSnackOverlayStatus('saved')
     } catch (error) {
       console.warn('保存零食风格覆盖失败', error)
@@ -366,7 +363,7 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
   }
 
   const handleResetSnackOverlay = () => {
-    setDraftSnackOverlay(DEFAULT_SNACK_SYSTEM_OVERLAY)
+    setDraftSnackSystemPrompt(DEFAULT_SNACK_SYSTEM_OVERLAY)
     setSnackOverlayStatus('idle')
   }
 
@@ -393,7 +390,7 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
       setDraftDefaultModel(settings.defaultModel)
       setDraftReasoning(settings.enableReasoning)
       setDraftSystemPrompt(settings.systemPrompt)
-      setDraftSnackOverlay(resolveSnackSystemOverlay(settings.snackSystemOverlay))
+      setDraftSnackSystemPrompt(resolveSnackSystemOverlay(settings.snackSystemOverlay))
       setGenerationStatus('idle')
       setGenerationError(null)
       setSystemPromptStatus('idle')
@@ -602,7 +599,7 @@ const SettingsPage = ({ user, settings, ready, onSaveSettings }: SettingsPagePro
         </div>
         <textarea
           className="system-prompt"
-          value={draftSnackOverlay}
+          value={draftSnackSystemPrompt}
           onChange={(event) => handleSnackOverlayChange(event.target.value)}
         />
         <div className="system-prompt-actions">

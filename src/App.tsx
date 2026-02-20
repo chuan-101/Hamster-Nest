@@ -18,6 +18,7 @@ import {
 import {
   createDefaultSettings,
   ensureUserSettings,
+  saveSnackSystemPrompt,
   updateUserSettings,
 } from './storage/userSettings'
 import {
@@ -1057,6 +1058,22 @@ const App = () => {
     setUserSettings(nextSettings)
   }, [user])
 
+  const handleSaveSnackSystemPrompt = useCallback(async (nextSnackSystemPrompt: string) => {
+    if (!user) {
+      return
+    }
+    const nextSettings = {
+      ...(settingsRef.current ?? createDefaultSettings(user.id)),
+      userId: user.id,
+      snackSystemOverlay: nextSnackSystemPrompt,
+      updatedAt: new Date().toISOString(),
+    }
+    if (supabase) {
+      await saveSnackSystemPrompt(user.id, nextSnackSystemPrompt)
+    }
+    setUserSettings(nextSettings)
+  }, [user])
+
   return (
     <div className="app-shell">
       <Routes>
@@ -1111,6 +1128,7 @@ const App = () => {
                 settings={userSettings}
                 ready={settingsReady}
                 onSaveSettings={handleSaveSettings}
+                onSaveSnackSystemPrompt={handleSaveSnackSystemPrompt}
               />
             </RequireAuth>
           }
