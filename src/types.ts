@@ -69,3 +69,28 @@ export type SnackReply = {
     reasoning_text?: string
   }
 }
+
+
+export type SyzygyPost = {
+  id: string
+  userId: string
+  content: string
+  createdAt: string
+  updatedAt: string
+  isDeleted: boolean
+}
+
+export type SyzygyReply = {
+  id: string
+  userId: string
+  postId: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+  isDeleted: boolean
+  meta?: {
+    provider?: string
+    model?: string
+    reasoning_text?: string
+  }
+}

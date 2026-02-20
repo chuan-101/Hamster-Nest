@@ -38,6 +38,7 @@ import { supabase } from './supabase/client'
 import './App.css'
 import SettingsPage from './pages/SettingsPage'
 import SnacksPage from './pages/SnacksPage'
+import SyzygyFeedPage from './pages/SyzygyFeedPage'
 import {
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
@@ -1180,6 +1181,15 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <SnacksPage user={user} snackAiConfig={snackAiConfig} />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/syzygy"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <SyzygyFeedPage user={user} snackAiConfig={snackAiConfig} />
             </RequireAuth>
           }
         />
