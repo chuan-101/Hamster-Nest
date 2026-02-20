@@ -1201,7 +1201,7 @@ const App = () => {
       if (recentMessages.length === 0) {
         return
       }
-      void invokeMemoryExtraction(recentMessages, Intl.DateTimeFormat().resolvedOptions().timeZone).catch(
+      void invokeMemoryExtraction(recentMessages).catch(
         (error) => {
           console.warn('自动抽取记忆建议失败', error)
         },
