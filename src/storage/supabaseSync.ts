@@ -127,6 +127,23 @@ const mapMessageRow = (row: MessageRow): ChatMessage => ({
   pending: false,
 })
 
+const requireAuthenticatedUserId = async (): Promise<string> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
+  if (error) {
+    throw error
+  }
+  if (!user) {
+    throw new Error('登录状态异常，请重新登录')
+  }
+  return user.id
+}
+
 export const fetchRemoteSessions = async (userId: string): Promise<ChatSession[]> => {
   if (!supabase) {
     return []
@@ -482,13 +499,17 @@ export const fetchDeletedSyzygyPosts = async (): Promise<SyzygyPost[]> => {
   return (data ?? []).map((row) => mapSyzygyPostRow(row as SyzygyPostRow))
 }
 
-export const createSyzygyPost = async (content: string): Promise<SyzygyPost> => {
+export const createSyzygyPost = async (
+  content: string,
+  selectedModelId: string | null = null,
+): Promise<SyzygyPost> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('syzygy_posts')
-    .insert({ content })
+    .insert({ user_id: userId, content, model_id: selectedModelId ?? null })
     .select('id,user_id,content,created_at,updated_at,is_deleted')
     .single()
 
@@ -565,13 +586,22 @@ export const createSyzygyReply = async (
   role: SyzygyReply['role'],
   content: string,
   meta: SyzygyReply['meta'],
+  selectedModelId: string | null = null,
 ): Promise<SyzygyReply> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('syzygy_replies')
-    .insert({ post_id: postId, role, content, meta: meta ?? {} })
+    .insert({
+      user_id: userId,
+      post_id: postId,
+      role,
+      content,
+      meta: meta ?? {},
+      model_id: selectedModelId ?? null,
+    })
     .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
     .single()
   if (error || !data) {
