@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import ConfirmDialog from '../components/ConfirmDialog'
+import MarkdownRenderer from '../components/MarkdownRenderer'
 import type { SnackPost, SnackReply } from '../types'
 import {
   createSnackPost,
@@ -587,7 +586,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
                             </div>
                             {reply.role === 'assistant' ? (
                               <div className="assistant-markdown">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{reply.content}</ReactMarkdown>
+                                <MarkdownRenderer content={reply.content} />
                               </div>
                             ) : (
                               <p>{reply.content}</p>

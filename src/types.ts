@@ -78,6 +78,7 @@ export type SyzygyPost = {
   createdAt: string
   updatedAt: string
   isDeleted: boolean
+  modelId?: string | null
 }
 
 export type SyzygyReply = {

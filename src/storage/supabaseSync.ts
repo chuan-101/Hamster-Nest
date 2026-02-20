@@ -49,6 +49,7 @@ type SyzygyPostRow = {
   id: string
   user_id: string
   content: string
+  model_id: string | null
   created_at: string
   updated_at: string
   is_deleted: boolean
@@ -93,6 +94,7 @@ const mapSyzygyPostRow = (row: SyzygyPostRow): SyzygyPost => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   isDeleted: row.is_deleted,
+  modelId: row.model_id ?? null,
 })
 
 const mapSyzygyReplyRow = (row: SyzygyReplyRow): SyzygyReply => ({
@@ -474,7 +476,7 @@ export const fetchSyzygyPosts = async (): Promise<SyzygyPost[]> => {
   }
   const { data, error } = await supabase
     .from('syzygy_posts')
-    .select('id,user_id,content,created_at,updated_at,is_deleted')
+    .select('id,user_id,content,model_id,created_at,updated_at,is_deleted')
     .eq('is_deleted', false)
     .order('created_at', { ascending: false })
   if (error) {
@@ -489,7 +491,7 @@ export const fetchDeletedSyzygyPosts = async (): Promise<SyzygyPost[]> => {
   }
   const { data, error } = await supabase
     .from('syzygy_posts')
-    .select('id,user_id,content,created_at,updated_at,is_deleted')
+    .select('id,user_id,content,model_id,created_at,updated_at,is_deleted')
     .eq('is_deleted', true)
     .order('updated_at', { ascending: false })
 
@@ -510,7 +512,7 @@ export const createSyzygyPost = async (
   const { data, error } = await supabase
     .from('syzygy_posts')
     .insert({ user_id: userId, content, model_id: selectedModelId ?? null })
-    .select('id,user_id,content,created_at,updated_at,is_deleted')
+    .select('id,user_id,content,model_id,created_at,updated_at,is_deleted')
     .single()
 
   if (error || !data) {
