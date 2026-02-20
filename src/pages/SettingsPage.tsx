@@ -25,6 +25,7 @@ type SettingsPageProps = {
   settings: UserSettings | null
   ready: boolean
   onSaveSettings: (nextSettings: UserSettings) => Promise<void>
+  onSaveMemoryExtractModel: (modelId: string | null) => Promise<void>
   onSaveSnackSystemPrompt: (value: string) => Promise<void>
   onSaveSyzygyPostPrompt: (value: string) => Promise<void>
   onSaveSyzygyReplyPrompt: (value: string) => Promise<void>
@@ -37,6 +38,7 @@ const SettingsPage = ({
   settings,
   ready,
   onSaveSettings,
+  onSaveMemoryExtractModel,
   onSaveSnackSystemPrompt,
   onSaveSyzygyPostPrompt,
   onSaveSyzygyReplyPrompt,
@@ -53,8 +55,11 @@ const SettingsPage = ({
   const [draftEnabledModels, setDraftEnabledModels] = useState<string[]>([])
   const [draftDefaultModel, setDraftDefaultModel] = useState(defaultModelId)
   const [draftReasoning, setDraftReasoning] = useState(false)
+  const [draftMemoryExtractModel, setDraftMemoryExtractModel] = useState<string | null>(null)
   const [generationStatus, setGenerationStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [extractModelStatus, setExtractModelStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [extractModelError, setExtractModelError] = useState<string | null>(null)
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('')
   const [systemPromptStatus, setSystemPromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [draftSnackSystemPrompt, setDraftSnackSystemPrompt] = useState('')
@@ -81,6 +86,7 @@ const SettingsPage = ({
       setMaxTokensInput(settings.maxTokens.toString())
       setDraftEnabledModels(settings.enabledModels)
       setDraftDefaultModel(settings.defaultModel)
+      setDraftMemoryExtractModel(settings.memoryExtractModel)
       setDraftReasoning(settings.enableReasoning)
     }, 0)
     return () => {
@@ -250,11 +256,14 @@ const SettingsPage = ({
   const hasUnsavedSyzygyReplyPrompt = settings
     ? draftSyzygyReplyPrompt !== resolveSyzygyReplyPrompt(settings.syzygyReplySystemPrompt)
     : false
+  const hasUnsavedExtractModel =
+    (settings?.memoryExtractModel ?? '') !== (draftMemoryExtractModel ?? '')
   const hasUnsavedPrompt =
     hasUnsavedSystemPrompt ||
     hasUnsavedSnackOverlay ||
     hasUnsavedSyzygyPostPrompt ||
     hasUnsavedSyzygyReplyPrompt ||
+    hasUnsavedExtractModel ||
     hasUnsavedGeneration
 
   useEffect(() => {
@@ -356,6 +365,26 @@ const SettingsPage = ({
   const handleReasoningToggle = (enabled: boolean) => {
     setDraftReasoning(enabled)
     setGenerationStatus('idle')
+  }
+
+  const resolvedExtractModel = draftMemoryExtractModel?.trim()
+    ? draftMemoryExtractModel
+    : draftDefaultModel
+  const extractModelValid = draftEnabledModels.includes(resolvedExtractModel)
+  const handleSaveExtractModel = async () => {
+    if (!hasUnsavedExtractModel || !extractModelValid) {
+      return
+    }
+    setExtractModelStatus('saving')
+    setExtractModelError(null)
+    try {
+      await onSaveMemoryExtractModel(draftMemoryExtractModel)
+      setExtractModelStatus('saved')
+    } catch (error) {
+      console.warn('保存记忆抽取模型失败', error)
+      setExtractModelStatus('error')
+      setExtractModelError('保存失败，请稍后重试。')
+    }
   }
 
   const handleSaveGenerationSettings = async () => {
@@ -520,6 +549,7 @@ const SettingsPage = ({
       setMaxTokensInput(settings.maxTokens.toString())
       setDraftEnabledModels(settings.enabledModels)
       setDraftDefaultModel(settings.defaultModel)
+      setDraftMemoryExtractModel(settings.memoryExtractModel)
       setDraftReasoning(settings.enableReasoning)
       setDraftSystemPrompt(settings.systemPrompt)
       setDraftSnackSystemPrompt(resolveSnackSystemOverlay(settings.snackSystemOverlay))
@@ -547,6 +577,9 @@ const SettingsPage = ({
     }
     if (hasUnsavedGeneration) {
       void handleSaveGenerationSettings()
+    }
+    if (hasUnsavedExtractModel) {
+      void handleSaveExtractModel()
     }
     if (hasUnsavedSyzygyPostPrompt) {
       void handleSaveSyzygyPostPrompt()
@@ -641,6 +674,41 @@ const SettingsPage = ({
         <div className="section-title">
           <h2>参数设置</h2>
           <p>调整生成参数以适配你的对话风格。</p>
+        </div>
+        <div className="field-group">
+          <label htmlFor="memoryExtractModel">Memory Extract Model</label>
+          <select
+            id="memoryExtractModel"
+            value={draftMemoryExtractModel ?? ''}
+            onChange={(event) => {
+              const next = event.target.value.trim()
+              setDraftMemoryExtractModel(next.length > 0 ? next : null)
+              setExtractModelStatus('idle')
+            }}
+          >
+            <option value="">跟随默认模型（{draftDefaultModel}）</option>
+            {draftEnabledModels.map((modelId) => (
+              <option key={modelId} value={modelId}>
+                {catalogMap.get(modelId) ?? modelId}
+              </option>
+            ))}
+          </select>
+          {!extractModelValid ? (
+            <span className="field-error">所选模型不在 enabled_models 中，请先启用该模型。</span>
+          ) : null}
+          <div className="system-prompt-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => void handleSaveExtractModel()}
+              disabled={!hasUnsavedExtractModel || !extractModelValid || extractModelStatus === 'saving'}
+            >
+              {extractModelStatus === 'saving' ? '保存中…' : '保存抽取模型'}
+            </button>
+            {hasUnsavedExtractModel ? <span className="system-prompt-status">有未保存修改</span> : null}
+            {extractModelStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+            {extractModelStatus === 'error' ? <span className="field-error">{extractModelError}</span> : null}
+          </div>
         </div>
         <div className="field-group">
           <label htmlFor="temperature">温度 (0 - 2)</label>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { MemoryEntry } from '../types'
+import type { ExtractMessageInput, MemoryEntry } from '../types'
 import {
   confirmMemory,
   createMemory,
@@ -8,9 +8,10 @@ import {
   listMemories,
   updateMemory,
 } from '../storage/supabaseSync'
+import { invokeMemoryExtraction } from '../storage/memoryExtraction'
 import './MemoryVaultPage.css'
 
-const MemoryVaultPage = () => {
+const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInput[] }) => {
   const navigate = useNavigate()
   const [confirmed, setConfirmed] = useState<MemoryEntry[]>([])
   const [pending, setPending] = useState<MemoryEntry[]>([])
@@ -19,6 +20,8 @@ const MemoryVaultPage = () => {
   const [editingDraft, setEditingDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [extracting, setExtracting] = useState(false)
+  const [extractMessage, setExtractMessage] = useState<string | null>(null)
 
   const loadMemories = useCallback(async () => {
     try {
@@ -106,6 +109,26 @@ const MemoryVaultPage = () => {
     }
   }
 
+  const handleExtractSuggestions = async () => {
+    if (extracting) {
+      return
+    }
+    setExtracting(true)
+    setExtractMessage(null)
+    setError(null)
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const result = await invokeMemoryExtraction(recentMessages, timezone)
+      setExtractMessage(`已抽取建议：新增 ${result.insertedCount} 条，跳过 ${result.skippedCount} 条。`)
+      await loadMemories()
+    } catch (extractError) {
+      console.warn('抽取建议失败', extractError)
+      setError('抽取建议失败，请稍后重试')
+    } finally {
+      setExtracting(false)
+    }
+  }
+
   return (
     <div className="memory-page">
       <header className="memory-header">
@@ -183,6 +206,15 @@ const MemoryVaultPage = () => {
 
       <section className="memory-section">
         <h2>Pending</h2>
+        <button
+          type="button"
+          onClick={() => void handleExtractSuggestions()}
+          disabled={extracting || recentMessages.length === 0}
+        >
+          {extracting ? 'Extracting…' : 'Extract suggestions'}
+        </button>
+        {recentMessages.length === 0 ? <p className="tips">暂无可抽取的聊天上下文</p> : null}
+        {extractMessage ? <p className="tips">{extractMessage}</p> : null}
         <div className="memory-list">
           {pending.length === 0 ? <p className="tips">暂无 pending 记忆</p> : null}
           {pending.map((entry) => (
