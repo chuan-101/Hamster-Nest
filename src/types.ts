@@ -40,6 +40,8 @@ export type UserSettings = {
   maxTokens: number
   systemPrompt: string
   snackSystemOverlay: string
+  syzygyPostSystemPrompt: string
+  syzygyReplySystemPrompt: string
   enableReasoning: boolean
   updatedAt: string
 }

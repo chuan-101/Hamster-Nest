@@ -18,6 +18,12 @@ import {
 } from '../storage/supabaseSync'
 import { supabase } from '../supabase/client'
 import { withTimePrefix } from '../utils/time'
+import {
+  DEFAULT_SYZYGY_POST_PROMPT,
+  DEFAULT_SYZYGY_REPLY_PROMPT,
+  resolveSyzygyPostPrompt,
+  resolveSyzygyReplyPrompt,
+} from '../constants/aiOverlays'
 import './SnacksPage.css'
 
 type SnacksPageProps = {
@@ -30,6 +36,8 @@ type SnacksPageProps = {
     maxTokens: number
     systemPrompt: string
     snackSystemOverlay: string
+    syzygyPostSystemPrompt: string
+    syzygyReplySystemPrompt: string
   }
 }
 
@@ -62,6 +70,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
+  const [generatingPost, setGeneratingPost] = useState(false)
   const [submittingReplyPostId, setSubmittingReplyPostId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<SnackPost | null>(null)
@@ -149,7 +158,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
 
   const trimmed = draft.trim()
   const draftTooLong = trimmed.length > maxLength
-  const publishDisabled = !user || publishing || trimmed.length === 0 || draftTooLong
+  const publishDisabled = !user || publishing || generatingPost || trimmed.length === 0 || draftTooLong
   const draftHint = useMemo(() => `${trimmed.length}/${maxLength}`, [trimmed.length])
 
   const handlePublish = async () => {
@@ -284,6 +293,120 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     }
   }
 
+
+  const buildRequestBody = (messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => {
+    const requestBody: Record<string, unknown> = {
+      model: snackAiConfig.model,
+      messages: messagesPayload,
+      temperature: snackAiConfig.temperature,
+      top_p: snackAiConfig.topP,
+      max_tokens: snackAiConfig.maxTokens,
+      reasoning: snackAiConfig.reasoning,
+      stream: false,
+    }
+
+    if (snackAiConfig.reasoning && /claude|anthropic/i.test(snackAiConfig.model)) {
+      requestBody.thinking = {
+        type: 'enabled',
+        budget_tokens: Math.max(256, Math.min(1024, snackAiConfig.maxTokens)),
+      }
+    }
+
+    return requestBody
+  }
+
+  const requestOpenRouter = async (messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => {
+    if (!supabase) {
+      throw new Error('Supabase 客户端未配置')
+    }
+    const { data } = await supabase.auth.getSession()
+    const accessToken = data.session?.access_token
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+    if (!accessToken || !anonKey) {
+      throw new Error('登录状态异常或环境变量未配置')
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: anonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(buildRequestBody(messagesPayload)),
+    })
+
+    if (!response.ok) {
+      throw new Error(await response.text())
+    }
+
+    const payload = (await response.json()) as Record<string, unknown>
+    const choice = (payload?.choices as unknown[] | undefined)?.[0] as
+      | Record<string, unknown>
+      | undefined
+    const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<string, unknown>
+    const content =
+      typeof message.content === 'string'
+        ? message.content
+        : typeof choice?.text === 'string'
+          ? choice.text
+          : ''
+
+    const reasoningCandidates = [
+      message.reasoning,
+      message.thinking,
+      message.reasoning_content,
+      message.thinking_content,
+      choice?.reasoning,
+      choice?.thinking,
+      payload.reasoning,
+      payload.thinking,
+    ]
+    const reasoningText = reasoningCandidates
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .join('')
+
+    return {
+      content: content || '（空回复）',
+      reasoningText: reasoningText || undefined,
+      model: typeof payload.model === 'string' ? payload.model : snackAiConfig.model,
+    }
+  }
+
+  const handleGeneratePost = async () => {
+    if (!user || !supabase || generatingPost || publishing) {
+      return
+    }
+    setGeneratingPost(true)
+    setError(null)
+    try {
+      const basePrompt = snackAiConfig.systemPrompt.trim()
+      const syzygyPostPrompt = resolveSyzygyPostPrompt(snackAiConfig.syzygyPostSystemPrompt)
+      const now = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      const messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+      if (basePrompt) {
+        messagesPayload.push({ role: 'system', content: basePrompt })
+      }
+      messagesPayload.push({ role: 'system', content: syzygyPostPrompt || DEFAULT_SYZYGY_POST_PROMPT })
+      messagesPayload.push({ role: 'user', content: `本地时间：${now}\nWrite a short post.` })
+
+      const result = await requestOpenRouter(messagesPayload)
+      const created = await createSnackPost(result.content)
+      setPosts((current) => [created, ...current])
+    } catch (generateError) {
+      console.warn('生成观察日志失败', generateError)
+      setError('生成失败，请稍后重试。')
+    } finally {
+      setGeneratingPost(false)
+    }
+  }
+
   const handleGenerateReply = async (post: SnackPost) => {
     if (!user || !supabase || generatingPostId) {
       return
@@ -310,105 +433,48 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     }))
 
     try {
-      const { data } = await supabase.auth.getSession()
-      const accessToken = data.session?.access_token
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-      if (!accessToken || !anonKey) {
-        throw new Error('登录状态异常或环境变量未配置')
-      }
-
       const messagesPayload = [] as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
-      const prompt = snackAiConfig.systemPrompt.trim()
-      if (prompt) {
-        messagesPayload.push({ role: 'system', content: prompt })
+      const basePrompt = snackAiConfig.systemPrompt.trim()
+      if (basePrompt) {
+        messagesPayload.push({ role: 'system', content: basePrompt })
       }
-      messagesPayload.push({ role: 'system', content: snackAiConfig.snackSystemOverlay })
+      const syzygyReplyPrompt = resolveSyzygyReplyPrompt(snackAiConfig.syzygyReplySystemPrompt)
+      messagesPayload.push({ role: 'system', content: syzygyReplyPrompt || DEFAULT_SYZYGY_REPLY_PROMPT })
       messagesPayload.push({
         role: 'user',
-        content: withTimePrefix(post.content, post.createdAt),
+        content: `原帖：${withTimePrefix(post.content, post.createdAt)}`,
       })
 
-      const existingReplies = repliesByPost[post.id] ?? []
-      for (const reply of existingReplies) {
-        if (reply.content && reply.content !== '生成中…') {
-          messagesPayload.push({
-            role: reply.role === 'assistant' ? 'assistant' : 'user',
-            content: reply.content,
-          })
-        }
+      const existingReplies = (repliesByPost[post.id] ?? []).filter(
+        (reply) => reply.content && reply.content !== '生成中…',
+      )
+      const lastReplies = existingReplies.slice(-6)
+      if (lastReplies.length > 0) {
+        messagesPayload.push({
+          role: 'user',
+          content: `最近回复：\n${lastReplies
+            .map((reply) => `${reply.role === 'assistant' ? 'Syzygy' : '串串'}：${reply.content}`)
+            .join('\n')}`,
+        })
+      }
+      const latestUserComment = [...existingReplies].reverse().find((reply) => reply.role === 'user')
+      if (latestUserComment) {
+        messagesPayload.push({ role: 'user', content: `串串最新留言：${latestUserComment.content}` })
       }
 
-      const requestBody: Record<string, unknown> = {
-        model: snackAiConfig.model,
-        messages: messagesPayload,
-        temperature: snackAiConfig.temperature,
-        top_p: snackAiConfig.topP,
-        max_tokens: snackAiConfig.maxTokens,
-        reasoning: snackAiConfig.reasoning,
-        stream: false,
-      }
-
-      if (snackAiConfig.reasoning && /claude|anthropic/i.test(snackAiConfig.model)) {
-        requestBody.thinking = {
-          type: 'enabled',
-          budget_tokens: Math.max(256, Math.min(1024, snackAiConfig.maxTokens)),
-        }
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          apikey: anonKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      })
-      if (!response.ok) {
-        throw new Error(await response.text())
-      }
-
-      const payload = (await response.json()) as Record<string, unknown>
-      const choice = (payload?.choices as unknown[] | undefined)?.[0] as
-        | Record<string, unknown>
-        | undefined
-      const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<
-        string,
-        unknown
-      >
-
-      const content =
-        typeof message.content === 'string'
-          ? message.content
-          : typeof choice?.text === 'string'
-            ? choice.text
-            : ''
+      const result = await requestOpenRouter(messagesPayload)
 
       setRepliesByPost((current) => ({
         ...current,
         [post.id]: (current[post.id] ?? []).map((item) =>
-          item.id === pendingAssistantId ? { ...item, content: content || '（空回复）' } : item,
+          item.id === pendingAssistantId ? { ...item, content: result.content } : item,
         ),
       }))
 
-      const reasoningCandidates = [
-        message.reasoning,
-        message.thinking,
-        message.reasoning_content,
-        message.thinking_content,
-        choice?.reasoning,
-        choice?.thinking,
-        payload.reasoning,
-        payload.thinking,
-      ]
-      const reasoningText = reasoningCandidates
-        .filter((value): value is string => typeof value === 'string' && value.length > 0)
-        .join('')
-
-      await createSnackReply(post.id, 'assistant', content || '（空回复）', {
+      await createSnackReply(post.id, 'assistant', result.content, {
         provider: 'openrouter',
-        model: typeof payload.model === 'string' ? payload.model : snackAiConfig.model,
-        reasoning_text: reasoningText || undefined,
+        model: result.model,
+        reasoning_text: result.reasoningText,
       })
       const latestReplies = await fetchSnackRepliesByPost(post.id)
       setRepliesByPost((current) => ({
@@ -482,9 +548,20 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
             />
             <div className="composer-footer">
               <span className={draftTooLong ? 'danger' : ''}>{draftHint}</span>
-              <button type="button" className="primary" onClick={handlePublish} disabled={publishDisabled}>
-                {publishing ? '发布中…' : '发布'}
-              </button>
+              <div className="post-actions">
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => void handleGeneratePost()}
+                  disabled={generatingPost || publishing}
+                  title="生成观察日志"
+                >
+                  {generatingPost ? '🤖 生成中…' : '🤖'}
+                </button>
+                <button type="button" className="primary" onClick={handlePublish} disabled={publishDisabled}>
+                  {publishing ? '发布中…' : '发布'}
+                </button>
+              </div>
             </div>
             {draftTooLong ? <p className="error">内容不能超过 1000 字。</p> : null}
           </section>
