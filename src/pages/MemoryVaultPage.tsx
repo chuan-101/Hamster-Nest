@@ -117,13 +117,12 @@ const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInp
     setExtractMessage(null)
     setError(null)
     try {
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-      const result = await invokeMemoryExtraction(recentMessages, timezone)
-      setExtractMessage(`已抽取建议：新增 ${result.insertedCount} 条，跳过 ${result.skippedCount} 条。`)
+      const result = await invokeMemoryExtraction(recentMessages)
+      setExtractMessage(`已抽取建议：新增 ${result.inserted} 条，跳过 ${result.skipped} 条。`)
       await loadMemories()
     } catch (extractError) {
       console.warn('抽取建议失败', extractError)
-      setError('抽取建议失败，请稍后重试')
+      setError(extractError instanceof Error ? extractError.message : '抽取建议失败，请稍后重试')
     } finally {
       setExtracting(false)
     }
