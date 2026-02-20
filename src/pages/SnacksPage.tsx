@@ -29,6 +29,7 @@ type SnacksPageProps = {
     topP: number
     maxTokens: number
     systemPrompt: string
+    snackSystemOverlay: string
   }
 }
 
@@ -323,6 +324,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
       if (prompt) {
         messagesPayload.push({ role: 'system', content: prompt })
       }
+      messagesPayload.push({ role: 'system', content: snackAiConfig.snackSystemOverlay })
       messagesPayload.push({ role: 'system', content: timestampUsageInstruction })
 
       const requestTimeIso = new Date().toISOString()

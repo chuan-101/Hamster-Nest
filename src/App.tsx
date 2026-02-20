@@ -35,6 +35,7 @@ import { supabase } from './supabase/client'
 import './App.css'
 import SettingsPage from './pages/SettingsPage'
 import SnacksPage from './pages/SnacksPage'
+import { resolveSnackSystemOverlay } from './constants/aiOverlays'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -167,6 +168,7 @@ const App = () => {
       topP: activeSettings.topP,
       maxTokens: activeSettings.maxTokens,
       systemPrompt: activeSettings.systemPrompt,
+      snackSystemOverlay: resolveSnackSystemOverlay(activeSettings.snackSystemOverlay),
     }
   }, [activeSettings, defaultModelId, latestSession])
 

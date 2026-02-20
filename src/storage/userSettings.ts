@@ -1,5 +1,6 @@
 import type { UserSettings } from '../types'
 import { supabase } from '../supabase/client'
+import { DEFAULT_SNACK_SYSTEM_OVERLAY, resolveSnackSystemOverlay } from '../constants/aiOverlays'
 
 type UserSettingsRow = {
   user_id: string
@@ -9,6 +10,9 @@ type UserSettingsRow = {
   top_p: number | null
   max_tokens: number | null
   system_prompt: string | null
+  ai_overlays: {
+    snack_system?: string | null
+  } | null
   enable_reasoning: boolean | null
   updated_at: string
 }
@@ -23,6 +27,7 @@ export const createDefaultSettings = (userId: string): UserSettings => ({
   topP: 0.9,
   maxTokens: 1024,
   systemPrompt: '',
+  snackSystemOverlay: DEFAULT_SNACK_SYSTEM_OVERLAY,
   enableReasoning: false,
   updatedAt: new Date().toISOString(),
 })
@@ -35,6 +40,7 @@ const mapSettingsRow = (row: UserSettingsRow): UserSettings => ({
   topP: row.top_p ?? 0.9,
   maxTokens: row.max_tokens ?? 1024,
   systemPrompt: row.system_prompt ?? '',
+  snackSystemOverlay: resolveSnackSystemOverlay(row.ai_overlays?.snack_system),
   enableReasoning: row.enable_reasoning ?? false,
   updatedAt: row.updated_at,
 })
@@ -46,7 +52,7 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
   const { data, error } = await supabase
     .from('user_settings')
     .select(
-      'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,enable_reasoning,updated_at',
+      'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,ai_overlays,enable_reasoning,updated_at',
     )
     .eq('user_id', userId)
     .maybeSingle()
@@ -66,11 +72,14 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
         top_p: defaults.topP,
         max_tokens: defaults.maxTokens,
         system_prompt: defaults.systemPrompt,
+        ai_overlays: {
+          snack_system: defaults.snackSystemOverlay,
+        },
         enable_reasoning: defaults.enableReasoning,
         updated_at: now,
       })
       .select(
-        'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,enable_reasoning,updated_at',
+        'user_id,enabled_models,default_model,temperature,top_p,max_tokens,system_prompt,ai_overlays,enable_reasoning,updated_at',
       )
       .single()
     if (insertError || !inserted) {
@@ -95,6 +104,9 @@ export const updateUserSettings = async (settings: UserSettings): Promise<void> 
       top_p: settings.topP,
       max_tokens: settings.maxTokens,
       system_prompt: settings.systemPrompt,
+      ai_overlays: {
+        snack_system: settings.snackSystemOverlay,
+      },
       enable_reasoning: settings.enableReasoning,
       updated_at: now,
     })
