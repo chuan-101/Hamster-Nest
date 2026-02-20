@@ -54,6 +54,10 @@ const formatChineseTime = (timestamp: string) =>
     minute: '2-digit',
   })
 
+
+const isAuthExpiredError = (value: unknown) =>
+  value instanceof Error && value.message.includes('登录状态异常')
+
 const getReplyPreview = (reply: SyzygyReply | undefined) => {
   if (!reply) {
     return '暂无回复'
@@ -168,12 +172,12 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
     setPublishing(true)
     setError(null)
     try {
-      const created = await createSyzygyPost(trimmed)
+      const created = await createSyzygyPost(trimmed, null)
       setPosts((current) => [created, ...current])
       setDraft('')
     } catch (publishError) {
       console.warn('发布观察日志失败', publishError)
-      setError('发布失败，请稍后重试。')
+      setError(isAuthExpiredError(publishError) ? '登录状态已过期，请重新登录。' : '发布失败，请稍后重试。')
     } finally {
       setPublishing(false)
     }
@@ -276,7 +280,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
     setReplyDrafts((current) => ({ ...current, [postId]: '' }))
 
     try {
-      const reply = await createSyzygyReply(postId, 'user', content, {})
+      const reply = await createSyzygyReply(postId, 'user', content, {}, null)
       setRepliesByPost((current) => ({
         ...current,
         [postId]: (current[postId] ?? []).map((item) => (item.id === pendingId ? reply : item)),
@@ -287,7 +291,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
         ...current,
         [postId]: (current[postId] ?? []).filter((item) => item.id !== pendingId),
       }))
-      setError('发送失败，请稍后重试。')
+      setError(isAuthExpiredError(submitError) ? '登录状态已过期，请重新登录。' : '发送失败，请稍后重试。')
     } finally {
       setSubmittingReplyPostId(null)
     }
@@ -397,11 +401,11 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
       messagesPayload.push({ role: 'user', content: `本地时间：${now}\nWrite a short post.` })
 
       const result = await requestOpenRouter(messagesPayload)
-      const created = await createSyzygyPost(result.content)
+      const created = await createSyzygyPost(result.content, snackAiConfig.model)
       setPosts((current) => [created, ...current])
     } catch (generateError) {
       console.warn('生成观察日志失败', generateError)
-      setError('生成失败，请稍后重试。')
+      setError(isAuthExpiredError(generateError) ? '登录状态已过期，请重新登录。' : '生成失败，请稍后重试。')
     } finally {
       setGeneratingPost(false)
     }
@@ -475,7 +479,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
         provider: 'openrouter',
         model: result.model,
         reasoning_text: result.reasoningText,
-      })
+      }, result.model)
       const latestReplies = await fetchSyzygyRepliesByPost(post.id)
       setRepliesByPost((current) => ({
         ...current,
@@ -487,7 +491,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
         ...current,
         [post.id]: (current[post.id] ?? []).filter((item) => item.id !== pendingAssistantId),
       }))
-      setError('生成失败，请稍后重试。')
+      setError(isAuthExpiredError(generateError) ? '登录状态已过期，请重新登录。' : '生成失败，请稍后重试。')
     } finally {
       setGeneratingPostId(null)
     }
