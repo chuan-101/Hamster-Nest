@@ -160,7 +160,7 @@ const ChatPage = ({
                   navigate('/snacks')
                 }}
               >
-                零食罐
+                零食罐罐
               </button>
 
               <button
@@ -179,7 +179,7 @@ const ChatPage = ({
                   navigate('/memory-vault')
                 }}
               >
-                Memory Vault
+                囤囤库
               </button>
               <button
                 type="button"

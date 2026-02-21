@@ -217,7 +217,7 @@ const MemoryVaultPage = ({
         <button type="button" className="ghost" onClick={() => navigate(-1)}>
           返回
         </button>
-        <h1>Memory Vault</h1>
+        <h1>囤囤库</h1>
         <button type="button" className="ghost" onClick={() => navigate('/')}>
           聊天
         </button>
