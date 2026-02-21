@@ -18,6 +18,8 @@ type UserSettingsRow = {
 const SERVER_RECENT_LIMIT = 30
 const MIN_MEMORY_LENGTH = 8
 const MAX_INSERT_COUNT = 10
+const CLUSTER_SIMILARITY_THRESHOLD = 0.75
+const EXISTING_DEDUPE_THRESHOLD = 0.85
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://chuan-101.github.io',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
@@ -43,6 +45,104 @@ const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
   })
 
 const normalizeContent = (value: string) => value.trim().replace(/\s+/g, ' ')
+
+const normalizeForComparison = (value: string) =>
+  normalizeContent(value).toLowerCase().replace(/[\p{P}\p{S}\s]+/gu, '')
+
+const buildBigrams = (value: string) => {
+  if (value.length < 2) {
+    return value ? [value] : []
+  }
+
+  const bigrams: string[] = []
+  for (let index = 0; index < value.length - 1; index += 1) {
+    bigrams.push(value.slice(index, index + 2))
+  }
+  return bigrams
+}
+
+const tokenizeForSimilarity = (value: string): Set<string> => {
+  const compact = normalizeForComparison(value)
+  if (!compact) {
+    return new Set()
+  }
+
+  const hasCjk = /[\u3400-\u9FFF]/u.test(compact)
+  if (hasCjk) {
+    return new Set(buildBigrams(compact))
+  }
+
+  const normalized = normalizeContent(value).toLowerCase()
+  const tokens = normalized
+    .split(/\s+/)
+    .map((token) => token.replace(/[\p{P}\p{S}]+/gu, ''))
+    .filter((token) => token.length > 0)
+
+  if (tokens.length === 0) {
+    return new Set(buildBigrams(compact))
+  }
+
+  return new Set(tokens)
+}
+
+const calculateJaccardSimilarity = (left: Set<string>, right: Set<string>) => {
+  if (left.size === 0 || right.size === 0) {
+    return 0
+  }
+
+  let intersection = 0
+  for (const token of left) {
+    if (right.has(token)) {
+      intersection += 1
+    }
+  }
+
+  const union = left.size + right.size - intersection
+  return union === 0 ? 0 : intersection / union
+}
+
+const pickShortestRepresentative = (items: string[]) =>
+  [...items].sort((left, right) => {
+    if (left.length === right.length) {
+      return left.localeCompare(right)
+    }
+    return left.length - right.length
+  })[0]
+
+const clusterItems = (items: string[]) => {
+  const clusters: Array<{ members: string[]; tokenSets: Set<string>[] }> = []
+
+  for (const item of items) {
+    const tokens = tokenizeForSimilarity(item)
+    let matchedIndex = -1
+
+    for (let index = 0; index < clusters.length; index += 1) {
+      const cluster = clusters[index]
+      const isSimilar = cluster.tokenSets.some(
+        (existingTokens) => calculateJaccardSimilarity(tokens, existingTokens) >= CLUSTER_SIMILARITY_THRESHOLD,
+      )
+      if (isSimilar) {
+        matchedIndex = index
+        break
+      }
+    }
+
+    if (matchedIndex >= 0) {
+      clusters[matchedIndex].members.push(item)
+      clusters[matchedIndex].tokenSets.push(tokens)
+    } else {
+      clusters.push({ members: [item], tokenSets: [tokens] })
+    }
+  }
+
+  return clusters.map((cluster) => pickShortestRepresentative(cluster.members))
+}
+
+const isSimilarToAny = (
+  candidateTokens: Set<string>,
+  targets: Set<string>[],
+  threshold: number,
+): boolean => targets.some((tokens) => calculateJaccardSimilarity(candidateTokens, tokens) > threshold)
 
 const parseItems = (output: string): string[] => {
   const start = output.indexOf('{')
@@ -176,21 +276,23 @@ serve(async (req) => {
       .select('content')
       .eq('user_id', user.id)
       .eq('is_deleted', false)
+      .in('status', ['pending', 'confirmed'])
 
     if (existingError) {
       return jsonResponse({ error: '读取已有记忆失败' }, 500)
     }
 
-    const seen = new Set(
-      (existingRows ?? [])
-        .map((row) => (typeof row.content === 'string' ? normalizeContent(row.content).toLowerCase() : ''))
-        .filter((value) => value.length > 0),
-    )
+    const clusteredItems = clusterItems(extracted)
+    const existingTokenSets = (existingRows ?? [])
+      .map((row) => (typeof row.content === 'string' ? tokenizeForSimilarity(row.content) : new Set<string>()))
+      .filter((tokens) => tokens.size > 0)
 
     const acceptedItems: string[] = []
+    const acceptedTokenSets: Set<string>[] = []
+    const seenNormalized = new Set<string>()
     let skipped = 0
 
-    for (const item of extracted) {
+    for (const item of clusteredItems) {
       if (acceptedItems.length >= MAX_INSERT_COUNT) {
         break
       }
@@ -201,13 +303,30 @@ serve(async (req) => {
         continue
       }
 
-      const key = normalized.toLowerCase()
-      if (seen.has(key)) {
+      const normalizedKey = normalizeForComparison(normalized)
+      if (!normalizedKey || seenNormalized.has(normalizedKey)) {
         skipped += 1
         continue
       }
 
-      seen.add(key)
+      const candidateTokens = tokenizeForSimilarity(normalized)
+      if (candidateTokens.size === 0) {
+        skipped += 1
+        continue
+      }
+
+      if (isSimilarToAny(candidateTokens, existingTokenSets, EXISTING_DEDUPE_THRESHOLD)) {
+        skipped += 1
+        continue
+      }
+
+      if (isSimilarToAny(candidateTokens, acceptedTokenSets, EXISTING_DEDUPE_THRESHOLD)) {
+        skipped += 1
+        continue
+      }
+
+      seenNormalized.add(normalizedKey)
+      acceptedTokenSets.push(candidateTokens)
       acceptedItems.push(normalized)
     }
 
