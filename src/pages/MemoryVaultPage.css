@@ -64,3 +64,48 @@
   display: flex;
   gap: 8px;
 }
+
+.memory-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.memory-section-heading h2 {
+  margin: 0;
+}
+
+.merge-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  font-size: 13px;
+}
+
+.merge-toggle.is-on {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.merge-toggle.is-off {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.merge-toggle-state {
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #e2e8f0;
+  font-weight: 700;
+}
+
+.merge-toggle.is-on .merge-toggle-state {
+  background: #16a34a;
+  color: #fff;
+}
