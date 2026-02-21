@@ -529,6 +529,71 @@ export const softDeleteSnackReply = async (replyId: string): Promise<void> => {
   }
 }
 
+export const fetchDeletedSnackReplies = async (): Promise<SnackReply[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('snack_replies')
+    .select('id,user_id,post_id,role,content,meta,created_at,is_deleted')
+    .eq('is_deleted', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapSnackReplyRow(row as SnackReplyRow))
+}
+
+export const restoreSnackReply = async (replyId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('snack_replies')
+    .update({ is_deleted: false })
+    .eq('id', replyId)
+
+  if (error) {
+    throw error
+  }
+}
+
+export const permanentlyDeleteSnackPost = async (postId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error: repliesError } = await supabase.from('snack_replies').delete().eq('post_id', postId)
+  if (repliesError) {
+    throw repliesError
+  }
+
+  const { error: postError } = await supabase
+    .from('snack_posts')
+    .delete()
+    .eq('id', postId)
+    .eq('is_deleted', true)
+
+  if (postError) {
+    throw postError
+  }
+}
+
+export const permanentlyDeleteSnackReply = async (replyId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('snack_replies')
+    .delete()
+    .eq('id', replyId)
+    .eq('is_deleted', true)
+
+  if (error) {
+    throw error
+  }
+}
+
 
 export const fetchSyzygyPosts = async (): Promise<SyzygyPost[]> => {
   if (!supabase) {
@@ -708,6 +773,41 @@ export const restoreSyzygyReply = async (replyId: string): Promise<void> => {
     .from('syzygy_replies')
     .update({ is_deleted: false, deleted_at: null })
     .eq('id', replyId)
+
+  if (error) {
+    throw error
+  }
+}
+
+export const permanentlyDeleteSyzygyPost = async (postId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error: repliesError } = await supabase.from('syzygy_replies').delete().eq('post_id', postId)
+  if (repliesError) {
+    throw repliesError
+  }
+
+  const { error: postError } = await supabase
+    .from('syzygy_posts')
+    .delete()
+    .eq('id', postId)
+    .eq('is_deleted', true)
+
+  if (postError) {
+    throw postError
+  }
+}
+
+export const permanentlyDeleteSyzygyReply = async (replyId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('syzygy_replies')
+    .delete()
+    .eq('id', replyId)
+    .eq('is_deleted', true)
 
   if (error) {
     throw error
