@@ -23,6 +23,12 @@ const ensureMessageFields = (message: ChatMessage): ChatMessage => {
   }
 }
 
+const ensureSessionFields = (session: ChatSession): ChatSession => ({
+  ...session,
+  isArchived: session.isArchived ?? false,
+  archivedAt: session.archivedAt ?? null,
+})
+
 const readSnapshot = (): StorageSnapshot => {
   if (typeof localStorage === 'undefined') {
     return { sessions: [], messages: [] }
@@ -77,16 +83,16 @@ const sortMessages = (messages: ChatMessage[]) =>
   )
 
 export const loadSnapshot = (): StorageSnapshot => {
-  snapshot.sessions = sortSessions(snapshot.sessions)
+  snapshot.sessions = sortSessions(snapshot.sessions.map(ensureSessionFields))
   snapshot.messages = sortMessages(snapshot.messages.map(ensureMessageFields))
   return {
-    sessions: sortSessions(snapshot.sessions),
+    sessions: sortSessions(snapshot.sessions.map(ensureSessionFields)),
     messages: sortMessages(snapshot.messages.map(ensureMessageFields)),
   }
 }
 
 export const setSnapshot = (next: StorageSnapshot) => {
-  snapshot.sessions = sortSessions(next.sessions)
+  snapshot.sessions = sortSessions(next.sessions.map(ensureSessionFields))
   snapshot.messages = sortMessages(next.messages.map(ensureMessageFields))
   scheduleWrite()
 }
@@ -98,6 +104,8 @@ export const createSession = (title?: string): ChatSession => {
     title: title ?? '新会话',
     createdAt: now,
     updatedAt: now,
+    isArchived: false,
+    archivedAt: null,
     overrideModel: null,
     overrideReasoning: null,
   }
@@ -201,6 +209,26 @@ export const updateSessionReasoningOverride = (
       return session
     }
     updatedSession = { ...session, overrideReasoning }
+    return updatedSession
+  })
+  if (!updatedSession) {
+    return null
+  }
+  scheduleWrite()
+  return updatedSession
+}
+
+export const setSessionArchiveState = (
+  sessionId: string,
+  isArchived: boolean,
+): ChatSession | null => {
+  let updatedSession: ChatSession | null = null
+  const archivedAt = isArchived ? new Date().toISOString() : null
+  snapshot.sessions = snapshot.sessions.map((session) => {
+    if (session.id !== sessionId) {
+      return session
+    }
+    updatedSession = { ...session, isArchived, archivedAt }
     return updatedSession
   })
   if (!updatedSession) {

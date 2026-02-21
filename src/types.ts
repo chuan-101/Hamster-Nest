@@ -3,6 +3,8 @@ export type ChatSession = {
   title: string
   createdAt: string
   updatedAt: string
+  isArchived: boolean
+  archivedAt: string | null
   overrideModel?: string | null
   overrideReasoning?: boolean | null
 }

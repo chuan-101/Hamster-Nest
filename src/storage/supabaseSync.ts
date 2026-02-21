@@ -18,6 +18,8 @@ type SessionRow = {
   updated_at: string
   override_model: string | null
   override_reasoning: boolean | null
+  is_archived: boolean | null
+  archived_at: string | null
 }
 
 type MessageRow = {
@@ -146,6 +148,8 @@ const mapSessionRow = (row: SessionRow): ChatSession => ({
   updatedAt: row.updated_at,
   overrideModel: row.override_model ?? null,
   overrideReasoning: row.override_reasoning ?? null,
+  isArchived: row.is_archived ?? false,
+  archivedAt: row.archived_at ?? null,
 })
 
 const mapMessageRow = (row: MessageRow): ChatMessage => ({
@@ -183,7 +187,7 @@ export const fetchRemoteSessions = async (userId: string): Promise<ChatSession[]
   }
   const { data, error } = await supabase
     .from('sessions')
-    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning')
+    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
   if (error) {
@@ -224,7 +228,7 @@ export const createRemoteSession = async (
       created_at: now,
       updated_at: now,
     })
-    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning')
+    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
     .single()
   if (error || !data) {
     throw error ?? new Error('创建会话失败')
@@ -244,7 +248,7 @@ export const renameRemoteSession = async (
     .from('sessions')
     .update({ title, updated_at: now })
     .eq('id', sessionId)
-    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning')
+    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
     .single()
   if (error || !data) {
     throw error ?? new Error('更新会话失败')
@@ -264,7 +268,7 @@ export const updateRemoteSessionOverride = async (
     .from('sessions')
     .update({ override_model: overrideModel, updated_at: now })
     .eq('id', sessionId)
-    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning')
+    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
     .single()
   if (error || !data) {
     throw error ?? new Error('更新会话模型失败')
@@ -284,10 +288,35 @@ export const updateRemoteSessionReasoningOverride = async (
     .from('sessions')
     .update({ override_reasoning: overrideReasoning, updated_at: now })
     .eq('id', sessionId)
-    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning')
+    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
     .single()
   if (error || !data) {
     throw error ?? new Error('更新会话思考链失败')
+  }
+  return mapSessionRow(data as SessionRow)
+}
+
+
+export const updateRemoteSessionArchiveState = async (
+  sessionId: string,
+  isArchived: boolean,
+): Promise<ChatSession> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const updates = isArchived
+    ? { is_archived: true, archived_at: new Date().toISOString() }
+    : { is_archived: false, archived_at: null }
+  const { data, error } = await supabase
+    .from('sessions')
+    .update(updates)
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('更新会话抽屉状态失败')
   }
   return mapSessionRow(data as SessionRow)
 }

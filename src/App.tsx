@@ -11,6 +11,7 @@ import {
   deleteSession,
   loadSnapshot,
   renameSession,
+  setSessionArchiveState,
   setSnapshot,
   updateSessionOverride,
   updateSessionReasoningOverride,
@@ -35,6 +36,7 @@ import {
   fetchRemoteSessions,
   fetchPendingMemoryCount,
   renameRemoteSession,
+  updateRemoteSessionArchiveState,
   updateRemoteSessionOverride,
   updateRemoteSessionReasoningOverride,
 } from './storage/supabaseSync'
@@ -496,6 +498,32 @@ const App = () => {
     },
     [applySnapshot, user],
   )
+
+  const handleSessionArchiveStateChange = useCallback(
+    async (sessionId: string, isArchived: boolean) => {
+      if (user && supabase) {
+        try {
+          const updated = await updateRemoteSessionArchiveState(sessionId, isArchived)
+          const nextSessions = sessionsRef.current.map((session) =>
+            session.id === sessionId ? updated : session,
+          )
+          applySnapshot(nextSessions, messagesRef.current)
+          return
+        } catch (error) {
+          console.warn('更新云端会话抽屉状态失败，已切换本地存储', error)
+        }
+      }
+      const updated = setSessionArchiveState(sessionId, isArchived)
+      if (!updated) {
+        return
+      }
+      setSessions((prev) =>
+        prev.map((session) => (session.id === sessionId ? updated : session)),
+      )
+    },
+    [applySnapshot, user],
+  )
+
 
   const sendMessage = useCallback(
     async (sessionId: string, content: string) => {
@@ -1289,6 +1317,7 @@ const App = () => {
                 onSelectModel={handleSessionOverrideChange}
                 defaultReasoning={activeSettings.enableReasoning}
                 onSelectReasoning={handleSessionReasoningOverrideChange}
+                onArchiveSession={handleSessionArchiveStateChange}
                 onActiveSessionChange={setActiveChatSessionId}
               />
             </RequireAuth>
@@ -1435,6 +1464,7 @@ const ChatRoute = ({
   onSelectModel,
   defaultReasoning,
   onSelectReasoning,
+  onArchiveSession,
   onActiveSessionChange,
 }: {
   sessions: ChatSession[]
@@ -1457,6 +1487,7 @@ const ChatRoute = ({
   onSelectModel: (sessionId: string, model: string | null) => Promise<void>
   defaultReasoning: boolean
   onSelectReasoning: (sessionId: string, reasoning: boolean | null) => Promise<void>
+  onArchiveSession: (sessionId: string, isArchived: boolean) => Promise<void>
   onActiveSessionChange: (sessionId: string) => void
 }) => {
   const { sessionId } = useParams()
@@ -1575,6 +1606,7 @@ const ChatRoute = ({
         onSelectSession={handleSelectSession}
         onRenameSession={onRenameSession}
         onDeleteSession={handleDeleteSession}
+        onArchiveSession={onArchiveSession}
       />
     </>
   )
