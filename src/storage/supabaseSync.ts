@@ -1,6 +1,7 @@
 import type {
   ChatMessage,
   ChatSession,
+  CheckinEntry,
   MemoryEntry,
   MemoryStatus,
   SnackPost,
@@ -88,6 +89,13 @@ type MemoryEntryRow = {
   is_deleted: boolean
 }
 
+type CheckinRow = {
+  id: string
+  user_id: string
+  checkin_date: string
+  created_at: string
+}
+
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
   userId: row.user_id,
@@ -139,6 +147,13 @@ const mapMemoryEntryRow = (row: MemoryEntryRow): MemoryEntry => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   isDeleted: row.is_deleted,
+})
+
+const mapCheckinRow = (row: CheckinRow): CheckinEntry => ({
+  id: row.id,
+  userId: row.user_id,
+  checkinDate: row.checkin_date,
+  createdAt: row.created_at,
 })
 
 const mapSessionRow = (row: SessionRow): ChatSession => ({
@@ -928,4 +943,55 @@ export const discardMemory = async (id: string): Promise<void> => {
   if (error) {
     throw error
   }
+}
+
+export const createTodayCheckin = async (checkinDate: string): Promise<'created' | 'already_checked_in'> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase.from('checkins').insert({
+    user_id: userId,
+    checkin_date: checkinDate,
+  })
+  if (!error) {
+    return 'created'
+  }
+
+  if (error.code === '23505') {
+    return 'already_checked_in'
+  }
+  throw error
+}
+
+export const fetchRecentCheckins = async (limit = 60): Promise<CheckinEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('checkins')
+    .select('id,user_id,checkin_date,created_at')
+    .eq('user_id', userId)
+    .order('checkin_date', { ascending: false })
+    .limit(limit)
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapCheckinRow(row as CheckinRow))
+}
+
+export const fetchCheckinTotalCount = async (): Promise<number> => {
+  if (!supabase) {
+    return 0
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { count, error } = await supabase
+    .from('checkins')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+  return count ?? 0
 }
