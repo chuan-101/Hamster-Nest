@@ -36,6 +36,7 @@ export type UserSettings = {
   enabledModels: string[]
   defaultModel: string
   memoryExtractModel: string | null
+  memoryMergeEnabled: boolean
   temperature: number
   topP: number
   maxTokens: number

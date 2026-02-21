@@ -8,11 +8,13 @@ type MessageInput = {
 
 type RequestPayload = {
   recentMessages?: MessageInput[]
+  mergeEnabled?: boolean
 }
 
 type UserSettingsRow = {
   memory_extract_model: string | null
   default_model: string | null
+  memory_merge_enabled: boolean | null
 }
 
 const SERVER_RECENT_LIMIT = 30
@@ -321,13 +323,18 @@ serve(async (req) => {
 
     const { data: settings, error: settingsError } = await supabase
       .from('user_settings')
-      .select('memory_extract_model, default_model')
+      .select('memory_extract_model, default_model, memory_merge_enabled')
       .eq('user_id', user.id)
       .maybeSingle<UserSettingsRow>()
 
     if (settingsError) {
       return jsonResponse({ error: '读取用户设置失败' }, 500)
     }
+
+    const mergeEnabled =
+      typeof payload.mergeEnabled === 'boolean'
+        ? payload.mergeEnabled
+        : settings?.memory_merge_enabled ?? true
 
     const modelId = settings?.memory_extract_model?.trim() || settings?.default_model?.trim() || ''
     if (!modelId) {
@@ -375,25 +382,35 @@ serve(async (req) => {
       .filter((content) => content.length >= MIN_MEMORY_LENGTH)
       .slice(0, PENDING_CAP)
 
-    const mergeInput = {
-      rawItems: extracted,
-      existingPending: pendingContext,
+    const mergedItems = mergeEnabled
+      ? await (async () => {
+          const mergeInput = {
+            rawItems: extracted,
+            existingPending: pendingContext,
+          }
+
+          const mergeResult = await callExtractionModel({
+            modelId,
+            apiKey: openRouterApiKey,
+            systemPrompt: MERGE_PROMPT,
+            userPrompt: `Merge these memory candidates and existing pending memories:
+${JSON.stringify(mergeInput)}`,
+            maxTokens: 700,
+          })
+
+          if (mergeResult.error) {
+            return { error: mergeResult.error || '合并模型调用失败', status: mergeResult.status, items: [] as string[] }
+          }
+
+          return { error: null, status: 200, items: mergeResult.items.slice(0, MAX_MERGED_ITEMS) }
+        })()
+      : { error: null, status: 200, items: extracted }
+
+    if (mergedItems.error) {
+      return jsonResponse({ error: mergedItems.error }, mergedItems.status)
     }
 
-    const mergeResult = await callExtractionModel({
-      modelId,
-      apiKey: openRouterApiKey,
-      systemPrompt: MERGE_PROMPT,
-      userPrompt: `Merge these memory candidates and existing pending memories:\n${JSON.stringify(mergeInput)}`,
-      maxTokens: 700,
-    })
-
-    if (mergeResult.error) {
-      return jsonResponse({ error: mergeResult.error || '合并模型调用失败' }, mergeResult.status)
-    }
-
-    const merged = mergeResult.items.slice(0, MAX_MERGED_ITEMS)
-    const clusteredItems = clusterItems(merged)
+    const clusteredItems = clusterItems(mergedItems.items)
     const existingTokenSets = (existingRows ?? [])
       .map((row) => (typeof row.content === 'string' ? tokenizeForSimilarity(row.content) : new Set<string>()))
       .filter((tokens) => tokens.size > 0)

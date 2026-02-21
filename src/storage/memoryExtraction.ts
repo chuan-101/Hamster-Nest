@@ -15,6 +15,7 @@ type InvokeResponse = {
 
 export const invokeMemoryExtraction = async (
   recentMessages: ExtractMessageInput[],
+  mergeEnabled?: boolean,
 ): Promise<ExtractMemoriesResult> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
@@ -42,7 +43,7 @@ export const invokeMemoryExtraction = async (
         apikey: anonKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ recentMessages: sanitized }),
+      body: JSON.stringify({ recentMessages: sanitized, mergeEnabled }),
     },
   )
 

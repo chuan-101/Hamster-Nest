@@ -9,6 +9,8 @@ import {
   updateMemory,
 } from '../storage/supabaseSync'
 import { invokeMemoryExtraction } from '../storage/memoryExtraction'
+import { loadMemoryMergeEnabled, saveMemoryMergeEnabled } from '../storage/userSettings'
+import { supabase } from '../supabase/client'
 import './MemoryVaultPage.css'
 
 const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInput[] }) => {
@@ -22,6 +24,8 @@ const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInp
   const [saving, setSaving] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [extractMessage, setExtractMessage] = useState<string | null>(null)
+  const [mergeEnabled, setMergeEnabled] = useState(true)
+  const [mergeSaving, setMergeSaving] = useState(false)
 
   const loadMemories = useCallback(async () => {
     try {
@@ -41,6 +45,60 @@ const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInp
   useEffect(() => {
     void loadMemories()
   }, [loadMemories])
+
+  useEffect(() => {
+    if (!supabase) {
+      return
+    }
+    const client = supabase
+    let active = true
+    const loadMergeEnabled = async () => {
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await client.auth.getUser()
+        if (userError || !user || !active) {
+          return
+        }
+        const enabled = await loadMemoryMergeEnabled(user.id)
+        if (active) {
+          setMergeEnabled(enabled)
+        }
+      } catch (loadError) {
+        console.warn('读取归并设置失败', loadError)
+      }
+    }
+    void loadMergeEnabled()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleToggleMerge = async () => {
+    if (!supabase || mergeSaving) {
+      return
+    }
+    const client = supabase
+    try {
+      setMergeSaving(true)
+      const {
+        data: { user },
+        error: userError,
+      } = await client.auth.getUser()
+      if (userError || !user) {
+        throw userError ?? new Error('登录状态异常，请重新登录')
+      }
+      const nextEnabled = !mergeEnabled
+      await saveMemoryMergeEnabled(user.id, nextEnabled)
+      setMergeEnabled(nextEnabled)
+    } catch (toggleError) {
+      console.warn('保存归并设置失败', toggleError)
+      setError('保存归并设置失败，请稍后重试')
+    } finally {
+      setMergeSaving(false)
+    }
+  }
 
   const handleCreate = async () => {
     const trimmed = newMemory.trim()
@@ -117,7 +175,7 @@ const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInp
     setExtractMessage(null)
     setError(null)
     try {
-      const result = await invokeMemoryExtraction(recentMessages)
+      const result = await invokeMemoryExtraction(recentMessages, mergeEnabled)
       setExtractMessage(`已抽取建议：新增 ${result.inserted} 条，跳过 ${result.skipped} 条。`)
       await loadMemories()
     } catch (extractError) {
@@ -204,7 +262,20 @@ const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInp
       </section>
 
       <section className="memory-section">
-        <h2>Pending</h2>
+        <div className="memory-section-heading">
+          <h2>Pending</h2>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={mergeEnabled}
+            className={`merge-toggle ${mergeEnabled ? 'is-on' : 'is-off'}`}
+            onClick={() => void handleToggleMerge()}
+            disabled={mergeSaving}
+          >
+            <span className="merge-toggle-label">自动归并同类项（额外模型调用）</span>
+            <span className="merge-toggle-state">{mergeEnabled ? 'ON' : 'OFF'}</span>
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => void handleExtractSuggestions()}
