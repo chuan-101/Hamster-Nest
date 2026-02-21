@@ -13,7 +13,15 @@ import { loadMemoryMergeEnabled, saveMemoryMergeEnabled } from '../storage/userS
 import { supabase } from '../supabase/client'
 import './MemoryVaultPage.css'
 
-const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInput[] }) => {
+const MemoryVaultPage = ({
+  recentMessages,
+  autoExtractEnabled,
+  onToggleAutoExtract,
+}: {
+  recentMessages: ExtractMessageInput[]
+  autoExtractEnabled: boolean
+  onToggleAutoExtract: (enabled: boolean) => Promise<void>
+}) => {
   const navigate = useNavigate()
   const [confirmed, setConfirmed] = useState<MemoryEntry[]>([])
   const [pending, setPending] = useState<MemoryEntry[]>([])
@@ -26,6 +34,7 @@ const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInp
   const [extractMessage, setExtractMessage] = useState<string | null>(null)
   const [mergeEnabled, setMergeEnabled] = useState(true)
   const [mergeSaving, setMergeSaving] = useState(false)
+  const [autoExtractSaving, setAutoExtractSaving] = useState(false)
 
   const loadMemories = useCallback(async () => {
     try {
@@ -115,6 +124,22 @@ const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInp
       setError('创建记忆失败，请稍后重试')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleToggleAutoExtract = async () => {
+    if (autoExtractSaving) {
+      return
+    }
+    try {
+      setAutoExtractSaving(true)
+      setError(null)
+      await onToggleAutoExtract(!autoExtractEnabled)
+    } catch (toggleError) {
+      console.warn('保存自动抽取设置失败', toggleError)
+      setError('保存自动抽取设置失败，请稍后重试')
+    } finally {
+      setAutoExtractSaving(false)
     }
   }
 
@@ -264,17 +289,30 @@ const MemoryVaultPage = ({ recentMessages }: { recentMessages: ExtractMessageInp
       <section className="memory-section">
         <div className="memory-section-heading">
           <h2>Pending</h2>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={mergeEnabled}
-            className={`merge-toggle ${mergeEnabled ? 'is-on' : 'is-off'}`}
-            onClick={() => void handleToggleMerge()}
-            disabled={mergeSaving}
-          >
-            <span className="merge-toggle-label">自动归并同类项（额外模型调用）</span>
-            <span className="merge-toggle-state">{mergeEnabled ? 'ON' : 'OFF'}</span>
-          </button>
+          <div className="memory-toggle-group">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoExtractEnabled}
+              className={`merge-toggle ${autoExtractEnabled ? 'is-on' : 'is-off'}`}
+              onClick={() => void handleToggleAutoExtract()}
+              disabled={autoExtractSaving}
+            >
+              <span className="merge-toggle-label">自动提取候选记忆（会产生费用）</span>
+              <span className="merge-toggle-state">{autoExtractEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={mergeEnabled}
+              className={`merge-toggle ${mergeEnabled ? 'is-on' : 'is-off'}`}
+              onClick={() => void handleToggleMerge()}
+              disabled={mergeSaving}
+            >
+              <span className="merge-toggle-label">自动归并同类项（额外模型调用）</span>
+              <span className="merge-toggle-state">{mergeEnabled ? 'ON' : 'OFF'}</span>
+            </button>
+          </div>
         </div>
         <button
           type="button"

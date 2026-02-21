@@ -19,6 +19,7 @@ import {
   createDefaultSettings,
   ensureUserSettings,
   saveSnackSystemPrompt,
+  saveMemoryAutoExtractEnabled,
   saveMemoryExtractModel,
   saveSyzygyPostSystemPrompt,
   saveSyzygyReplySystemPrompt,
@@ -32,6 +33,7 @@ import {
   deleteRemoteSession,
   fetchRemoteMessages,
   fetchRemoteSessions,
+  fetchPendingMemoryCount,
   renameRemoteSession,
   updateRemoteSessionOverride,
   updateRemoteSessionReasoningOverride,
@@ -101,6 +103,7 @@ const defaultOpenRouterModel = 'openrouter/auto'
 const AUTO_EXTRACT_USER_TURN_INTERVAL = 12
 const AUTO_EXTRACT_COOLDOWN_MS = 10 * 60 * 1000
 const MEMORY_EXTRACT_RECENT_MESSAGES = 24
+const AUTO_EXTRACT_PENDING_LIMIT = 50
 
 const updateMessage = (messages: ChatMessage[], next: ChatMessage) =>
   sortMessages(
@@ -1165,8 +1168,24 @@ const App = () => {
     setUserSettings(nextSettings)
   }, [user])
 
+  const handleToggleMemoryAutoExtract = useCallback(async (enabled: boolean) => {
+    if (!user) {
+      return
+    }
+    const nextSettings = {
+      ...(settingsRef.current ?? createDefaultSettings(user.id)),
+      userId: user.id,
+      memoryAutoExtractEnabled: enabled,
+      updatedAt: new Date().toISOString(),
+    }
+    if (supabase) {
+      await saveMemoryAutoExtractEnabled(user.id, enabled)
+    }
+    setUserSettings(nextSettings)
+  }, [user])
+
   useEffect(() => {
-    if (!user || !supabase || isStreaming) {
+    if (!user || !supabase || isStreaming || !activeSettings.memoryAutoExtractEnabled) {
       return
     }
     const latestBySession = new Map<string, number>()
@@ -1193,7 +1212,10 @@ const App = () => {
       if (now - currentState.lastExtractedAt < AUTO_EXTRACT_COOLDOWN_MS) {
         return
       }
-      autoExtractStateRef.current[sessionId] = { lastUserCount: userCount, lastExtractedAt: now }
+      autoExtractStateRef.current[sessionId] = {
+        lastUserCount: userCount,
+        lastExtractedAt: currentState.lastExtractedAt,
+      }
       const recentMessages = buildRecentExtractionMessages(
         sessionId,
         messagesRef.current,
@@ -1202,13 +1224,23 @@ const App = () => {
       if (recentMessages.length === 0) {
         return
       }
-      void invokeMemoryExtraction(recentMessages).catch(
-        (error) => {
+      void (async () => {
+        try {
+          const pendingCount = await fetchPendingMemoryCount(user.id)
+          if (pendingCount >= AUTO_EXTRACT_PENDING_LIMIT) {
+            return
+          }
+          autoExtractStateRef.current[sessionId] = {
+            lastUserCount: userCount,
+            lastExtractedAt: Date.now(),
+          }
+          await invokeMemoryExtraction(recentMessages, activeSettings.memoryMergeEnabled)
+        } catch (error) {
           console.warn('自动抽取记忆建议失败', error)
-        },
-      )
+        }
+      })()
     })
-  }, [isStreaming, messages, user])
+  }, [activeSettings.memoryAutoExtractEnabled, activeSettings.memoryMergeEnabled, isStreaming, messages, user])
 
 
   return (
@@ -1293,6 +1325,8 @@ const App = () => {
                   messages,
                   MEMORY_EXTRACT_RECENT_MESSAGES,
                 )}
+                autoExtractEnabled={activeSettings.memoryAutoExtractEnabled}
+                onToggleAutoExtract={handleToggleMemoryAutoExtract}
               />
             </RequireAuth>
           }

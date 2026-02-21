@@ -673,6 +673,22 @@ export const listMemories = async (status: MemoryStatus): Promise<MemoryEntry[]>
   return (data ?? []).map((row) => mapMemoryEntryRow(row as MemoryEntryRow))
 }
 
+export const fetchPendingMemoryCount = async (userId: string): Promise<number> => {
+  if (!supabase) {
+    return 0
+  }
+  const { count, error } = await supabase
+    .from('memory_entries')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .eq('is_deleted', false)
+  if (error) {
+    throw error
+  }
+  return count ?? 0
+}
+
 export const createMemory = async (content: string): Promise<MemoryEntry> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
