@@ -274,10 +274,19 @@ const ChatPage = ({
                 type="button"
                 onClick={() => {
                   setOpenHeaderMenu(false)
+                  navigate('/checkin')
+                }}
+              >
+                打卡
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenHeaderMenu(false)
                   navigate('/settings')
                 }}
               >
-                API设置
+                设置
               </button>
             </div>
           ) : null}

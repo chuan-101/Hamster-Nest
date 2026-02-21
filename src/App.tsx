@@ -46,6 +46,7 @@ import SettingsPage from './pages/SettingsPage'
 import SnacksPage from './pages/SnacksPage'
 import SyzygyFeedPage from './pages/SyzygyFeedPage'
 import MemoryVaultPage from './pages/MemoryVaultPage'
+import CheckinPage from './pages/CheckinPage'
 import {
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
@@ -1321,6 +1322,14 @@ const App = () => {
                 onActiveSessionChange={setActiveChatSessionId}
                 user={user}
               />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/checkin"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <CheckinPage user={user} />
             </RequireAuth>
           }
         />
