@@ -35,6 +35,10 @@ export type UserSettings = {
   userId: string
   enabledModels: string[]
   defaultModel: string
+  compressionEnabled: boolean
+  compressionTriggerRatio: number
+  compressionKeepRecentMessages: number
+  summarizerModel: string | null
   memoryExtractModel: string | null
   memoryMergeEnabled: boolean
   temperature: number

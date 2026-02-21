@@ -30,6 +30,14 @@ type CompressionCacheRow = {
   summary_text: string
 }
 
+type UserCompressionSettings = {
+  default_model: string | null
+  compression_enabled: boolean | null
+  compression_trigger_ratio: number | null
+  compression_keep_recent_messages: number | null
+  summarizer_model: string | null
+}
+
 type AuthUserResponse = {
   id: string
 }
@@ -97,11 +105,24 @@ const shouldInjectChitchatMemory = (payload: OpenRouterPayload) => Boolean(paylo
 const shouldApplyRuntimeCompression = (payload: OpenRouterPayload) =>
   !payload.module || payload.module === 'chitchat'
 
-const RECENT_UNCOMPRESSED_MESSAGES = 20
-const CONTEXT_TRIGGER_RATIO = 0.65
+const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES = 20
+const DEFAULT_CONTEXT_TRIGGER_RATIO = 0.65
 const TOKEN_OVERHEAD_PER_MESSAGE = 8
 const SUMMARY_MARKER = 'CHAT SUMMARY:'
-const SUMMARIZER_MODEL = 'openai/gpt-4o-mini'
+const DEFAULT_SUMMARIZER_MODEL = 'openai/gpt-4o-mini'
+const MODEL_MAX_CONTEXT_TOKENS: Record<string, number> = {
+  'openrouter/auto': 128000,
+  'openai/gpt-4.1': 128000,
+  'openai/gpt-4.1-mini': 128000,
+  'openai/gpt-4o': 128000,
+  'openai/gpt-4o-mini': 128000,
+  'anthropic/claude-3.5-sonnet': 200000,
+  'anthropic/claude-3.7-sonnet': 200000,
+  'anthropic/claude-sonnet-4': 200000,
+  'google/gemini-1.5-pro': 1000000,
+  'google/gemini-1.5-flash': 1000000,
+  'google/gemini-2.0-flash': 1000000,
+}
 
 const estimateMessageTokens = (content: string) => {
   const trimmed = content.trim()
@@ -118,7 +139,11 @@ const estimateTotalTokens = (messages: OpenAiMessage[]) =>
   messages.reduce((sum, message) => sum + estimateMessageTokens(message.content), 0)
 
 const estimateModelContextLimit = (model: string) => {
-  const normalized = model.toLowerCase()
+  const normalized = model.toLowerCase().trim()
+  const exactMatch = MODEL_MAX_CONTEXT_TOKENS[normalized]
+  if (exactMatch) {
+    return exactMatch
+  }
   if (normalized.includes('gpt-4.1') || normalized.includes('gpt-4o')) {
     return 128000
   }
@@ -210,8 +235,34 @@ const upsertCompressionCache = async (
   })
 }
 
+const fetchUserCompressionSettings = async (
+  origin: string,
+  authHeader: string,
+  apikey: string,
+  userId: string,
+): Promise<UserCompressionSettings | null> => {
+  const query = new URLSearchParams({
+    select:
+      'default_model,compression_enabled,compression_trigger_ratio,compression_keep_recent_messages,summarizer_model',
+    user_id: `eq.${userId}`,
+    limit: '1',
+  })
+  const response = await fetch(`${origin}/rest/v1/user_settings?${query.toString()}`, {
+    headers: {
+      apikey,
+      Authorization: authHeader,
+    },
+  })
+  if (!response.ok) {
+    return null
+  }
+  const rows = (await response.json()) as UserCompressionSettings[]
+  return rows[0] ?? null
+}
+
 const summarizeCompressedWindow = async (
   apiKey: string,
+  summarizerModel: string,
   existingSummary: string,
   newMessages: StoredMessageRow[],
 ) => {
@@ -235,7 +286,7 @@ const summarizeCompressedWindow = async (
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: SUMMARIZER_MODEL,
+      model: summarizerModel,
       stream: false,
       max_tokens: 550,
       temperature: 0.2,
@@ -261,6 +312,7 @@ const maybeCompressRuntimeContext = async (
   authHeader: string,
   apiKeyHeader: string,
   openRouterApiKey: string,
+  userId: string,
 ): Promise<OpenAiMessage[]> => {
   if (!shouldApplyRuntimeCompression(payload) || !payload.conversationId) {
     return messages
@@ -270,13 +322,29 @@ const maybeCompressRuntimeContext = async (
   const origin = new URL(reqUrl).origin
 
   try {
+    const userSettings = await fetchUserCompressionSettings(
+      origin,
+      authHeader,
+      apiKeyHeader,
+      userId,
+    )
+    const compressionEnabled = userSettings?.compression_enabled ?? true
+    if (!compressionEnabled) {
+      return messages
+    }
+    const compressionTriggerRatio = userSettings?.compression_trigger_ratio ?? DEFAULT_CONTEXT_TRIGGER_RATIO
+    const keepRecentMessages = userSettings?.compression_keep_recent_messages ?? DEFAULT_RECENT_UNCOMPRESSED_MESSAGES
+    const summarizerModel = userSettings?.summarizer_model?.trim()
+      || userSettings?.default_model?.trim()
+      || DEFAULT_SUMMARIZER_MODEL
+
     const fullHistory = await fetchConversationMessages(
       origin,
       authHeader,
       apiKeyHeader,
       payload.conversationId,
     )
-    if (fullHistory.length <= RECENT_UNCOMPRESSED_MESSAGES) {
+    if (fullHistory.length <= keepRecentMessages) {
       return messages
     }
 
@@ -285,12 +353,12 @@ const maybeCompressRuntimeContext = async (
       content: message.content,
     }))
     const contextEstimate = estimateTotalTokens([...systemMessages, ...fullAsMessages])
-    const triggerLimit = Math.floor(estimateModelContextLimit(payload.model) * CONTEXT_TRIGGER_RATIO)
+    const triggerLimit = Math.floor(estimateModelContextLimit(payload.model) * compressionTriggerRatio)
     if (contextEstimate < triggerLimit) {
       return messages
     }
 
-    const compressUntilIndex = fullHistory.length - RECENT_UNCOMPRESSED_MESSAGES - 1
+    const compressUntilIndex = fullHistory.length - keepRecentMessages - 1
     if (compressUntilIndex < 0) {
       return messages
     }
@@ -308,6 +376,7 @@ const maybeCompressRuntimeContext = async (
       if (newCompressibleMessages.length > 0) {
         const refreshedSummary = await summarizeCompressedWindow(
           openRouterApiKey,
+          summarizerModel,
           summaryText,
           newCompressibleMessages,
         )
@@ -503,6 +572,7 @@ serve(async (req) => {
       authHeader,
       apiKeyHeader,
       apiKey,
+      userId,
     )
   }
 

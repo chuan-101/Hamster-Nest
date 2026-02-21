@@ -14,6 +14,10 @@ type UserSettingsRow = {
   enabled_models: string[] | null
   default_model: string | null
   memory_extract_model: string | null
+  compression_enabled: boolean | null
+  compression_trigger_ratio: number | null
+  compression_keep_recent_messages: number | null
+  summarizer_model: string | null
   memory_merge_enabled: boolean | null
   temperature: number | null
   top_p: number | null
@@ -32,6 +36,10 @@ export const createDefaultSettings = (userId: string): UserSettings => ({
   userId,
   enabledModels: [defaultModel],
   defaultModel,
+  compressionEnabled: true,
+  compressionTriggerRatio: 0.65,
+  compressionKeepRecentMessages: 20,
+  summarizerModel: 'openai/gpt-4o-mini',
   memoryExtractModel: null,
   memoryMergeEnabled: true,
   temperature: 0.7,
@@ -49,6 +57,10 @@ const mapSettingsRow = (row: UserSettingsRow): UserSettings => ({
   userId: row.user_id,
   enabledModels: row.enabled_models ?? [defaultModel],
   defaultModel: row.default_model ?? defaultModel,
+  compressionEnabled: row.compression_enabled ?? true,
+  compressionTriggerRatio: row.compression_trigger_ratio ?? 0.65,
+  compressionKeepRecentMessages: row.compression_keep_recent_messages ?? 20,
+  summarizerModel: row.summarizer_model?.trim() ? row.summarizer_model : null,
   memoryExtractModel: row.memory_extract_model?.trim() ? row.memory_extract_model : null,
   memoryMergeEnabled: row.memory_merge_enabled ?? true,
   temperature: row.temperature ?? 0.7,
@@ -69,7 +81,7 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
   const { data, error } = await supabase
     .from('user_settings')
     .select(
-      'user_id,enabled_models,default_model,memory_extract_model,memory_merge_enabled,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
+      'user_id,enabled_models,default_model,memory_extract_model,compression_enabled,compression_trigger_ratio,compression_keep_recent_messages,summarizer_model,memory_merge_enabled,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
     )
     .eq('user_id', userId)
     .maybeSingle()
@@ -86,6 +98,10 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
         enabled_models: defaults.enabledModels,
         default_model: defaults.defaultModel,
         memory_extract_model: defaults.memoryExtractModel,
+        compression_enabled: defaults.compressionEnabled,
+        compression_trigger_ratio: defaults.compressionTriggerRatio,
+        compression_keep_recent_messages: defaults.compressionKeepRecentMessages,
+        summarizer_model: defaults.summarizerModel,
         memory_merge_enabled: defaults.memoryMergeEnabled,
         temperature: defaults.temperature,
         top_p: defaults.topP,
@@ -98,7 +114,7 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
         updated_at: now,
       })
       .select(
-        'user_id,enabled_models,default_model,memory_extract_model,memory_merge_enabled,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
+        'user_id,enabled_models,default_model,memory_extract_model,compression_enabled,compression_trigger_ratio,compression_keep_recent_messages,summarizer_model,memory_merge_enabled,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,enable_reasoning,updated_at',
       )
       .single()
     if (insertError || !inserted) {
@@ -120,6 +136,10 @@ export const updateUserSettings = async (settings: UserSettings): Promise<void> 
       enabled_models: settings.enabledModels,
       default_model: settings.defaultModel,
       memory_extract_model: settings.memoryExtractModel,
+      compression_enabled: settings.compressionEnabled,
+      compression_trigger_ratio: settings.compressionTriggerRatio,
+      compression_keep_recent_messages: settings.compressionKeepRecentMessages,
+      summarizer_model: settings.summarizerModel,
       memory_merge_enabled: settings.memoryMergeEnabled,
       temperature: settings.temperature,
       top_p: settings.topP,
