@@ -56,6 +56,9 @@ const SettingsPage = ({
   const [compressionRatioInput, setCompressionRatioInput] = useState('0.65')
   const [compressionKeepRecentInput, setCompressionKeepRecentInput] = useState('20')
   const [draftSummarizerModel, setDraftSummarizerModel] = useState<string | null>(null)
+  const [modelSectionExpanded, setModelSectionExpanded] = useState(true)
+  const [generationSectionExpanded, setGenerationSectionExpanded] = useState(true)
+  const [memorySectionExpanded, setMemorySectionExpanded] = useState(true)
   const [compressionSectionExpanded, setCompressionSectionExpanded] = useState(false)
   const [draftEnabledModels, setDraftEnabledModels] = useState<string[]>([])
   const [draftDefaultModel, setDraftDefaultModel] = useState(defaultModelId)
@@ -684,206 +687,304 @@ const SettingsPage = ({
       </header>
 
       <section className="settings-section">
-        <div className="section-title">
-          <h2>仓鼠模型库</h2>
-          <p>管理已启用的 OpenRouter 模型，并选择默认模型。</p>
-        </div>
-        {draftEnabledModels.length === 0 ? (
-          <div className="empty-state">暂无启用模型，请从下方模型库启用。</div>
-        ) : (
-          <div className="model-select-card">
-            <div className="model-select-row">
-              <label htmlFor="enabled-models">默认模型</label>
-              <select
-                id="enabled-models"
-                value={selectedModelId}
-                onChange={(event) => handleSetDefault(event.target.value)}
-              >
-                {draftEnabledModels.map((modelId) => (
-                  <option key={modelId} value={modelId}>
-                    {catalogMap.get(modelId) ?? modelId}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="ghost danger small"
-                onClick={() => setPendingDisable(selectedModelId)}
-              >
-                停用
-              </button>
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setModelSectionExpanded((current) => !current)}
+          aria-expanded={modelSectionExpanded}
+        >
+          <span className="section-title">
+            <h2>模型库</h2>
+            <p>管理已启用模型并设置默认模型。</p>
+          </span>
+          <span className="collapse-indicator">{modelSectionExpanded ? '收起' : '展开'}</span>
+        </button>
+        {modelSectionExpanded ? (
+          <>
+            {draftEnabledModels.length === 0 ? (
+              <div className="empty-state">暂无启用模型，请从下方模型库启用。</div>
+            ) : (
+              <div className="model-select-card">
+                <div className="model-select-row">
+                  <label htmlFor="enabled-models">默认模型</label>
+                  <select
+                    id="enabled-models"
+                    value={selectedModelId}
+                    onChange={(event) => handleSetDefault(event.target.value)}
+                  >
+                    {draftEnabledModels.map((modelId) => (
+                      <option key={modelId} value={modelId}>
+                        {catalogMap.get(modelId) ?? modelId}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="ghost danger small"
+                    onClick={() => setPendingDisable(selectedModelId)}
+                  >
+                    停用
+                  </button>
+                </div>
+                <div className="model-selected-meta">
+                  <strong>{catalogMap.get(selectedModelId) ?? selectedModelId}</strong>
+                  <span className="model-id">{selectedModelId}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="section-title nested-prompt-title">
+              <h2>OpenRouter 模型库</h2>
+              <p>搜索并启用你想使用的模型。</p>
             </div>
-            <div className="model-selected-meta">
-              <strong>{catalogMap.get(selectedModelId) ?? selectedModelId}</strong>
-              <span className="model-id">{selectedModelId}</span>
-            </div>
-          </div>
-        )}
+            <input
+              className="search-input"
+              type="search"
+              placeholder="搜索模型名称或 ID"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+            {catalogStatus === 'loading' ? (
+              <div className="catalog-status">正在加载模型库...</div>
+            ) : null}
+            {catalogStatus === 'error' ? (
+              <div className="catalog-status error">{catalogError}</div>
+            ) : null}
+            {searchTerm.trim().length === 0 ? (
+              <div className="catalog-hint">继续输入以缩小范围。</div>
+            ) : null}
+            {searchTerm.trim().length > 0 ? (
+              <div className="catalog-dropdown">
+                {visibleCatalog.length === 0 && catalogStatus !== 'loading' ? (
+                  <div className="catalog-empty">未找到匹配模型。</div>
+                ) : null}
+                <ul className="catalog-results">
+                  {visibleCatalog.map((model) => {
+                    const enabled = draftEnabledModels.includes(model.id)
+                    return (
+                      <li key={model.id} className="catalog-result-item">
+                        <div className="catalog-meta">
+                          <strong>{model.name ?? model.id}</strong>
+                          <span className="model-id">{model.id}</span>
+                          {model.context_length ? (
+                            <span className="context-length">上下文 {model.context_length}</span>
+                          ) : null}
+                        </div>
+                        <div className="catalog-actions">
+                          {enabled ? (
+                            <span className="badge subtle">已启用</span>
+                          ) : (
+                            <button type="button" onClick={() => handleEnableModel(model.id, false)}>
+                              启用
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {filteredCatalog.length > visibleCatalog.length ? (
+                  <div className="catalog-hint">结果较多，请继续输入以缩小范围。</div>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        ) : null}
       </section>
 
       <section className="settings-section">
-        <div className="section-title">
-          <h2>参数设置</h2>
-          <p>调整生成参数以适配你的对话风格。</p>
-        </div>
-        <div className="field-group">
-          <label htmlFor="memoryExtractModel">Memory Extract Model</label>
-          <select
-            id="memoryExtractModel"
-            value={draftMemoryExtractModel ?? ''}
-            onChange={(event) => {
-              const next = event.target.value.trim()
-              setDraftMemoryExtractModel(next.length > 0 ? next : null)
-              setExtractModelStatus('idle')
-            }}
-          >
-            <option value="">跟随默认模型（{draftDefaultModel}）</option>
-            {draftEnabledModels.map((modelId) => (
-              <option key={modelId} value={modelId}>
-                {catalogMap.get(modelId) ?? modelId}
-              </option>
-            ))}
-          </select>
-          {!extractModelValid ? (
-            <span className="field-error">所选模型不在 enabled_models 中，请先启用该模型。</span>
-          ) : null}
-          <div className="system-prompt-actions">
-            <button
-              type="button"
-              className="primary"
-              onClick={() => void handleSaveExtractModel()}
-              disabled={!hasUnsavedExtractModel || !extractModelValid || extractModelStatus === 'saving'}
-            >
-              {extractModelStatus === 'saving' ? '保存中…' : '保存抽取模型'}
-            </button>
-            {hasUnsavedExtractModel ? <span className="system-prompt-status">有未保存修改</span> : null}
-            {extractModelStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
-            {extractModelStatus === 'error' ? <span className="field-error">{extractModelError}</span> : null}
-          </div>
-        </div>
-        <div className="field-group">
-          <label htmlFor="temperature">温度 (0 - 2)</label>
-          <input
-            id="temperature"
-            type="number"
-            min="0"
-            max="2"
-            step="0.1"
-            value={temperatureInput}
-            onChange={(event) => handleTemperatureChange(event.target.value)}
-          />
-          {errors.temperature ? <span className="field-error">{errors.temperature}</span> : null}
-        </div>
-        <div className="field-group">
-          <label htmlFor="topP">Top P (0 - 1)</label>
-          <input
-            id="topP"
-            type="number"
-            min="0"
-            max="1"
-            step="0.05"
-            value={topPInput}
-            onChange={(event) => handleTopPChange(event.target.value)}
-          />
-          {errors.topP ? <span className="field-error">{errors.topP}</span> : null}
-        </div>
-        <div className="field-group">
-          <label htmlFor="maxTokens">最大 tokens (32 - 4000)</label>
-          <input
-            id="maxTokens"
-            type="number"
-            min="32"
-            max="4000"
-            step="1"
-            value={maxTokensInput}
-            onChange={(event) => handleMaxTokensChange(event.target.value)}
-          />
-          {errors.maxTokens ? <span className="field-error">{errors.maxTokens}</span> : null}
-        </div>
-        <div className="field-group">
-          <label htmlFor="enableReasoning">思考链（默认）</label>
-          <label className="toggle-control">
-            <input
-              id="enableReasoning"
-              type="checkbox"
-              checked={draftReasoning}
-              onChange={(event) => handleReasoningToggle(event.target.checked)}
-            />
-            <span>{draftReasoning ? '已开启' : '已关闭'}</span>
-          </label>
-        </div>
-        <div className="field-group">
-          <button
-            type="button"
-            className="collapse-header"
-            onClick={() => setCompressionSectionExpanded((current) => !current)}
-            aria-expanded={compressionSectionExpanded}
-          >
-            <span className="section-title">
-              <h2>Compression</h2>
-              <p>配置上下文压缩策略与摘要模型。</p>
-            </span>
-            <span className="collapse-indicator">{compressionSectionExpanded ? '收起' : '展开'}</span>
-          </button>
-          {compressionSectionExpanded ? (
-            <div className="compression-fields">
-              <label className="toggle-control" htmlFor="compressionEnabled">
-                <input
-                  id="compressionEnabled"
-                  type="checkbox"
-                  checked={compressionEnabled}
-                  onChange={(event) => {
-                    setCompressionEnabled(event.target.checked)
-                    setGenerationStatus('idle')
-                  }}
-                />
-                <span>{compressionEnabled ? '压缩已开启' : '压缩已关闭'}</span>
-              </label>
-
-              <label htmlFor="compressionRatio">触发比例 (0.1 - 0.95)</label>
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setGenerationSectionExpanded((current) => !current)}
+          aria-expanded={generationSectionExpanded}
+        >
+          <span className="section-title">
+            <h2>生成参数</h2>
+            <p>调整生成行为与推理开关。</p>
+          </span>
+          <span className="collapse-indicator">{generationSectionExpanded ? '收起' : '展开'}</span>
+        </button>
+        {generationSectionExpanded ? (
+          <>
+            <div className="field-group">
+              <label htmlFor="temperature">温度 (0 - 2)</label>
               <input
-                id="compressionRatio"
+                id="temperature"
                 type="number"
-                min="0.1"
-                max="0.95"
+                min="0"
+                max="2"
+                step="0.1"
+                value={temperatureInput}
+                onChange={(event) => handleTemperatureChange(event.target.value)}
+              />
+              {errors.temperature ? <span className="field-error">{errors.temperature}</span> : null}
+            </div>
+            <div className="field-group">
+              <label htmlFor="topP">Top P (0 - 1)</label>
+              <input
+                id="topP"
+                type="number"
+                min="0"
+                max="1"
                 step="0.05"
-                value={compressionRatioInput}
-                onChange={(event) => handleCompressionRatioChange(event.target.value)}
+                value={topPInput}
+                onChange={(event) => handleTopPChange(event.target.value)}
               />
-              {errors.compressionRatio ? <span className="field-error">{errors.compressionRatio}</span> : null}
-
-              <label htmlFor="compressionKeepRecent">保留最近消息数 (1 - 200)</label>
+              {errors.topP ? <span className="field-error">{errors.topP}</span> : null}
+            </div>
+            <div className="field-group">
+              <label htmlFor="maxTokens">最大 tokens (32 - 4000)</label>
               <input
-                id="compressionKeepRecent"
+                id="maxTokens"
                 type="number"
-                min="1"
-                max="200"
+                min="32"
+                max="4000"
                 step="1"
-                value={compressionKeepRecentInput}
-                onChange={(event) => handleCompressionKeepRecentChange(event.target.value)}
+                value={maxTokensInput}
+                onChange={(event) => handleMaxTokensChange(event.target.value)}
               />
-              {errors.compressionKeepRecent ? <span className="field-error">{errors.compressionKeepRecent}</span> : null}
+              {errors.maxTokens ? <span className="field-error">{errors.maxTokens}</span> : null}
+            </div>
+            <div className="field-group">
+              <label htmlFor="enableReasoning">思考链（默认）</label>
+              <label className="toggle-control">
+                <input
+                  id="enableReasoning"
+                  type="checkbox"
+                  checked={draftReasoning}
+                  onChange={(event) => handleReasoningToggle(event.target.checked)}
+                />
+                <span>{draftReasoning ? '已开启' : '已关闭'}</span>
+              </label>
+            </div>
+          </>
+        ) : null}
+      </section>
 
-              <label htmlFor="summarizerModel">Summarizer Model</label>
-              <select
-                id="summarizerModel"
-                value={draftSummarizerModel ?? ''}
+      <section className="settings-section">
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setMemorySectionExpanded((current) => !current)}
+          aria-expanded={memorySectionExpanded}
+        >
+          <span className="section-title">
+            <h2>记忆相关</h2>
+            <p>配置记忆抽取模型；自动提取与归并可在囤囤库中设置。</p>
+          </span>
+          <span className="collapse-indicator">{memorySectionExpanded ? '收起' : '展开'}</span>
+        </button>
+        {memorySectionExpanded ? (
+          <div className="field-group">
+            <label htmlFor="memoryExtractModel">Memory Extract Model</label>
+            <select
+              id="memoryExtractModel"
+              value={draftMemoryExtractModel ?? ''}
+              onChange={(event) => {
+                const next = event.target.value.trim()
+                setDraftMemoryExtractModel(next.length > 0 ? next : null)
+                setExtractModelStatus('idle')
+              }}
+            >
+              <option value="">跟随默认模型（{draftDefaultModel}）</option>
+              {draftEnabledModels.map((modelId) => (
+                <option key={modelId} value={modelId}>
+                  {catalogMap.get(modelId) ?? modelId}
+                </option>
+              ))}
+            </select>
+            {!extractModelValid ? (
+              <span className="field-error">所选模型不在 enabled_models 中，请先启用该模型。</span>
+            ) : null}
+            <div className="system-prompt-actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => void handleSaveExtractModel()}
+                disabled={!hasUnsavedExtractModel || !extractModelValid || extractModelStatus === 'saving'}
+              >
+                {extractModelStatus === 'saving' ? '保存中…' : '保存抽取模型'}
+              </button>
+              {hasUnsavedExtractModel ? <span className="system-prompt-status">有未保存修改</span> : null}
+              {extractModelStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+              {extractModelStatus === 'error' ? <span className="field-error">{extractModelError}</span> : null}
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="settings-section">
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setCompressionSectionExpanded((current) => !current)}
+          aria-expanded={compressionSectionExpanded}
+        >
+          <span className="section-title">
+            <h2>上下文压缩</h2>
+            <p>配置压缩触发阈值、保留条数与摘要模型。</p>
+          </span>
+          <span className="collapse-indicator">{compressionSectionExpanded ? '收起' : '展开'}</span>
+        </button>
+        {compressionSectionExpanded ? (
+          <div className="compression-fields">
+            <label className="toggle-control" htmlFor="compressionEnabled">
+              <input
+                id="compressionEnabled"
+                type="checkbox"
+                checked={compressionEnabled}
                 onChange={(event) => {
-                  const nextModel = event.target.value.trim()
-                  setDraftSummarizerModel(nextModel.length > 0 ? nextModel : null)
+                  setCompressionEnabled(event.target.checked)
                   setGenerationStatus('idle')
                 }}
-              >
-                <option value="">自动（默认模型/经济模型）</option>
-                {draftEnabledModels.map((modelId) => (
-                  <option key={modelId} value={modelId}>
-                    {catalogMap.get(modelId) ?? modelId}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-        </div>
+              />
+              <span>{compressionEnabled ? '压缩已开启' : '压缩已关闭'}</span>
+            </label>
+
+            <label htmlFor="compressionRatio">触发比例 (0.1 - 0.95)</label>
+            <input
+              id="compressionRatio"
+              type="number"
+              min="0.1"
+              max="0.95"
+              step="0.05"
+              value={compressionRatioInput}
+              onChange={(event) => handleCompressionRatioChange(event.target.value)}
+            />
+            {errors.compressionRatio ? <span className="field-error">{errors.compressionRatio}</span> : null}
+
+            <label htmlFor="compressionKeepRecent">保留最近消息数 (1 - 200)</label>
+            <input
+              id="compressionKeepRecent"
+              type="number"
+              min="1"
+              max="200"
+              step="1"
+              value={compressionKeepRecentInput}
+              onChange={(event) => handleCompressionKeepRecentChange(event.target.value)}
+            />
+            {errors.compressionKeepRecent ? <span className="field-error">{errors.compressionKeepRecent}</span> : null}
+
+            <label htmlFor="summarizerModel">Summarizer Model</label>
+            <select
+              id="summarizerModel"
+              value={draftSummarizerModel ?? ''}
+              onChange={(event) => {
+                const nextModel = event.target.value.trim()
+                setDraftSummarizerModel(nextModel.length > 0 ? nextModel : null)
+                setGenerationStatus('idle')
+              }}
+            >
+              <option value="">自动（默认模型/经济模型）</option>
+              {draftEnabledModels.map((modelId) => (
+                <option key={modelId} value={modelId}>
+                  {catalogMap.get(modelId) ?? modelId}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="system-prompt-actions">
           <button
             type="button"
@@ -1031,63 +1132,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
-      <section className="settings-section">
-        <div className="section-title">
-          <h2>OpenRouter 模型库</h2>
-          <p>搜索并启用你想使用的模型。</p>
-        </div>
-        <input
-          className="search-input"
-          type="search"
-          placeholder="搜索模型名称或 ID"
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-        />
-        {catalogStatus === 'loading' ? (
-          <div className="catalog-status">正在加载模型库...</div>
-        ) : null}
-        {catalogStatus === 'error' ? (
-          <div className="catalog-status error">{catalogError}</div>
-        ) : null}
-        {searchTerm.trim().length === 0 ? (
-          <div className="catalog-hint">继续输入以缩小范围。</div>
-        ) : null}
-        {searchTerm.trim().length > 0 ? (
-          <div className="catalog-dropdown">
-            {visibleCatalog.length === 0 && catalogStatus !== 'loading' ? (
-              <div className="catalog-empty">未找到匹配模型。</div>
-            ) : null}
-            <ul className="catalog-results">
-              {visibleCatalog.map((model) => {
-                const enabled = draftEnabledModels.includes(model.id)
-                return (
-                  <li key={model.id} className="catalog-result-item">
-                    <div className="catalog-meta">
-                      <strong>{model.name ?? model.id}</strong>
-                      <span className="model-id">{model.id}</span>
-                      {model.context_length ? (
-                        <span className="context-length">上下文 {model.context_length}</span>
-                      ) : null}
-                    </div>
-                    <div className="catalog-actions">
-                      {enabled ? (
-                        <span className="badge subtle">已启用</span>
-                      ) : (
-                        <button type="button" onClick={() => handleEnableModel(model.id, false)}>
-                          启用
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-            {filteredCatalog.length > visibleCatalog.length ? (
-              <div className="catalog-hint">结果较多，请继续输入以缩小范围。</div>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
+
 
       <ConfirmDialog
         open={pendingDisable !== null}
