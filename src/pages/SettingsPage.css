@@ -226,6 +226,7 @@
 }
 
 .field-group input,
+.field-group select,
 .system-prompt,
 .search-input {
   border: 1px solid #e2e8f0;
@@ -233,6 +234,12 @@
   padding: 10px 12px;
   font-size: 14px;
   font-family: inherit;
+}
+
+.compression-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .toggle-control {

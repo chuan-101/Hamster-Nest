@@ -52,6 +52,11 @@ const SettingsPage = ({
   const [temperatureInput, setTemperatureInput] = useState('')
   const [topPInput, setTopPInput] = useState('')
   const [maxTokensInput, setMaxTokensInput] = useState('')
+  const [compressionEnabled, setCompressionEnabled] = useState(true)
+  const [compressionRatioInput, setCompressionRatioInput] = useState('0.65')
+  const [compressionKeepRecentInput, setCompressionKeepRecentInput] = useState('20')
+  const [draftSummarizerModel, setDraftSummarizerModel] = useState<string | null>(null)
+  const [compressionSectionExpanded, setCompressionSectionExpanded] = useState(false)
   const [draftEnabledModels, setDraftEnabledModels] = useState<string[]>([])
   const [draftDefaultModel, setDraftDefaultModel] = useState(defaultModelId)
   const [draftReasoning, setDraftReasoning] = useState(false)
@@ -71,7 +76,7 @@ const SettingsPage = ({
   const [showUnsavedPromptDialog, setShowUnsavedPromptDialog] = useState(false)
   const [snackSectionExpanded, setSnackSectionExpanded] = useState(false)
   const [syzygySectionExpanded, setSyzygySectionExpanded] = useState(false)
-  const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string }>(
+  const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string; compressionRatio?: string; compressionKeepRecent?: string }>(
     {},
   )
   const pendingNavigationRef = useRef<null | (() => void)>(null)
@@ -86,6 +91,10 @@ const SettingsPage = ({
       setMaxTokensInput(settings.maxTokens.toString())
       setDraftEnabledModels(settings.enabledModels)
       setDraftDefaultModel(settings.defaultModel)
+      setCompressionEnabled(settings.compressionEnabled)
+      setCompressionRatioInput(settings.compressionTriggerRatio.toString())
+      setCompressionKeepRecentInput(settings.compressionKeepRecentMessages.toString())
+      setDraftSummarizerModel(settings.summarizerModel)
       setDraftMemoryExtractModel(settings.memoryExtractModel)
       setDraftReasoning(settings.enableReasoning)
     }, 0)
@@ -233,15 +242,23 @@ const SettingsPage = ({
   const parsedTemperature = Number(temperatureInput)
   const parsedTopP = Number(topPInput)
   const parsedMaxTokens = Number.parseInt(maxTokensInput, 10)
+  const parsedCompressionRatio = Number(compressionRatioInput)
+  const parsedCompressionKeepRecent = Number.parseInt(compressionKeepRecentInput, 10)
   const temperatureValid = !Number.isNaN(parsedTemperature) && parsedTemperature >= 0 && parsedTemperature <= 2
   const topPValid = !Number.isNaN(parsedTopP) && parsedTopP >= 0 && parsedTopP <= 1
   const maxTokensValid = !Number.isNaN(parsedMaxTokens) && parsedMaxTokens >= 32 && parsedMaxTokens <= 4000
-  const generationDraftValid = temperatureValid && topPValid && maxTokensValid
+  const compressionRatioValid = !Number.isNaN(parsedCompressionRatio) && parsedCompressionRatio >= 0.1 && parsedCompressionRatio <= 0.95
+  const compressionKeepRecentValid = !Number.isNaN(parsedCompressionKeepRecent) && parsedCompressionKeepRecent >= 1 && parsedCompressionKeepRecent <= 200
+  const generationDraftValid = temperatureValid && topPValid && maxTokensValid && compressionRatioValid && compressionKeepRecentValid
 
   const hasUnsavedGeneration = settings
     ? settings.temperature !== parsedTemperature ||
       settings.topP !== parsedTopP ||
       settings.maxTokens !== parsedMaxTokens ||
+      settings.compressionEnabled !== compressionEnabled ||
+      settings.compressionTriggerRatio !== parsedCompressionRatio ||
+      settings.compressionKeepRecentMessages !== parsedCompressionKeepRecent ||
+      (settings.summarizerModel ?? '') !== (draftSummarizerModel ?? '') ||
       settings.defaultModel !== draftDefaultModel ||
       settings.enableReasoning !== draftReasoning ||
       settings.enabledModels.join('|') !== draftEnabledModels.join('|')
@@ -367,6 +384,36 @@ const SettingsPage = ({
     setGenerationStatus('idle')
   }
 
+  const handleCompressionRatioChange = (value: string) => {
+    setCompressionRatioInput(value)
+    const parsed = Number(value)
+    if (Number.isNaN(parsed)) {
+      setErrors((prev) => ({ ...prev, compressionRatio: '请输入数字' }))
+      return
+    }
+    if (parsed < 0.1 || parsed > 0.95) {
+      setErrors((prev) => ({ ...prev, compressionRatio: '触发比例需在 0.1 到 0.95 之间' }))
+      return
+    }
+    setErrors((prev) => ({ ...prev, compressionRatio: undefined }))
+    setGenerationStatus('idle')
+  }
+
+  const handleCompressionKeepRecentChange = (value: string) => {
+    setCompressionKeepRecentInput(value)
+    const parsed = Number.parseInt(value, 10)
+    if (Number.isNaN(parsed)) {
+      setErrors((prev) => ({ ...prev, compressionKeepRecent: '请输入整数' }))
+      return
+    }
+    if (parsed < 1 || parsed > 200) {
+      setErrors((prev) => ({ ...prev, compressionKeepRecent: '保留消息数需在 1 到 200 之间' }))
+      return
+    }
+    setErrors((prev) => ({ ...prev, compressionKeepRecent: undefined }))
+    setGenerationStatus('idle')
+  }
+
   const resolvedExtractModel = draftMemoryExtractModel?.trim()
     ? draftMemoryExtractModel
     : draftDefaultModel
@@ -400,6 +447,10 @@ const SettingsPage = ({
       temperature: parsedTemperature,
       topP: parsedTopP,
       maxTokens: parsedMaxTokens,
+      compressionEnabled,
+      compressionTriggerRatio: parsedCompressionRatio,
+      compressionKeepRecentMessages: parsedCompressionKeepRecent,
+      summarizerModel: draftSummarizerModel,
       enableReasoning: draftReasoning,
     })
     if (!nextSettings) {
@@ -760,6 +811,78 @@ const SettingsPage = ({
             />
             <span>{draftReasoning ? '已开启' : '已关闭'}</span>
           </label>
+        </div>
+        <div className="field-group">
+          <button
+            type="button"
+            className="collapse-header"
+            onClick={() => setCompressionSectionExpanded((current) => !current)}
+            aria-expanded={compressionSectionExpanded}
+          >
+            <span className="section-title">
+              <h2>Compression</h2>
+              <p>配置上下文压缩策略与摘要模型。</p>
+            </span>
+            <span className="collapse-indicator">{compressionSectionExpanded ? '收起' : '展开'}</span>
+          </button>
+          {compressionSectionExpanded ? (
+            <div className="compression-fields">
+              <label className="toggle-control" htmlFor="compressionEnabled">
+                <input
+                  id="compressionEnabled"
+                  type="checkbox"
+                  checked={compressionEnabled}
+                  onChange={(event) => {
+                    setCompressionEnabled(event.target.checked)
+                    setGenerationStatus('idle')
+                  }}
+                />
+                <span>{compressionEnabled ? '压缩已开启' : '压缩已关闭'}</span>
+              </label>
+
+              <label htmlFor="compressionRatio">触发比例 (0.1 - 0.95)</label>
+              <input
+                id="compressionRatio"
+                type="number"
+                min="0.1"
+                max="0.95"
+                step="0.05"
+                value={compressionRatioInput}
+                onChange={(event) => handleCompressionRatioChange(event.target.value)}
+              />
+              {errors.compressionRatio ? <span className="field-error">{errors.compressionRatio}</span> : null}
+
+              <label htmlFor="compressionKeepRecent">保留最近消息数 (1 - 200)</label>
+              <input
+                id="compressionKeepRecent"
+                type="number"
+                min="1"
+                max="200"
+                step="1"
+                value={compressionKeepRecentInput}
+                onChange={(event) => handleCompressionKeepRecentChange(event.target.value)}
+              />
+              {errors.compressionKeepRecent ? <span className="field-error">{errors.compressionKeepRecent}</span> : null}
+
+              <label htmlFor="summarizerModel">Summarizer Model</label>
+              <select
+                id="summarizerModel"
+                value={draftSummarizerModel ?? ''}
+                onChange={(event) => {
+                  const nextModel = event.target.value.trim()
+                  setDraftSummarizerModel(nextModel.length > 0 ? nextModel : null)
+                  setGenerationStatus('idle')
+                }}
+              >
+                <option value="">自动（默认模型/经济模型）</option>
+                {draftEnabledModels.map((modelId) => (
+                  <option key={modelId} value={modelId}>
+                    {catalogMap.get(modelId) ?? modelId}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
         </div>
         <div className="system-prompt-actions">
           <button
