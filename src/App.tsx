@@ -49,6 +49,7 @@ import {
   resolveSyzygyPostPrompt,
   resolveSyzygyReplyPrompt,
 } from './constants/aiOverlays'
+import { resolveModelId } from './utils/modelResolver'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -192,20 +193,24 @@ const App = () => {
   }, [activeSettings.enabledModels, defaultModelId])
 
   const latestSession = useMemo(() => selectMostRecentSession(sessions), [sessions])
-  const snackAiConfig = useMemo(() => {
-    const overrideModel = latestSession?.overrideModel?.trim() || null
-    return {
-      model: overrideModel ?? defaultModelId,
-      reasoning: latestSession?.overrideReasoning ?? activeSettings.enableReasoning,
-      temperature: activeSettings.temperature,
-      topP: activeSettings.topP,
-      maxTokens: activeSettings.maxTokens,
-      systemPrompt: activeSettings.systemPrompt,
-      snackSystemOverlay: resolveSnackSystemOverlay(activeSettings.snackSystemOverlay),
-      syzygyPostSystemPrompt: resolveSyzygyPostPrompt(activeSettings.syzygyPostSystemPrompt),
-      syzygyReplySystemPrompt: resolveSyzygyReplyPrompt(activeSettings.syzygyReplySystemPrompt),
-    }
-  }, [activeSettings, defaultModelId, latestSession])
+  const feedAiConfigBase = useMemo(() => ({
+    reasoning: latestSession?.overrideReasoning ?? activeSettings.enableReasoning,
+    temperature: activeSettings.temperature,
+    topP: activeSettings.topP,
+    maxTokens: activeSettings.maxTokens,
+    systemPrompt: activeSettings.systemPrompt,
+    snackSystemOverlay: resolveSnackSystemOverlay(activeSettings.snackSystemOverlay),
+    syzygyPostSystemPrompt: resolveSyzygyPostPrompt(activeSettings.syzygyPostSystemPrompt),
+    syzygyReplySystemPrompt: resolveSyzygyReplyPrompt(activeSettings.syzygyReplySystemPrompt),
+  }), [activeSettings, latestSession])
+  const snackAiConfig = useMemo(() => ({
+    ...feedAiConfigBase,
+    model: resolveModelId('snack', { defaultModelId }),
+  }), [defaultModelId, feedAiConfigBase])
+  const syzygyAiConfig = useMemo(() => ({
+    ...feedAiConfigBase,
+    model: resolveModelId('syzygy', { defaultModelId }),
+  }), [defaultModelId, feedAiConfigBase])
 
   useEffect(() => {
     sessionsRef.current = sessions
@@ -376,13 +381,11 @@ const App = () => {
         settings.defaultModel?.trim().length > 0
           ? settings.defaultModel
           : defaultOpenRouterModel
-      const override = sessionsRef.current.find((session) => session.id === sessionId)
-        ?.overrideModel
-      const overrideModel = override?.trim()
-      if (overrideModel) {
-        return overrideModel
-      }
-      return baseDefaultModel
+      const selectedModel = sessionsRef.current.find((session) => session.id === sessionId)?.overrideModel ?? null
+      return resolveModelId('chitchat', {
+        defaultModelId: baseDefaultModel,
+        chitchatSelectedModelId: selectedModel,
+      })
     },
     [user?.id],
   )
@@ -789,6 +792,8 @@ const App = () => {
           const isClaudeModel = (model: string) => /claude|anthropic/i.test(model)
           const requestBody: Record<string, unknown> = {
             model: effectiveModel,
+            modelId: effectiveModel,
+            module: 'chitchat',
             conversationId: sessionId,
             messages: messagesPayload,
             temperature: paramsSnapshot.temperature,
@@ -1335,7 +1340,7 @@ const App = () => {
           path="/syzygy"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <SyzygyFeedPage user={user} snackAiConfig={snackAiConfig} />
+              <SyzygyFeedPage user={user} snackAiConfig={syzygyAiConfig} />
             </RequireAuth>
           }
         />
