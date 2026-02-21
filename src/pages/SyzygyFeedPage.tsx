@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -16,8 +17,6 @@ import {
   restoreSyzygyReply,
   softDeleteSyzygyPost,
   softDeleteSyzygyReply,
-  permanentlyDeleteSyzygyPost,
-  permanentlyDeleteSyzygyReply,
 } from '../storage/supabaseSync'
 import { supabase } from '../supabase/client'
 import { withTimePrefix } from '../utils/time'
@@ -90,8 +89,8 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
   const [restoringReplyId, setRestoringReplyId] = useState<string | null>(null)
   const [generatingPostId, setGeneratingPostId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [pendingPermanentDeletePost, setPendingPermanentDeletePost] = useState<SyzygyPost | null>(null)
-  const [pendingPermanentDeleteReply, setPendingPermanentDeleteReply] = useState<SyzygyReply | null>(null)
+  const [deletingPermanentPostId, setDeletingPermanentPostId] = useState<string | null>(null)
+  const [deletingPermanentReplyId, setDeletingPermanentReplyId] = useState<string | null>(null)
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
 
   const refreshPosts = useCallback(async () => {
@@ -266,38 +265,79 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
     }
   }
 
-  const handlePermanentDeletePost = async () => {
-    if (!pendingPermanentDeletePost) {
+  const handlePermanentDeletePost = async (postId: string) => {
+    if (!supabase || deletingPermanentPostId) {
       return
     }
+    setDeletingPermanentPostId(postId)
     setError(null)
+    setNotice(null)
     try {
-      await permanentlyDeleteSyzygyPost(pendingPermanentDeletePost.id)
-      setPendingPermanentDeletePost(null)
-      setNotice('彻底删除成功')
+      const { error: repliesError } = await supabase.from('syzygy_replies').delete().eq('post_id', postId)
+      if (repliesError) {
+        throw repliesError
+      }
+
+      const { error: postError } = await supabase.from('syzygy_posts').delete().eq('id', postId)
+      if (postError) {
+        throw postError
+      }
+
+      setNotice('已彻底删除')
       await refreshTrashPosts()
     } catch (deleteError) {
-      console.warn('彻底删除观察日志失败', deleteError)
+      console.error(deleteError)
+      setNotice('彻底删除失败')
       setError('彻底删除失败，请稍后重试。')
-      setPendingPermanentDeletePost(null)
+    } finally {
+      setDeletingPermanentPostId(null)
     }
   }
 
-  const handlePermanentDeleteReply = async () => {
-    if (!pendingPermanentDeleteReply) {
+  const handlePermanentDeleteReply = async (replyId: string) => {
+    if (!supabase || deletingPermanentReplyId) {
       return
     }
+    setDeletingPermanentReplyId(replyId)
     setError(null)
+    setNotice(null)
     try {
-      await permanentlyDeleteSyzygyReply(pendingPermanentDeleteReply.id)
-      setPendingPermanentDeleteReply(null)
-      setNotice('彻底删除成功')
+      const { error } = await supabase.from('syzygy_replies').delete().eq('id', replyId)
+      if (error) {
+        throw error
+      }
+
+      setNotice('已彻底删除')
       await refreshTrashPosts()
     } catch (deleteError) {
-      console.warn('彻底删除观察日志回复失败', deleteError)
+      console.error(deleteError)
+      setNotice('彻底删除失败')
       setError('彻底删除失败，请稍后重试。')
-      setPendingPermanentDeleteReply(null)
+    } finally {
+      setDeletingPermanentReplyId(null)
     }
+  }
+
+  const handlePermanentDeletePostClick = (e: MouseEvent<HTMLButtonElement>, postId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    console.log('[recycle] permanent delete clicked', { module: 'syzygy', kind: 'post', id: postId })
+    const ok = window.confirm('确定彻底删除？此操作不可恢复。')
+    if (!ok) {
+      return
+    }
+    void handlePermanentDeletePost(postId)
+  }
+
+  const handlePermanentDeleteReplyClick = (e: MouseEvent<HTMLButtonElement>, replyId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    console.log('[recycle] permanent delete clicked', { module: 'syzygy', kind: 'reply', id: replyId })
+    const ok = window.confirm('确定彻底删除？此操作不可恢复。')
+    if (!ok) {
+      return
+    }
+    void handlePermanentDeleteReply(replyId)
   }
 
   const toggleExpanded = (postId: string) => {
@@ -618,9 +658,10 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
                   <button
                     type="button"
                     className="ghost danger"
-                    onClick={() => setPendingPermanentDeletePost(post)}
+                    onClick={(e) => handlePermanentDeletePostClick(e, post.id)}
+                    disabled={deletingPermanentPostId === post.id}
                   >
-                    彻底删除
+                    {deletingPermanentPostId === post.id ? '删除中…' : '彻底删除'}
                   </button>
                 </div>
               </div>
@@ -652,9 +693,10 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
                   <button
                     type="button"
                     className="ghost danger"
-                    onClick={() => setPendingPermanentDeleteReply(reply)}
+                    onClick={(e) => handlePermanentDeleteReplyClick(e, reply.id)}
+                    disabled={deletingPermanentReplyId === reply.id}
                   >
-                    彻底删除
+                    {deletingPermanentReplyId === reply.id ? '删除中…' : '彻底删除'}
                   </button>
                 </div>
               </div>
@@ -818,22 +860,6 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
             cancelLabel="取消"
             onCancel={() => setPendingDeleteReply(null)}
             onConfirm={handleDeleteReply}
-          />
-          <ConfirmDialog
-            open={pendingPermanentDeletePost !== null}
-            title="确定彻底删除这条记录吗？此操作不可撤销。"
-            confirmLabel="彻底删除"
-            cancelLabel="取消"
-            onCancel={() => setPendingPermanentDeletePost(null)}
-            onConfirm={handlePermanentDeletePost}
-          />
-          <ConfirmDialog
-            open={pendingPermanentDeleteReply !== null}
-            title="确定彻底删除这条回复吗？此操作不可撤销。"
-            confirmLabel="彻底删除"
-            cancelLabel="取消"
-            onCancel={() => setPendingPermanentDeleteReply(null)}
-            onConfirm={handlePermanentDeleteReply}
           />
         </>
       )}
