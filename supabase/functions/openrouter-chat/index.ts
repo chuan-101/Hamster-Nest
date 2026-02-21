@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 type OpenAiMessage = {
   role: 'user' | 'assistant' | 'system'
@@ -28,6 +29,7 @@ type CompressionCacheRow = {
   conversation_id: string
   compressed_up_to_message_id: string | null
   summary_text: string
+  updated_at?: string
 }
 
 type UserCompressionSettings = {
@@ -186,57 +188,71 @@ const fetchConversationMessages = async (
     .filter((row) => row.id && row.content)
 }
 
+const buildSupabaseClientForRequest = (authHeader: string, apikey: string) => {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+  if (!supabaseUrl || !anonKey) {
+    throw new Error('Supabase env missing for compression cache')
+  }
+
+  return createClient(supabaseUrl, anonKey, {
+    global: {
+      headers: {
+        Authorization: authHeader,
+        apikey,
+      },
+    },
+  })
+}
+
 const fetchCompressionCache = async (
-  origin: string,
   authHeader: string,
   apikey: string,
   conversationId: string,
 ): Promise<CompressionCacheRow | null> => {
-  const query = new URLSearchParams({
-    select: 'conversation_id,compressed_up_to_message_id,summary_text',
-    conversation_id: `eq.${conversationId}`,
-    limit: '1',
-  })
-  const response = await fetch(`${origin}/rest/v1/compression_cache?${query.toString()}`, {
-    headers: {
-      apikey,
-      Authorization: authHeader,
-    },
-  })
-  if (!response.ok) {
-    return null
+  const supabase = buildSupabaseClientForRequest(authHeader, apikey)
+  const { data, error } = await supabase
+    .from('compression_cache')
+    .select('conversation_id,compressed_up_to_message_id,summary_text,updated_at')
+    .eq('conversation_id', conversationId)
+    .maybeSingle<CompressionCacheRow>()
+
+  if (error) {
+    throw new Error(`compression_cache read failed: ${error.message}`)
   }
-  const rows = (await response.json()) as CompressionCacheRow[]
-  return rows[0] ?? null
+
+  if (data) {
+    console.log('compression_cache hit', { conversationId })
+  } else {
+    console.log('compression_cache miss', { conversationId })
+  }
+
+  return data ?? null
 }
 
 const upsertCompressionCache = async (
-  origin: string,
   authHeader: string,
   apikey: string,
   conversationId: string,
   compressedUpToMessageId: string,
   summaryText: string,
 ) => {
-  const response = await fetch(`${origin}/rest/v1/compression_cache`, {
-    method: 'POST',
-    headers: {
-      apikey,
-      Authorization: authHeader,
-      'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    },
-    body: JSON.stringify({
+  const supabase = buildSupabaseClientForRequest(authHeader, apikey)
+  const { error } = await supabase
+    .from('compression_cache')
+    .upsert(
+      {
       conversation_id: conversationId,
       compressed_up_to_message_id: compressedUpToMessageId,
       summary_text: summaryText,
       updated_at: new Date().toISOString(),
-    }),
-  })
+      },
+      { onConflict: 'conversation_id' },
+    )
 
-  if (!response.ok) {
-    const error = await response.text()
+  if (error) {
     console.error('compression_cache upsert failed', error)
+    throw new Error(`compression_cache upsert failed: ${error.message}`)
   }
 }
 
@@ -370,7 +386,7 @@ const maybeCompressRuntimeContext = async (
     }
     const targetBoundaryId = fullHistory[compressUntilIndex].id
 
-    const cache = await fetchCompressionCache(origin, authHeader, apiKeyHeader, conversationId)
+    const cache = await fetchCompressionCache(authHeader, apiKeyHeader, conversationId)
     const targetBoundaryIndex = fullHistory.findIndex((message) => message.id === targetBoundaryId)
     const cacheBoundaryIndex = cache?.compressed_up_to_message_id
       ? fullHistory.findIndex((message) => message.id === cache.compressed_up_to_message_id)
@@ -389,7 +405,6 @@ const maybeCompressRuntimeContext = async (
         if (refreshedSummary) {
           summaryText = refreshedSummary
           await upsertCompressionCache(
-            origin,
             authHeader,
             apiKeyHeader,
             conversationId,
@@ -413,7 +428,8 @@ const maybeCompressRuntimeContext = async (
       { role: 'system', content: `${SUMMARY_MARKER}\n${summaryText}` },
       ...recentMessages,
     ]
-  } catch {
+  } catch (error) {
+    console.error('runtime compression failed', error)
     return messages
   }
 }
