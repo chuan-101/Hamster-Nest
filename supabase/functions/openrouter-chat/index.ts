@@ -14,6 +14,7 @@ type OpenRouterPayload = {
   reasoning?: boolean
   stream?: boolean
   isFirstMessage?: boolean
+  module?: 'snack-feed' | string
 }
 
 type AuthUserResponse = {
@@ -51,13 +52,20 @@ const injectMemoryBlock = (messages: OpenAiMessage[], memoryMessage: OpenAiMessa
   if (firstUserIndex <= 0) {
     return [memoryMessage, ...messages]
   }
-  const firstSystemIndex = messages.findIndex((message) => message.role === 'system')
-  if (firstSystemIndex >= 0 && firstSystemIndex < firstUserIndex) {
-    const insertIndex = firstSystemIndex + 1
+  const lastSystemIndexBeforeUser = messages
+    .slice(0, firstUserIndex)
+    .reduce((lastIndex, message, index) => (message.role === 'system' ? index : lastIndex), -1)
+
+  if (lastSystemIndexBeforeUser >= 0) {
+    const insertIndex = lastSystemIndexBeforeUser + 1
     return [...messages.slice(0, insertIndex), memoryMessage, ...messages.slice(insertIndex)]
   }
   return [...messages.slice(0, firstUserIndex), memoryMessage, ...messages.slice(firstUserIndex)]
 }
+
+const shouldInjectSnackFeedMemory = (payload: OpenRouterPayload) => payload.module === 'snack-feed'
+
+const shouldInjectChitchatMemory = (payload: OpenRouterPayload) => Boolean(payload.isFirstMessage)
 
 const fetchConfirmedMemories = async (
   origin: string,
@@ -70,7 +78,7 @@ const fetchConfirmedMemories = async (
     user_id: `eq.${userId}`,
     status: 'eq.confirmed',
     is_deleted: 'eq.false',
-    order: 'created_at.desc',
+    order: 'updated_at.desc.nullslast,created_at.desc',
     limit: '50',
   })
   const memoriesUrl = `${origin}/rest/v1/memory_entries?${query.toString()}`
@@ -87,6 +95,30 @@ const fetchConfirmedMemories = async (
   return data
     .map((entry) => (typeof entry.content === 'string' ? entry.content.trim() : ''))
     .filter((content) => content.length > 0)
+}
+
+const maybeInjectConfirmedMemory = async (
+  payload: OpenRouterPayload,
+  messages: OpenAiMessage[],
+  userId: string,
+  reqUrl: string,
+  authHeader: string,
+  apiKeyHeader: string,
+): Promise<OpenAiMessage[]> => {
+  if (!shouldInjectSnackFeedMemory(payload) && !shouldInjectChitchatMemory(payload)) {
+    return messages
+  }
+
+  try {
+    const memories = await fetchConfirmedMemories(new URL(reqUrl).origin, authHeader, apiKeyHeader, userId)
+    if (memories.length === 0) {
+      return messages
+    }
+    return injectMemoryBlock(messages, buildMemoryMessage(memories))
+  } catch {
+    // 如果记忆加载失败，则不注入，避免阻塞主流程。
+    return messages
+  }
 }
 
 serve(async (req) => {
@@ -178,20 +210,15 @@ serve(async (req) => {
   const stream = payload.stream ?? true
   let messages = payload.messages
 
-  if (payload.isFirstMessage && userId) {
-    try {
-      const memories = await fetchConfirmedMemories(
-        new URL(req.url).origin,
-        authHeader,
-        apiKeyHeader,
-        userId,
-      )
-      if (memories.length > 0) {
-        messages = injectMemoryBlock(messages, buildMemoryMessage(memories))
-      }
-    } catch {
-      // 如果记忆加载失败，则不注入，避免阻塞主流程。
-    }
+  if (userId) {
+    messages = await maybeInjectConfirmedMemory(
+      payload,
+      messages,
+      userId,
+      req.url,
+      authHeader,
+      apiKeyHeader,
+    )
   }
 
   try {
