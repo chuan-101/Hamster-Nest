@@ -14,6 +14,7 @@ export type SessionsDrawerProps = {
   onSelectSession: (sessionId: string) => void
   onRenameSession: (sessionId: string, title: string) => Promise<void> | void
   onDeleteSession: (sessionId: string) => Promise<void> | void
+  onArchiveSession: (sessionId: string, isArchived: boolean) => Promise<void> | void
 }
 
 type SessionRowProps = {
@@ -22,12 +23,14 @@ type SessionRowProps = {
   isEditing: boolean
   draftTitle: string
   messageCount: number
+  archiveView: 'active' | 'archived'
   onSelect: (sessionId: string) => void
   onStartRename: (session: ChatSession) => void
   onDraftTitleChange: (value: string) => void
   onConfirmRename: () => void
   onCancelRename: () => void
   onRequestDelete: (sessionId: string) => void
+  onArchiveToggle: (sessionId: string, nextArchived: boolean) => void
 }
 
 const SessionRow = memo(
@@ -37,12 +40,14 @@ const SessionRow = memo(
     isEditing,
     draftTitle,
     messageCount,
+    archiveView,
     onSelect,
     onStartRename,
     onDraftTitleChange,
     onConfirmRename,
     onCancelRename,
     onRequestDelete,
+    onArchiveToggle,
   }: SessionRowProps) => {
     const handleSelect = useCallback(() => {
       onSelect(session.id)
@@ -55,6 +60,10 @@ const SessionRow = memo(
     const handleDelete = useCallback(() => {
       onRequestDelete(session.id)
     }, [onRequestDelete, session.id])
+
+    const handleArchiveToggle = useCallback(() => {
+      onArchiveToggle(session.id, !session.isArchived)
+    }, [onArchiveToggle, session.id, session.isArchived])
 
     return (
       <div className={`session-row ${isActive ? 'active' : ''}`}>
@@ -82,6 +91,9 @@ const SessionRow = memo(
         )}
         {!isEditing ? (
           <div className="session-actions">
+            <button type="button" className="ghost" onClick={handleArchiveToggle}>
+              {archiveView === 'active' ? '收纳' : '移出抽屉'}
+            </button>
             <button type="button" className="ghost" onClick={handleRename}>
               重命名
             </button>
@@ -108,21 +120,26 @@ const SessionsDrawer = ({
   onSelectSession,
   onRenameSession,
   onDeleteSession,
+  onArchiveSession,
 }: SessionsDrawerProps) => {
   const [search, setSearch] = useState('')
+  const [archiveView, setArchiveView] = useState<'active' | 'archived'>('active')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   const filteredSessions = useMemo(() => {
     const query = search.trim().toLowerCase()
+    const scopedSessions = sessions.filter((session) =>
+      archiveView === 'active' ? !session.isArchived : session.isArchived,
+    )
     if (!query) {
-      return sessions
+      return scopedSessions
     }
-    return sessions.filter((session) =>
+    return scopedSessions.filter((session) =>
       session.title.toLowerCase().includes(query),
     )
-  }, [search, sessions])
+  }, [archiveView, search, sessions])
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value)
@@ -168,6 +185,17 @@ const SessionsDrawer = ({
     [onSelectSession],
   )
 
+  const handleArchiveToggle = useCallback(
+    (sessionId: string, nextArchived: boolean) => {
+      onArchiveSession(sessionId, nextArchived)
+      if (editingId === sessionId) {
+        setEditingId(null)
+        setDraftTitle('')
+      }
+    },
+    [editingId, onArchiveSession],
+  )
+
   return (
     <>
       <div className={`drawer-scrim ${open ? 'open' : ''}`} onClick={onClose} />
@@ -180,6 +208,26 @@ const SessionsDrawer = ({
               关闭
             </button>
           </div>
+        </div>
+        <div className="drawer-tabs" role="tablist" aria-label="会话分组">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={archiveView === 'active'}
+            className={archiveView === 'active' ? 'active' : ''}
+            onClick={() => setArchiveView('active')}
+          >
+            进行中
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={archiveView === 'archived'}
+            className={archiveView === 'archived' ? 'active' : ''}
+            onClick={() => setArchiveView('archived')}
+          >
+            抽屉
+          </button>
         </div>
         <button type="button" className="primary" onClick={onCreateSession}>
           + 新建聊天
@@ -203,12 +251,14 @@ const SessionsDrawer = ({
                 isEditing={editingId === session.id}
                 draftTitle={editingId === session.id ? draftTitle : ''}
                 messageCount={messageCounts[session.id] ?? 0}
+                archiveView={archiveView}
                 onSelect={handleSelectSession}
                 onStartRename={handleStartRename}
                 onDraftTitleChange={setDraftTitle}
                 onConfirmRename={handleConfirmRename}
                 onCancelRename={handleCancelRename}
                 onRequestDelete={handleRequestDelete}
+                onArchiveToggle={handleArchiveToggle}
               />
             ))
           )}
