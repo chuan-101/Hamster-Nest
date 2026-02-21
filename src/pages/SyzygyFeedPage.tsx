@@ -8,10 +8,12 @@ import {
   createSyzygyPost,
   createSyzygyReply,
   fetchDeletedSyzygyPosts,
+  fetchDeletedSyzygyReplies,
   fetchSyzygyPosts,
   fetchSyzygyReplies,
   fetchSyzygyRepliesByPost,
   restoreSyzygyPost,
+  restoreSyzygyReply,
   softDeleteSyzygyPost,
   softDeleteSyzygyReply,
 } from '../storage/supabaseSync'
@@ -80,9 +82,12 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
   const [pendingDeleteReply, setPendingDeleteReply] = useState<SyzygyReply | null>(null)
   const [showTrash, setShowTrash] = useState(false)
   const [trashPosts, setTrashPosts] = useState<SyzygyPost[]>([])
+  const [trashReplies, setTrashReplies] = useState<SyzygyReply[]>([])
   const [trashLoading, setTrashLoading] = useState(false)
   const [restoringPostId, setRestoringPostId] = useState<string | null>(null)
+  const [restoringReplyId, setRestoringReplyId] = useState<string | null>(null)
   const [generatingPostId, setGeneratingPostId] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
 
   const refreshPosts = useCallback(async () => {
@@ -113,8 +118,9 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
     setTrashLoading(true)
     setError(null)
     try {
-      const list = await fetchDeletedSyzygyPosts()
-      setTrashPosts(list)
+      const [postList, replyList] = await Promise.all([fetchDeletedSyzygyPosts(), fetchDeletedSyzygyReplies()])
+      setTrashPosts(postList)
+      setTrashReplies(replyList)
     } catch (loadError) {
       console.warn('加载回收站失败', loadError)
       setError('回收站加载失败，请稍后重试。')
@@ -170,6 +176,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
     }
     setPublishing(true)
     setError(null)
+    setNotice(null)
     try {
       const created = await createSyzygyPost(trimmed, null)
       setPosts((current) => [created, ...current])
@@ -189,6 +196,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
     try {
       await softDeleteSyzygyPost(pendingDelete.id)
       setPosts((current) => current.filter((post) => post.id !== pendingDelete.id))
+      setNotice('已移入回收站')
       setPendingDelete(null)
     } catch (deleteError) {
       console.warn('删除观察日志失败', deleteError)
@@ -209,6 +217,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
           (reply) => reply.id !== pendingDeleteReply.id,
         ),
       }))
+      setNotice('已移入回收站')
       setPendingDeleteReply(null)
     } catch (deleteError) {
       console.warn('删除观察日志回复失败', deleteError)
@@ -229,6 +238,27 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
       setError('恢复失败，请稍后重试。')
     } finally {
       setRestoringPostId(null)
+    }
+  }
+
+  const handleRestoreReply = async (reply: SyzygyReply) => {
+    setRestoringReplyId(reply.id)
+    setError(null)
+    try {
+      await restoreSyzygyReply(reply.id)
+      setTrashReplies((current) => current.filter((item) => item.id !== reply.id))
+      if (posts.some((post) => post.id === reply.postId)) {
+        const refreshed = await fetchSyzygyRepliesByPost(reply.postId)
+        setRepliesByPost((current) => ({
+          ...current,
+          [reply.postId]: refreshed,
+        }))
+      }
+    } catch (restoreError) {
+      console.warn('恢复观察日志回复失败', restoreError)
+      setError('恢复回复失败，请稍后重试。')
+    } finally {
+      setRestoringReplyId(null)
     }
   }
 
@@ -506,18 +536,24 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
         <button
           type="button"
           className="ghost compact-action"
-          onClick={() => setShowTrash((current) => !current)}
+          onClick={() => {
+            setShowTrash((current) => !current)
+            setNotice(null)
+          }}
         >
           {showTrash ? '返回列表' : '回收站'}
         </button>
       </header>
 
       {error ? <p className="error">{error}</p> : null}
+      {notice ? <p className="tips">{notice}</p> : null}
 
       {showTrash ? (
         <main className="snacks-feed">
           {trashLoading ? <p className="tips">回收站加载中…</p> : null}
-          {!trashLoading && trashPosts.length === 0 ? <p className="tips">回收站是空的。</p> : null}
+          {!trashLoading && trashPosts.length === 0 && trashReplies.length === 0 ? (
+            <p className="tips">回收站空空如也，去记录点新观察吧。</p>
+          ) : null}
           {trashPosts.map((post) => (
             <article key={post.id} className="post-card">
               <div className="post-header">
@@ -539,6 +575,31 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
                   disabled={restoringPostId === post.id}
                 >
                   {restoringPostId === post.id ? '恢复中…' : '恢复'}
+                </button>
+              </div>
+            </article>
+          ))}
+          {trashReplies.map((reply) => (
+            <article key={reply.id} className="post-card">
+              <div className="post-header">
+                <span className="feed-badge">已删除回复</span>
+              </div>
+              {reply.authorRole === 'ai' ? (
+                <div className="post-content assistant-markdown">
+                  <MarkdownRenderer content={reply.content} />
+                </div>
+              ) : (
+                <p className="post-content">{reply.content}</p>
+              )}
+              <div className="post-footer">
+                <span>{formatChineseTime(reply.createdAt)}</span>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => void handleRestoreReply(reply)}
+                  disabled={restoringReplyId === reply.id}
+                >
+                  {restoringReplyId === reply.id ? '恢复中…' : '恢复'}
                 </button>
               </div>
             </article>

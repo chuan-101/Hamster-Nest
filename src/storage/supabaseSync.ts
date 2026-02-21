@@ -587,7 +587,7 @@ export const restoreSyzygyPost = async (postId: string): Promise<void> => {
   }
   const { error } = await supabase
     .from('syzygy_posts')
-    .update({ is_deleted: false })
+    .update({ is_deleted: false, deleted_at: null })
     .eq('id', postId)
 
   if (error) {
@@ -601,7 +601,7 @@ export const softDeleteSyzygyPost = async (postId: string): Promise<void> => {
   }
   const { error } = await supabase
     .from('syzygy_posts')
-    .update({ is_deleted: true })
+    .update({ is_deleted: true, deleted_at: new Date().toISOString() })
     .eq('id', postId)
 
   if (error) {
@@ -676,7 +676,37 @@ export const softDeleteSyzygyReply = async (replyId: string): Promise<void> => {
   }
   const { error } = await supabase
     .from('syzygy_replies')
-    .update({ is_deleted: true })
+    .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+    .eq('id', replyId)
+
+  if (error) {
+    throw error
+  }
+}
+
+export const fetchDeletedSyzygyReplies = async (): Promise<SyzygyReply[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('syzygy_replies')
+    .select('id,user_id,post_id,author_role,content,model_id,created_at,is_deleted')
+    .eq('is_deleted', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapSyzygyReplyRow(row as SyzygyReplyRow))
+}
+
+export const restoreSyzygyReply = async (replyId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('syzygy_replies')
+    .update({ is_deleted: false, deleted_at: null })
     .eq('id', replyId)
 
   if (error) {
