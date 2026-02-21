@@ -18,8 +18,9 @@ type UserSettingsRow = {
 const SERVER_RECENT_LIMIT = 30
 const MIN_MEMORY_LENGTH = 8
 const MAX_INSERT_COUNT = 10
-const CLUSTER_SIMILARITY_THRESHOLD = 0.75
+const CLUSTER_SIMILARITY_THRESHOLD = 0.78
 const EXISTING_DEDUPE_THRESHOLD = 0.85
+const EXISTING_RECENT_LIMIT = 200
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://chuan-101.github.io',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
@@ -33,7 +34,8 @@ Return ONLY valid JSON (no markdown): {"items":["...", "..."]}
 Rules:
 - Keep only: stable preferences/habits, project progress or technical decisions, important facts, repeated points.
 - Exclude: small talk, temporary chatter, one-off emotional fluctuations.
-- Each item must be concise and 1-2 sentences.`
+- Each item must be concise and 1-2 sentences.
+- If multiple items describe the same memory, merge them into one concise item.`
 
 const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(payload), {
@@ -109,8 +111,14 @@ const pickShortestRepresentative = (items: string[]) =>
     return left.length - right.length
   })[0]
 
+type ItemCluster = {
+  members: string[]
+  representative: string
+  representativeTokens: Set<string>
+}
+
 const clusterItems = (items: string[]) => {
-  const clusters: Array<{ members: string[]; tokenSets: Set<string>[] }> = []
+  const clusters: ItemCluster[] = []
 
   for (const item of items) {
     const tokens = tokenizeForSimilarity(item)
@@ -118,9 +126,8 @@ const clusterItems = (items: string[]) => {
 
     for (let index = 0; index < clusters.length; index += 1) {
       const cluster = clusters[index]
-      const isSimilar = cluster.tokenSets.some(
-        (existingTokens) => calculateJaccardSimilarity(tokens, existingTokens) >= CLUSTER_SIMILARITY_THRESHOLD,
-      )
+      const isSimilar =
+        calculateJaccardSimilarity(tokens, cluster.representativeTokens) >= CLUSTER_SIMILARITY_THRESHOLD
       if (isSimilar) {
         matchedIndex = index
         break
@@ -128,21 +135,28 @@ const clusterItems = (items: string[]) => {
     }
 
     if (matchedIndex >= 0) {
-      clusters[matchedIndex].members.push(item)
-      clusters[matchedIndex].tokenSets.push(tokens)
+      const cluster = clusters[matchedIndex]
+      cluster.members.push(item)
+      const shortest = pickShortestRepresentative(cluster.members)
+      cluster.representative = shortest
+      cluster.representativeTokens = tokenizeForSimilarity(shortest)
     } else {
-      clusters.push({ members: [item], tokenSets: [tokens] })
+      clusters.push({
+        members: [item],
+        representative: item,
+        representativeTokens: tokens,
+      })
     }
   }
 
-  return clusters.map((cluster) => pickShortestRepresentative(cluster.members))
+  return clusters.map((cluster) => cluster.representative)
 }
 
 const isSimilarToAny = (
   candidateTokens: Set<string>,
   targets: Set<string>[],
   threshold: number,
-): boolean => targets.some((tokens) => calculateJaccardSimilarity(candidateTokens, tokens) > threshold)
+): boolean => targets.some((tokens) => calculateJaccardSimilarity(candidateTokens, tokens) >= threshold)
 
 const parseItems = (output: string): string[] => {
   const start = output.indexOf('{')
@@ -277,6 +291,8 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .eq('is_deleted', false)
       .in('status', ['pending', 'confirmed'])
+      .order('updated_at', { ascending: false })
+      .limit(EXISTING_RECENT_LIMIT)
 
     if (existingError) {
       return jsonResponse({ error: '读取已有记忆失败' }, 500)
