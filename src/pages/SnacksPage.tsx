@@ -7,10 +7,14 @@ import type { SnackPost, SnackReply } from '../types'
 import {
   createSnackPost,
   createSnackReply,
+  fetchDeletedSnackReplies,
   fetchDeletedSnackPosts,
   fetchSnackPosts,
   fetchSnackReplies,
   fetchSnackRepliesByPost,
+  permanentlyDeleteSnackPost,
+  permanentlyDeleteSnackReply,
+  restoreSnackReply,
   restoreSnackPost,
   softDeleteSnackPost,
   softDeleteSnackReply,
@@ -73,8 +77,13 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
   const [pendingDeleteReply, setPendingDeleteReply] = useState<SnackReply | null>(null)
   const [showTrash, setShowTrash] = useState(false)
   const [trashPosts, setTrashPosts] = useState<SnackPost[]>([])
+  const [trashReplies, setTrashReplies] = useState<SnackReply[]>([])
   const [trashLoading, setTrashLoading] = useState(false)
   const [restoringPostId, setRestoringPostId] = useState<string | null>(null)
+  const [restoringReplyId, setRestoringReplyId] = useState<string | null>(null)
+  const [pendingPermanentDeletePost, setPendingPermanentDeletePost] = useState<SnackPost | null>(null)
+  const [pendingPermanentDeleteReply, setPendingPermanentDeleteReply] = useState<SnackReply | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [generatingPostId, setGeneratingPostId] = useState<string | null>(null)
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
 
@@ -106,8 +115,9 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     setTrashLoading(true)
     setError(null)
     try {
-      const list = await fetchDeletedSnackPosts()
-      setTrashPosts(list)
+      const [postList, replyList] = await Promise.all([fetchDeletedSnackPosts(), fetchDeletedSnackReplies()])
+      setTrashPosts(postList)
+      setTrashReplies(replyList)
     } catch (loadError) {
       console.warn('加载回收站失败', loadError)
       setError('回收站加载失败，请稍后重试。')
@@ -163,6 +173,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     }
     setPublishing(true)
     setError(null)
+    setNotice(null)
     try {
       const created = await createSnackPost(trimmed)
       setPosts((current) => [created, ...current])
@@ -182,6 +193,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     try {
       await softDeleteSnackPost(pendingDelete.id)
       setPosts((current) => current.filter((post) => post.id !== pendingDelete.id))
+      setNotice('已移入回收站')
       setPendingDelete(null)
     } catch (deleteError) {
       console.warn('删除零食记录失败', deleteError)
@@ -202,6 +214,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
           (reply) => reply.id !== pendingDeleteReply.id,
         ),
       }))
+      setNotice('已移入回收站')
       setPendingDeleteReply(null)
     } catch (deleteError) {
       console.warn('删除零食回复失败', deleteError)
@@ -216,12 +229,69 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
     try {
       await restoreSnackPost(postId)
       setTrashPosts((current) => current.filter((post) => post.id !== postId))
+      setNotice('恢复成功')
       await refreshPosts()
     } catch (restoreError) {
       console.warn('恢复零食记录失败', restoreError)
       setError('恢复失败，请稍后重试。')
     } finally {
       setRestoringPostId(null)
+    }
+  }
+
+  const handleRestoreReply = async (reply: SnackReply) => {
+    setRestoringReplyId(reply.id)
+    setError(null)
+    try {
+      await restoreSnackReply(reply.id)
+      setTrashReplies((current) => current.filter((item) => item.id !== reply.id))
+      setNotice('恢复成功')
+      if (posts.some((post) => post.id === reply.postId)) {
+        const refreshed = await fetchSnackRepliesByPost(reply.postId)
+        setRepliesByPost((current) => ({
+          ...current,
+          [reply.postId]: refreshed,
+        }))
+      }
+    } catch (restoreError) {
+      console.warn('恢复零食回复失败', restoreError)
+      setError('恢复回复失败，请稍后重试。')
+    } finally {
+      setRestoringReplyId(null)
+    }
+  }
+
+  const handlePermanentDeletePost = async () => {
+    if (!pendingPermanentDeletePost) {
+      return
+    }
+    setError(null)
+    try {
+      await permanentlyDeleteSnackPost(pendingPermanentDeletePost.id)
+      setPendingPermanentDeletePost(null)
+      setNotice('彻底删除成功')
+      await refreshTrashPosts()
+    } catch (deleteError) {
+      console.warn('彻底删除零食记录失败', deleteError)
+      setError('彻底删除失败，请稍后重试。')
+      setPendingPermanentDeletePost(null)
+    }
+  }
+
+  const handlePermanentDeleteReply = async () => {
+    if (!pendingPermanentDeleteReply) {
+      return
+    }
+    setError(null)
+    try {
+      await permanentlyDeleteSnackReply(pendingPermanentDeleteReply.id)
+      setPendingPermanentDeleteReply(null)
+      setNotice('彻底删除成功')
+      await refreshTrashPosts()
+    } catch (deleteError) {
+      console.warn('彻底删除零食回复失败', deleteError)
+      setError('彻底删除失败，请稍后重试。')
+      setPendingPermanentDeleteReply(null)
     }
   }
 
@@ -471,31 +541,72 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
         <button
           type="button"
           className="ghost compact-action"
-          onClick={() => setShowTrash((current) => !current)}
+          onClick={() => {
+            setShowTrash((current) => !current)
+            setNotice(null)
+          }}
         >
           {showTrash ? '返回列表' : '回收站'}
         </button>
       </header>
 
       {error ? <p className="error">{error}</p> : null}
+      {notice ? <p className="tips">{notice}</p> : null}
 
       {showTrash ? (
         <main className="snacks-feed">
           {trashLoading ? <p className="tips">回收站加载中…</p> : null}
-          {!trashLoading && trashPosts.length === 0 ? <p className="tips">回收站是空的。</p> : null}
+          {!trashLoading && trashPosts.length === 0 && trashReplies.length === 0 ? <p className="tips">回收站是空的。</p> : null}
           {trashPosts.map((post) => (
             <article key={post.id} className="post-card">
               <p className="post-content">{post.content}</p>
               <div className="post-footer">
                 <span>{formatChineseTime(post.updatedAt || post.createdAt)}</span>
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => void handleRestore(post.id)}
-                  disabled={restoringPostId === post.id}
-                >
-                  {restoringPostId === post.id ? '恢复中…' : '恢复'}
-                </button>
+                <div className="post-actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => void handleRestore(post.id)}
+                    disabled={restoringPostId === post.id}
+                  >
+                    {restoringPostId === post.id ? '恢复中…' : '恢复'}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost danger"
+                    onClick={() => setPendingPermanentDeletePost(post)}
+                  >
+                    彻底删除
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+          {trashReplies.map((reply) => (
+            <article key={reply.id} className="post-card">
+              <div className="post-header">
+                <span className="feed-badge">已删除回复</span>
+              </div>
+              <p className="post-content">{reply.content}</p>
+              <div className="post-footer">
+                <span>{formatChineseTime(reply.createdAt)}</span>
+                <div className="post-actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => void handleRestoreReply(reply)}
+                    disabled={restoringReplyId === reply.id}
+                  >
+                    {restoringReplyId === reply.id ? '恢复中…' : '恢复'}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost danger"
+                    onClick={() => setPendingPermanentDeleteReply(reply)}
+                  >
+                    彻底删除
+                  </button>
+                </div>
               </div>
             </article>
           ))}
@@ -643,6 +754,22 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
             cancelLabel="取消"
             onCancel={() => setPendingDeleteReply(null)}
             onConfirm={handleDeleteReply}
+          />
+          <ConfirmDialog
+            open={pendingPermanentDeletePost !== null}
+            title="确定彻底删除这条记录吗？此操作不可撤销。"
+            confirmLabel="彻底删除"
+            cancelLabel="取消"
+            onCancel={() => setPendingPermanentDeletePost(null)}
+            onConfirm={handlePermanentDeletePost}
+          />
+          <ConfirmDialog
+            open={pendingPermanentDeleteReply !== null}
+            title="确定彻底删除这条回复吗？此操作不可撤销。"
+            confirmLabel="彻底删除"
+            cancelLabel="取消"
+            onCancel={() => setPendingPermanentDeleteReply(null)}
+            onConfirm={handlePermanentDeleteReply}
           />
         </>
       )}
