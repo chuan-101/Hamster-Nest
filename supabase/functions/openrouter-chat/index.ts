@@ -14,7 +14,7 @@ type OpenRouterPayload = {
   reasoning?: boolean
   stream?: boolean
   isFirstMessage?: boolean
-  module?: 'snack-feed' | string
+  module?: 'snack-feed' | 'syzygy-feed' | string
 }
 
 type AuthUserResponse = {
@@ -65,6 +65,8 @@ const injectMemoryBlock = (messages: OpenAiMessage[], memoryMessage: OpenAiMessa
 
 const shouldInjectSnackFeedMemory = (payload: OpenRouterPayload) => payload.module === 'snack-feed'
 
+const shouldInjectSyzygyFeedMemory = (payload: OpenRouterPayload) => payload.module === 'syzygy-feed'
+
 const shouldInjectChitchatMemory = (payload: OpenRouterPayload) => Boolean(payload.isFirstMessage)
 
 const fetchConfirmedMemories = async (
@@ -105,7 +107,11 @@ const maybeInjectConfirmedMemory = async (
   authHeader: string,
   apiKeyHeader: string,
 ): Promise<OpenAiMessage[]> => {
-  if (!shouldInjectSnackFeedMemory(payload) && !shouldInjectChitchatMemory(payload)) {
+  if (
+    !shouldInjectSnackFeedMemory(payload)
+    && !shouldInjectSyzygyFeedMemory(payload)
+    && !shouldInjectChitchatMemory(payload)
+  ) {
     return messages
   }
 
