@@ -39,9 +39,22 @@ const buildCorsHeaders = (origin: string | null) => ({
   'Access-Control-Max-Age': '86400',
 })
 
-const buildMemoryMessage = (memories: string[]): OpenAiMessage => ({
+const PENDING_MEMORY_NOTE =
+  'Pending items are tentative. Use them as hints; do not treat them as guaranteed facts unless confirmed.'
+
+const buildMemoryMessage = (confirmedMemories: string[], pendingMemories: string[]): OpenAiMessage => ({
   role: 'system',
-  content: `MEMORY:\n${memories.map((content) => `- ${content}`).join('\n')}`,
+  content: [
+    PENDING_MEMORY_NOTE,
+    'MEMORY (CONFIRMED):',
+    ...(confirmedMemories.length > 0
+      ? confirmedMemories.map((content) => `- ${content}`)
+      : ['- (none)']),
+    'MEMORY (PENDING / tentative):',
+    ...(pendingMemories.length > 0
+      ? pendingMemories.map((content) => `- ${content}`)
+      : ['- (none)']),
+  ].join('\n'),
 })
 
 const injectMemoryBlock = (messages: OpenAiMessage[], memoryMessage: OpenAiMessage) => {
@@ -69,16 +82,17 @@ const shouldInjectSyzygyFeedMemory = (payload: OpenRouterPayload) => payload.mod
 
 const shouldInjectChitchatMemory = (payload: OpenRouterPayload) => Boolean(payload.isFirstMessage)
 
-const fetchConfirmedMemories = async (
+const fetchMemoriesByStatus = async (
   origin: string,
   authHeader: string,
   apikey: string,
   userId: string,
+  status: 'confirmed' | 'pending',
 ): Promise<string[]> => {
   const query = new URLSearchParams({
     select: 'content',
     user_id: `eq.${userId}`,
-    status: 'eq.confirmed',
+    status: `eq.${status}`,
     is_deleted: 'eq.false',
     order: 'updated_at.desc.nullslast,created_at.desc',
     limit: '50',
@@ -99,7 +113,7 @@ const fetchConfirmedMemories = async (
     .filter((content) => content.length > 0)
 }
 
-const maybeInjectConfirmedMemory = async (
+const maybeInjectMemory = async (
   payload: OpenRouterPayload,
   messages: OpenAiMessage[],
   userId: string,
@@ -116,11 +130,14 @@ const maybeInjectConfirmedMemory = async (
   }
 
   try {
-    const memories = await fetchConfirmedMemories(new URL(reqUrl).origin, authHeader, apiKeyHeader, userId)
-    if (memories.length === 0) {
+    const [confirmedMemories, pendingMemories] = await Promise.all([
+      fetchMemoriesByStatus(new URL(reqUrl).origin, authHeader, apiKeyHeader, userId, 'confirmed'),
+      fetchMemoriesByStatus(new URL(reqUrl).origin, authHeader, apiKeyHeader, userId, 'pending'),
+    ])
+    if (confirmedMemories.length === 0 && pendingMemories.length === 0) {
       return messages
     }
-    return injectMemoryBlock(messages, buildMemoryMessage(memories))
+    return injectMemoryBlock(messages, buildMemoryMessage(confirmedMemories, pendingMemories))
   } catch {
     // 如果记忆加载失败，则不注入，避免阻塞主流程。
     return messages
@@ -217,7 +234,7 @@ serve(async (req) => {
   let messages = payload.messages
 
   if (userId) {
-    messages = await maybeInjectConfirmedMemory(
+    messages = await maybeInjectMemory(
       payload,
       messages,
       userId,
