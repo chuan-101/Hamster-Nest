@@ -47,6 +47,7 @@ import SnacksPage from './pages/SnacksPage'
 import SyzygyFeedPage from './pages/SyzygyFeedPage'
 import MemoryVaultPage from './pages/MemoryVaultPage'
 import CheckinPage from './pages/CheckinPage'
+import ExportPage from './pages/ExportPage'
 import {
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
@@ -1330,6 +1331,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <CheckinPage user={user} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/export"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <ExportPage user={user} />
             </RequireAuth>
           }
         />

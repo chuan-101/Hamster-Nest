@@ -115,6 +115,9 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
           <button type="button" className="ghost" onClick={() => navigate('/settings')}>
             设置
           </button>
+          <button type="button" className="ghost" onClick={() => navigate('/export')}>
+            数据导出
+          </button>
         </div>
       </header>
 

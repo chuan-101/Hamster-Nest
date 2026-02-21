@@ -1,0 +1,45 @@
+.export-page {
+  width: min(840px, 100%);
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.export-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.export-header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.export-card {
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 14px;
+  background: var(--card-bg, #fff);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.export-card h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.export-card label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-button {
+  align-self: flex-start;
+}
