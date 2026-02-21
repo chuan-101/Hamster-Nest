@@ -18,6 +18,8 @@ type UserSettingsRow = {
 const SERVER_RECENT_LIMIT = 30
 const MIN_MEMORY_LENGTH = 8
 const MAX_INSERT_COUNT = 10
+const MAX_MERGED_ITEMS = 20
+const PENDING_CAP = 50
 const CLUSTER_SIMILARITY_THRESHOLD = 0.78
 const EXISTING_DEDUPE_THRESHOLD = 0.85
 const EXISTING_RECENT_LIMIT = 200
@@ -36,6 +38,18 @@ Rules:
 - Exclude: small talk, temporary chatter, one-off emotional fluctuations.
 - Each item must be concise and 1-2 sentences.
 - If multiple items describe the same memory, merge them into one concise item.`
+
+const MERGE_PROMPT = `You are given candidate long-term memory items. Many are duplicates or paraphrases.
+Merge items with the same meaning into one concise item.
+Return ONLY valid JSON (no markdown): {"items":["...", "..."]}
+
+Rules:
+- Keep only: stable preferences/habits, project progress or technical decisions, important facts, repeated points.
+- Exclude: small talk, temporary chatter, one-off emotional fluctuations.
+- Each item must be concise and 1-2 sentences.
+- Maximum ${MAX_MERGED_ITEMS} items.
+- Prefer specific wording when merging similar items.
+- No commentary, no markdown, no extra keys.`
 
 const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(payload), {
@@ -178,6 +192,79 @@ const parseItems = (output: string): string[] => {
   }
 }
 
+const callExtractionModel = async ({
+  modelId,
+  apiKey,
+  systemPrompt,
+  userPrompt,
+  maxTokens,
+}: {
+  modelId: string
+  apiKey: string
+  systemPrompt: string
+  userPrompt: string
+  maxTokens: number
+}) => {
+  const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: modelId,
+      temperature: 0.2,
+      max_tokens: maxTokens,
+      stream: false,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    }),
+  })
+
+  if (!upstream.ok) {
+    const errorText = await upstream.text()
+    return { error: errorText || '模型调用失败', status: upstream.status, items: [] as string[] }
+  }
+
+  const completion = (await upstream.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  const rawOutput = completion.choices?.[0]?.message?.content ?? ''
+  return { items: parseItems(rawOutput), error: null, status: 200 }
+}
+
+const enforcePendingCap = async (supabase: ReturnType<typeof createClient>, userId: string) => {
+  const { data: pendingRows, error: pendingError } = await supabase
+    .from('memory_entries')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .eq('is_deleted', false)
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+
+  if (pendingError) {
+    return { error: pendingError }
+  }
+
+  const overflowRows = (pendingRows ?? []).slice(PENDING_CAP)
+  if (overflowRows.length === 0) {
+    return { error: null }
+  }
+
+  const idsToDelete = overflowRows.map((row) => row.id)
+  const { error: softDeleteError } = await supabase
+    .from('memory_entries')
+    .update({ is_deleted: true })
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .in('id', idsToDelete)
+
+  return { error: softDeleteError }
+}
+
 serve(async (req) => {
   try {
     if (req.method === 'OPTIONS') {
@@ -256,34 +343,19 @@ serve(async (req) => {
       .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
       .join('\n')
 
-    const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openRouterApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: modelId,
-        temperature: 0.2,
-        max_tokens: 700,
-        stream: false,
-        messages: [
-          { role: 'system', content: EXTRACTION_PROMPT },
-          { role: 'user', content: `Conversation:\n${conversation}` },
-        ],
-      }),
+    const extractionResult = await callExtractionModel({
+      modelId,
+      apiKey: openRouterApiKey,
+      systemPrompt: EXTRACTION_PROMPT,
+      userPrompt: `Conversation:\n${conversation}`,
+      maxTokens: 700,
     })
 
-    if (!upstream.ok) {
-      const errorText = await upstream.text()
-      return jsonResponse({ error: errorText || '抽取模型调用失败' }, upstream.status)
+    if (extractionResult.error) {
+      return jsonResponse({ error: extractionResult.error || '抽取模型调用失败' }, extractionResult.status)
     }
 
-    const completion = (await upstream.json()) as {
-      choices?: Array<{ message?: { content?: string } }>
-    }
-    const rawOutput = completion.choices?.[0]?.message?.content ?? ''
-    const extracted = parseItems(rawOutput)
+    const extracted = extractionResult.items
 
     const { data: existingRows, error: existingError } = await supabase
       .from('memory_entries')
@@ -298,7 +370,30 @@ serve(async (req) => {
       return jsonResponse({ error: '读取已有记忆失败' }, 500)
     }
 
-    const clusteredItems = clusterItems(extracted)
+    const pendingContext = (existingRows ?? [])
+      .map((row) => (typeof row.content === 'string' ? normalizeContent(row.content) : ''))
+      .filter((content) => content.length >= MIN_MEMORY_LENGTH)
+      .slice(0, PENDING_CAP)
+
+    const mergeInput = {
+      rawItems: extracted,
+      existingPending: pendingContext,
+    }
+
+    const mergeResult = await callExtractionModel({
+      modelId,
+      apiKey: openRouterApiKey,
+      systemPrompt: MERGE_PROMPT,
+      userPrompt: `Merge these memory candidates and existing pending memories:\n${JSON.stringify(mergeInput)}`,
+      maxTokens: 700,
+    })
+
+    if (mergeResult.error) {
+      return jsonResponse({ error: mergeResult.error || '合并模型调用失败' }, mergeResult.status)
+    }
+
+    const merged = mergeResult.items.slice(0, MAX_MERGED_ITEMS)
+    const clusteredItems = clusterItems(merged)
     const existingTokenSets = (existingRows ?? [])
       .map((row) => (typeof row.content === 'string' ? tokenizeForSimilarity(row.content) : new Set<string>()))
       .filter((tokens) => tokens.size > 0)
@@ -359,6 +454,11 @@ serve(async (req) => {
       if (insertError) {
         return jsonResponse({ error: '写入记忆失败' }, 500)
       }
+    }
+
+    const pendingCapResult = await enforcePendingCap(supabase, user.id)
+    if (pendingCapResult.error) {
+      return jsonResponse({ error: '清理待确认记忆失败' }, 500)
     }
 
     return jsonResponse({
