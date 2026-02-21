@@ -288,6 +288,15 @@ const ChatPage = ({
               >
                 设置
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenHeaderMenu(false)
+                  navigate('/export')
+                }}
+              >
+                数据导出
+              </button>
             </div>
           ) : null}
         </div>
