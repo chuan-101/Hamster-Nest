@@ -8,7 +8,8 @@ type OpenAiMessage = {
 
 type OpenRouterPayload = {
   messages: OpenAiMessage[]
-  model: string
+  model?: string
+  modelId?: string
   conversationId?: string
   temperature?: number
   top_p?: number
@@ -156,6 +157,29 @@ const estimateModelContextLimit = (model: string) => {
     return 1000000
   }
   return 32000
+}
+
+
+const normalizeModelId = (modelId: string | null | undefined) => {
+  const normalized = modelId?.trim()
+  return normalized && normalized.length > 0 ? normalized : null
+}
+
+const resolveRequestModelId = async (
+  payload: OpenRouterPayload,
+  reqUrl: string,
+  authHeader: string,
+  apiKeyHeader: string,
+  userId: string,
+) => {
+  const explicitModelId = normalizeModelId(payload.modelId) ?? normalizeModelId(payload.model)
+  if (explicitModelId) {
+    return explicitModelId
+  }
+
+  const origin = new URL(reqUrl).origin
+  const userSettings = await fetchUserCompressionSettings(origin, authHeader, apiKeyHeader, userId)
+  return normalizeModelId(userSettings?.default_model) ?? 'openrouter/auto'
 }
 
 const fetchConversationMessages = async (
@@ -375,7 +399,7 @@ const maybeCompressRuntimeContext = async (
       content: message.content,
     }))
     const contextEstimate = estimateTotalTokens([...systemMessages, ...fullAsMessages])
-    const triggerLimit = Math.floor(estimateModelContextLimit(payload.model) * compressionTriggerRatio)
+    const triggerLimit = Math.floor(estimateModelContextLimit(payload.model ?? 'openrouter/auto') * compressionTriggerRatio)
     if (contextEstimate < triggerLimit) {
       return messages
     }
@@ -581,14 +605,20 @@ serve(async (req) => {
     })
   }
 
-  const { model, temperature, top_p, max_tokens, reasoning } = payload
+  const { temperature, top_p, max_tokens, reasoning } = payload
   const stream = payload.stream ?? true
+  const resolvedModelId = await resolveRequestModelId(payload, req.url, authHeader, apiKeyHeader, userId)
   let messages = payload.messages
+  const resolvedPayload: OpenRouterPayload = {
+    ...payload,
+    model: resolvedModelId,
+    modelId: resolvedModelId,
+  }
 
   if (userId) {
-    messages = await maybeInjectMemory(payload, messages, userId, req.url, authHeader, apiKeyHeader)
+    messages = await maybeInjectMemory(resolvedPayload, messages, userId, req.url, authHeader, apiKeyHeader)
     messages = await maybeCompressRuntimeContext(
-      payload,
+      resolvedPayload,
       messages,
       req.url,
       authHeader,
@@ -606,7 +636,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
+        model: resolvedModelId,
         messages,
         temperature,
         top_p,

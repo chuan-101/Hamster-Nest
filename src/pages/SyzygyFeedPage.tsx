@@ -300,6 +300,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
   const buildRequestBody = (messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => {
     const requestBody: Record<string, unknown> = {
       model: snackAiConfig.model,
+      modelId: snackAiConfig.model,
       module: 'syzygy-feed',
       messages: messagesPayload,
       temperature: snackAiConfig.temperature,
