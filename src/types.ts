@@ -118,3 +118,10 @@ export type MemoryEntry = {
   updatedAt: string
   isDeleted: boolean
 }
+
+export type CheckinEntry = {
+  id: string
+  userId: string
+  checkinDate: string
+  createdAt: string
+}

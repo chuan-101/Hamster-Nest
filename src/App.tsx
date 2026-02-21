@@ -1319,6 +1319,7 @@ const App = () => {
                 onSelectReasoning={handleSessionReasoningOverrideChange}
                 onArchiveSession={handleSessionArchiveStateChange}
                 onActiveSessionChange={setActiveChatSessionId}
+                user={user}
               />
             </RequireAuth>
           }
@@ -1466,6 +1467,7 @@ const ChatRoute = ({
   onSelectReasoning,
   onArchiveSession,
   onActiveSessionChange,
+  user,
 }: {
   sessions: ChatSession[]
   messages: ChatMessage[]
@@ -1489,6 +1491,7 @@ const ChatRoute = ({
   onSelectReasoning: (sessionId: string, reasoning: boolean | null) => Promise<void>
   onArchiveSession: (sessionId: string, isArchived: boolean) => Promise<void>
   onActiveSessionChange: (sessionId: string) => void
+  user: User | null
 }) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
@@ -1594,6 +1597,7 @@ const ChatRoute = ({
         onSelectReasoning={(reasoning) =>
           onSelectReasoning(activeSession.id, reasoning)
         }
+        user={user}
       />
       <SessionsDrawer
         open={drawerOpen}
