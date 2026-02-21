@@ -786,6 +786,7 @@ const App = () => {
           const isClaudeModel = (model: string) => /claude|anthropic/i.test(model)
           const requestBody: Record<string, unknown> = {
             model: effectiveModel,
+            conversationId: sessionId,
             messages: messagesPayload,
             temperature: paramsSnapshot.temperature,
             top_p: paramsSnapshot.top_p,

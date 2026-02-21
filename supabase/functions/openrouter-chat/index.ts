@@ -8,6 +8,7 @@ type OpenAiMessage = {
 type OpenRouterPayload = {
   messages: OpenAiMessage[]
   model: string
+  conversationId?: string
   temperature?: number
   top_p?: number
   max_tokens?: number
@@ -15,6 +16,18 @@ type OpenRouterPayload = {
   stream?: boolean
   isFirstMessage?: boolean
   module?: 'snack-feed' | 'syzygy-feed' | string
+}
+
+type StoredMessageRow = {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
+type CompressionCacheRow = {
+  conversation_id: string
+  compressed_up_to_message_id: string | null
+  summary_text: string
 }
 
 type AuthUserResponse = {
@@ -81,6 +94,254 @@ const shouldInjectSnackFeedMemory = (payload: OpenRouterPayload) => payload.modu
 const shouldInjectSyzygyFeedMemory = (payload: OpenRouterPayload) => payload.module === 'syzygy-feed'
 
 const shouldInjectChitchatMemory = (payload: OpenRouterPayload) => Boolean(payload.isFirstMessage)
+const shouldApplyRuntimeCompression = (payload: OpenRouterPayload) =>
+  !payload.module || payload.module === 'chitchat'
+
+const RECENT_UNCOMPRESSED_MESSAGES = 20
+const CONTEXT_TRIGGER_RATIO = 0.65
+const TOKEN_OVERHEAD_PER_MESSAGE = 8
+const SUMMARY_MARKER = 'CHAT SUMMARY:'
+const SUMMARIZER_MODEL = 'openai/gpt-4o-mini'
+
+const estimateMessageTokens = (content: string) => {
+  const trimmed = content.trim()
+  if (!trimmed) {
+    return TOKEN_OVERHEAD_PER_MESSAGE
+  }
+  const chineseChars = (trimmed.match(/[\u4e00-\u9fff]/g) ?? []).length
+  const englishWords = (trimmed.match(/[A-Za-z0-9_]+/g) ?? []).length
+  const otherChars = Math.max(trimmed.length - chineseChars, 0)
+  return Math.ceil(chineseChars * 1.7 + englishWords * 1.1 + otherChars * 0.3 + TOKEN_OVERHEAD_PER_MESSAGE)
+}
+
+const estimateTotalTokens = (messages: OpenAiMessage[]) =>
+  messages.reduce((sum, message) => sum + estimateMessageTokens(message.content), 0)
+
+const estimateModelContextLimit = (model: string) => {
+  const normalized = model.toLowerCase()
+  if (normalized.includes('gpt-4.1') || normalized.includes('gpt-4o')) {
+    return 128000
+  }
+  if (normalized.includes('claude-3') || normalized.includes('claude-sonnet-4')) {
+    return 200000
+  }
+  if (normalized.includes('gemini-1.5') || normalized.includes('gemini-2')) {
+    return 1000000
+  }
+  return 32000
+}
+
+const fetchConversationMessages = async (
+  origin: string,
+  authHeader: string,
+  apikey: string,
+  conversationId: string,
+): Promise<StoredMessageRow[]> => {
+  const query = new URLSearchParams({
+    select: 'id,role,content',
+    session_id: `eq.${conversationId}`,
+    order: 'client_created_at.asc.nullslast,created_at.asc',
+  })
+  const response = await fetch(`${origin}/rest/v1/messages?${query.toString()}`, {
+    headers: {
+      apikey,
+      Authorization: authHeader,
+    },
+  })
+  if (!response.ok) {
+    throw new Error('load messages failed')
+  }
+  const rows = (await response.json()) as Array<Record<string, unknown>>
+  return rows
+    .map((row) => ({
+      id: typeof row.id === 'string' ? row.id : '',
+      role: row.role === 'assistant' || row.role === 'system' ? row.role : 'user',
+      content: typeof row.content === 'string' ? row.content : '',
+    }))
+    .filter((row) => row.id && row.content)
+}
+
+const fetchCompressionCache = async (
+  origin: string,
+  authHeader: string,
+  apikey: string,
+  conversationId: string,
+): Promise<CompressionCacheRow | null> => {
+  const query = new URLSearchParams({
+    select: 'conversation_id,compressed_up_to_message_id,summary_text',
+    conversation_id: `eq.${conversationId}`,
+    limit: '1',
+  })
+  const response = await fetch(`${origin}/rest/v1/compression_cache?${query.toString()}`, {
+    headers: {
+      apikey,
+      Authorization: authHeader,
+    },
+  })
+  if (!response.ok) {
+    return null
+  }
+  const rows = (await response.json()) as CompressionCacheRow[]
+  return rows[0] ?? null
+}
+
+const upsertCompressionCache = async (
+  origin: string,
+  authHeader: string,
+  apikey: string,
+  conversationId: string,
+  compressedUpToMessageId: string,
+  summaryText: string,
+) => {
+  await fetch(`${origin}/rest/v1/compression_cache`, {
+    method: 'POST',
+    headers: {
+      apikey,
+      Authorization: authHeader,
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      compressed_up_to_message_id: compressedUpToMessageId,
+      summary_text: summaryText,
+      updated_at: new Date().toISOString(),
+    }),
+  })
+}
+
+const summarizeCompressedWindow = async (
+  apiKey: string,
+  existingSummary: string,
+  newMessages: StoredMessageRow[],
+) => {
+  const chunkText = newMessages
+    .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
+    .join('\n')
+  const prompt = [
+    '你是对话压缩器。请生成简洁中文摘要，保留：用户偏好、已做决定、承诺事项、未决问题。',
+    '不要改写或补充系统设定/人格。输出纯文本，不要 markdown。',
+    '摘要长度控制在 800 字以内。',
+    existingSummary ? `已有摘要：\n${existingSummary}` : '',
+    `新增对话片段：\n${chunkText}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: SUMMARIZER_MODEL,
+      stream: false,
+      max_tokens: 550,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: '你负责维护对话运行时摘要。只输出最终摘要文本。' },
+        { role: 'user', content: prompt },
+      ],
+    }),
+  })
+  if (!response.ok) {
+    throw new Error('summarizer failed')
+  }
+  const payload = (await response.json()) as Record<string, unknown>
+  const choice = (payload.choices as Array<Record<string, unknown>> | undefined)?.[0]
+  const message = (choice?.message as Record<string, unknown> | undefined) ?? {}
+  return typeof message.content === 'string' ? message.content.trim() : ''
+}
+
+const maybeCompressRuntimeContext = async (
+  payload: OpenRouterPayload,
+  messages: OpenAiMessage[],
+  reqUrl: string,
+  authHeader: string,
+  apiKeyHeader: string,
+  openRouterApiKey: string,
+): Promise<OpenAiMessage[]> => {
+  if (!shouldApplyRuntimeCompression(payload) || !payload.conversationId) {
+    return messages
+  }
+
+  const systemMessages = messages.filter((message) => message.role === 'system')
+  const origin = new URL(reqUrl).origin
+
+  try {
+    const fullHistory = await fetchConversationMessages(
+      origin,
+      authHeader,
+      apiKeyHeader,
+      payload.conversationId,
+    )
+    if (fullHistory.length <= RECENT_UNCOMPRESSED_MESSAGES) {
+      return messages
+    }
+
+    const fullAsMessages: OpenAiMessage[] = fullHistory.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))
+    const contextEstimate = estimateTotalTokens([...systemMessages, ...fullAsMessages])
+    const triggerLimit = Math.floor(estimateModelContextLimit(payload.model) * CONTEXT_TRIGGER_RATIO)
+    if (contextEstimate < triggerLimit) {
+      return messages
+    }
+
+    const compressUntilIndex = fullHistory.length - RECENT_UNCOMPRESSED_MESSAGES - 1
+    if (compressUntilIndex < 0) {
+      return messages
+    }
+    const targetBoundaryId = fullHistory[compressUntilIndex].id
+
+    const cache = await fetchCompressionCache(origin, authHeader, apiKeyHeader, payload.conversationId)
+    const targetBoundaryIndex = fullHistory.findIndex((message) => message.id === targetBoundaryId)
+    const cacheBoundaryIndex = cache?.compressed_up_to_message_id
+      ? fullHistory.findIndex((message) => message.id === cache.compressed_up_to_message_id)
+      : -1
+    let summaryText = cache?.summary_text ?? ''
+    if (!cache || cacheBoundaryIndex < targetBoundaryIndex) {
+      const newChunkStart = Math.max(cacheBoundaryIndex + 1, 0)
+      const newCompressibleMessages = fullHistory.slice(newChunkStart, targetBoundaryIndex + 1)
+      if (newCompressibleMessages.length > 0) {
+        const refreshedSummary = await summarizeCompressedWindow(
+          openRouterApiKey,
+          summaryText,
+          newCompressibleMessages,
+        )
+        if (refreshedSummary) {
+          summaryText = refreshedSummary
+          await upsertCompressionCache(
+            origin,
+            authHeader,
+            apiKeyHeader,
+            payload.conversationId,
+            targetBoundaryId,
+            summaryText,
+          )
+        }
+      }
+    }
+
+    const recentMessages = fullHistory.slice(targetBoundaryIndex + 1).map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))
+
+    if (!summaryText) {
+      return [...systemMessages, ...recentMessages]
+    }
+    return [
+      ...systemMessages,
+      { role: 'system', content: `${SUMMARY_MARKER}\n${summaryText}` },
+      ...recentMessages,
+    ]
+  } catch {
+    return messages
+  }
+}
 
 const fetchMemoriesByStatus = async (
   origin: string,
@@ -234,13 +495,14 @@ serve(async (req) => {
   let messages = payload.messages
 
   if (userId) {
-    messages = await maybeInjectMemory(
+    messages = await maybeInjectMemory(payload, messages, userId, req.url, authHeader, apiKeyHeader)
+    messages = await maybeCompressRuntimeContext(
       payload,
       messages,
-      userId,
       req.url,
       authHeader,
       apiKeyHeader,
+      apiKey,
     )
   }
 
