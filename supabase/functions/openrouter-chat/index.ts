@@ -218,7 +218,7 @@ const upsertCompressionCache = async (
   compressedUpToMessageId: string,
   summaryText: string,
 ) => {
-  await fetch(`${origin}/rest/v1/compression_cache`, {
+  const response = await fetch(`${origin}/rest/v1/compression_cache`, {
     method: 'POST',
     headers: {
       apikey,
@@ -233,6 +233,11 @@ const upsertCompressionCache = async (
       updated_at: new Date().toISOString(),
     }),
   })
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('compression_cache upsert failed', error)
+  }
 }
 
 const fetchUserCompressionSettings = async (
@@ -314,7 +319,8 @@ const maybeCompressRuntimeContext = async (
   openRouterApiKey: string,
   userId: string,
 ): Promise<OpenAiMessage[]> => {
-  if (!shouldApplyRuntimeCompression(payload) || !payload.conversationId) {
+  const conversationId = payload.conversationId?.trim()
+  if (!shouldApplyRuntimeCompression(payload) || !conversationId) {
     return messages
   }
 
@@ -342,7 +348,7 @@ const maybeCompressRuntimeContext = async (
       origin,
       authHeader,
       apiKeyHeader,
-      payload.conversationId,
+      conversationId,
     )
     if (fullHistory.length <= keepRecentMessages) {
       return messages
@@ -364,7 +370,7 @@ const maybeCompressRuntimeContext = async (
     }
     const targetBoundaryId = fullHistory[compressUntilIndex].id
 
-    const cache = await fetchCompressionCache(origin, authHeader, apiKeyHeader, payload.conversationId)
+    const cache = await fetchCompressionCache(origin, authHeader, apiKeyHeader, conversationId)
     const targetBoundaryIndex = fullHistory.findIndex((message) => message.id === targetBoundaryId)
     const cacheBoundaryIndex = cache?.compressed_up_to_message_id
       ? fullHistory.findIndex((message) => message.id === cache.compressed_up_to_message_id)
@@ -386,7 +392,7 @@ const maybeCompressRuntimeContext = async (
             origin,
             authHeader,
             apiKeyHeader,
-            payload.conversationId,
+            conversationId,
             targetBoundaryId,
             summaryText,
           )
