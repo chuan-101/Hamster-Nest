@@ -41,6 +41,7 @@ export type UserSettings = {
   summarizerModel: string | null
   memoryExtractModel: string | null
   memoryMergeEnabled: boolean
+  memoryAutoExtractEnabled: boolean
   temperature: number
   topP: number
   maxTokens: number

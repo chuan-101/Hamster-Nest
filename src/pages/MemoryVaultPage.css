@@ -77,6 +77,13 @@
   margin: 0;
 }
 
+.memory-toggle-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
 .merge-toggle {
   display: inline-flex;
   align-items: center;
