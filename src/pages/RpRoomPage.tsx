@@ -345,15 +345,20 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
         break
       }
       buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
+      const events = buffer.split('\n\n')
+      buffer = events.pop() ?? ''
 
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed.startsWith('data:')) {
+      for (const event of events) {
+        const dataLine = event
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.replace(/^data:\s*/, ''))
+          .join('\n')
+
+        if (!dataLine) {
           continue
         }
-        const dataLine = trimmed.replace(/^data:\s*/, '')
         if (dataLine === '[DONE]') {
           done = true
           break
@@ -366,7 +371,10 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
           const choice = ((payloadLine.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined) ?? {}
           const delta = (choice.delta as Record<string, unknown> | undefined) ?? {}
           const contentDelta = typeof delta.content === 'string' ? delta.content : ''
-          const reasoningDelta = collectReasoning(delta)
+          const reasoningDelta =
+            typeof delta.reasoning === 'string' && delta.reasoning.length > 0
+              ? delta.reasoning
+              : collectReasoning(delta)
           if (contentDelta) {
             finalContent += contentDelta
           }

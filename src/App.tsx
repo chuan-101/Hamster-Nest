@@ -940,14 +940,18 @@ const App = () => {
               break
             }
             buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() ?? ''
-            for (const line of lines) {
-              const trimmed = line.trim()
-              if (!trimmed.startsWith('data:')) {
+            const events = buffer.split('\n\n')
+            buffer = events.pop() ?? ''
+            for (const event of events) {
+              const data = event
+                .split('\n')
+                .map((line) => line.trim())
+                .filter((line) => line.startsWith('data:'))
+                .map((line) => line.replace(/^data:\s*/, ''))
+                .join('\n')
+              if (!data) {
                 continue
               }
-              const data = trimmed.replace(/^data:\s*/, '')
               if (data === '[DONE]') {
                 done = true
                 break
@@ -959,10 +963,18 @@ const App = () => {
                 if (payload?.model) {
                   actualModel = payload.model
                 }
+                const explicitReasoning =
+                  typeof deltaPayload?.reasoning === 'string' && deltaPayload.reasoning.length > 0
+                    ? deltaPayload.reasoning
+                    : ''
+                if (explicitReasoning) {
+                  appendReasoningDelta(explicitReasoning, 'reasoning')
+                  scheduleFlush()
+                }
                 const deltaReasoning = collectReasoningFromObject(
                   deltaPayload as Record<string, unknown>,
                 )
-                if (deltaReasoning.text) {
+                if (deltaReasoning.text && deltaReasoning.text !== explicitReasoning) {
                   appendReasoningDelta(deltaReasoning.text, deltaReasoning.type)
                   scheduleFlush()
                 }
