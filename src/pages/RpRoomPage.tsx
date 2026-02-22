@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate, useParams } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useEnabledModels } from '../hooks/useEnabledModels'
 import {
   createRpMessage,
   createRpNpcCard,
@@ -36,7 +37,7 @@ const NPC_MAX_ENABLED = 3
 const createEmptyNpcForm = (): NpcFormState => ({
   displayName: '',
   systemPrompt: '',
-  model: 'openai/gpt-4.1-mini',
+  model: '',
   temperature: '',
   topP: '',
   apiBaseUrl: '',
@@ -69,6 +70,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const [pendingDeleteNpc, setPendingDeleteNpc] = useState<RpNpcCard | null>(null)
   const [deletingNpcId, setDeletingNpcId] = useState<string | null>(null)
   const [selectedNpcId, setSelectedNpcId] = useState('')
+  const [roomDefaultModelInput, setRoomDefaultModelInput] = useState('')
+  const { enabledModelIds, enabledModelOptions } = useEnabledModels(user)
   const playerName = room?.playerDisplayName?.trim() ? room.playerDisplayName.trim() : '串串'
   const isDashboardPage = mode === 'dashboard'
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -120,6 +123,10 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setPlayerDisplayNameInput(room.playerDisplayName?.trim() || '串串')
     setPlayerAvatarUrlInput(room.playerAvatarUrl ?? '')
     setWorldbookTextInput(room.worldbookText ?? '')
+    const rpDefaultModelId = typeof room.settings?.rp_default_model_id === 'string'
+      ? room.settings.rp_default_model_id
+      : ''
+    setRoomDefaultModelInput(rpDefaultModelId)
   }, [room])
 
   useEffect(() => {
@@ -211,11 +218,15 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setNotice(null)
     const normalizedDisplayName = playerDisplayNameInput.trim() || '串串'
     const normalizedAvatar = playerAvatarUrlInput.trim()
+    const mergedSettings = {
+      ...(room.settings ?? {}),
+      rp_default_model_id: roomDefaultModelInput.trim() || null,
+    }
     try {
       const updated = await updateRpSessionDashboard(room.id, {
         playerDisplayName: normalizedDisplayName,
         playerAvatarUrl: normalizedAvatar,
-        settings: room.settings ?? {},
+        settings: mergedSettings,
       })
       setRoom(updated)
       setNotice('保存成功')
@@ -291,7 +302,10 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
 
   const startCreateNpc = () => {
     setEditingNpcId('new')
-    setNpcForm(createEmptyNpcForm())
+    setNpcForm((current) => ({
+      ...createEmptyNpcForm(),
+      model: enabledModelIds[0] ?? current.model,
+    }))
   }
 
   const startEditNpc = (card: RpNpcCard) => {
@@ -299,7 +313,12 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setNpcForm({
       displayName: card.displayName,
       systemPrompt: card.systemPrompt ?? '',
-      model: typeof card.modelConfig.model === 'string' ? card.modelConfig.model : '',
+      model:
+        typeof card.modelConfig.model_id === 'string'
+          ? card.modelConfig.model_id
+          : typeof card.modelConfig.model === 'string'
+            ? card.modelConfig.model
+            : '',
       temperature: typeof card.modelConfig.temperature === 'number' ? String(card.modelConfig.temperature) : '',
       topP: typeof card.modelConfig.top_p === 'number' ? String(card.modelConfig.top_p) : '',
       apiBaseUrl: typeof card.apiConfig.base_url === 'string' ? card.apiConfig.base_url : '',
@@ -327,7 +346,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
 
     const modelConfig: Record<string, unknown> = {}
     if (npcForm.model.trim()) {
-      modelConfig.model = npcForm.model.trim()
+      modelConfig.model_id = npcForm.model.trim()
     }
     if (npcForm.temperature.trim()) {
       modelConfig.temperature = Number(npcForm.temperature)
@@ -367,7 +386,10 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
         setNpcCards((current) => current.map((item) => (item.id === editingNpcId ? updated : item)))
       }
       setEditingNpcId(null)
-      setNpcForm(createEmptyNpcForm())
+      setNpcForm((current) => ({
+        ...createEmptyNpcForm(),
+        model: enabledModelIds[0] ?? current.model,
+      }))
       setNotice('保存成功')
     } catch (saveError) {
       console.warn('保存 NPC 角色卡失败', saveError)
@@ -376,6 +398,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       setSavingNpc(false)
     }
   }
+
+  const editingModelEnabled = npcForm.model.trim() ? enabledModelIds.includes(npcForm.model.trim()) : true
 
   const handleToggleNpcEnabled = async (card: RpNpcCard) => {
     if (card.enabled) {
@@ -468,7 +492,27 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
             placeholder="https://example.com/avatar.png"
           />
         </label>
-        <p className="rp-dashboard-helper">默认模型/配置：当前为占位区，后续扩展房间级配置。</p>
+        <label>
+          默认模型
+          <select
+            value={roomDefaultModelInput}
+            onChange={(event) => setRoomDefaultModelInput(event.target.value)}
+            disabled={enabledModelOptions.length === 0}
+          >
+            {enabledModelOptions.length === 0 ? <option value="">请先去模型库启用模型</option> : <option value="">跟随系统（未设置）</option>}
+            {enabledModelOptions.map((model) => (
+              <option key={model.id} value={model.id}>{model.label}</option>
+            ))}
+          </select>
+        </label>
+        {enabledModelOptions.length === 0 ? (
+          <div className="rp-model-empty-hint">
+            <p className="rp-dashboard-helper">请先去模型库启用模型</p>
+            <button type="button" className="ghost" onClick={() => navigate('/settings')}>
+              前往模型库
+            </button>
+          </div>
+        ) : null}
         <button type="button" className="primary" onClick={() => void handleSaveRoomSettings()} disabled={savingRoomSettings}>
           {savingRoomSettings ? '保存中…' : '保存'}
         </button>
@@ -488,7 +532,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
               <div>
                 <p className="rp-npc-name">{card.displayName}</p>
                 <p className="rp-dashboard-helper">状态：{card.enabled ? '已启用' : '已禁用'}</p>
-                <p className="rp-dashboard-helper">模型：{typeof card.modelConfig.model === 'string' ? card.modelConfig.model : '未设置'}</p>
+                <p className="rp-dashboard-helper">模型：{typeof card.modelConfig.model_id === 'string' ? card.modelConfig.model_id : typeof card.modelConfig.model === 'string' ? card.modelConfig.model : '未设置'}</p>
               </div>
               <div className="rp-npc-actions">
                 <button type="button" className="ghost" onClick={() => void handleToggleNpcEnabled(card)}>
@@ -531,12 +575,25 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
               <select
                 value={npcForm.model}
                 onChange={(event) => setNpcForm((current) => ({ ...current, model: event.target.value }))}
+                disabled={enabledModelOptions.length === 0}
               >
-                <option value="openai/gpt-4.1-mini">openai/gpt-4.1-mini</option>
-                <option value="openai/gpt-4o-mini">openai/gpt-4o-mini</option>
-                <option value="google/gemini-2.0-flash-001">google/gemini-2.0-flash-001</option>
+                {enabledModelOptions.length === 0 ? <option value="">请先去模型库启用模型</option> : <option value="">继承房间默认模型</option>}
+                {enabledModelOptions.map((model) => (
+                  <option key={model.id} value={model.id}>{model.label}</option>
+                ))}
               </select>
             </label>
+            {!editingModelEnabled && npcForm.model.trim() ? (
+              <p className="rp-model-warning">当前：{npcForm.model.trim()}（未启用）</p>
+            ) : null}
+            {enabledModelOptions.length === 0 ? (
+              <div className="rp-model-empty-hint">
+                <p className="rp-dashboard-helper">请先去模型库启用模型</p>
+                <button type="button" className="ghost" onClick={() => navigate('/settings')}>
+                  前往模型库
+                </button>
+              </div>
+            ) : null}
             <div className="rp-npc-form-grid">
               <label>
                 temperature

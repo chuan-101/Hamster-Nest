@@ -215,7 +215,8 @@
 }
 
 .rp-dashboard-section input,
-.rp-dashboard-section textarea {
+.rp-dashboard-section textarea,
+.rp-dashboard-section select {
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   padding: 8px 10px;
@@ -333,6 +334,29 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.rp-model-empty-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rp-model-empty-hint .ghost {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.rp-model-warning {
+  margin: 0;
+  font-size: 12px;
+  color: #b45309;
 }
 
 @media (max-width: 640px) {
