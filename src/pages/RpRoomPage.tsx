@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate, useParams } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -28,6 +28,18 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
   const [sending, setSending] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RpMessage | null>(null)
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
+  const playerName = room?.playerDisplayName?.trim() ? room.playerDisplayName.trim() : '串串'
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  const resizeComposer = () => {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      return
+    }
+    textarea.style.height = 'auto'
+    const nextHeight = Math.min(textarea.scrollHeight, 144)
+    textarea.style.height = `${nextHeight}px`
+  }
 
   useEffect(() => {
     const loadRoom = async () => {
@@ -78,6 +90,10 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
     void loadMessages()
   }, [room, user])
 
+  useEffect(() => {
+    resizeComposer()
+  }, [draft])
+
   const handleSend = async () => {
     if (!room || !user || sending) {
       return
@@ -93,7 +109,7 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
       const message = await createRpMessage(
         room.id,
         user.id,
-        room.playerDisplayName?.trim() ? room.playerDisplayName : '串串',
+        playerName,
         content,
       )
       setMessages((current) => [...current, message])
@@ -150,61 +166,80 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
   return (
     <div className="rp-room-page">
       <header className="rp-room-header">
-        <div>
-          <h1>{room.title || '未命名房间'}</h1>
-        </div>
         <button type="button" className="ghost" onClick={() => navigate('/rp')}>
           返回
         </button>
+        <h1>{room.title?.trim() || '新房间'}</h1>
+        <div className="rp-room-header-slot" aria-hidden />
       </header>
 
-      <section className="rp-room-timeline">
-        {notice ? <p className="tips">{notice}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+      <div className="rp-room-body">
+        <section className="rp-room-main">
+          <section className="rp-room-timeline">
+            {notice ? <p className="tips">{notice}</p> : null}
+            {error ? <p className="error">{error}</p> : null}
 
-        {messagesLoading ? <p className="tips">时间线加载中…</p> : null}
-        {!messagesLoading && messages.length === 0 ? <p className="tips">还没有消息，先说点什么吧。</p> : null}
+            {messagesLoading ? <p className="tips">时间线加载中…</p> : null}
+            {!messagesLoading && messages.length === 0 ? <p className="tips">还没有消息，先说点什么吧。</p> : null}
 
-        <ul className="rp-message-list">
-          {messages.map((message) => (
-            <li key={message.id} className="rp-message-item">
-              <div className="rp-message-top">
-                <strong>{message.role}</strong>
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => setPendingDelete(message)}
-                  disabled={Boolean(deletingMessageId)}
-                >
-                  删除
-                </button>
-              </div>
-              <p>{message.content}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
+            <ul className="rp-message-list">
+              {messages.map((message) => {
+                const isPlayer = message.role === playerName
+                return (
+                  <li key={message.id} className={`rp-message ${isPlayer ? 'out' : 'in'}`}>
+                    <div className="rp-bubble">
+                      <p className="rp-speaker">{message.role}</p>
+                      <p>{message.content}</p>
+                    </div>
+                    <div className="rp-message-actions">
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => setPendingDelete(message)}
+                        disabled={Boolean(deletingMessageId)}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
 
-      <section className="rp-composer">
-        <textarea
-          placeholder="输入消息内容"
-          rows={3}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing) {
-              return
-            }
-            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-              event.preventDefault()
-              void handleSend()
-            }
-          }}
-        />
-        <button type="button" className="primary" onClick={() => void handleSend()} disabled={sending}>
-          {sending ? '发送中…' : '发送'}
-        </button>
-      </section>
+          <section className="rp-composer-wrap">
+            <div className="rp-trigger-row" aria-label="NPC 触发按钮区域">
+              <span>NPC触发按钮（预留）</span>
+            </div>
+            <section className="rp-composer">
+              <textarea
+                ref={textareaRef}
+                placeholder="输入消息内容"
+                rows={1}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) {
+                    return
+                  }
+                  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault()
+                    void handleSend()
+                  }
+                }}
+              />
+              <button type="button" className="primary" onClick={() => void handleSend()} disabled={sending}>
+                {sending ? '发送中…' : '发送'}
+              </button>
+            </section>
+          </section>
+        </section>
+
+        <aside className="rp-dashboard-panel" aria-label="RP 仪表盘">
+          <h2>仪表盘</h2>
+          <p>预留区域，后续接入 RP 数据看板。</p>
+        </aside>
+      </div>
 
       <ConfirmDialog
         open={pendingDelete !== null}
