@@ -136,6 +136,8 @@ export type RpSession = {
   archivedAt: string | null
   playerDisplayName: string | null
   playerAvatarUrl: string | null
+  worldbookText: string | null
+  settings: Record<string, unknown>
 }
 
 export type RpMessage = {

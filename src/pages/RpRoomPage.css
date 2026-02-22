@@ -38,7 +38,12 @@
 }
 
 .rp-room-header-slot {
-  height: 1px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.rp-dashboard-open-btn {
+  display: inline-flex;
 }
 
 .rp-room-body {
@@ -168,7 +173,8 @@
   line-height: 1.5;
 }
 
-.rp-composer .primary {
+.rp-composer .primary,
+.rp-dashboard-section .primary {
   border: none;
   background: #0f172a;
   color: #fff;
@@ -185,17 +191,55 @@
   background: #f8fafc;
   padding: 16px;
   display: none;
+  overflow-y: auto;
 }
 
-.rp-dashboard-panel h2 {
+.rp-dashboard-panel h2,
+.rp-dashboard-mobile-head h2 {
   margin: 0;
   font-size: 15px;
 }
 
-.rp-dashboard-panel p {
-  margin: 8px 0 0;
+.rp-dashboard-section {
+  margin-top: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rp-dashboard-section h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.rp-dashboard-section label {
+  font-size: 12px;
+  color: #334155;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rp-dashboard-section input,
+.rp-dashboard-section textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px 10px;
   font-size: 13px;
+}
+
+.rp-dashboard-helper {
+  margin: 0;
+  font-size: 12px;
   color: #64748b;
+}
+
+.rp-dashboard-mobile-modal {
+  display: none;
 }
 
 .rp-room-card {
@@ -216,8 +260,53 @@
   margin: 0;
 }
 
+@media (max-width: 1099px) {
+  .rp-dashboard-mobile-modal.open {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: block;
+  }
+
+  .rp-dashboard-mobile-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+  }
+
+  .rp-dashboard-mobile-sheet {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(94vw, 420px);
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .rp-dashboard-mobile-head {
+    padding: 14px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .rp-dashboard-mobile-body {
+    padding: 14px;
+    overflow-y: auto;
+  }
+}
+
 @media (min-width: 1100px) {
   .rp-dashboard-panel {
     display: block;
+  }
+
+  .rp-dashboard-open-btn,
+  .rp-dashboard-mobile-modal {
+    display: none;
   }
 }

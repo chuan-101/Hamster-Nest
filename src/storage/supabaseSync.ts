@@ -108,6 +108,8 @@ type RpSessionRow = {
   archived_at: string | null
   player_display_name: string | null
   player_avatar_url: string | null
+  worldbook_text: string | null
+  settings: Record<string, unknown> | null
 }
 
 type RpMessageRow = {
@@ -192,7 +194,12 @@ const mapRpSessionRow = (row: RpSessionRow): RpSession => ({
   archivedAt: row.archived_at,
   playerDisplayName: row.player_display_name,
   playerAvatarUrl: row.player_avatar_url,
+  worldbookText: row.worldbook_text,
+  settings: row.settings ?? {},
 })
+
+const RP_SESSION_SELECT_FIELDS =
+  'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url,worldbook_text,settings'
 
 const mapRpMessageRow = (row: RpMessageRow): RpMessage => ({
   id: row.id,
@@ -307,9 +314,7 @@ export const fetchRpSessions = async (userId: string, isArchived: boolean): Prom
   }
   const { data, error } = await supabase
     .from('rp_sessions')
-    .select(
-      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
-    )
+    .select(RP_SESSION_SELECT_FIELDS)
     .eq('user_id', userId)
     .eq('is_archived', isArchived)
     .order('updated_at', { ascending: false, nullsFirst: false })
@@ -336,9 +341,7 @@ export const createRpSession = async (
       created_at: now,
       updated_at: now,
     })
-    .select(
-      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
-    )
+    .select(RP_SESSION_SELECT_FIELDS)
     .single()
   if (error || !data) {
     throw error ?? new Error('创建 RP 房间失败')
@@ -352,9 +355,7 @@ export const fetchRpSessionById = async (sessionId: string, userId: string): Pro
   }
   const { data, error } = await supabase
     .from('rp_sessions')
-    .select(
-      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
-    )
+    .select(RP_SESSION_SELECT_FIELDS)
     .eq('id', sessionId)
     .eq('user_id', userId)
     .maybeSingle()
@@ -383,9 +384,7 @@ export const updateRpSessionArchiveState = async (
     .update(updates)
     .eq('id', sessionId)
     .eq('user_id', userId)
-    .select(
-      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
-    )
+    .select(RP_SESSION_SELECT_FIELDS)
     .single()
   if (error || !data) {
     throw error ?? new Error('更新 RP 房间归档状态失败')
@@ -407,9 +406,7 @@ export const renameRpSession = async (
     .update({ title, updated_at: now })
     .eq('id', sessionId)
     .eq('user_id', userId)
-    .select(
-      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
-    )
+    .select(RP_SESSION_SELECT_FIELDS)
     .single()
   if (error || !data) {
     throw error ?? new Error('更新 RP 房间名称失败')
@@ -430,6 +427,57 @@ export const deleteRpSession = async (sessionId: string): Promise<void> => {
   if (error) {
     throw error
   }
+}
+
+export const updateRpSessionDashboard = async (
+  sessionId: string,
+  updates: {
+    playerDisplayName?: string
+    playerAvatarUrl?: string
+    worldbookText?: string
+    settings?: Record<string, unknown>
+  },
+): Promise<RpSession> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const nextUpdates: {
+    updated_at: string
+    player_display_name?: string
+    player_avatar_url?: string
+    worldbook_text?: string
+    settings?: Record<string, unknown>
+  } = {
+    updated_at: new Date().toISOString(),
+  }
+
+  if (typeof updates.playerDisplayName !== 'undefined') {
+    nextUpdates.player_display_name = updates.playerDisplayName
+  }
+  if (typeof updates.playerAvatarUrl !== 'undefined') {
+    nextUpdates.player_avatar_url = updates.playerAvatarUrl
+  }
+  if (typeof updates.worldbookText !== 'undefined') {
+    nextUpdates.worldbook_text = updates.worldbookText
+  }
+  if (typeof updates.settings !== 'undefined') {
+    nextUpdates.settings = updates.settings
+  }
+
+  const { data, error } = await supabase
+    .from('rp_sessions')
+    .update(nextUpdates)
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .select(RP_SESSION_SELECT_FIELDS)
+    .single()
+
+  if (error || !data) {
+    throw error ?? new Error('更新 RP 仪表盘设置失败')
+  }
+
+  return mapRpSessionRow(data as RpSessionRow)
 }
 
 export const fetchRpMessages = async (sessionId: string, userId: string): Promise<RpMessage[]> => {
