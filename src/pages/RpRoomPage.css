@@ -396,3 +396,27 @@
     justify-content: flex-end;
   }
 }
+
+.rp-assistant-markdown > *:first-child {
+  margin-top: 0;
+}
+
+.rp-assistant-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.rp-assistant-markdown pre {
+  overflow-x: auto;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.rp-assistant-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.rp-message.out .reasoning-panel__toggle {
+  background: rgba(255, 255, 255, 0.15);
+  color: #e2e8f0;
+}
