@@ -137,3 +137,15 @@ export type RpSession = {
   playerDisplayName: string | null
   playerAvatarUrl: string | null
 }
+
+export type RpMessage = {
+  id: string
+  sessionId: string
+  userId: string
+  role: string
+  content: string
+  createdAt: string
+  clientId: string | null
+  clientCreatedAt: string | null
+  meta?: Record<string, unknown>
+}

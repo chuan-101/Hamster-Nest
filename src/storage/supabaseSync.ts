@@ -4,6 +4,7 @@ import type {
   CheckinEntry,
   MemoryEntry,
   MemoryStatus,
+  RpMessage,
   RpSession,
   SnackPost,
   SnackReply,
@@ -109,6 +110,18 @@ type RpSessionRow = {
   player_avatar_url: string | null
 }
 
+type RpMessageRow = {
+  id: string
+  session_id: string
+  user_id: string
+  role: string
+  content: string
+  created_at: string
+  client_id: string | null
+  client_created_at: string | null
+  meta: Record<string, unknown> | null
+}
+
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
   userId: row.user_id,
@@ -179,6 +192,18 @@ const mapRpSessionRow = (row: RpSessionRow): RpSession => ({
   archivedAt: row.archived_at,
   playerDisplayName: row.player_display_name,
   playerAvatarUrl: row.player_avatar_url,
+})
+
+const mapRpMessageRow = (row: RpMessageRow): RpMessage => ({
+  id: row.id,
+  sessionId: row.session_id,
+  userId: row.user_id,
+  role: row.role,
+  content: row.content,
+  createdAt: row.created_at,
+  clientId: row.client_id,
+  clientCreatedAt: row.client_created_at,
+  meta: row.meta ?? undefined,
 })
 
 const mapSessionRow = (row: SessionRow): ChatSession => ({
@@ -401,6 +426,65 @@ export const deleteRpSession = async (sessionId: string): Promise<void> => {
     .from('rp_sessions')
     .delete()
     .eq('id', sessionId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const fetchRpMessages = async (sessionId: string, userId: string): Promise<RpMessage[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('rp_messages')
+    .select('id,session_id,user_id,role,content,created_at,client_id,client_created_at,meta')
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapRpMessageRow(row as RpMessageRow))
+}
+
+export const createRpMessage = async (
+  sessionId: string,
+  userId: string,
+  role: string,
+  content: string,
+): Promise<RpMessage> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('rp_messages')
+    .insert({
+      session_id: sessionId,
+      user_id: userId,
+      role,
+      content,
+      created_at: now,
+      meta: {},
+    })
+    .select('id,session_id,user_id,role,content,created_at,client_id,client_created_at,meta')
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('发送 RP 消息失败')
+  }
+  return mapRpMessageRow(data as RpMessageRow)
+}
+
+export const deleteRpMessage = async (messageId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('rp_messages')
+    .delete()
+    .eq('id', messageId)
     .eq('user_id', userId)
   if (error) {
     throw error
