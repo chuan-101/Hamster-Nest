@@ -322,6 +322,19 @@
   background: #fff;
 }
 
+.rp-reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.rp-reasoning-toggle input {
+  margin: 0;
+}
+
 .rp-npc-list {
   list-style: none;
   margin: 0;
