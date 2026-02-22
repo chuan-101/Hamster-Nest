@@ -185,16 +185,6 @@
   align-self: flex-end;
 }
 
-.rp-dashboard-panel {
-  width: 320px;
-  border-left: 1px solid #e2e8f0;
-  background: #f8fafc;
-  padding: 16px;
-  display: none;
-  overflow-y: auto;
-}
-
-.rp-dashboard-panel h2,
 .rp-dashboard-page h2 {
   margin: 0;
   font-size: 15px;
@@ -264,24 +254,4 @@
 .error {
   color: #b91c1c;
   margin: 0;
-}
-
-@media (max-width: 1099px) {
-  .rp-dashboard-panel {
-    display: none;
-  }
-
-  .rp-dashboard-open-btn {
-    display: inline-flex;
-  }
-}
-
-@media (min-width: 1100px) {
-  .rp-dashboard-panel {
-    display: block;
-  }
-
-  .rp-dashboard-open-btn {
-    display: none;
-  }
 }
