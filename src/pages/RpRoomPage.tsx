@@ -70,7 +70,6 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const [pendingDeleteNpc, setPendingDeleteNpc] = useState<RpNpcCard | null>(null)
   const [deletingNpcId, setDeletingNpcId] = useState<string | null>(null)
   const [selectedNpcId, setSelectedNpcId] = useState('')
-  const [roomDefaultModelInput, setRoomDefaultModelInput] = useState('')
   const { enabledModelIds, enabledModelOptions } = useEnabledModels(user)
   const playerName = room?.playerDisplayName?.trim() ? room.playerDisplayName.trim() : '串串'
   const isDashboardPage = mode === 'dashboard'
@@ -123,10 +122,6 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setPlayerDisplayNameInput(room.playerDisplayName?.trim() || '串串')
     setPlayerAvatarUrlInput(room.playerAvatarUrl ?? '')
     setWorldbookTextInput(room.worldbookText ?? '')
-    const rpDefaultModelId = typeof room.settings?.rp_default_model_id === 'string'
-      ? room.settings.rp_default_model_id
-      : ''
-    setRoomDefaultModelInput(rpDefaultModelId)
   }, [room])
 
   useEffect(() => {
@@ -218,15 +213,10 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setNotice(null)
     const normalizedDisplayName = playerDisplayNameInput.trim() || '串串'
     const normalizedAvatar = playerAvatarUrlInput.trim()
-    const mergedSettings = {
-      ...(room.settings ?? {}),
-      rp_default_model_id: roomDefaultModelInput.trim() || null,
-    }
     try {
       const updated = await updateRpSessionDashboard(room.id, {
         playerDisplayName: normalizedDisplayName,
         playerAvatarUrl: normalizedAvatar,
-        settings: mergedSettings,
       })
       setRoom(updated)
       setNotice('保存成功')
@@ -369,7 +359,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
           sessionId: room.id,
           userId: user.id,
           displayName,
-          systemPrompt: npcForm.systemPrompt.trim() || null,
+          systemPrompt: npcForm.systemPrompt,
           modelConfig,
           apiConfig,
           enabled: nextEnabled,
@@ -378,7 +368,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       } else {
         const updated = await updateRpNpcCard(editingNpcId, {
           displayName,
-          systemPrompt: npcForm.systemPrompt.trim() || null,
+          systemPrompt: npcForm.systemPrompt,
           modelConfig,
           apiConfig,
           enabled: nextEnabled,
@@ -492,27 +482,6 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
             placeholder="https://example.com/avatar.png"
           />
         </label>
-        <label>
-          默认模型
-          <select
-            value={roomDefaultModelInput}
-            onChange={(event) => setRoomDefaultModelInput(event.target.value)}
-            disabled={enabledModelOptions.length === 0}
-          >
-            {enabledModelOptions.length === 0 ? <option value="">请先去模型库启用模型</option> : <option value="">跟随系统（未设置）</option>}
-            {enabledModelOptions.map((model) => (
-              <option key={model.id} value={model.id}>{model.label}</option>
-            ))}
-          </select>
-        </label>
-        {enabledModelOptions.length === 0 ? (
-          <div className="rp-model-empty-hint">
-            <p className="rp-dashboard-helper">请先去模型库启用模型</p>
-            <button type="button" className="ghost" onClick={() => navigate('/settings')}>
-              前往模型库
-            </button>
-          </div>
-        ) : null}
         <button type="button" className="primary" onClick={() => void handleSaveRoomSettings()} disabled={savingRoomSettings}>
           {savingRoomSettings ? '保存中…' : '保存'}
         </button>
@@ -577,7 +546,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                 onChange={(event) => setNpcForm((current) => ({ ...current, model: event.target.value }))}
                 disabled={enabledModelOptions.length === 0}
               >
-                {enabledModelOptions.length === 0 ? <option value="">请先去模型库启用模型</option> : <option value="">继承房间默认模型</option>}
+                {enabledModelOptions.length === 0 ? <option value="">请先去模型库启用模型</option> : <option value="">未指定（按NPC调用时决定）</option>}
                 {enabledModelOptions.map((model) => (
                   <option key={model.id} value={model.id}>{model.label}</option>
                 ))}
