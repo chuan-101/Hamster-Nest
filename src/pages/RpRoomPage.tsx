@@ -206,7 +206,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     }
   }, [enabledNpcCards, selectedNpcId])
 
-  const handleSend = async () => {
+  const handleSend = async (mode: 'player' | 'narration' = 'player') => {
     if (!room || !user || sending || triggeringNpcReply) {
       return
     }
@@ -218,7 +218,10 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setError(null)
     setNotice(null)
     try {
-      const message = await createRpMessage(room.id, user.id, playerName, content)
+      const role = mode === 'narration' ? '旁白' : playerName
+      const message = await createRpMessage(room.id, user.id, role, content, {
+        meta: mode === 'narration' ? { kind: 'narration' } : undefined,
+      })
       setMessages((current) => [...current, message])
       setDraft('')
       setNotice('发送成功')
@@ -421,9 +424,11 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       modelMessages.push({ role: 'system', content: `世界书：${normalizedWorldbook}` })
     }
     messages.forEach((item) => {
-      const role: 'user' | 'assistant' = item.role === playerName ? 'user' : 'assistant'
+      const isNarration = item.role === '旁白' || item.meta?.kind === 'narration'
+      const role: 'user' | 'assistant' = item.role === playerName || isNarration ? 'user' : 'assistant'
       const contentWithoutPrefix = stripSpeakerPrefix(item.content)
-      modelMessages.push({ role, content: `【${item.role}】${contentWithoutPrefix}` })
+      const speaker = isNarration ? '旁白' : item.role
+      modelMessages.push({ role, content: `【${speaker}】${contentWithoutPrefix}` })
     })
     modelMessages.push({
       role: 'user',
@@ -1017,11 +1022,15 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
               <ul className="rp-message-list">
                 {messages.map((message) => {
                   const isPlayer = message.role === playerName
+                  const isNarration = message.role === '旁白' || message.meta?.kind === 'narration'
                   return (
-                    <li key={message.id} className={`rp-message ${isPlayer ? 'out' : 'in'}`}>
+                    <li
+                      key={message.id}
+                      className={`rp-message ${isNarration ? 'narration' : isPlayer ? 'out' : 'in'}`}
+                    >
                       <div className="rp-bubble">
-                        <p className="rp-speaker">{message.role}</p>
-                        {isPlayer ? (
+                        <p className="rp-speaker">{isNarration ? '旁白' : message.role}</p>
+                        {isNarration || isPlayer ? (
                           <p>{stripSpeakerPrefix(message.content)}</p>
                         ) : (
                           <>
@@ -1092,14 +1101,24 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                     }
                   }}
                 />
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => void handleSend()}
-                  disabled={sending || triggeringNpcReply}
-                >
-                  {sending ? '发送中…' : '发送'}
-                </button>
+                <div className="rp-composer-actions">
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={() => void handleSend('player')}
+                    disabled={sending || triggeringNpcReply}
+                  >
+                    {sending ? '发送中…' : '发送'}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => void handleSend('narration')}
+                    disabled={sending || triggeringNpcReply}
+                  >
+                    旁白
+                  </button>
+                </div>
               </section>
             </section>
           </section>
