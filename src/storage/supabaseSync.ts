@@ -368,6 +368,45 @@ export const updateRpSessionArchiveState = async (
   return mapRpSessionRow(data as RpSessionRow)
 }
 
+export const renameRpSession = async (
+  sessionId: string,
+  title: string,
+): Promise<RpSession> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('rp_sessions')
+    .update({ title, updated_at: now })
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .select(
+      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
+    )
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('更新 RP 房间名称失败')
+  }
+  return mapRpSessionRow(data as RpSessionRow)
+}
+
+export const deleteRpSession = async (sessionId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('rp_sessions')
+    .delete()
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
 export const renameRemoteSession = async (
   sessionId: string,
   title: string,

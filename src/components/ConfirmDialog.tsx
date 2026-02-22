@@ -8,6 +8,9 @@ export type ConfirmDialogProps = {
   confirmLabel?: string
   cancelLabel?: string
   neutralLabel?: string
+  confirmDisabled?: boolean
+  cancelDisabled?: boolean
+  neutralDisabled?: boolean
   onConfirm: () => void
   onCancel: () => void
   onNeutral?: () => void
@@ -20,6 +23,9 @@ const ConfirmDialog = ({
   confirmLabel = '确认',
   cancelLabel = '取消',
   neutralLabel,
+  confirmDisabled = false,
+  cancelDisabled = false,
+  neutralDisabled = false,
   onConfirm,
   onCancel,
   onNeutral,
@@ -34,15 +40,15 @@ const ConfirmDialog = ({
         <h2>{title}</h2>
         {description ? <p>{description}</p> : null}
         <div className="confirm-actions">
-          <button type="button" className="secondary" onClick={onCancel}>
+          <button type="button" className="secondary" onClick={onCancel} disabled={cancelDisabled}>
             {cancelLabel}
           </button>
           {neutralLabel && onNeutral ? (
-            <button type="button" className="tertiary" onClick={onNeutral}>
+            <button type="button" className="tertiary" onClick={onNeutral} disabled={neutralDisabled}>
               {neutralLabel}
             </button>
           ) : null}
-          <button type="button" className="primary" onClick={onConfirm}>
+          <button type="button" className="primary" onClick={onConfirm} disabled={confirmDisabled}>
             {confirmLabel}
           </button>
         </div>

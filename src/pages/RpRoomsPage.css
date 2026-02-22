@@ -102,9 +102,29 @@
   font-size: 0.9rem;
 }
 
+
+.rp-room-main {
+  min-width: 0;
+}
+
+.rp-rename-row {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.rp-rename-row input {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.45rem 0.65rem;
+  min-width: 200px;
+  flex: 1;
+}
 .rp-room-actions {
   display: flex;
   gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 @media (max-width: 640px) {
@@ -117,7 +137,11 @@
 
   .rp-room-actions {
     justify-content: flex-start;
-    flex-wrap: wrap;
+  }
+
+  .rp-rename-row input {
+    min-width: 0;
+    width: 100%;
   }
 }
 
@@ -134,6 +158,11 @@
   background: #111827;
   color: #fff;
   border-color: #111827;
+}
+
+.rp-rooms-page button.danger {
+  color: #b91c1c;
+  border-color: #fca5a5;
 }
 
 .rp-rooms-page button:disabled {
