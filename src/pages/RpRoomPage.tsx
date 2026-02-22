@@ -254,6 +254,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       model: payload.modelId,
       modelId: payload.modelId,
       module: 'rp-room',
+      debug: import.meta.env.DEV,
       messages: payload.messagesPayload,
       stream: payload.stream ?? true,
     }
@@ -276,6 +277,18 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
 
     if (!response.ok) {
       throw new Error(await response.text())
+    }
+
+    if (import.meta.env.DEV) {
+      const cacheWriteStatus = response.headers.get('x-rp-compression-cache-write')
+      if (cacheWriteStatus === 'failed') {
+        const encodedError = response.headers.get('x-rp-compression-cache-error') ?? ''
+        const errorMessage = encodedError ? decodeURIComponent(encodedError) : '未知错误'
+        console.error('RP compression_cache upsert failed', errorMessage)
+        setNotice(`RP压缩缓存写入失败：${errorMessage}`)
+      } else if (cacheWriteStatus === 'success') {
+        setNotice('RP压缩缓存写入成功')
+      }
     }
 
     const collectReasoning = (source: Record<string, unknown> | null | undefined): string => {
