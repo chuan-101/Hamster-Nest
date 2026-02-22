@@ -231,6 +231,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   }
 
   const requestNpcReply = async (payload: {
+    conversationId: string
     modelId: string
     temperature?: number
     topP?: number
@@ -249,6 +250,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     }
 
     const requestBody: Record<string, unknown> = {
+      conversationId: payload.conversationId,
       model: payload.modelId,
       modelId: payload.modelId,
       module: 'rp-room',
@@ -448,6 +450,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       let result: Awaited<ReturnType<typeof requestNpcReply>>
       try {
         result = await requestNpcReply({
+          conversationId: room.id,
           modelId: modelId.trim(),
           temperature,
           topP,
@@ -478,6 +481,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       } catch (streamError) {
         console.warn('RP 流式回复失败，回退非流式请求', streamError)
         result = await requestNpcReply({
+          conversationId: room.id,
           modelId: modelId.trim(),
           temperature,
           topP,
