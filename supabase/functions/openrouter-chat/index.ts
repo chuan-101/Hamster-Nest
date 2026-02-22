@@ -46,6 +46,11 @@ type AuthUserResponse = {
   id: string
 }
 
+type RuntimeCompressionResult = {
+  messages: OpenAiMessage[]
+  cacheWriteFailed: boolean
+}
+
 const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]
 
 const isAllowedOrigin = (origin: string | null) => {
@@ -221,30 +226,21 @@ const fetchConversationMessages = async (
     .filter((row) => row.id && row.content)
 }
 
-const buildSupabaseClientForRequest = (authHeader: string, apikey: string) => {
+const buildSupabaseServiceRoleClient = () => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
-  if (!supabaseUrl || !anonKey) {
-    throw new Error('Supabase env missing for compression cache')
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase env missing for service-role compression cache')
   }
 
-  return createClient(supabaseUrl, anonKey, {
-    global: {
-      headers: {
-        Authorization: authHeader,
-        apikey,
-      },
-    },
-  })
+  return createClient(supabaseUrl, serviceRoleKey)
 }
 
 const fetchCompressionCache = async (
-  authHeader: string,
-  apikey: string,
   module: 'chat' | 'rp',
   conversationId: string,
 ): Promise<CompressionCacheRow | null> => {
-  const supabase = buildSupabaseClientForRequest(authHeader, apikey)
+  const supabase = buildSupabaseServiceRoleClient()
   const { data, error } = await supabase
     .from('compression_cache')
     .select('module,conversation_id,compressed_up_to_message_id,summary_text,updated_at')
@@ -268,14 +264,12 @@ const fetchCompressionCache = async (
 }
 
 const upsertCompressionCache = async (
-  authHeader: string,
-  apikey: string,
   module: 'chat' | 'rp',
   conversationId: string,
   compressedUpToMessageId: string,
   summaryText: string,
 ) => {
-  const supabase = buildSupabaseClientForRequest(authHeader, apikey)
+  const supabase = buildSupabaseServiceRoleClient()
   const { error } = await supabase
     .from('compression_cache')
     .upsert(
@@ -403,11 +397,11 @@ const maybeCompressRuntimeContext = async (
   apiKeyHeader: string,
   openRouterApiKey: string,
   userId: string,
-): Promise<OpenAiMessage[]> => {
+): Promise<RuntimeCompressionResult> => {
   const compressionModule = resolveCompressionModule(payload)
   const conversationId = payload.conversationId?.trim()
   if (!compressionModule || !conversationId) {
-    return messages
+    return { messages, cacheWriteFailed: false }
   }
 
   const systemMessages = messages.filter((message) => message.role === 'system')
@@ -415,6 +409,7 @@ const maybeCompressRuntimeContext = async (
   const trailingUserPrompt = compressionModule === 'rp' ? nonSystemMessages.at(-1) : null
   const origin = new URL(reqUrl).origin
 
+  let cacheWriteFailed = false
   try {
     const userSettings = await fetchUserCompressionSettings(
       origin,
@@ -424,7 +419,7 @@ const maybeCompressRuntimeContext = async (
     )
     const compressionEnabled = userSettings?.compression_enabled ?? true
     if (!compressionEnabled) {
-      return messages
+      return { messages, cacheWriteFailed }
     }
     const compressionTriggerRatio = userSettings?.compression_trigger_ratio ?? DEFAULT_CONTEXT_TRIGGER_RATIO
     const keepRecentMessages = userSettings?.compression_keep_recent_messages ?? DEFAULT_RECENT_UNCOMPRESSED_MESSAGES
@@ -437,7 +432,7 @@ const maybeCompressRuntimeContext = async (
         ? await fetchRpConversationMessages(origin, authHeader, apiKeyHeader, conversationId)
         : await fetchConversationMessages(origin, authHeader, apiKeyHeader, conversationId)
     if (fullHistory.length <= keepRecentMessages) {
-      return messages
+      return { messages, cacheWriteFailed }
     }
 
     const fullAsMessages: OpenAiMessage[] =
@@ -447,16 +442,16 @@ const maybeCompressRuntimeContext = async (
     const contextEstimate = estimateTotalTokens([...systemMessages, ...fullAsMessages])
     const triggerLimit = Math.floor(estimateModelContextLimit(payload.model ?? 'openrouter/auto') * compressionTriggerRatio)
     if (contextEstimate < triggerLimit) {
-      return messages
+      return { messages, cacheWriteFailed }
     }
 
     const compressUntilIndex = fullHistory.length - keepRecentMessages - 1
     if (compressUntilIndex < 0) {
-      return messages
+      return { messages, cacheWriteFailed }
     }
     const targetBoundaryId = fullHistory[compressUntilIndex].id
 
-    const cache = await fetchCompressionCache(authHeader, apiKeyHeader, compressionModule, conversationId)
+    const cache = await fetchCompressionCache(compressionModule, conversationId)
     const targetBoundaryIndex = fullHistory.findIndex((message) => message.id === targetBoundaryId)
     const cacheBoundaryIndex = cache?.compressed_up_to_message_id
       ? fullHistory.findIndex((message) => message.id === cache.compressed_up_to_message_id)
@@ -474,14 +469,21 @@ const maybeCompressRuntimeContext = async (
         )
         if (refreshedSummary) {
           summaryText = refreshedSummary
-          await upsertCompressionCache(
-            authHeader,
-            apiKeyHeader,
-            compressionModule,
-            conversationId,
-            targetBoundaryId,
-            summaryText,
-          )
+          try {
+            await upsertCompressionCache(
+              compressionModule,
+              conversationId,
+              targetBoundaryId,
+              summaryText,
+            )
+          } catch (error) {
+            cacheWriteFailed = true
+            console.error('compression_cache upsert failed', {
+              module: compressionModule,
+              conversationId,
+              error,
+            })
+          }
         }
       }
     }
@@ -499,9 +501,9 @@ const maybeCompressRuntimeContext = async (
 
     if (!summaryText) {
       if (compressionModule === 'rp' && trailingUserPrompt) {
-        return [...systemMessages, ...recentMessages, trailingUserPrompt]
+        return { messages: [...systemMessages, ...recentMessages, trailingUserPrompt], cacheWriteFailed }
       }
-      return [...systemMessages, ...recentMessages]
+      return { messages: [...systemMessages, ...recentMessages], cacheWriteFailed }
     }
     const summarizedMessages: OpenAiMessage[] = [
       ...systemMessages,
@@ -517,10 +519,10 @@ const maybeCompressRuntimeContext = async (
     if (compressionModule === 'rp' && trailingUserPrompt) {
       summarizedMessages.push(trailingUserPrompt)
     }
-    return summarizedMessages
+    return { messages: summarizedMessages, cacheWriteFailed }
   } catch (error) {
     console.error('runtime compression failed', error)
-    return messages
+    return { messages, cacheWriteFailed }
   }
 }
 
@@ -675,6 +677,7 @@ serve(async (req) => {
   const stream = payload.stream ?? true
   const resolvedModelId = await resolveRequestModelId(payload, req.url, authHeader, apiKeyHeader, userId)
   let messages = payload.messages
+  let compressionCacheWriteFailed = false
   const resolvedPayload: OpenRouterPayload = {
     ...payload,
     model: resolvedModelId,
@@ -683,7 +686,7 @@ serve(async (req) => {
 
   if (userId) {
     messages = await maybeInjectMemory(resolvedPayload, messages, userId, req.url, authHeader, apiKeyHeader)
-    messages = await maybeCompressRuntimeContext(
+    const compressionResult = await maybeCompressRuntimeContext(
       resolvedPayload,
       messages,
       req.url,
@@ -692,6 +695,8 @@ serve(async (req) => {
       apiKey,
       userId,
     )
+    messages = compressionResult.messages
+    compressionCacheWriteFailed = compressionResult.cacheWriteFailed
   }
 
   try {
@@ -746,6 +751,28 @@ serve(async (req) => {
     }
 
     const payloadText = await upstream.text()
+    const isDev = Deno.env.get('ENV') === 'development' || Deno.env.get('DENO_ENV') === 'development'
+    if (isDev && compressionCacheWriteFailed) {
+      try {
+        const upstreamPayload = JSON.parse(payloadText) as Record<string, unknown>
+        upstreamPayload.debug = {
+          ...(typeof upstreamPayload.debug === 'object' && upstreamPayload.debug !== null
+            ? (upstreamPayload.debug as Record<string, unknown>)
+            : {}),
+          cache_write_failed: true,
+        }
+        return new Response(JSON.stringify(upstreamPayload), {
+          status: 200,
+          headers: {
+            ...buildCorsHeaders(origin),
+            'Content-Type': 'application/json',
+          },
+        })
+      } catch (error) {
+        console.error('failed to append debug payload for compression cache write failure', error)
+      }
+    }
+
     return new Response(payloadText, {
       status: 200,
       headers: {
