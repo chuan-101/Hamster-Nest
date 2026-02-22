@@ -327,9 +327,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
             {dashboardContent}
           </main>
         ) : (
-          <>
-            <section className="rp-room-main">
-              <section className="rp-room-timeline">
+          <section className="rp-room-main">
+            <section className="rp-room-timeline">
                 {notice ? <p className="tips">{notice}</p> : null}
                 {error ? <p className="error">{error}</p> : null}
 
@@ -361,7 +360,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                 </ul>
               </section>
 
-              <section className="rp-composer-wrap">
+            <section className="rp-composer-wrap">
                 <div className="rp-trigger-row" aria-label="NPC 触发按钮区域">
                   <span>NPC触发按钮（预留）</span>
                 </div>
@@ -386,13 +385,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                     {sending ? '发送中…' : '发送'}
                   </button>
                 </section>
-              </section>
             </section>
-
-            <aside className="rp-dashboard-panel" aria-label="RP 仪表盘">
-              {dashboardContent}
-            </aside>
-          </>
+          </section>
         )}
       </div>
 
