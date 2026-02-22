@@ -7,6 +7,7 @@ import {
   deleteRpMessage,
   fetchRpMessages,
   fetchRpSessionById,
+  updateRpSessionDashboard,
 } from '../storage/supabaseSync'
 import type { RpMessage, RpSession } from '../types'
 import './RpRoomPage.css'
@@ -28,6 +29,12 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
   const [sending, setSending] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RpMessage | null>(null)
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
+  const [dashboardOpen, setDashboardOpen] = useState(false)
+  const [playerDisplayNameInput, setPlayerDisplayNameInput] = useState('串串')
+  const [playerAvatarUrlInput, setPlayerAvatarUrlInput] = useState('')
+  const [worldbookTextInput, setWorldbookTextInput] = useState('')
+  const [savingRoomSettings, setSavingRoomSettings] = useState(false)
+  const [savingWorldbook, setSavingWorldbook] = useState(false)
   const playerName = room?.playerDisplayName?.trim() ? room.playerDisplayName.trim() : '串串'
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -69,6 +76,15 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
   }, [sessionId, user])
 
   useEffect(() => {
+    if (!room) {
+      return
+    }
+    setPlayerDisplayNameInput(room.playerDisplayName?.trim() || '串串')
+    setPlayerAvatarUrlInput(room.playerAvatarUrl ?? '')
+    setWorldbookTextInput(room.worldbookText ?? '')
+  }, [room])
+
+  useEffect(() => {
     const loadMessages = async () => {
       if (!user || !room) {
         setMessages([])
@@ -106,12 +122,7 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
     setError(null)
     setNotice(null)
     try {
-      const message = await createRpMessage(
-        room.id,
-        user.id,
-        playerName,
-        content,
-      )
+      const message = await createRpMessage(room.id, user.id, playerName, content)
       setMessages((current) => [...current, message])
       setDraft('')
       setNotice('发送成功')
@@ -121,6 +132,73 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
     } finally {
       setSending(false)
     }
+  }
+
+  const handleSaveRoomSettings = async () => {
+    if (!room || savingRoomSettings) {
+      return
+    }
+    setSavingRoomSettings(true)
+    setError(null)
+    setNotice(null)
+    const normalizedDisplayName = playerDisplayNameInput.trim() || '串串'
+    const normalizedAvatar = playerAvatarUrlInput.trim()
+    try {
+      const updated = await updateRpSessionDashboard(room.id, {
+        playerDisplayName: normalizedDisplayName,
+        playerAvatarUrl: normalizedAvatar,
+        settings: room.settings ?? {},
+      })
+      setRoom(updated)
+      setNotice('保存成功')
+    } catch (saveError) {
+      console.warn('保存房间设置失败', saveError)
+      setError('保存失败，请稍后重试。')
+    } finally {
+      setSavingRoomSettings(false)
+    }
+  }
+
+  const handleSaveWorldbook = async () => {
+    if (!room || savingWorldbook) {
+      return
+    }
+    setSavingWorldbook(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const updated = await updateRpSessionDashboard(room.id, {
+        worldbookText: worldbookTextInput,
+      })
+      setRoom(updated)
+      setNotice('保存成功')
+    } catch (saveError) {
+      console.warn('保存世界书失败', saveError)
+      setError('保存失败，请稍后重试。')
+    } finally {
+      setSavingWorldbook(false)
+    }
+  }
+
+  const handleExportMessages = () => {
+    if (!room) {
+      return
+    }
+    const contentRows = messages
+      .filter((item) => item.role.trim().toLowerCase() !== 'system')
+      .map((item) => `${item.role}: ${item.content}`)
+
+    const payload = contentRows.join('\n\n')
+    const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `rp-room-${room.id}.txt`
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
+    setNotice('导出成功')
   }
 
   const handleConfirmDelete = async () => {
@@ -163,6 +241,59 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
     )
   }
 
+  const dashboardContent = (
+    <>
+      <h2>仪表盘</h2>
+      <section className="rp-dashboard-section">
+        <h3>房间设置</h3>
+        <label>
+          玩家显示名
+          <input
+            type="text"
+            value={playerDisplayNameInput}
+            onChange={(event) => setPlayerDisplayNameInput(event.target.value)}
+            placeholder="串串"
+          />
+        </label>
+        <label>
+          玩家头像URL
+          <input
+            type="url"
+            value={playerAvatarUrlInput}
+            onChange={(event) => setPlayerAvatarUrlInput(event.target.value)}
+            placeholder="https://example.com/avatar.png"
+          />
+        </label>
+        <p className="rp-dashboard-helper">默认模型/配置：当前为占位区，后续扩展房间级配置。</p>
+        <button type="button" className="primary" onClick={() => void handleSaveRoomSettings()} disabled={savingRoomSettings}>
+          {savingRoomSettings ? '保存中…' : '保存'}
+        </button>
+      </section>
+
+      <section className="rp-dashboard-section">
+        <h3>世界书（基础版）</h3>
+        <p className="rp-dashboard-helper">房间级全量注入文本</p>
+        <textarea
+          value={worldbookTextInput}
+          onChange={(event) => setWorldbookTextInput(event.target.value)}
+          rows={8}
+          placeholder="在这里输入世界书内容…"
+        />
+        <button type="button" className="primary" onClick={() => void handleSaveWorldbook()} disabled={savingWorldbook}>
+          {savingWorldbook ? '保存中…' : '保存'}
+        </button>
+      </section>
+
+      <section className="rp-dashboard-section">
+        <h3>导出</h3>
+        <p className="rp-dashboard-helper">仅导出 speaker(role) + 纯文本内容。</p>
+        <button type="button" className="primary" onClick={handleExportMessages}>
+          导出
+        </button>
+      </section>
+    </>
+  )
+
   return (
     <div className="rp-room-page">
       <header className="rp-room-header">
@@ -170,7 +301,11 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
           返回
         </button>
         <h1>{room.title?.trim() || '新房间'}</h1>
-        <div className="rp-room-header-slot" aria-hidden />
+        <div className="rp-room-header-slot">
+          <button type="button" className="ghost rp-dashboard-open-btn" onClick={() => setDashboardOpen(true)}>
+            仪表盘
+          </button>
+        </div>
       </header>
 
       <div className="rp-room-body">
@@ -236,8 +371,20 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
         </section>
 
         <aside className="rp-dashboard-panel" aria-label="RP 仪表盘">
-          <h2>仪表盘</h2>
-          <p>预留区域，后续接入 RP 数据看板。</p>
+          {dashboardContent}
+        </aside>
+      </div>
+
+      <div className={`rp-dashboard-mobile-modal ${dashboardOpen ? 'open' : ''}`} role="dialog" aria-modal="true">
+        <div className="rp-dashboard-mobile-scrim" onClick={() => setDashboardOpen(false)} />
+        <aside className="rp-dashboard-mobile-sheet">
+          <div className="rp-dashboard-mobile-head">
+            <h2>仪表盘</h2>
+            <button type="button" className="ghost" onClick={() => setDashboardOpen(false)}>关闭</button>
+          </div>
+          <div className="rp-dashboard-mobile-body">
+            {dashboardContent}
+          </div>
         </aside>
       </div>
 
