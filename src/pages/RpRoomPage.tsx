@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate, useParams } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
+import MarkdownRenderer from '../components/MarkdownRenderer'
+import ReasoningPanel from '../components/ReasoningPanel'
 import { useEnabledModels } from '../hooks/useEnabledModels'
 import { supabase } from '../supabase/client'
 import {
@@ -76,6 +78,11 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const playerName = room?.playerDisplayName?.trim() ? room.playerDisplayName.trim() : '串串'
   const isDashboardPage = mode === 'dashboard'
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const messagesRef = useRef<RpMessage[]>([])
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   const enabledNpcCount = useMemo(() => npcCards.filter((card) => card.enabled).length, [npcCards])
   const enabledNpcCards = useMemo(() => npcCards.filter((card) => card.enabled), [npcCards])
@@ -83,6 +90,18 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     () => enabledNpcCards.find((card) => card.id === selectedNpcId) ?? null,
     [enabledNpcCards, selectedNpcId],
   )
+
+  const readReasoningText = (meta?: Record<string, unknown>) => {
+    if (!meta) {
+      return ''
+    }
+    const reasoningText = meta['reasoning_text']
+    if (typeof reasoningText === 'string') {
+      return reasoningText
+    }
+    const reasoning = meta['reasoning']
+    return typeof reasoning === 'string' ? reasoning : ''
+  }
 
   const resizeComposer = () => {
     const textarea = textareaRef.current
@@ -215,6 +234,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     temperature?: number
     topP?: number
     messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+    onDelta?: (delta: { content?: string; reasoning?: string }) => void
+    stream?: boolean
   }) => {
     if (!supabase) {
       throw new Error('Supabase 客户端未配置')
@@ -231,7 +252,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       modelId: payload.modelId,
       module: 'rp-room',
       messages: payload.messagesPayload,
-      stream: false,
+      stream: payload.stream ?? true,
     }
     if (typeof payload.temperature === 'number') {
       requestBody.temperature = payload.temperature
@@ -254,19 +275,98 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       throw new Error(await response.text())
     }
 
-    const openRouterPayload = (await response.json()) as Record<string, unknown>
-    const choice = (openRouterPayload?.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined
-    const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<string, unknown>
-    const content =
-      typeof message.content === 'string'
-        ? message.content
-        : typeof choice?.text === 'string'
-          ? choice.text
-          : ''
+    const collectReasoning = (source: Record<string, unknown> | null | undefined): string => {
+      if (!source) {
+        return ''
+      }
+      const fields = ['reasoning', 'thinking', 'reasoning_content', 'thinking_content'] as const
+      return fields
+        .map((key) => source[key])
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+        .join('')
+    }
+
+    const contentType = response.headers.get('content-type') ?? ''
+    const isEventStream = contentType.includes('text/event-stream')
+    if (!isEventStream) {
+      const openRouterPayload = (await response.json()) as Record<string, unknown>
+      const choice = (openRouterPayload?.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined
+      const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<string, unknown>
+      const content =
+        typeof message.content === 'string'
+          ? message.content
+          : typeof choice?.text === 'string'
+            ? choice.text
+            : ''
+      const reasoning = [collectReasoning(message), collectReasoning(choice), collectReasoning(openRouterPayload)]
+        .filter(Boolean)
+        .join('')
+      return {
+        content: content || '（空回复）',
+        reasoning,
+        model: typeof openRouterPayload.model === 'string' ? openRouterPayload.model : payload.modelId,
+      }
+    }
+
+    if (!response.body) {
+      throw new Error('响应体为空')
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    let finalContent = ''
+    let finalReasoning = ''
+    let actualModel = payload.modelId
+    let done = false
+
+    while (!done) {
+      const { value, done: readerDone } = await reader.read()
+      if (readerDone) {
+        break
+      }
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed.startsWith('data:')) {
+          continue
+        }
+        const dataLine = trimmed.replace(/^data:\s*/, '')
+        if (dataLine === '[DONE]') {
+          done = true
+          break
+        }
+        try {
+          const payloadLine = JSON.parse(dataLine) as Record<string, unknown>
+          if (typeof payloadLine.model === 'string') {
+            actualModel = payloadLine.model
+          }
+          const choice = ((payloadLine.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined) ?? {}
+          const delta = (choice.delta as Record<string, unknown> | undefined) ?? {}
+          const contentDelta = typeof delta.content === 'string' ? delta.content : ''
+          const reasoningDelta = collectReasoning(delta)
+          if (contentDelta) {
+            finalContent += contentDelta
+          }
+          if (reasoningDelta) {
+            finalReasoning += reasoningDelta
+          }
+          if (contentDelta || reasoningDelta) {
+            payload.onDelta?.({ content: contentDelta || undefined, reasoning: reasoningDelta || undefined })
+          }
+        } catch (streamError) {
+          console.warn('解析 RP 流式响应失败', streamError)
+        }
+      }
+    }
 
     return {
-      content: content || '（空回复）',
-      model: typeof openRouterPayload.model === 'string' ? openRouterPayload.model : payload.modelId,
+      content: finalContent || '（空回复）',
+      reasoning: finalReasoning,
+      model: actualModel,
     }
   }
 
@@ -291,13 +391,22 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
 
     const normalizedWorldbook = room.worldbookText?.trim() ?? ''
     const modelMessages = [] as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+    modelMessages.push({
+      role: 'system',
+      content: [
+        '你将收到格式为“【名字】内容”的对话记录。',
+        '这些标签是唯一且真实的说话者归属依据。',
+        `你必须且只能以【${selectedNpcCard.displayName}】身份回复。`,
+        '不要为其他角色补写、改写或伪造带标签台词。',
+      ].join(''),
+    })
     modelMessages.push({ role: 'system', content: selectedNpcCard.systemPrompt?.trim() ?? '' })
     if (normalizedWorldbook) {
       modelMessages.push({ role: 'system', content: `世界书：${normalizedWorldbook}` })
     }
     messages.forEach((item) => {
       const role: 'user' | 'assistant' = item.role === playerName ? 'user' : 'assistant'
-      modelMessages.push({ role, content: item.content })
+      modelMessages.push({ role, content: `【${item.role}】${item.content}` })
     })
     modelMessages.push({
       role: 'user',
@@ -313,28 +422,94 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setTriggeringNpcReply(true)
     setError(null)
     setNotice(null)
+
+    const tempId = `rp-stream-${Date.now()}`
+    const streamingMessage: RpMessage = {
+      id: tempId,
+      sessionId: room.id,
+      userId: user.id,
+      role: selectedNpcCard.displayName,
+      content: '',
+      createdAt: new Date().toISOString(),
+      clientId: null,
+      clientCreatedAt: null,
+      meta: {
+        source: 'npc',
+        npc_id: selectedNpcCard.id,
+        model: modelId.trim(),
+        streaming: true,
+      },
+    }
+    setMessages((current) => [...current, streamingMessage])
+
     try {
-      const result = await requestNpcReply({
-        modelId: modelId.trim(),
-        temperature,
-        topP,
-        messagesPayload: modelMessages,
-      })
-      const lastMessage = messages.at(-1)
+      let result: Awaited<ReturnType<typeof requestNpcReply>>
+      try {
+        result = await requestNpcReply({
+          modelId: modelId.trim(),
+          temperature,
+          topP,
+          messagesPayload: modelMessages,
+          stream: true,
+          onDelta: (delta) => {
+          setMessages((current) =>
+            current.map((item) => {
+              if (item.id !== tempId) {
+                return item
+              }
+              const nextContent = `${item.content}${delta.content ?? ''}`
+              const currentReasoning = readReasoningText(item.meta)
+              const nextReasoning = `${currentReasoning}${delta.reasoning ?? ''}`
+              return {
+                ...item,
+                content: nextContent,
+                meta: {
+                  ...(item.meta ?? {}),
+                  reasoning: nextReasoning || undefined,
+                  reasoning_text: nextReasoning || undefined,
+                },
+              }
+            }),
+          )
+        },
+        })
+      } catch (streamError) {
+        console.warn('RP 流式回复失败，回退非流式请求', streamError)
+        result = await requestNpcReply({
+          modelId: modelId.trim(),
+          temperature,
+          topP,
+          messagesPayload: modelMessages,
+          stream: false,
+        })
+        setMessages((current) =>
+          current.map((item) => (item.id === tempId ? { ...item, content: result.content || '（空回复）' } : item)),
+        )
+      }
+
+      const persistedContent = result.content || '（空回复）'
+      const lastMessage = messagesRef.current.filter((item) => item.id !== tempId).at(-1)
       const createdAt = lastMessage
         ? new Date(new Date(lastMessage.createdAt).getTime() + 1).toISOString()
         : new Date().toISOString()
-      const created = await createRpMessage(room.id, user.id, selectedNpcCard.displayName, result.content, {
+      const created = await createRpMessage(room.id, user.id, selectedNpcCard.displayName, persistedContent, {
         createdAt,
         meta: {
           source: 'npc',
           npc_id: selectedNpcCard.id,
-          model: modelId.trim(),
+          model: result.model || modelId.trim(),
+          ...(result.reasoning
+            ? {
+                reasoning: result.reasoning,
+                reasoning_text: result.reasoning,
+              }
+            : {}),
         },
       })
-      setMessages((current) => [...current, created])
+      setMessages((current) => [...current.filter((item) => item.id !== tempId), created])
       setNotice('NPC 已发言')
     } catch (triggerError) {
+      setMessages((current) => current.filter((item) => item.id !== tempId))
       console.warn('触发 NPC 发言失败', triggerError)
       setError('触发发言失败，请稍后重试。')
     } finally {
@@ -827,7 +1002,19 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                     <li key={message.id} className={`rp-message ${isPlayer ? 'out' : 'in'}`}>
                       <div className="rp-bubble">
                         <p className="rp-speaker">{message.role}</p>
-                        <p>{message.content}</p>
+                        {isPlayer ? (
+                          <p>{message.content}</p>
+                        ) : (
+                          <>
+                            {(() => {
+                              const reasoningText = readReasoningText(message.meta).trim()
+                              return reasoningText ? <ReasoningPanel reasoning={reasoningText} /> : null
+                            })()}
+                            <div className="rp-assistant-markdown">
+                              <MarkdownRenderer content={message.content} />
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="rp-message-actions">
                         <button
