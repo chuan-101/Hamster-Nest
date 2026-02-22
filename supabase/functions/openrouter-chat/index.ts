@@ -17,7 +17,7 @@ type OpenRouterPayload = {
   reasoning?: boolean
   stream?: boolean
   isFirstMessage?: boolean
-  module?: 'snack-feed' | 'syzygy-feed' | string
+  module?: 'snack-feed' | 'syzygy-feed' | 'rp-room' | string
 }
 
 type StoredMessageRow = {
@@ -27,6 +27,7 @@ type StoredMessageRow = {
 }
 
 type CompressionCacheRow = {
+  module: 'chat' | 'rp'
   conversation_id: string
   compressed_up_to_message_id: string | null
   summary_text: string
@@ -105,13 +106,21 @@ const shouldInjectSnackFeedMemory = (payload: OpenRouterPayload) => payload.modu
 const shouldInjectSyzygyFeedMemory = (payload: OpenRouterPayload) => payload.module === 'syzygy-feed'
 
 const shouldInjectChitchatMemory = (payload: OpenRouterPayload) => Boolean(payload.isFirstMessage)
-const shouldApplyRuntimeCompression = (payload: OpenRouterPayload) =>
-  !payload.module || payload.module === 'chitchat'
+const resolveCompressionModule = (payload: OpenRouterPayload): 'chat' | 'rp' | null => {
+  if (!payload.module || payload.module === 'chitchat') {
+    return 'chat'
+  }
+  if (payload.module === 'rp-room') {
+    return 'rp'
+  }
+  return null
+}
 
 const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES = 20
 const DEFAULT_CONTEXT_TRIGGER_RATIO = 0.65
 const TOKEN_OVERHEAD_PER_MESSAGE = 8
-const SUMMARY_MARKER = 'CHAT SUMMARY:'
+const CHAT_SUMMARY_MARKER = 'CHAT SUMMARY:'
+const RP_SUMMARY_MARKER = '以下为截至目前的剧情摘要：'
 const DEFAULT_SUMMARIZER_MODEL = 'openai/gpt-4o-mini'
 const MODEL_MAX_CONTEXT_TOKENS: Record<string, number> = {
   'openrouter/auto': 128000,
@@ -232,13 +241,17 @@ const buildSupabaseClientForRequest = (authHeader: string, apikey: string) => {
 const fetchCompressionCache = async (
   authHeader: string,
   apikey: string,
+  module: 'chat' | 'rp',
   conversationId: string,
 ): Promise<CompressionCacheRow | null> => {
   const supabase = buildSupabaseClientForRequest(authHeader, apikey)
   const { data, error } = await supabase
     .from('compression_cache')
-    .select('conversation_id,compressed_up_to_message_id,summary_text,updated_at')
+    .select('module,conversation_id,compressed_up_to_message_id,summary_text,updated_at')
+    .eq('module', module)
     .eq('conversation_id', conversationId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle<CompressionCacheRow>()
 
   if (error) {
@@ -257,6 +270,7 @@ const fetchCompressionCache = async (
 const upsertCompressionCache = async (
   authHeader: string,
   apikey: string,
+  module: 'chat' | 'rp',
   conversationId: string,
   compressedUpToMessageId: string,
   summaryText: string,
@@ -266,18 +280,49 @@ const upsertCompressionCache = async (
     .from('compression_cache')
     .upsert(
       {
+      module,
       conversation_id: conversationId,
       compressed_up_to_message_id: compressedUpToMessageId,
       summary_text: summaryText,
       updated_at: new Date().toISOString(),
       },
-      { onConflict: 'conversation_id' },
+      { onConflict: 'module,conversation_id,compressed_up_to_message_id' },
     )
 
   if (error) {
     console.error('compression_cache upsert failed', error)
     throw new Error(`compression_cache upsert failed: ${error.message}`)
   }
+}
+
+const fetchRpConversationMessages = async (
+  origin: string,
+  authHeader: string,
+  apikey: string,
+  conversationId: string,
+): Promise<StoredMessageRow[]> => {
+  const query = new URLSearchParams({
+    select: 'id,role,content',
+    session_id: `eq.${conversationId}`,
+    order: 'created_at.asc',
+  })
+  const response = await fetch(`${origin}/rest/v1/rp_messages?${query.toString()}`, {
+    headers: {
+      apikey,
+      Authorization: authHeader,
+    },
+  })
+  if (!response.ok) {
+    throw new Error('load rp_messages failed')
+  }
+  const rows = (await response.json()) as Array<Record<string, unknown>>
+  return rows
+    .map((row) => ({
+      id: typeof row.id === 'string' ? row.id : '',
+      role: typeof row.role === 'string' && row.role.trim() ? row.role.trim() : '未知角色',
+      content: typeof row.content === 'string' ? row.content : '',
+    }))
+    .filter((row) => row.id && row.content)
 }
 
 const fetchUserCompressionSettings = async (
@@ -359,12 +404,15 @@ const maybeCompressRuntimeContext = async (
   openRouterApiKey: string,
   userId: string,
 ): Promise<OpenAiMessage[]> => {
+  const compressionModule = resolveCompressionModule(payload)
   const conversationId = payload.conversationId?.trim()
-  if (!shouldApplyRuntimeCompression(payload) || !conversationId) {
+  if (!compressionModule || !conversationId) {
     return messages
   }
 
   const systemMessages = messages.filter((message) => message.role === 'system')
+  const nonSystemMessages = messages.filter((message) => message.role !== 'system')
+  const trailingUserPrompt = compressionModule === 'rp' ? nonSystemMessages.at(-1) : null
   const origin = new URL(reqUrl).origin
 
   try {
@@ -384,20 +432,18 @@ const maybeCompressRuntimeContext = async (
       || userSettings?.default_model?.trim()
       || DEFAULT_SUMMARIZER_MODEL
 
-    const fullHistory = await fetchConversationMessages(
-      origin,
-      authHeader,
-      apiKeyHeader,
-      conversationId,
-    )
+    const fullHistory =
+      compressionModule === 'rp'
+        ? await fetchRpConversationMessages(origin, authHeader, apiKeyHeader, conversationId)
+        : await fetchConversationMessages(origin, authHeader, apiKeyHeader, conversationId)
     if (fullHistory.length <= keepRecentMessages) {
       return messages
     }
 
-    const fullAsMessages: OpenAiMessage[] = fullHistory.map((message) => ({
-      role: message.role,
-      content: message.content,
-    }))
+    const fullAsMessages: OpenAiMessage[] =
+      compressionModule === 'rp'
+        ? fullHistory.map((message) => ({ role: 'assistant', content: `【${message.role}】${message.content}` }))
+        : fullHistory.map((message) => ({ role: message.role, content: message.content }))
     const contextEstimate = estimateTotalTokens([...systemMessages, ...fullAsMessages])
     const triggerLimit = Math.floor(estimateModelContextLimit(payload.model ?? 'openrouter/auto') * compressionTriggerRatio)
     if (contextEstimate < triggerLimit) {
@@ -410,7 +456,7 @@ const maybeCompressRuntimeContext = async (
     }
     const targetBoundaryId = fullHistory[compressUntilIndex].id
 
-    const cache = await fetchCompressionCache(authHeader, apiKeyHeader, conversationId)
+    const cache = await fetchCompressionCache(authHeader, apiKeyHeader, compressionModule, conversationId)
     const targetBoundaryIndex = fullHistory.findIndex((message) => message.id === targetBoundaryId)
     const cacheBoundaryIndex = cache?.compressed_up_to_message_id
       ? fullHistory.findIndex((message) => message.id === cache.compressed_up_to_message_id)
@@ -431,6 +477,7 @@ const maybeCompressRuntimeContext = async (
           await upsertCompressionCache(
             authHeader,
             apiKeyHeader,
+            compressionModule,
             conversationId,
             targetBoundaryId,
             summaryText,
@@ -439,19 +486,38 @@ const maybeCompressRuntimeContext = async (
       }
     }
 
-    const recentMessages = fullHistory.slice(targetBoundaryIndex + 1).map((message) => ({
-      role: message.role,
-      content: message.content,
-    }))
+    const recentMessages =
+      compressionModule === 'rp'
+        ? fullHistory.slice(targetBoundaryIndex + 1).map((message) => ({
+            role: 'assistant' as const,
+            content: `【${message.role}】${message.content}`,
+          }))
+        : fullHistory.slice(targetBoundaryIndex + 1).map((message) => ({
+            role: message.role,
+            content: message.content,
+          }))
 
     if (!summaryText) {
+      if (compressionModule === 'rp' && trailingUserPrompt) {
+        return [...systemMessages, ...recentMessages, trailingUserPrompt]
+      }
       return [...systemMessages, ...recentMessages]
     }
-    return [
+    const summarizedMessages: OpenAiMessage[] = [
       ...systemMessages,
-      { role: 'system', content: `${SUMMARY_MARKER}\n${summaryText}` },
+      {
+        role: 'system',
+        content:
+          compressionModule === 'rp'
+            ? `${RP_SUMMARY_MARKER}${summaryText}`
+            : `${CHAT_SUMMARY_MARKER}\n${summaryText}`,
+      },
       ...recentMessages,
     ]
+    if (compressionModule === 'rp' && trailingUserPrompt) {
+      summarizedMessages.push(trailingUserPrompt)
+    }
+    return summarizedMessages
   } catch (error) {
     console.error('runtime compression failed', error)
     return messages
