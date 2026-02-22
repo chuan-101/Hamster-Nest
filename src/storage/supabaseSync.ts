@@ -531,11 +531,15 @@ export const createRpMessage = async (
   userId: string,
   role: string,
   content: string,
+  options?: {
+    createdAt?: string
+    meta?: Record<string, unknown>
+  },
 ): Promise<RpMessage> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
-  const now = new Date().toISOString()
+  const now = options?.createdAt ?? new Date().toISOString()
   const { data, error } = await supabase
     .from('rp_messages')
     .insert({
@@ -544,7 +548,7 @@ export const createRpMessage = async (
       role,
       content,
       created_at: now,
-      meta: {},
+      meta: options?.meta ?? {},
     })
     .select('id,session_id,user_id,role,content,created_at,client_id,client_created_at,meta')
     .single()

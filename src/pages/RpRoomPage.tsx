@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import { useNavigate, useParams } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useEnabledModels } from '../hooks/useEnabledModels'
+import { supabase } from '../supabase/client'
 import {
   createRpMessage,
   createRpNpcCard,
@@ -55,6 +56,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [triggeringNpcReply, setTriggeringNpcReply] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RpMessage | null>(null)
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
   const [playerDisplayNameInput, setPlayerDisplayNameInput] = useState('串串')
@@ -77,6 +79,10 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
 
   const enabledNpcCount = useMemo(() => npcCards.filter((card) => card.enabled).length, [npcCards])
   const enabledNpcCards = useMemo(() => npcCards.filter((card) => card.enabled), [npcCards])
+  const selectedNpcCard = useMemo(
+    () => enabledNpcCards.find((card) => card.id === selectedNpcId) ?? null,
+    [enabledNpcCards, selectedNpcId],
+  )
 
   const resizeComposer = () => {
     const textarea = textareaRef.current
@@ -181,7 +187,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   }, [enabledNpcCards, selectedNpcId])
 
   const handleSend = async () => {
-    if (!room || !user || sending) {
+    if (!room || !user || sending || triggeringNpcReply) {
       return
     }
     const content = draft.trim()
@@ -201,6 +207,138 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       setError('发送失败，请稍后重试。')
     } finally {
       setSending(false)
+    }
+  }
+
+  const requestNpcReply = async (payload: {
+    modelId: string
+    temperature?: number
+    topP?: number
+    messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  }) => {
+    if (!supabase) {
+      throw new Error('Supabase 客户端未配置')
+    }
+    const { data } = await supabase.auth.getSession()
+    const accessToken = data.session?.access_token
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+    if (!accessToken || !anonKey) {
+      throw new Error('登录状态异常或环境变量未配置')
+    }
+
+    const requestBody: Record<string, unknown> = {
+      model: payload.modelId,
+      modelId: payload.modelId,
+      module: 'rp-room',
+      messages: payload.messagesPayload,
+      stream: false,
+    }
+    if (typeof payload.temperature === 'number') {
+      requestBody.temperature = payload.temperature
+    }
+    if (typeof payload.topP === 'number') {
+      requestBody.top_p = payload.topP
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: anonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    if (!response.ok) {
+      throw new Error(await response.text())
+    }
+
+    const openRouterPayload = (await response.json()) as Record<string, unknown>
+    const choice = (openRouterPayload?.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined
+    const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<string, unknown>
+    const content =
+      typeof message.content === 'string'
+        ? message.content
+        : typeof choice?.text === 'string'
+          ? choice.text
+          : ''
+
+    return {
+      content: content || '（空回复）',
+      model: typeof openRouterPayload.model === 'string' ? openRouterPayload.model : payload.modelId,
+    }
+  }
+
+  const handleTriggerNpcReply = async () => {
+    if (!room || !user || !selectedNpcCard || triggeringNpcReply || sending) {
+      return
+    }
+    if (!selectedNpcCard.enabled) {
+      setError('所选 NPC 已禁用，请重新选择。')
+      return
+    }
+    const modelId =
+      typeof selectedNpcCard.modelConfig.model_id === 'string'
+        ? selectedNpcCard.modelConfig.model_id
+        : typeof selectedNpcCard.modelConfig.model === 'string'
+          ? selectedNpcCard.modelConfig.model
+          : ''
+    if (!modelId.trim()) {
+      setError('请先为该NPC选择模型')
+      return
+    }
+
+    const normalizedWorldbook = room.worldbookText?.trim() ?? ''
+    const modelMessages = [] as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+    modelMessages.push({ role: 'system', content: selectedNpcCard.systemPrompt?.trim() ?? '' })
+    if (normalizedWorldbook) {
+      modelMessages.push({ role: 'system', content: `世界书：${normalizedWorldbook}` })
+    }
+    messages.forEach((item) => {
+      const role: 'user' | 'assistant' = item.role === playerName ? 'user' : 'assistant'
+      modelMessages.push({ role, content: item.content })
+    })
+    modelMessages.push({
+      role: 'user',
+      content: `请以【${selectedNpcCard.displayName}】身份继续剧情并回复。`,
+    })
+
+    const temperature =
+      typeof selectedNpcCard.modelConfig.temperature === 'number'
+        ? selectedNpcCard.modelConfig.temperature
+        : undefined
+    const topP = typeof selectedNpcCard.modelConfig.top_p === 'number' ? selectedNpcCard.modelConfig.top_p : undefined
+
+    setTriggeringNpcReply(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const result = await requestNpcReply({
+        modelId: modelId.trim(),
+        temperature,
+        topP,
+        messagesPayload: modelMessages,
+      })
+      const lastMessage = messages.at(-1)
+      const createdAt = lastMessage
+        ? new Date(new Date(lastMessage.createdAt).getTime() + 1).toISOString()
+        : new Date().toISOString()
+      const created = await createRpMessage(room.id, user.id, selectedNpcCard.displayName, result.content, {
+        createdAt,
+        meta: {
+          source: 'npc',
+          npc_id: selectedNpcCard.id,
+          model: modelId.trim(),
+        },
+      })
+      setMessages((current) => [...current, created])
+      setNotice('NPC 已发言')
+    } catch (triggerError) {
+      console.warn('触发 NPC 发言失败', triggerError)
+      setError('触发发言失败，请稍后重试。')
+    } finally {
+      setTriggeringNpcReply(false)
     }
   }
 
@@ -709,11 +847,11 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
 
             <section className="rp-composer-wrap">
               <div className="rp-trigger-row" aria-label="NPC 选择区域">
-                <label htmlFor="rp-npc-selector">选择NPC（预留）</label>
+                <label htmlFor="rp-npc-selector">选择NPC</label>
                 <select
                   id="rp-npc-selector"
                   value={selectedNpcId}
-                  disabled={enabledNpcCards.length === 0}
+                  disabled={enabledNpcCards.length === 0 || triggeringNpcReply}
                   onChange={(event) => setSelectedNpcId(event.target.value)}
                 >
                   {enabledNpcCards.length === 0 ? <option value="">暂无可用NPC</option> : <option value="">请选择 NPC</option>}
@@ -721,6 +859,14 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                     <option key={card.id} value={card.id}>{card.displayName}</option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => void handleTriggerNpcReply()}
+                  disabled={!selectedNpcCard || !selectedNpcCard.enabled || triggeringNpcReply}
+                >
+                  {triggeringNpcReply ? '触发中…' : '触发发言'}
+                </button>
               </div>
               <section className="rp-composer">
                 <textarea
@@ -728,6 +874,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                   placeholder="输入消息内容"
                   rows={1}
                   value={draft}
+                  disabled={triggeringNpcReply}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.nativeEvent.isComposing) {
@@ -739,7 +886,12 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                     }
                   }}
                 />
-                <button type="button" className="primary" onClick={() => void handleSend()} disabled={sending}>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => void handleSend()}
+                  disabled={sending || triggeringNpcReply}
+                >
                   {sending ? '发送中…' : '发送'}
                 </button>
               </section>
