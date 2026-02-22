@@ -125,3 +125,15 @@ export type CheckinEntry = {
   checkinDate: string
   createdAt: string
 }
+
+export type RpSession = {
+  id: string
+  userId: string
+  title: string
+  createdAt: string
+  updatedAt: string | null
+  isArchived: boolean
+  archivedAt: string | null
+  playerDisplayName: string | null
+  playerAvatarUrl: string | null
+}
