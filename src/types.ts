@@ -151,3 +151,16 @@ export type RpMessage = {
   clientCreatedAt: string | null
   meta?: Record<string, unknown>
 }
+
+export type RpNpcCard = {
+  id: string
+  sessionId: string
+  userId: string
+  displayName: string
+  systemPrompt: string | null
+  modelConfig: Record<string, unknown>
+  apiConfig: Record<string, unknown>
+  enabled: boolean
+  createdAt: string
+  updatedAt: string | null
+}

@@ -4,6 +4,7 @@ import type {
   CheckinEntry,
   MemoryEntry,
   MemoryStatus,
+  RpNpcCard,
   RpMessage,
   RpSession,
   SnackPost,
@@ -124,6 +125,19 @@ type RpMessageRow = {
   meta: Record<string, unknown> | null
 }
 
+type RpNpcCardRow = {
+  id: string
+  session_id: string
+  user_id: string
+  display_name: string
+  system_prompt: string | null
+  model_config: Record<string, unknown> | null
+  api_config: Record<string, unknown> | null
+  enabled: boolean | null
+  created_at: string
+  updated_at: string | null
+}
+
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
   userId: row.user_id,
@@ -211,6 +225,22 @@ const mapRpMessageRow = (row: RpMessageRow): RpMessage => ({
   clientId: row.client_id,
   clientCreatedAt: row.client_created_at,
   meta: row.meta ?? undefined,
+})
+
+const RP_NPC_CARD_SELECT_FIELDS =
+  'id,session_id,user_id,display_name,system_prompt,model_config,api_config,enabled,created_at,updated_at'
+
+const mapRpNpcCardRow = (row: RpNpcCardRow): RpNpcCard => ({
+  id: row.id,
+  sessionId: row.session_id,
+  userId: row.user_id,
+  displayName: row.display_name,
+  systemPrompt: row.system_prompt,
+  modelConfig: row.model_config ?? {},
+  apiConfig: row.api_config ?? {},
+  enabled: row.enabled ?? false,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 })
 
 const mapSessionRow = (row: SessionRow): ChatSession => ({
@@ -533,6 +563,127 @@ export const deleteRpMessage = async (messageId: string): Promise<void> => {
     .from('rp_messages')
     .delete()
     .eq('id', messageId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const fetchRpNpcCards = async (sessionId: string, userId: string): Promise<RpNpcCard[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('rp_npc_cards')
+    .select(RP_NPC_CARD_SELECT_FIELDS)
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapRpNpcCardRow(row as RpNpcCardRow))
+}
+
+export const createRpNpcCard = async (
+  payload: {
+    sessionId: string
+    userId: string
+    displayName: string
+    systemPrompt?: string | null
+    modelConfig?: Record<string, unknown>
+    apiConfig?: Record<string, unknown>
+    enabled?: boolean
+  },
+): Promise<RpNpcCard> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('rp_npc_cards')
+    .insert({
+      session_id: payload.sessionId,
+      user_id: payload.userId,
+      display_name: payload.displayName,
+      system_prompt: payload.systemPrompt ?? null,
+      model_config: payload.modelConfig ?? {},
+      api_config: payload.apiConfig ?? {},
+      enabled: payload.enabled ?? false,
+      created_at: now,
+      updated_at: now,
+    })
+    .select(RP_NPC_CARD_SELECT_FIELDS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('创建 NPC 角色卡失败')
+  }
+  return mapRpNpcCardRow(data as RpNpcCardRow)
+}
+
+export const updateRpNpcCard = async (
+  npcCardId: string,
+  updates: {
+    displayName?: string
+    systemPrompt?: string | null
+    modelConfig?: Record<string, unknown>
+    apiConfig?: Record<string, unknown>
+    enabled?: boolean
+  },
+): Promise<RpNpcCard> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const nextUpdates: {
+    updated_at: string
+    display_name?: string
+    system_prompt?: string | null
+    model_config?: Record<string, unknown>
+    api_config?: Record<string, unknown>
+    enabled?: boolean
+  } = {
+    updated_at: new Date().toISOString(),
+  }
+  if (typeof updates.displayName !== 'undefined') {
+    nextUpdates.display_name = updates.displayName
+  }
+  if (typeof updates.systemPrompt !== 'undefined') {
+    nextUpdates.system_prompt = updates.systemPrompt
+  }
+  if (typeof updates.modelConfig !== 'undefined') {
+    nextUpdates.model_config = updates.modelConfig
+  }
+  if (typeof updates.apiConfig !== 'undefined') {
+    nextUpdates.api_config = updates.apiConfig
+  }
+  if (typeof updates.enabled !== 'undefined') {
+    nextUpdates.enabled = updates.enabled
+  }
+
+  const { data, error } = await supabase
+    .from('rp_npc_cards')
+    .update(nextUpdates)
+    .eq('id', npcCardId)
+    .eq('user_id', userId)
+    .select(RP_NPC_CARD_SELECT_FIELDS)
+    .single()
+
+  if (error || !data) {
+    throw error ?? new Error('更新 NPC 角色卡失败')
+  }
+  return mapRpNpcCardRow(data as RpNpcCardRow)
+}
+
+export const deleteRpNpcCard = async (npcCardId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('rp_npc_cards')
+    .delete()
+    .eq('id', npcCardId)
     .eq('user_id', userId)
   if (error) {
     throw error
