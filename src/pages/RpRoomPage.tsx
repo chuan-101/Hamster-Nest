@@ -14,9 +14,10 @@ import './RpRoomPage.css'
 
 type RpRoomPageProps = {
   user: User | null
+  mode?: 'chat' | 'dashboard'
 }
 
-const RpRoomPage = ({ user }: RpRoomPageProps) => {
+const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
   const [room, setRoom] = useState<RpSession | null>(null)
@@ -29,13 +30,13 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
   const [sending, setSending] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RpMessage | null>(null)
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
-  const [dashboardOpen, setDashboardOpen] = useState(false)
   const [playerDisplayNameInput, setPlayerDisplayNameInput] = useState('串串')
   const [playerAvatarUrlInput, setPlayerAvatarUrlInput] = useState('')
   const [worldbookTextInput, setWorldbookTextInput] = useState('')
   const [savingRoomSettings, setSavingRoomSettings] = useState(false)
   const [savingWorldbook, setSavingWorldbook] = useState(false)
   const playerName = room?.playerDisplayName?.trim() ? room.playerDisplayName.trim() : '串串'
+  const isDashboardPage = mode === 'dashboard'
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   const resizeComposer = () => {
@@ -297,95 +298,102 @@ const RpRoomPage = ({ user }: RpRoomPageProps) => {
   return (
     <div className="rp-room-page">
       <header className="rp-room-header">
-        <button type="button" className="ghost" onClick={() => navigate('/rp')}>
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => navigate(isDashboardPage ? `/rp/${room.id}` : '/rp')}
+        >
           返回
         </button>
         <h1>{room.title?.trim() || '新房间'}</h1>
         <div className="rp-room-header-slot">
-          <button type="button" className="ghost rp-dashboard-open-btn" onClick={() => setDashboardOpen(true)}>
-            仪表盘
-          </button>
+          {!isDashboardPage ? (
+            <button
+              type="button"
+              className="ghost rp-dashboard-open-btn"
+              onClick={() => navigate(`/rp/${room.id}/dashboard`)}
+            >
+              仪表盘
+            </button>
+          ) : null}
         </div>
       </header>
 
-      <div className="rp-room-body">
-        <section className="rp-room-main">
-          <section className="rp-room-timeline">
+      <div className={`rp-room-body ${isDashboardPage ? 'rp-room-body-dashboard' : ''}`}>
+        {isDashboardPage ? (
+          <main className="rp-dashboard-page" aria-label="RP 仪表盘页面">
             {notice ? <p className="tips">{notice}</p> : null}
             {error ? <p className="error">{error}</p> : null}
-
-            {messagesLoading ? <p className="tips">时间线加载中…</p> : null}
-            {!messagesLoading && messages.length === 0 ? <p className="tips">还没有消息，先说点什么吧。</p> : null}
-
-            <ul className="rp-message-list">
-              {messages.map((message) => {
-                const isPlayer = message.role === playerName
-                return (
-                  <li key={message.id} className={`rp-message ${isPlayer ? 'out' : 'in'}`}>
-                    <div className="rp-bubble">
-                      <p className="rp-speaker">{message.role}</p>
-                      <p>{message.content}</p>
-                    </div>
-                    <div className="rp-message-actions">
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => setPendingDelete(message)}
-                        disabled={Boolean(deletingMessageId)}
-                      >
-                        删除
-                      </button>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-
-          <section className="rp-composer-wrap">
-            <div className="rp-trigger-row" aria-label="NPC 触发按钮区域">
-              <span>NPC触发按钮（预留）</span>
-            </div>
-            <section className="rp-composer">
-              <textarea
-                ref={textareaRef}
-                placeholder="输入消息内容"
-                rows={1}
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.nativeEvent.isComposing) {
-                    return
-                  }
-                  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                    event.preventDefault()
-                    void handleSend()
-                  }
-                }}
-              />
-              <button type="button" className="primary" onClick={() => void handleSend()} disabled={sending}>
-                {sending ? '发送中…' : '发送'}
-              </button>
-            </section>
-          </section>
-        </section>
-
-        <aside className="rp-dashboard-panel" aria-label="RP 仪表盘">
-          {dashboardContent}
-        </aside>
-      </div>
-
-      <div className={`rp-dashboard-mobile-modal ${dashboardOpen ? 'open' : ''}`} role="dialog" aria-modal="true">
-        <div className="rp-dashboard-mobile-scrim" onClick={() => setDashboardOpen(false)} />
-        <aside className="rp-dashboard-mobile-sheet">
-          <div className="rp-dashboard-mobile-head">
-            <h2>仪表盘</h2>
-            <button type="button" className="ghost" onClick={() => setDashboardOpen(false)}>关闭</button>
-          </div>
-          <div className="rp-dashboard-mobile-body">
             {dashboardContent}
-          </div>
-        </aside>
+          </main>
+        ) : (
+          <>
+            <section className="rp-room-main">
+              <section className="rp-room-timeline">
+                {notice ? <p className="tips">{notice}</p> : null}
+                {error ? <p className="error">{error}</p> : null}
+
+                {messagesLoading ? <p className="tips">时间线加载中…</p> : null}
+                {!messagesLoading && messages.length === 0 ? <p className="tips">还没有消息，先说点什么吧。</p> : null}
+
+                <ul className="rp-message-list">
+                  {messages.map((message) => {
+                    const isPlayer = message.role === playerName
+                    return (
+                      <li key={message.id} className={`rp-message ${isPlayer ? 'out' : 'in'}`}>
+                        <div className="rp-bubble">
+                          <p className="rp-speaker">{message.role}</p>
+                          <p>{message.content}</p>
+                        </div>
+                        <div className="rp-message-actions">
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => setPendingDelete(message)}
+                            disabled={Boolean(deletingMessageId)}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+
+              <section className="rp-composer-wrap">
+                <div className="rp-trigger-row" aria-label="NPC 触发按钮区域">
+                  <span>NPC触发按钮（预留）</span>
+                </div>
+                <section className="rp-composer">
+                  <textarea
+                    ref={textareaRef}
+                    placeholder="输入消息内容"
+                    rows={1}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing) {
+                        return
+                      }
+                      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                        event.preventDefault()
+                        void handleSend()
+                      }
+                    }}
+                  />
+                  <button type="button" className="primary" onClick={() => void handleSend()} disabled={sending}>
+                    {sending ? '发送中…' : '发送'}
+                  </button>
+                </section>
+              </section>
+            </section>
+
+            <aside className="rp-dashboard-panel" aria-label="RP 仪表盘">
+              {dashboardContent}
+            </aside>
+          </>
+        )}
       </div>
 
       <ConfirmDialog

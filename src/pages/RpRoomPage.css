@@ -195,7 +195,7 @@
 }
 
 .rp-dashboard-panel h2,
-.rp-dashboard-mobile-head h2 {
+.rp-dashboard-page h2 {
   margin: 0;
   font-size: 15px;
 }
@@ -238,8 +238,14 @@
   color: #64748b;
 }
 
-.rp-dashboard-mobile-modal {
-  display: none;
+.rp-dashboard-page {
+  width: min(860px, 100%);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.rp-room-body-dashboard {
+  justify-content: center;
 }
 
 .rp-room-card {
@@ -261,42 +267,12 @@
 }
 
 @media (max-width: 1099px) {
-  .rp-dashboard-mobile-modal.open {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    display: block;
+  .rp-dashboard-panel {
+    display: none;
   }
 
-  .rp-dashboard-mobile-scrim {
-    position: absolute;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.5);
-  }
-
-  .rp-dashboard-mobile-sheet {
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: min(94vw, 420px);
-    background: #f8fafc;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .rp-dashboard-mobile-head {
-    padding: 14px;
-    border-bottom: 1px solid #e2e8f0;
-    background: #fff;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .rp-dashboard-mobile-body {
-    padding: 14px;
-    overflow-y: auto;
+  .rp-dashboard-open-btn {
+    display: inline-flex;
   }
 }
 
@@ -305,8 +281,7 @@
     display: block;
   }
 
-  .rp-dashboard-open-btn,
-  .rp-dashboard-mobile-modal {
+  .rp-dashboard-open-btn {
     display: none;
   }
 }

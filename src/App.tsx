@@ -1356,7 +1356,15 @@ const App = () => {
           path="/rp/:sessionId"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <RpRoomPage user={user} />
+              <RpRoomPage user={user} mode="chat" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/rp/:sessionId/dashboard"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <RpRoomPage user={user} mode="dashboard" />
             </RequireAuth>
           }
         />
