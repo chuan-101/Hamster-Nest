@@ -157,7 +157,7 @@ export type RpNpcCard = {
   sessionId: string
   userId: string
   displayName: string
-  systemPrompt: string | null
+  systemPrompt: string
   modelConfig: Record<string, unknown>
   apiConfig: Record<string, unknown>
   enabled: boolean

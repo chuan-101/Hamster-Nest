@@ -369,7 +369,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
           sessionId: room.id,
           userId: user.id,
           displayName,
-          systemPrompt: npcForm.systemPrompt.trim() || null,
+          systemPrompt: npcForm.systemPrompt,
           modelConfig,
           apiConfig,
           enabled: nextEnabled,
@@ -378,7 +378,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       } else {
         const updated = await updateRpNpcCard(editingNpcId, {
           displayName,
-          systemPrompt: npcForm.systemPrompt.trim() || null,
+          systemPrompt: npcForm.systemPrompt,
           modelConfig,
           apiConfig,
           enabled: nextEnabled,

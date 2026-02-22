@@ -235,7 +235,7 @@ const mapRpNpcCardRow = (row: RpNpcCardRow): RpNpcCard => ({
   sessionId: row.session_id,
   userId: row.user_id,
   displayName: row.display_name,
-  systemPrompt: row.system_prompt,
+  systemPrompt: row.system_prompt ?? '',
   modelConfig: row.model_config ?? {},
   apiConfig: row.api_config ?? {},
   enabled: row.enabled ?? false,
@@ -590,7 +590,7 @@ export const createRpNpcCard = async (
     sessionId: string
     userId: string
     displayName: string
-    systemPrompt?: string | null
+    systemPrompt?: string
     modelConfig?: Record<string, unknown>
     apiConfig?: Record<string, unknown>
     enabled?: boolean
@@ -599,6 +599,9 @@ export const createRpNpcCard = async (
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const normalizedSystemPrompt = payload.systemPrompt ?? ''
+  const normalizedModelConfig = payload.modelConfig ?? {}
+  const normalizedApiConfig = payload.apiConfig ?? {}
   const now = new Date().toISOString()
   const { data, error } = await supabase
     .from('rp_npc_cards')
@@ -606,9 +609,9 @@ export const createRpNpcCard = async (
       session_id: payload.sessionId,
       user_id: payload.userId,
       display_name: payload.displayName,
-      system_prompt: payload.systemPrompt ?? null,
-      model_config: payload.modelConfig ?? {},
-      api_config: payload.apiConfig ?? {},
+      system_prompt: normalizedSystemPrompt,
+      model_config: normalizedModelConfig,
+      api_config: normalizedApiConfig,
       enabled: payload.enabled ?? false,
       created_at: now,
       updated_at: now,
@@ -625,7 +628,7 @@ export const updateRpNpcCard = async (
   npcCardId: string,
   updates: {
     displayName?: string
-    systemPrompt?: string | null
+    systemPrompt?: string
     modelConfig?: Record<string, unknown>
     apiConfig?: Record<string, unknown>
     enabled?: boolean
@@ -638,7 +641,7 @@ export const updateRpNpcCard = async (
   const nextUpdates: {
     updated_at: string
     display_name?: string
-    system_prompt?: string | null
+    system_prompt?: string
     model_config?: Record<string, unknown>
     api_config?: Record<string, unknown>
     enabled?: boolean
@@ -649,13 +652,13 @@ export const updateRpNpcCard = async (
     nextUpdates.display_name = updates.displayName
   }
   if (typeof updates.systemPrompt !== 'undefined') {
-    nextUpdates.system_prompt = updates.systemPrompt
+    nextUpdates.system_prompt = updates.systemPrompt ?? ''
   }
   if (typeof updates.modelConfig !== 'undefined') {
-    nextUpdates.model_config = updates.modelConfig
+    nextUpdates.model_config = updates.modelConfig ?? {}
   }
   if (typeof updates.apiConfig !== 'undefined') {
-    nextUpdates.api_config = updates.apiConfig
+    nextUpdates.api_config = updates.apiConfig ?? {}
   }
   if (typeof updates.enabled !== 'undefined') {
     nextUpdates.enabled = updates.enabled
