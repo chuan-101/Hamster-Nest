@@ -4,6 +4,7 @@ import type {
   CheckinEntry,
   MemoryEntry,
   MemoryStatus,
+  RpSession,
   SnackPost,
   SnackReply,
   SyzygyPost,
@@ -96,6 +97,18 @@ type CheckinRow = {
   created_at: string
 }
 
+type RpSessionRow = {
+  id: string
+  user_id: string
+  title: string
+  created_at: string
+  updated_at: string | null
+  is_archived: boolean | null
+  archived_at: string | null
+  player_display_name: string | null
+  player_avatar_url: string | null
+}
+
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
   userId: row.user_id,
@@ -154,6 +167,18 @@ const mapCheckinRow = (row: CheckinRow): CheckinEntry => ({
   userId: row.user_id,
   checkinDate: row.checkin_date,
   createdAt: row.created_at,
+})
+
+const mapRpSessionRow = (row: RpSessionRow): RpSession => ({
+  id: row.id,
+  userId: row.user_id,
+  title: row.title,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  isArchived: row.is_archived ?? false,
+  archivedAt: row.archived_at,
+  playerDisplayName: row.player_display_name,
+  playerAvatarUrl: row.player_avatar_url,
 })
 
 const mapSessionRow = (row: SessionRow): ChatSession => ({
@@ -249,6 +274,98 @@ export const createRemoteSession = async (
     throw error ?? new Error('创建会话失败')
   }
   return mapSessionRow(data as SessionRow)
+}
+
+export const fetchRpSessions = async (userId: string, isArchived: boolean): Promise<RpSession[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('rp_sessions')
+    .select(
+      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
+    )
+    .eq('user_id', userId)
+    .eq('is_archived', isArchived)
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapRpSessionRow(row as RpSessionRow))
+}
+
+export const createRpSession = async (
+  userId: string,
+  title: string,
+): Promise<RpSession> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('rp_sessions')
+    .insert({
+      user_id: userId,
+      title,
+      created_at: now,
+      updated_at: now,
+    })
+    .select(
+      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
+    )
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('创建 RP 房间失败')
+  }
+  return mapRpSessionRow(data as RpSessionRow)
+}
+
+export const fetchRpSessionById = async (sessionId: string, userId: string): Promise<RpSession | null> => {
+  if (!supabase) {
+    return null
+  }
+  const { data, error } = await supabase
+    .from('rp_sessions')
+    .select(
+      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
+    )
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) {
+    throw error
+  }
+  if (!data) {
+    return null
+  }
+  return mapRpSessionRow(data as RpSessionRow)
+}
+
+export const updateRpSessionArchiveState = async (
+  sessionId: string,
+  isArchived: boolean,
+): Promise<RpSession> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const updates = isArchived
+    ? { is_archived: true, archived_at: new Date().toISOString() }
+    : { is_archived: false, archived_at: null }
+  const { data, error } = await supabase
+    .from('rp_sessions')
+    .update(updates)
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .select(
+      'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url',
+    )
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('更新 RP 房间归档状态失败')
+  }
+  return mapRpSessionRow(data as RpSessionRow)
 }
 
 export const renameRemoteSession = async (

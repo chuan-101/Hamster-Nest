@@ -48,6 +48,8 @@ import SyzygyFeedPage from './pages/SyzygyFeedPage'
 import MemoryVaultPage from './pages/MemoryVaultPage'
 import CheckinPage from './pages/CheckinPage'
 import ExportPage from './pages/ExportPage'
+import RpRoomsPage from './pages/RpRoomsPage'
+import RpRoomPage from './pages/RpRoomPage'
 import {
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
@@ -1339,6 +1341,22 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <ExportPage user={user} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/rp"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <RpRoomsPage user={user} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/rp/:sessionId"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <RpRoomPage user={user} />
             </RequireAuth>
           }
         />

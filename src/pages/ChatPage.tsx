@@ -196,6 +196,15 @@ const ChatPage = ({
                 type="button"
                 onClick={() => {
                   setOpenHeaderMenu(false)
+                  navigate('/rp')
+                }}
+              >
+                跑跑滚轮
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenHeaderMenu(false)
                   navigate('/settings')
                 }}
               >

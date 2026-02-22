@@ -1,0 +1,150 @@
+.rp-rooms-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.rp-rooms-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.rp-rooms-header h1 {
+  margin: 0;
+}
+
+.rp-rooms-header p {
+  margin: 0.4rem 0 0;
+  color: #4b5563;
+}
+
+.rp-create-card,
+.rp-list-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  padding: 1rem;
+}
+
+.rp-create-card h2,
+.rp-list-card h2 {
+  margin: 0 0 0.75rem;
+}
+
+.rp-create-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.6rem;
+}
+
+.rp-create-row input {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+}
+
+.rp-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rp-tabs {
+  display: inline-flex;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  padding: 0.2rem;
+}
+
+.rp-tabs button {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.rp-tabs button.active {
+  background: #111827;
+  color: #fff;
+}
+
+.rp-room-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.rp-room-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rp-room-item h3 {
+  margin: 0;
+}
+
+.rp-room-item p {
+  margin: 0.35rem 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.rp-room-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
+@media (max-width: 640px) {
+  .rp-rooms-header,
+  .rp-room-item,
+  .rp-create-row {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .rp-room-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+
+.rp-rooms-page button {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.rp-rooms-page button.primary {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+
+.rp-rooms-page button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error {
+  color: #b91c1c;
+}
+
+.tips {
+  color: #4b5563;
+}

@@ -1,0 +1,45 @@
+.rp-room-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.rp-room-header {
+  display: flex;
+}
+
+.rp-room-card {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.rp-room-card h1,
+.rp-room-card h2 {
+  margin: 0;
+}
+
+.rp-room-card p {
+  color: #4b5563;
+  margin: 0.55rem 0 0;
+}
+
+.rp-room-card.placeholder {
+  background: #fafafa;
+}
+
+
+.rp-room-page button {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.error {
+  color: #b91c1c;
+}
