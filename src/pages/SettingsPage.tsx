@@ -64,6 +64,8 @@ const SettingsPage = ({
   const [draftDefaultModel, setDraftDefaultModel] = useState(defaultModelId)
   const [draftReasoning, setDraftReasoning] = useState(false)
   const [draftMemoryExtractModel, setDraftMemoryExtractModel] = useState<string | null>(null)
+  const [modelStatus, setModelStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [modelError, setModelError] = useState<string | null>(null)
   const [generationStatus, setGenerationStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [extractModelStatus, setExtractModelStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -254,6 +256,11 @@ const SettingsPage = ({
   const compressionKeepRecentValid = !Number.isNaN(parsedCompressionKeepRecent) && parsedCompressionKeepRecent >= 1 && parsedCompressionKeepRecent <= 200
   const generationDraftValid = temperatureValid && topPValid && maxTokensValid && compressionRatioValid && compressionKeepRecentValid
 
+  const hasUnsavedModelSettings = settings
+    ? settings.defaultModel !== draftDefaultModel ||
+      settings.enabledModels.join('|') !== draftEnabledModels.join('|')
+    : false
+
   const hasUnsavedGeneration = settings
     ? settings.temperature !== parsedTemperature ||
       settings.topP !== parsedTopP ||
@@ -262,9 +269,7 @@ const SettingsPage = ({
       settings.compressionTriggerRatio !== parsedCompressionRatio ||
       settings.compressionKeepRecentMessages !== parsedCompressionKeepRecent ||
       (settings.summarizerModel ?? '') !== (draftSummarizerModel ?? '') ||
-      settings.defaultModel !== draftDefaultModel ||
-      settings.enableReasoning !== draftReasoning ||
-      settings.enabledModels.join('|') !== draftEnabledModels.join('|')
+      settings.enableReasoning !== draftReasoning
     : false
   const hasUnsavedSystemPrompt = settings ? draftSystemPrompt !== settings.systemPrompt : false
   const hasUnsavedSnackOverlay = settings
@@ -284,6 +289,7 @@ const SettingsPage = ({
     hasUnsavedSyzygyPostPrompt ||
     hasUnsavedSyzygyReplyPrompt ||
     hasUnsavedExtractModel ||
+    hasUnsavedModelSettings ||
     hasUnsavedGeneration
 
   useEffect(() => {
@@ -309,7 +315,7 @@ const SettingsPage = ({
     const nextDefault = draftDefaultModel === modelId ? nextEnabled[0] ?? defaultModelId : draftDefaultModel
     setDraftEnabledModels(nextEnabled)
     setDraftDefaultModel(nextDefault)
-    setGenerationStatus('idle')
+    setModelStatus('idle')
     setPendingDisable(null)
   }
 
@@ -322,7 +328,7 @@ const SettingsPage = ({
     const nextDefault = setDefault ? modelId : draftDefaultModel || (alreadyEnabled ? draftDefaultModel : modelId)
     setDraftEnabledModels(nextEnabled)
     setDraftDefaultModel(nextDefault)
-    setGenerationStatus('idle')
+    setModelStatus('idle')
   }
 
   const handleSetDefault = (modelId: string) => {
@@ -334,7 +340,33 @@ const SettingsPage = ({
       : [...draftEnabledModels, modelId]
     setDraftEnabledModels(nextEnabled)
     setDraftDefaultModel(modelId)
-    setGenerationStatus('idle')
+    setModelStatus('idle')
+  }
+
+  const handleSaveModelSettings = async () => {
+    if (!settings || !hasUnsavedModelSettings) {
+      return
+    }
+    const nextEnabledModels = draftEnabledModels.includes(draftDefaultModel)
+      ? draftEnabledModels
+      : [...draftEnabledModels, draftDefaultModel]
+    const nextSettings = buildNextSettings({
+      enabledModels: nextEnabledModels,
+      defaultModel: draftDefaultModel,
+    })
+    if (!nextSettings) {
+      return
+    }
+    setModelStatus('saving')
+    setModelError(null)
+    try {
+      await onSaveSettings(nextSettings)
+      setModelStatus('saved')
+    } catch (error) {
+      console.warn('保存模型库设置失败', error)
+      setModelStatus('error')
+      setModelError('保存失败，请稍后重试。')
+    }
   }
 
   const handleTemperatureChange = (value: string) => {
@@ -441,12 +473,7 @@ const SettingsPage = ({
     if (!settings || !generationDraftValid || !hasUnsavedGeneration) {
       return
     }
-    const nextEnabledModels = draftEnabledModels.includes(draftDefaultModel)
-      ? draftEnabledModels
-      : [...draftEnabledModels, draftDefaultModel]
     const nextSettings = buildNextSettings({
-      enabledModels: nextEnabledModels,
-      defaultModel: draftDefaultModel,
       temperature: parsedTemperature,
       topP: parsedTopP,
       maxTokens: parsedMaxTokens,
@@ -605,6 +632,8 @@ const SettingsPage = ({
       setDraftDefaultModel(settings.defaultModel)
       setDraftMemoryExtractModel(settings.memoryExtractModel)
       setDraftReasoning(settings.enableReasoning)
+      setModelStatus('idle')
+      setModelError(null)
       setDraftSystemPrompt(settings.systemPrompt)
       setDraftSnackSystemPrompt(resolveSnackSystemOverlay(settings.snackSystemOverlay))
       setGenerationStatus('idle')
@@ -631,6 +660,9 @@ const SettingsPage = ({
     }
     if (hasUnsavedGeneration) {
       void handleSaveGenerationSettings()
+    }
+    if (hasUnsavedModelSettings) {
+      void handleSaveModelSettings()
     }
     if (hasUnsavedExtractModel) {
       void handleSaveExtractModel()
@@ -788,6 +820,20 @@ const SettingsPage = ({
                 ) : null}
               </div>
             ) : null}
+
+            <div className="system-prompt-actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => void handleSaveModelSettings()}
+                disabled={!hasUnsavedModelSettings || modelStatus === 'saving'}
+              >
+                {modelStatus === 'saving' ? '保存中…' : '保存'}
+              </button>
+              {hasUnsavedModelSettings ? <span className="system-prompt-status">有未保存修改</span> : null}
+              {modelStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+              {modelStatus === 'error' ? <span className="field-error">{modelError}</span> : null}
+            </div>
           </>
         ) : null}
       </section>
@@ -904,7 +950,7 @@ const SettingsPage = ({
                 onClick={() => void handleSaveExtractModel()}
                 disabled={!hasUnsavedExtractModel || !extractModelValid || extractModelStatus === 'saving'}
               >
-                {extractModelStatus === 'saving' ? '保存中…' : '保存抽取模型'}
+                {extractModelStatus === 'saving' ? '保存中…' : '保存'}
               </button>
               {hasUnsavedExtractModel ? <span className="system-prompt-status">有未保存修改</span> : null}
               {extractModelStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
@@ -992,7 +1038,7 @@ const SettingsPage = ({
             onClick={() => void handleSaveGenerationSettings()}
             disabled={!hasUnsavedGeneration || !generationDraftValid || generationStatus === 'saving'}
           >
-            {generationStatus === 'saving' ? '保存中…' : '保存参数'}
+            {generationStatus === 'saving' ? '保存中…' : '保存'}
           </button>
           {hasUnsavedGeneration ? <span className="system-prompt-status">有未保存修改</span> : null}
           {generationStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
