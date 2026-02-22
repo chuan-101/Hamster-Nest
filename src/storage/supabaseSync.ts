@@ -526,6 +526,37 @@ export const fetchRpMessages = async (sessionId: string, userId: string): Promis
   return (data ?? []).map((row) => mapRpMessageRow(row as RpMessageRow))
 }
 
+export const fetchRpMessageCounts = async (
+  userId: string,
+  sessionIds: string[],
+): Promise<Record<string, number>> => {
+  if (!supabase || sessionIds.length === 0) {
+    return {}
+  }
+
+  const { data, error } = await supabase
+    .from('rp_messages')
+    .select('session_id')
+    .eq('user_id', userId)
+    .in('session_id', sessionIds)
+
+  if (error) {
+    throw error
+  }
+
+  const counts = sessionIds.reduce<Record<string, number>>((accumulator, sessionId) => {
+    accumulator[sessionId] = 0
+    return accumulator
+  }, {})
+
+  const rows = (data ?? []) as Array<{ session_id: string }>
+  rows.forEach((row) => {
+    counts[row.session_id] = (counts[row.session_id] ?? 0) + 1
+  })
+
+  return counts
+}
+
 export const createRpMessage = async (
   sessionId: string,
   userId: string,
