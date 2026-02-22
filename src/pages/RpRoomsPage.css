@@ -96,6 +96,19 @@
   margin: 0;
 }
 
+.rp-room-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.rp-room-count {
+  color: #6b7280;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .rp-room-item p {
   margin: 0.35rem 0 0;
   color: #6b7280;
@@ -137,6 +150,10 @@
 
   .rp-room-actions {
     justify-content: flex-start;
+  }
+
+  .rp-room-title-row {
+    flex-wrap: wrap;
   }
 
   .rp-rename-row input {

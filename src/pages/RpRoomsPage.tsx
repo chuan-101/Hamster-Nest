@@ -5,6 +5,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import {
   createRpSession,
   deleteRpSession,
+  fetchRpMessageCounts,
   fetchRpSessions,
   renameRpSession,
   updateRpSessionArchiveState,
@@ -52,6 +53,8 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   const [savingRoomId, setSavingRoomId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<DeleteAction | null>(null)
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null)
+  const [roomMessageCounts, setRoomMessageCounts] = useState<Record<string, number>>({})
+  const [countsLoading, setCountsLoading] = useState(false)
 
   const isArchivedView = tab === 'archived'
   const isMutating = Boolean(savingRoomId || deletingRoomId || updatingArchive)
@@ -76,6 +79,42 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   useEffect(() => {
     void loadRooms()
   }, [loadRooms])
+
+  useEffect(() => {
+    if (!user || rooms.length === 0) {
+      setRoomMessageCounts({})
+      setCountsLoading(false)
+      return
+    }
+
+    let canceled = false
+    const roomIds = rooms.map((room) => room.id)
+
+    const loadMessageCounts = async () => {
+      setCountsLoading(true)
+      try {
+        const counts = await fetchRpMessageCounts(user.id, roomIds)
+        if (!canceled) {
+          setRoomMessageCounts(counts)
+        }
+      } catch (countError) {
+        console.warn('加载 RP 房间消息数量失败', countError)
+        if (!canceled) {
+          setRoomMessageCounts({})
+        }
+      } finally {
+        if (!canceled) {
+          setCountsLoading(false)
+        }
+      }
+    }
+
+    void loadMessageCounts()
+
+    return () => {
+      canceled = true
+    }
+  }, [rooms, user])
 
   const handleCreateRoom = async () => {
     if (!user || creating) {
@@ -272,7 +311,12 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                       </button>
                     </div>
                   ) : (
-                    <h3>{room.title || '未命名房间'}</h3>
+                    <div className="rp-room-title-row">
+                      <h3>{room.title || '未命名房间'}</h3>
+                      <span className="rp-room-count">
+                        {countsLoading ? '… 条消息' : `${roomMessageCounts[room.id] ?? 0} 条消息`}
+                      </span>
+                    </div>
                   )}
                   <p>更新时间：{formatRoomTime(room)}</p>
                 </div>
