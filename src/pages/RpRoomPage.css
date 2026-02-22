@@ -148,10 +148,27 @@
   border-radius: 10px;
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 0 10px;
   font-size: 12px;
   color: #64748b;
   background: #f8fafc;
+}
+
+.rp-trigger-row select {
+  flex: 1;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.rp-trigger-row .primary {
+  border: none;
+  background: #0f172a;
+  color: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
 }
 
 .rp-composer {
