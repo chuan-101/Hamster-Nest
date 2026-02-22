@@ -291,13 +291,22 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
 
     const normalizedWorldbook = room.worldbookText?.trim() ?? ''
     const modelMessages = [] as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+    modelMessages.push({
+      role: 'system',
+      content: [
+        '你将收到格式为“【名字】内容”的对话记录。',
+        '这些标签是唯一且真实的说话者归属依据。',
+        `你必须且只能以【${selectedNpcCard.displayName}】身份回复。`,
+        '不要为其他角色补写、改写或伪造带标签台词。',
+      ].join(''),
+    })
     modelMessages.push({ role: 'system', content: selectedNpcCard.systemPrompt?.trim() ?? '' })
     if (normalizedWorldbook) {
       modelMessages.push({ role: 'system', content: `世界书：${normalizedWorldbook}` })
     }
     messages.forEach((item) => {
       const role: 'user' | 'assistant' = item.role === playerName ? 'user' : 'assistant'
-      modelMessages.push({ role, content: item.content })
+      modelMessages.push({ role, content: `【${item.role}】${item.content}` })
     })
     modelMessages.push({
       role: 'user',
