@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
-import type { ChatMessage, ChatSession, CheckinEntry } from '../types'
+import type { ChatMessage, ChatSession } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import ReasoningPanel from '../components/ReasoningPanel'
-import { createTodayCheckin, fetchCheckinTotalCount, fetchRecentCheckins } from '../storage/supabaseSync'
 import './ChatPage.css'
 
 export type ChatPageProps = {
@@ -31,36 +30,6 @@ const formatTime = (timestamp: string) =>
     minute: '2-digit',
   })
 
-const formatDateKey = (date: Date) => {
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-const shiftDateKey = (dateKey: string, daysDelta: number) => {
-  const base = new Date(`${dateKey}T00:00:00`)
-  base.setDate(base.getDate() + daysDelta)
-  return formatDateKey(base)
-}
-
-const computeStreak = (dates: string[], todayKey: string) => {
-  const uniqueDates = Array.from(new Set(dates)).sort((a, b) => b.localeCompare(a))
-  const dateSet = new Set(uniqueDates)
-  const startDate = dateSet.has(todayKey) ? todayKey : shiftDateKey(todayKey, -1)
-  if (!dateSet.has(startDate)) {
-    return 0
-  }
-
-  let streak = 0
-  let cursor = startDate
-  while (dateSet.has(cursor)) {
-    streak += 1
-    cursor = shiftDateKey(cursor, -1)
-  }
-  return streak
-}
-
 const ChatPage = ({
   session,
   messages,
@@ -74,18 +43,11 @@ const ChatPage = ({
   onSelectModel,
   defaultReasoning,
   onSelectReasoning,
-  user,
 }: ChatPageProps) => {
   const [draft, setDraft] = useState('')
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
   const [openHeaderMenu, setOpenHeaderMenu] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null)
-  const [recentCheckins, setRecentCheckins] = useState<CheckinEntry[]>([])
-  const [checkinTotal, setCheckinTotal] = useState(0)
-  const [checkinLoading, setCheckinLoading] = useState(false)
-  const [checkinSubmitting, setCheckinSubmitting] = useState(false)
-  const [checkinNotice, setCheckinNotice] = useState<string | null>(null)
-  const [historyExpanded, setHistoryExpanded] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
   const navigate = useNavigate()
@@ -147,32 +109,6 @@ const ChatPage = ({
     return Array.from(unique)
   }, [defaultModel, enabledModels, sessionOverride])
 
-  const todayKey = useMemo(() => formatDateKey(new Date()), [])
-  const todayDisplay = useMemo(
-    () => new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }),
-    [],
-  )
-  const recentDateKeys = useMemo(() => recentCheckins.map((entry) => entry.checkinDate), [recentCheckins])
-  const checkedToday = useMemo(() => recentDateKeys.includes(todayKey), [recentDateKeys, todayKey])
-  const streakDays = useMemo(() => computeStreak(recentDateKeys, todayKey), [recentDateKeys, todayKey])
-
-  const loadCheckinData = async () => {
-    if (!user) {
-      return
-    }
-    setCheckinLoading(true)
-    try {
-      const [recent, total] = await Promise.all([fetchRecentCheckins(60), fetchCheckinTotalCount()])
-      setRecentCheckins(recent)
-      setCheckinTotal(total)
-    } catch (error) {
-      console.warn('加载打卡记录失败', error)
-      setCheckinNotice('加载打卡数据失败，请稍后重试。')
-    } finally {
-      setCheckinLoading(false)
-    }
-  }
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length])
@@ -195,29 +131,6 @@ const ChatPage = ({
       document.removeEventListener('click', handleClick)
     }
   }, [openHeaderMenu])
-
-
-  useEffect(() => {
-    void loadCheckinData()
-  }, [user])
-
-  const handleCheckin = async () => {
-    if (!user || checkinSubmitting) {
-      return
-    }
-    setCheckinSubmitting(true)
-    setCheckinNotice(null)
-    try {
-      const result = await createTodayCheckin(todayKey)
-      setCheckinNotice(result === 'created' ? '打卡成功！' : '今日已打卡')
-      await loadCheckinData()
-    } catch (error) {
-      console.warn('打卡失败', error)
-      setCheckinNotice('打卡失败，请稍后重试。')
-    } finally {
-      setCheckinSubmitting(false)
-    }
-  }
 
   return (
     <div className="chat-page">
@@ -302,40 +215,6 @@ const ChatPage = ({
         </div>
       </header>
       <main className="chat-messages">
-        <section className="checkin-card">
-          <div className="checkin-header">
-            <h2>今日打卡</h2>
-            <span>{todayDisplay}</span>
-          </div>
-          <div className="checkin-status-row">
-            <span className={`checkin-status ${checkedToday ? 'done' : 'todo'}`}>
-              {checkedToday ? '今日已打卡' : '今日未打卡'}
-            </span>
-            <button
-              type="button"
-              className="primary checkin-button"
-              onClick={() => void handleCheckin()}
-              disabled={!user || checkinSubmitting || checkedToday}
-            >
-              {checkedToday ? '已打卡' : checkinSubmitting ? '打卡中…' : '打卡'}
-            </button>
-          </div>
-          <div className="checkin-metrics">
-            <p>连续打卡：<strong>{streakDays}</strong> 天</p>
-            <p>累计打卡：<strong>{checkinTotal}</strong> 次</p>
-          </div>
-          <button type="button" className="ghost checkin-history-toggle" onClick={() => setHistoryExpanded((v) => !v)}>
-            {historyExpanded ? '收起记录' : '查看记录'}
-          </button>
-          {historyExpanded ? (
-            <ul className="checkin-history">
-              {recentCheckins.length === 0 ? <li>暂无打卡记录</li> : recentCheckins.map((entry) => <li key={entry.id}>{entry.checkinDate}</li>)}
-            </ul>
-          ) : null}
-          {checkinLoading ? <p className="checkin-tip">打卡数据加载中…</p> : null}
-          {checkinNotice ? <p className="checkin-tip">{checkinNotice}</p> : null}
-        </section>
-
         {messages.length === 0 ? (
           <div className="empty-state">
             <p>暂无消息，开始聊点什么吧。</p>
