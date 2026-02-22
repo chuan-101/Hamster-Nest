@@ -5,6 +5,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import ReasoningPanel from '../components/ReasoningPanel'
 import { useEnabledModels } from '../hooks/useEnabledModels'
+import { stripSpeakerPrefix } from '../utils/rpMessage'
 import { supabase } from '../supabase/client'
 import {
   createRpMessage,
@@ -406,7 +407,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     }
     messages.forEach((item) => {
       const role: 'user' | 'assistant' = item.role === playerName ? 'user' : 'assistant'
-      modelMessages.push({ role, content: `【${item.role}】${item.content}` })
+      const contentWithoutPrefix = stripSpeakerPrefix(item.content)
+      modelMessages.push({ role, content: `【${item.role}】${contentWithoutPrefix}` })
     })
     modelMessages.push({
       role: 'user',
@@ -487,7 +489,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
         )
       }
 
-      const persistedContent = result.content || '（空回复）'
+      const persistedContent = stripSpeakerPrefix(result.content || '（空回复）')
       const lastMessage = messagesRef.current.filter((item) => item.id !== tempId).at(-1)
       const createdAt = lastMessage
         ? new Date(new Date(lastMessage.createdAt).getTime() + 1).toISOString()
@@ -568,7 +570,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     }
     const contentRows = messages
       .filter((item) => item.role.trim().toLowerCase() !== 'system')
-      .map((item) => `${item.role}: ${item.content}`)
+      .map((item) => `${item.role}: ${stripSpeakerPrefix(item.content)}`)
 
     const payload = contentRows.join('\n\n')
     const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' })
@@ -1003,7 +1005,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                       <div className="rp-bubble">
                         <p className="rp-speaker">{message.role}</p>
                         {isPlayer ? (
-                          <p>{message.content}</p>
+                          <p>{stripSpeakerPrefix(message.content)}</p>
                         ) : (
                           <>
                             {(() => {
@@ -1011,7 +1013,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                               return reasoningText ? <ReasoningPanel reasoning={reasoningText} /> : null
                             })()}
                             <div className="rp-assistant-markdown">
-                              <MarkdownRenderer content={message.content} />
+                              <MarkdownRenderer content={stripSpeakerPrefix(message.content)} />
                             </div>
                           </>
                         )}
