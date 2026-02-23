@@ -148,6 +148,54 @@
   cursor: pointer;
 }
 
+
+.rp-message-actions-menu {
+  position: relative;
+}
+
+.rp-action-trigger {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.rp-actions-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  min-width: 92px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  z-index: 8;
+}
+
+.rp-actions-menu button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.rp-actions-menu button:hover {
+  background: #f8fafc;
+}
+
+.rp-actions-menu .danger {
+  color: #b91c1c;
+}
+
 .rp-composer-wrap {
   position: sticky;
   bottom: 0;

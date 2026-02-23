@@ -24,10 +24,10 @@ body {
 
 
 @media (max-width: 768px) {
-  input,
-  textarea,
-  select {
-    font-size: 16px;
+  #root input:not([type='checkbox']):not([type='radio']),
+  #root textarea,
+  #root select {
+    font-size: 16px !important;
   }
 
   body.chat-page-active {
