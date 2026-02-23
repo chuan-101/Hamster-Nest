@@ -126,6 +126,7 @@ const resolveCompressionModule = (payload: OpenRouterPayload): 'chat' | 'rp' | n
 }
 
 const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES = 20
+const MIN_EXTRA_MESSAGES_FOR_COMPRESSION = 10
 const DEFAULT_CONTEXT_TRIGGER_RATIO = 0.65
 const TOKEN_OVERHEAD_PER_MESSAGE = 8
 const CHAT_SUMMARY_MARKER = 'CHAT SUMMARY:'
@@ -405,7 +406,6 @@ const maybeCompressRuntimeContext = async (
 
   const systemMessages = messages.filter((message) => message.role === 'system')
   const nonSystemMessages = messages.filter((message) => message.role !== 'system')
-  const trailingUserPrompt = compressionModule === 'rp' ? nonSystemMessages.at(-1) : null
   const origin = new URL(reqUrl).origin
 
   let cacheWriteFailed = false
@@ -432,9 +432,12 @@ const maybeCompressRuntimeContext = async (
       compressionModule === 'rp'
         ? await fetchRpConversationMessages(origin, authHeader, apiKeyHeader, conversationId)
         : await fetchConversationMessages(origin, authHeader, apiKeyHeader, conversationId)
-    if (fullHistory.length <= keepRecentMessages) {
+    const totalHistoryMessages = fullHistory.length
+    if (totalHistoryMessages <= keepRecentMessages + MIN_EXTRA_MESSAGES_FOR_COMPRESSION) {
       return { messages, cacheWriteFailed, cacheWriteSucceeded, cacheWriteErrorMessage }
     }
+
+    const preCompressionTokens = estimateTotalTokens(messages)
 
     const fullAsMessages: OpenAiMessage[] =
       compressionModule === 'rp'
@@ -497,27 +500,16 @@ const maybeCompressRuntimeContext = async (
       }
     }
 
-    const recentMessages =
+    const remainingMessages =
       compressionModule === 'rp'
-        ? fullHistory.slice(targetBoundaryIndex + 1).map((message) => ({
-            role: 'assistant' as const,
-            content: `【${message.role}】${message.content}`,
-          }))
+        ? nonSystemMessages.slice(-keepRecentMessages)
         : fullHistory.slice(targetBoundaryIndex + 1).map((message) => ({
             role: message.role,
             content: message.content,
           }))
 
     if (!summaryText) {
-      if (compressionModule === 'rp' && trailingUserPrompt) {
-        return {
-          messages: [...systemMessages, ...recentMessages, trailingUserPrompt],
-          cacheWriteFailed,
-          cacheWriteSucceeded,
-          cacheWriteErrorMessage,
-        }
-      }
-      return { messages: [...systemMessages, ...recentMessages], cacheWriteFailed, cacheWriteSucceeded, cacheWriteErrorMessage }
+      return { messages, cacheWriteFailed, cacheWriteSucceeded, cacheWriteErrorMessage }
     }
     const summarizedMessages: OpenAiMessage[] = [
       ...systemMessages,
@@ -528,11 +520,24 @@ const maybeCompressRuntimeContext = async (
             ? `${RP_SUMMARY_MARKER}${summaryText}`
             : `${CHAT_SUMMARY_MARKER}\n${summaryText}`,
       },
-      ...recentMessages,
+      ...remainingMessages,
     ]
-    if (compressionModule === 'rp' && trailingUserPrompt) {
-      summarizedMessages.push(trailingUserPrompt)
+
+    const finalTokens = estimateTotalTokens(summarizedMessages)
+    const reductionRatio = preCompressionTokens > 0
+      ? (preCompressionTokens - finalTokens) / preCompressionTokens
+      : 0
+    if (finalTokens >= preCompressionTokens || reductionRatio < 0.3) {
+      console.warn('compression token reduction below expectation', {
+        module: compressionModule,
+        conversationId,
+        preCompressionTokens,
+        finalTokens,
+        reductionRatio,
+        keepRecentMessages,
+      })
     }
+
     return { messages: summarizedMessages, cacheWriteFailed, cacheWriteSucceeded, cacheWriteErrorMessage }
   } catch (error) {
     console.error('runtime compression failed', error)
