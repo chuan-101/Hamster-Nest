@@ -19,6 +19,9 @@ export type HomeLayoutState = {
   widgets: DecorativeWidget[]
   checkinSize?: '1x1' | '2x1'
   showEmptySlots?: boolean
+  iconTileBgColor?: string
+  iconTileBgOpacity?: number
+  homeBackgroundImageKey?: string | null
 }
 
 const HOME_LAYOUT_STORAGE_KEY = 'hamster.home.layout.v1'

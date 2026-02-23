@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -41,6 +41,53 @@ type RenderedWidgetItem = {
 const DEFAULT_ICON_ORDER = ['chat', 'checkin', 'memory', 'snacks', 'syzygy', 'rp', 'settings', 'export']
 const CORE_WIDGET_ID = 'widget-checkin'
 const MAX_WIDGETS = 6
+const DEFAULT_ICON_TILE_BG_COLOR = '#ffffff'
+const DEFAULT_ICON_TILE_BG_OPACITY = 0.65
+
+const hexToRgb = (hex: string) => {
+  const sanitized = hex.replace('#', '').trim()
+  const fullHex =
+    sanitized.length === 3
+      ? sanitized
+          .split('')
+          .map((char) => `${char}${char}`)
+          .join('')
+      : sanitized
+
+  if (!/^[0-9a-fA-F]{6}$/.test(fullHex)) {
+    return { r: 255, g: 255, b: 255 }
+  }
+
+  return {
+    r: Number.parseInt(fullHex.slice(0, 2), 16),
+    g: Number.parseInt(fullHex.slice(2, 4), 16),
+    b: Number.parseInt(fullHex.slice(4, 6), 16),
+  }
+}
+
+const processBackgroundImage = async (file: File): Promise<Blob> => {
+  const imageBitmap = await createImageBitmap(file)
+  const maxWidth = 1080
+  const scale = Math.min(1, maxWidth / imageBitmap.width)
+  const targetWidth = Math.round(imageBitmap.width * scale)
+  const targetHeight = Math.round(imageBitmap.height * scale)
+  const canvas = document.createElement('canvas')
+  canvas.width = targetWidth
+  canvas.height = targetHeight
+  const context = canvas.getContext('2d')
+  if (!context) {
+    imageBitmap.close()
+    return file
+  }
+  context.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight)
+  imageBitmap.close()
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((output) => resolve(output), 'image/webp', 0.86)
+  })
+
+  return blob ?? file
+}
 
 const formatDateKey = (date: Date) => {
   const year = date.getFullYear()
@@ -89,7 +136,13 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   const [checkinSize, setCheckinSize] = useState<WidgetSize>('1x1')
   const [showEmptySlots, setShowEmptySlots] = useState(false)
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
+  const [iconTileBgColor, setIconTileBgColor] = useState(DEFAULT_ICON_TILE_BG_COLOR)
+  const [iconTileBgOpacity, setIconTileBgOpacity] = useState(DEFAULT_ICON_TILE_BG_OPACITY)
+  const [homeBackgroundImageKey, setHomeBackgroundImageKey] = useState<string | null>(null)
+  const [homeBackgroundUrl, setHomeBackgroundUrl] = useState<string | null>(null)
+  const [backgroundUploading, setBackgroundUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const homeBackgroundInputRef = useRef<HTMLInputElement | null>(null)
 
   const holdTimerRef = useRef<number | null>(null)
 
@@ -157,6 +210,9 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     setWidgetOrder(Array.from(new Set([CORE_WIDGET_ID, ...restoredOrder])))
     setCheckinSize(cached.checkinSize ?? '1x1')
     setShowEmptySlots(cached.showEmptySlots ?? false)
+    setIconTileBgColor(cached.iconTileBgColor ?? DEFAULT_ICON_TILE_BG_COLOR)
+    setIconTileBgOpacity(cached.iconTileBgOpacity ?? DEFAULT_ICON_TILE_BG_OPACITY)
+    setHomeBackgroundImageKey(cached.homeBackgroundImageKey ?? null)
   }, [])
 
   useEffect(() => {
@@ -166,8 +222,20 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       widgets,
       checkinSize,
       showEmptySlots,
+      iconTileBgColor,
+      iconTileBgOpacity,
+      homeBackgroundImageKey,
     })
-  }, [checkinSize, iconOrder, showEmptySlots, widgetOrder, widgets])
+  }, [
+    checkinSize,
+    homeBackgroundImageKey,
+    iconOrder,
+    iconTileBgColor,
+    iconTileBgOpacity,
+    showEmptySlots,
+    widgetOrder,
+    widgets,
+  ])
 
   useEffect(() => {
     const imageWidgets = widgets.filter((widget) => widget.type === 'image')
@@ -214,6 +282,45 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       Object.values(imageUrls).forEach((url) => URL.revokeObjectURL(url))
     },
     [imageUrls],
+  )
+
+  useEffect(() => {
+    let disposedUrl: string | null = null
+
+    if (!homeBackgroundImageKey) {
+      setHomeBackgroundUrl(null)
+      return
+    }
+
+    void loadImageBlob(homeBackgroundImageKey).then((blob) => {
+      if (!blob) {
+        setHomeBackgroundUrl(null)
+        return
+      }
+      const objectUrl = URL.createObjectURL(blob)
+      disposedUrl = objectUrl
+      setHomeBackgroundUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current)
+        }
+        return objectUrl
+      })
+    })
+
+    return () => {
+      if (disposedUrl) {
+        URL.revokeObjectURL(disposedUrl)
+      }
+    }
+  }, [homeBackgroundImageKey])
+
+  useEffect(
+    () => () => {
+      if (homeBackgroundUrl) {
+        URL.revokeObjectURL(homeBackgroundUrl)
+      }
+    },
+    [homeBackgroundUrl],
   )
 
   const loadCheckinData = useCallback(async () => {
@@ -346,6 +453,44 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     setWidgetOrder((current) => current.filter((widgetId) => widgetId !== id))
   }
 
+  const handleHomeBackgroundSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) {
+      return
+    }
+
+    setBackgroundUploading(true)
+    try {
+      const processedBlob = await processBackgroundImage(file)
+      const imageKey = await saveImageBlob(processedBlob)
+      if (homeBackgroundImageKey) {
+        await removeImageBlob(homeBackgroundImageKey)
+      }
+      setHomeBackgroundImageKey(imageKey)
+      setNotice('背景图已更新')
+    } catch (error) {
+      console.warn('设置背景图失败', error)
+      setNotice('设置背景图失败，请稍后重试')
+    } finally {
+      setBackgroundUploading(false)
+    }
+  }
+
+  const handleRemoveHomeBackground = async () => {
+    if (!homeBackgroundImageKey) {
+      return
+    }
+    await removeImageBlob(homeBackgroundImageKey)
+    setHomeBackgroundImageKey(null)
+    setNotice('已移除背景图')
+  }
+
+  const iconTileBackground = useMemo(() => {
+    const { r, g, b } = hexToRgb(iconTileBgColor)
+    return `rgba(${r}, ${g}, ${b}, ${iconTileBgOpacity})`
+  }, [iconTileBgColor, iconTileBgOpacity])
+
   const orderedWidgetItems = useMemo<RenderedWidgetItem[]>(() => {
     const widgetMap = new Map(widgets.map((widget) => [widget.id, widget]))
     return widgetOrder
@@ -387,7 +532,15 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   }
 
   return (
-    <main className="home-page">
+    <main
+      className="home-page"
+      style={
+        {
+          '--home-background-image': homeBackgroundUrl ? `url(${homeBackgroundUrl})` : 'none',
+          '--icon-tile-bg': iconTileBackground,
+        } as CSSProperties
+      }
+    >
       <div className="phone-shell">
         <header className="home-header">
           <button type="button" className="edit-button" onClick={() => setEditMode((value) => !value)}>
@@ -413,6 +566,57 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
               accept="image/*"
               hidden
               onChange={(event) => void handleImageSelected(event)}
+            />
+          </section>
+        ) : null}
+
+        {editMode ? (
+          <section className="glass-card appearance-toolbar">
+            <h2>外观</h2>
+            <label>
+              图标底色
+              <input
+                type="color"
+                value={iconTileBgColor}
+                onChange={(event) => setIconTileBgColor(event.target.value)}
+              />
+            </label>
+            <label>
+              图标透明度 {Math.round(iconTileBgOpacity * 100)}%
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={Math.round(iconTileBgOpacity * 100)}
+                onChange={(event) => setIconTileBgOpacity(Number(event.target.value) / 100)}
+              />
+            </label>
+            <div className="background-controls">
+              <span>背景图</span>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => homeBackgroundInputRef.current?.click()}
+                disabled={backgroundUploading}
+              >
+                {backgroundUploading ? '上传中…' : '上传背景图'}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => void handleRemoveHomeBackground()}
+                disabled={!homeBackgroundImageKey || backgroundUploading}
+              >
+                移除背景图
+              </button>
+            </div>
+            <input
+              ref={homeBackgroundInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(event) => void handleHomeBackgroundSelected(event)}
             />
           </section>
         ) : null}

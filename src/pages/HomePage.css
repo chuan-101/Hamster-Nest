@@ -1,10 +1,13 @@
 .home-page {
+  --icon-tile-bg: rgba(255, 255, 255, 0.65);
+  --home-background-image: none;
   min-height: 100vh;
   padding: max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1.25rem);
   display: flex;
   align-items: center;
   justify-content: center;
   background:
+    var(--home-background-image) center / cover no-repeat,
     radial-gradient(circle at 20% 20%, rgba(125, 211, 252, 0.45), transparent 40%),
     radial-gradient(circle at 80% 30%, rgba(167, 139, 250, 0.38), transparent 42%),
     linear-gradient(180deg, #dbeafe 0%, #bfdbfe 45%, #dbeafe 100%);
@@ -74,6 +77,43 @@
   gap: 0.5rem;
   justify-content: space-between;
   flex-wrap: wrap;
+}
+
+.appearance-toolbar {
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.appearance-toolbar h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.appearance-toolbar label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.appearance-toolbar input[type='color'],
+.appearance-toolbar input[type='range'] {
+  width: 100%;
+  font-size: 16px;
+}
+
+.background-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.background-controls span {
+  font-size: 0.85rem;
+  color: #334155;
 }
 
 .widget-grid {
@@ -189,9 +229,9 @@
 .icons-grid {
   margin-top: auto;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(4, auto);
-  gap: 0.9rem 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, auto);
+  gap: 0.9rem 0.65rem;
   align-content: end;
 }
 
@@ -214,17 +254,17 @@
 .icon-emoji {
   display: inline-grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
+  width: clamp(50px, 14.2vw, 64px);
+  aspect-ratio: 1 / 1;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.65);
+  background: var(--icon-tile-bg);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.14);
-  font-size: 1.8rem;
+  font-size: clamp(1.35rem, 4.8vw, 1.8rem);
 }
 
 .icon-label {
-  font-size: 0.82rem;
+  font-size: clamp(0.72rem, 2.1vw, 0.82rem);
   font-weight: 600;
   text-align: center;
 }
@@ -247,5 +287,9 @@
 
   .home-header h1 {
     font-size: 3rem;
+  }
+
+  .icons-grid {
+    gap: 0.78rem 0.45rem;
   }
 }
