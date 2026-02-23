@@ -7,11 +7,13 @@ import {
   fetchRecentCheckins,
 } from '../storage/supabaseSync'
 import {
+  createImageKey,
   loadHomeLayout,
   loadImageBlob,
   removeImageBlob,
   saveHomeLayout,
   saveImageBlob,
+  type AppIconConfig,
   type DecorativeWidget,
 } from '../storage/homeLayout'
 import './HomePage.css'
@@ -23,13 +25,14 @@ type HomePageProps = {
 
 type AppIcon = {
   id: string
-  icon: string
+  defaultEmoji: string
   label: string
   route?: string
   action?: () => void
 }
 
 type WidgetSize = '1x1' | '2x1'
+type AppIconState = Record<string, AppIconConfig>
 
 type RenderedWidgetItem = {
   id: string
@@ -43,6 +46,8 @@ const CORE_WIDGET_ID = 'widget-checkin'
 const MAX_WIDGETS = 6
 const DEFAULT_ICON_TILE_BG_COLOR = '#ffffff'
 const DEFAULT_ICON_TILE_BG_OPACITY = 0.65
+const DEFAULT_PAGE_OVERLAY_COLOR = '#ffffff'
+const DEFAULT_PAGE_OVERLAY_OPACITY = 0.2
 
 const hexToRgb = (hex: string) => {
   const sanitized = hex.replace('#', '').trim()
@@ -138,29 +143,43 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const [iconTileBgColor, setIconTileBgColor] = useState(DEFAULT_ICON_TILE_BG_COLOR)
   const [iconTileBgOpacity, setIconTileBgOpacity] = useState(DEFAULT_ICON_TILE_BG_OPACITY)
+  const [pageOverlayColor, setPageOverlayColor] = useState(DEFAULT_PAGE_OVERLAY_COLOR)
+  const [pageOverlayOpacity, setPageOverlayOpacity] = useState(DEFAULT_PAGE_OVERLAY_OPACITY)
   const [homeBackgroundImageKey, setHomeBackgroundImageKey] = useState<string | null>(null)
   const [homeBackgroundUrl, setHomeBackgroundUrl] = useState<string | null>(null)
   const [backgroundUploading, setBackgroundUploading] = useState(false)
+  const [appIconConfigs, setAppIconConfigs] = useState<AppIconState>({})
+  const [appIconImageUrls, setAppIconImageUrls] = useState<Record<string, string>>({})
+  const [editingIconId, setEditingIconId] = useState(DEFAULT_ICON_ORDER[0])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const homeBackgroundInputRef = useRef<HTMLInputElement | null>(null)
+  const appIconInputRef = useRef<HTMLInputElement | null>(null)
 
   const holdTimerRef = useRef<number | null>(null)
 
   const appIcons = useMemo<AppIcon[]>(
     () => [
-      { id: 'chat', icon: '💬', label: '聊天', action: onOpenChat },
-      { id: 'checkin', icon: '✅', label: '打卡', route: '/checkin' },
-      { id: 'memory', icon: '🧠', label: '囤囤库', route: '/memory-vault' },
-      { id: 'snacks', icon: '🍪', label: '零食罐罐', route: '/snacks' },
-      { id: 'syzygy', icon: '📘', label: '仓鼠日志', route: '/syzygy' },
-      { id: 'rp', icon: '🎭', label: 'RP 房间', route: '/rp' },
-      { id: 'settings', icon: '⚙️', label: '设置', route: '/settings' },
-      { id: 'export', icon: '📦', label: '导出', route: '/export' },
+      { id: 'chat', defaultEmoji: '💬', label: '聊天', action: onOpenChat },
+      { id: 'checkin', defaultEmoji: '✅', label: '打卡', route: '/checkin' },
+      { id: 'memory', defaultEmoji: '🧠', label: '囤囤库', route: '/memory-vault' },
+      { id: 'snacks', defaultEmoji: '🍪', label: '零食罐罐', route: '/snacks' },
+      { id: 'syzygy', defaultEmoji: '📘', label: '仓鼠日志', route: '/syzygy' },
+      { id: 'rp', defaultEmoji: '🎭', label: 'RP 房间', route: '/rp' },
+      { id: 'settings', defaultEmoji: '⚙️', label: '设置', route: '/settings' },
+      { id: 'export', defaultEmoji: '📦', label: '导出', route: '/export' },
     ],
     [onOpenChat],
   )
 
   const iconMap = useMemo(() => new Map(appIcons.map((icon) => [icon.id, icon])), [appIcons])
+
+  const defaultAppIconConfigs = useMemo<AppIconState>(
+    () =>
+      Object.fromEntries(
+        appIcons.map((icon) => [icon.id, { type: 'emoji', emoji: icon.defaultEmoji } satisfies AppIconConfig]),
+      ),
+    [appIcons],
+  )
 
   const todayKey = useMemo(() => formatDateKey(now), [now])
   const checkedToday = useMemo(() => checkinDates.includes(todayKey), [checkinDates, todayKey])
@@ -196,6 +215,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   useEffect(() => {
     const cached = loadHomeLayout()
     if (!cached) {
+      setAppIconConfigs(defaultAppIconConfigs)
       return
     }
 
@@ -203,7 +223,9 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     const missing = DEFAULT_ICON_ORDER.filter((id) => !safeIconOrder.includes(id))
     setIconOrder([...safeIconOrder, ...missing])
 
-    const safeWidgets = cached.widgets.filter((widget) => widget.type === 'image' || widget.type === 'text')
+    const safeWidgets = cached.widgets.filter(
+      (widget) => widget.type === 'image' || widget.type === 'text' || widget.type === 'spacer',
+    )
     const widgetIds = safeWidgets.map((widget) => widget.id)
     const restoredOrder = cached.widgetOrder.filter((id) => id === CORE_WIDGET_ID || widgetIds.includes(id))
     setWidgets(safeWidgets)
@@ -212,8 +234,11 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     setShowEmptySlots(cached.showEmptySlots ?? false)
     setIconTileBgColor(cached.iconTileBgColor ?? DEFAULT_ICON_TILE_BG_COLOR)
     setIconTileBgOpacity(cached.iconTileBgOpacity ?? DEFAULT_ICON_TILE_BG_OPACITY)
+    setPageOverlayColor(cached.pageOverlayColor ?? DEFAULT_PAGE_OVERLAY_COLOR)
+    setPageOverlayOpacity(cached.pageOverlayOpacity ?? DEFAULT_PAGE_OVERLAY_OPACITY)
     setHomeBackgroundImageKey(cached.homeBackgroundImageKey ?? null)
-  }, [])
+    setAppIconConfigs({ ...defaultAppIconConfigs, ...(cached.appIconConfigs ?? {}) })
+  }, [defaultAppIconConfigs])
 
   useEffect(() => {
     saveHomeLayout({
@@ -224,14 +249,20 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       showEmptySlots,
       iconTileBgColor,
       iconTileBgOpacity,
+      pageOverlayColor,
+      pageOverlayOpacity,
       homeBackgroundImageKey,
+      appIconConfigs,
     })
   }, [
+    appIconConfigs,
     checkinSize,
     homeBackgroundImageKey,
     iconOrder,
     iconTileBgColor,
     iconTileBgOpacity,
+    pageOverlayColor,
+    pageOverlayOpacity,
     showEmptySlots,
     widgetOrder,
     widgets,
@@ -251,11 +282,6 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       }),
     ).then((results) => {
       setImageUrls((current) => {
-        Object.values(current).forEach((url) => {
-          if (!Object.values(current).includes(url)) {
-            URL.revokeObjectURL(url)
-          }
-        })
         const next: Record<string, string> = {}
         results.forEach((entry) => {
           if (entry) {
@@ -323,6 +349,50 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     [homeBackgroundUrl],
   )
 
+  useEffect(() => {
+    const iconEntries = Object.entries(appIconConfigs).flatMap(([id, config]) =>
+      config.type === 'image' ? [{ id, imageKey: config.imageKey }] : [],
+    )
+    const disposed: string[] = []
+
+    void Promise.all(
+      iconEntries.map(async ({ id, imageKey }) => {
+        const blob = await loadImageBlob(imageKey)
+        if (!blob) {
+          return null
+        }
+        return { id, url: URL.createObjectURL(blob) }
+      }),
+    ).then((results) => {
+      setAppIconImageUrls((current) => {
+        const next: Record<string, string> = {}
+        results.forEach((entry) => {
+          if (entry) {
+            next[entry.id] = entry.url
+          }
+        })
+        Object.entries(current).forEach(([id, url]) => {
+          if (!next[id]) {
+            disposed.push(url)
+          }
+        })
+        return next
+      })
+      disposed.forEach((url) => URL.revokeObjectURL(url))
+    })
+
+    return () => {
+      disposed.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [appIconConfigs])
+
+  useEffect(
+    () => () => {
+      Object.values(appIconImageUrls).forEach((url) => URL.revokeObjectURL(url))
+    },
+    [appIconImageUrls],
+  )
+
   const loadCheckinData = useCallback(async () => {
     if (!user) {
       return
@@ -380,6 +450,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     }
     setIconOrder((current) => moveInList(current, sourceId, targetIndex))
   }
+
   const triggerEditModeByHold = () => {
     if (editMode) {
       return
@@ -400,7 +471,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
 
   const handleAddTextWidget = () => {
     if (!canAddWidget) {
-      setNotice(`最多只能放 ${MAX_WIDGETS} 个组件`) 
+      setNotice(`最多只能放 ${MAX_WIDGETS} 个组件`)
       return
     }
     const id = `widget-text-${Date.now()}`
@@ -418,6 +489,16 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       return
     }
     fileInputRef.current?.click()
+  }
+
+  const handleAddSpacerWidget = () => {
+    if (!canAddWidget) {
+      setNotice(`最多只能放 ${MAX_WIDGETS} 个组件`)
+      return
+    }
+    const id = `widget-spacer-${Date.now()}`
+    setWidgets((current) => [...current, { id, type: 'spacer', size: '1x1' }])
+    setWidgetOrder((current) => [...current, id])
   }
 
   const handleImageSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -486,10 +567,61 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     setNotice('已移除背景图')
   }
 
+  const handleEmojiChange = (iconId: string, emoji: string) => {
+    const fallback = (defaultAppIconConfigs[iconId] as { type: 'emoji'; emoji: string })?.emoji ?? '🙂'
+    const nextEmoji = emoji.trim() || fallback
+    setAppIconConfigs((current) => ({
+      ...current,
+      [iconId]: {
+        type: 'emoji',
+        emoji: nextEmoji,
+      },
+    }))
+  }
+
+  const handleAppIconImageSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) {
+      return
+    }
+
+    const iconId = editingIconId
+    const previous = appIconConfigs[iconId]
+    try {
+      const key = createImageKey()
+      await saveImageBlob(file, key)
+      setAppIconConfigs((current) => ({
+        ...current,
+        [iconId]: { type: 'image', imageKey: key },
+      }))
+      if (previous?.type === 'image') {
+        await removeImageBlob(previous.imageKey)
+      }
+    } catch (error) {
+      console.warn('保存图标失败', error)
+      setNotice('保存图标失败，请稍后重试')
+    }
+  }
+
+  const handleResetAppIcon = async (iconId: string) => {
+    const current = appIconConfigs[iconId]
+    const fallback = defaultAppIconConfigs[iconId] as { type: 'emoji'; emoji: string }
+    setAppIconConfigs((prev) => ({ ...prev, [iconId]: fallback }))
+    if (current?.type === 'image') {
+      await removeImageBlob(current.imageKey)
+    }
+  }
+
   const iconTileBackground = useMemo(() => {
     const { r, g, b } = hexToRgb(iconTileBgColor)
     return `rgba(${r}, ${g}, ${b}, ${iconTileBgOpacity})`
   }, [iconTileBgColor, iconTileBgOpacity])
+
+  const pageOverlayBackground = useMemo(() => {
+    const { r, g, b } = hexToRgb(pageOverlayColor)
+    return `rgba(${r}, ${g}, ${b}, ${pageOverlayOpacity})`
+  }, [pageOverlayColor, pageOverlayOpacity])
 
   const orderedWidgetItems = useMemo<RenderedWidgetItem[]>(() => {
     const widgetMap = new Map(widgets.map((widget) => [widget.id, widget]))
@@ -538,6 +670,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
         {
           '--home-background-image': homeBackgroundUrl ? `url(${homeBackgroundUrl})` : 'none',
           '--icon-tile-bg': iconTileBackground,
+          '--page-overlay-bg': pageOverlayBackground,
         } as CSSProperties
       }
     >
@@ -556,6 +689,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
           <section className="glass-card widget-toolbar">
             <button type="button" className="ghost" onClick={handleAddTextWidget}>+ 文本组件</button>
             <button type="button" className="ghost" onClick={handleAddImageWidget}>+ 图片组件</button>
+            <button type="button" className="ghost" onClick={handleAddSpacerWidget}>+ 占位组件</button>
             <button type="button" className="ghost" onClick={() => setShowEmptySlots((value) => !value)}>
               {showEmptySlots ? '隐藏空位' : '显示空位'}
             </button>
@@ -592,6 +726,25 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
                 onChange={(event) => setIconTileBgOpacity(Number(event.target.value) / 100)}
               />
             </label>
+            <label>
+              面板颜色
+              <input
+                type="color"
+                value={pageOverlayColor}
+                onChange={(event) => setPageOverlayColor(event.target.value)}
+              />
+            </label>
+            <label>
+              面板透明度 {Math.round(pageOverlayOpacity * 100)}%
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={Math.round(pageOverlayOpacity * 100)}
+                onChange={(event) => setPageOverlayOpacity(Number(event.target.value) / 100)}
+              />
+            </label>
             <div className="background-controls">
               <span>背景图</span>
               <button
@@ -621,14 +774,60 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
           </section>
         ) : null}
 
+        {editMode ? (
+          <section className="glass-card icon-editor-toolbar">
+            <h2>编辑图标</h2>
+            <label>
+              应用
+              <select value={editingIconId} onChange={(event) => setEditingIconId(event.target.value)}>
+                {iconOrder.map((iconId) => {
+                  const icon = iconMap.get(iconId)
+                  return icon ? (
+                    <option key={iconId} value={iconId}>
+                      {icon.label}
+                    </option>
+                  ) : null
+                })}
+              </select>
+            </label>
+            <label>
+              Emoji
+              <input
+                type="text"
+                value={appIconConfigs[editingIconId]?.type === 'emoji' ? appIconConfigs[editingIconId].emoji : ''}
+                onChange={(event) => handleEmojiChange(editingIconId, event.target.value)}
+                placeholder="输入 emoji"
+                maxLength={4}
+              />
+            </label>
+            <div className="background-controls">
+              <button type="button" className="ghost" onClick={() => appIconInputRef.current?.click()}>
+                上传本地图标
+              </button>
+              <button type="button" className="ghost" onClick={() => void handleResetAppIcon(editingIconId)}>
+                恢复默认
+              </button>
+            </div>
+            <input
+              ref={appIconInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(event) => void handleAppIconImageSelected(event)}
+            />
+          </section>
+        ) : null}
+
         <section className="widget-grid" aria-label="Widgets">
           {orderedWidgetItems.map((item) => {
             const isCheckin = item.kind === 'checkin'
             const widget = item.widget
+            const isSpacer = widget?.type === 'spacer'
+
             return (
               <article
                 key={item.id}
-                className={`glass-card widget-card ${item.size === '2x1' ? 'widget-card-wide' : ''}`}
+                className={`glass-card widget-card ${item.size === '2x1' ? 'widget-card-wide' : ''} ${isSpacer ? 'spacer-card' : ''}`}
                 draggable={editMode}
                 onDragStart={(event) => event.dataTransfer.setData('text/widget-id', item.id)}
                 onDragOver={(event) => editMode && event.preventDefault()}
@@ -657,9 +856,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
                   </div>
                 ) : null}
                 {isCheckin ? (
-                  <article
-                    className={`checkin-inner ${item.size === '2x1' ? 'checkin-wide' : ''}`}
-                  >
+                  <article className={`checkin-inner ${item.size === '2x1' ? 'checkin-wide' : ''}`}>
                     <div className="checkin-head">
                       <strong>今日打卡</strong>
                       <span className={checkedToday ? 'done' : 'todo'}>{checkedToday ? '已完成' : '未完成'}</span>
@@ -679,18 +876,18 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
                     </button>
                   </article>
                 ) : widget ? (
-                  <>
-                    {widget.type === 'text' ? (
-                      <p className="text-widget">{widget.text}</p>
-                    ) : (
-                      <img
-                        className="image-widget"
-                        src={imageUrls[widget.id]}
-                        style={{ objectFit: widget.fit ?? 'cover' }}
-                        alt="本地图片组件"
-                      />
-                    )}
-                  </>
+                  widget.type === 'text' ? (
+                    <p className="text-widget">{widget.text}</p>
+                  ) : widget.type === 'spacer' ? (
+                    editMode ? <div className="spacer-editor">占位</div> : null
+                  ) : (
+                    <img
+                      className="image-widget"
+                      src={imageUrls[widget.id]}
+                      style={{ objectFit: widget.fit ?? 'cover' }}
+                      alt="本地图片组件"
+                    />
+                  )
                 ) : null}
               </article>
             )
@@ -708,6 +905,11 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
             if (!icon) {
               return null
             }
+
+            const configured = appIconConfigs[iconId] ?? { type: 'emoji', emoji: icon.defaultEmoji }
+            const iconImageUrl = configured.type === 'image' ? appIconImageUrls[iconId] : null
+            const emojiValue = configured.type === 'emoji' ? configured.emoji : icon.defaultEmoji
+
             return (
               <div
                 key={icon.id}
@@ -725,6 +927,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
                   onPointerLeave={cancelHold}
                   onClick={() => {
                     if (editMode) {
+                      setEditingIconId(icon.id)
                       return
                     }
                     if (icon.action) {
@@ -736,7 +939,13 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
                     }
                   }}
                 >
-                  <span className="icon-emoji">{icon.icon}</span>
+                  <span className="icon-emoji">
+                    {iconImageUrl ? (
+                      <img src={iconImageUrl} alt={`${icon.label} 图标`} className="icon-image" />
+                    ) : (
+                      <span>{emojiValue}</span>
+                    )}
+                  </span>
                   <span className="icon-label">{icon.label}</span>
                 </button>
               </div>
