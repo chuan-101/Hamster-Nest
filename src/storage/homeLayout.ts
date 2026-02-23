@@ -3,18 +3,22 @@ export type DecorativeWidget =
       id: string
       type: 'text'
       text: string
+      size?: '1x1' | '2x1'
     }
   | {
       id: string
       type: 'image'
       imageKey: string
       fit?: 'cover' | 'contain'
+      size?: '1x1' | '2x1'
     }
 
 export type HomeLayoutState = {
   iconOrder: string[]
   widgetOrder: string[]
   widgets: DecorativeWidget[]
+  checkinSize?: '1x1' | '2x1'
+  showEmptySlots?: boolean
 }
 
 const HOME_LAYOUT_STORAGE_KEY = 'hamster.home.layout.v1'

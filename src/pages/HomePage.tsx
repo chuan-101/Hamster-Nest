@@ -29,6 +29,15 @@ type AppIcon = {
   action?: () => void
 }
 
+type WidgetSize = '1x1' | '2x1'
+
+type RenderedWidgetItem = {
+  id: string
+  size: WidgetSize
+  kind: 'checkin' | 'decorative'
+  widget?: DecorativeWidget
+}
+
 const DEFAULT_ICON_ORDER = ['chat', 'checkin', 'memory', 'snacks', 'syzygy', 'rp', 'settings', 'export']
 const CORE_WIDGET_ID = 'widget-checkin'
 const MAX_WIDGETS = 6
@@ -77,6 +86,8 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   const [iconOrder, setIconOrder] = useState<string[]>(DEFAULT_ICON_ORDER)
   const [widgetOrder, setWidgetOrder] = useState<string[]>([CORE_WIDGET_ID])
   const [widgets, setWidgets] = useState<DecorativeWidget[]>([])
+  const [checkinSize, setCheckinSize] = useState<WidgetSize>('1x1')
+  const [showEmptySlots, setShowEmptySlots] = useState(false)
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -144,6 +155,8 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     const restoredOrder = cached.widgetOrder.filter((id) => id === CORE_WIDGET_ID || widgetIds.includes(id))
     setWidgets(safeWidgets)
     setWidgetOrder(Array.from(new Set([CORE_WIDGET_ID, ...restoredOrder])))
+    setCheckinSize(cached.checkinSize ?? '1x1')
+    setShowEmptySlots(cached.showEmptySlots ?? false)
   }, [])
 
   useEffect(() => {
@@ -151,8 +164,10 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       iconOrder,
       widgetOrder,
       widgets,
+      checkinSize,
+      showEmptySlots,
     })
-  }, [iconOrder, widgetOrder, widgets])
+  }, [checkinSize, iconOrder, showEmptySlots, widgetOrder, widgets])
 
   useEffect(() => {
     const imageWidgets = widgets.filter((widget) => widget.type === 'image')
@@ -258,16 +273,6 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     }
     setIconOrder((current) => moveInList(current, sourceId, targetIndex))
   }
-
-  const handleWidgetDrop = (event: React.DragEvent<HTMLDivElement>, targetIndex: number) => {
-    event.preventDefault()
-    const sourceId = event.dataTransfer.getData('text/widget-id')
-    if (!sourceId) {
-      return
-    }
-    setWidgetOrder((current) => moveInList(current, sourceId, targetIndex))
-  }
-
   const triggerEditModeByHold = () => {
     if (editMode) {
       return
@@ -341,6 +346,46 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     setWidgetOrder((current) => current.filter((widgetId) => widgetId !== id))
   }
 
+  const orderedWidgetItems = useMemo<RenderedWidgetItem[]>(() => {
+    const widgetMap = new Map(widgets.map((widget) => [widget.id, widget]))
+    return widgetOrder
+      .map((id) => {
+        if (id === CORE_WIDGET_ID) {
+          return { id, kind: 'checkin', size: checkinSize }
+        }
+        const widget = widgetMap.get(id)
+        if (!widget) {
+          return null
+        }
+        return { id, kind: 'decorative', widget, size: widget.size ?? '1x1' }
+      })
+      .filter((item): item is RenderedWidgetItem => Boolean(item))
+  }, [checkinSize, widgetOrder, widgets])
+
+  const handleWidgetSizeChange = (id: string, size: WidgetSize) => {
+    if (id === CORE_WIDGET_ID) {
+      setCheckinSize(size)
+      return
+    }
+    setWidgets((current) => current.map((widget) => (widget.id === id ? { ...widget, size } : widget)))
+  }
+
+  const handleWidgetDropOnItem = (event: React.DragEvent<HTMLElement>, targetId: string) => {
+    event.preventDefault()
+    const sourceId = event.dataTransfer.getData('text/widget-id')
+    if (!sourceId || sourceId === targetId) {
+      return
+    }
+    setWidgetOrder((current) => {
+      const fromIndex = current.indexOf(sourceId)
+      const toIndex = current.indexOf(targetId)
+      if (fromIndex < 0 || toIndex < 0) {
+        return current
+      }
+      return moveInList(current, sourceId, toIndex)
+    })
+  }
+
   return (
     <main className="home-page">
       <div className="phone-shell">
@@ -358,6 +403,9 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
           <section className="glass-card widget-toolbar">
             <button type="button" className="ghost" onClick={handleAddTextWidget}>+ 文本组件</button>
             <button type="button" className="ghost" onClick={handleAddImageWidget}>+ 图片组件</button>
+            <button type="button" className="ghost" onClick={() => setShowEmptySlots((value) => !value)}>
+              {showEmptySlots ? '隐藏空位' : '显示空位'}
+            </button>
             <span>{decoratedWidgetCount}/{MAX_WIDGETS} 组件</span>
             <input
               ref={fileInputRef}
@@ -370,27 +418,43 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
         ) : null}
 
         <section className="widget-grid" aria-label="Widgets">
-          {Array.from({ length: MAX_WIDGETS }).map((_, index) => {
-            const widgetId = widgetOrder[index]
-            const widget = widgets.find((entry) => entry.id === widgetId)
-            const isCheckin = widgetId === CORE_WIDGET_ID
+          {orderedWidgetItems.map((item) => {
+            const isCheckin = item.kind === 'checkin'
+            const widget = item.widget
             return (
-              <div
-                key={`widget-slot-${index}`}
-                className="widget-slot"
+              <article
+                key={item.id}
+                className={`glass-card widget-card ${item.size === '2x1' ? 'widget-card-wide' : ''}`}
+                draggable={editMode}
+                onDragStart={(event) => event.dataTransfer.setData('text/widget-id', item.id)}
                 onDragOver={(event) => editMode && event.preventDefault()}
-                onDrop={(event) => editMode && handleWidgetDrop(event, index)}
+                onDrop={(event) => editMode && handleWidgetDropOnItem(event, item.id)}
+                onPointerDown={triggerEditModeByHold}
+                onPointerUp={cancelHold}
+                onPointerLeave={cancelHold}
               >
-                {!widgetId ? (
-                  <div className="widget-placeholder">空位</div>
-                ) : isCheckin ? (
+                {editMode ? (
+                  <div className="widget-controls">
+                    <label>
+                      尺寸
+                      <select
+                        value={item.size}
+                        onChange={(event) => handleWidgetSizeChange(item.id, event.target.value as WidgetSize)}
+                      >
+                        <option value="1x1">小</option>
+                        <option value="2x1">大</option>
+                      </select>
+                    </label>
+                    {!isCheckin && widget ? (
+                      <button type="button" className="widget-delete" onClick={() => void removeWidget(widget.id)}>
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {isCheckin ? (
                   <article
-                    className="glass-card widget-card"
-                    draggable={editMode}
-                    onDragStart={(event) => event.dataTransfer.setData('text/widget-id', CORE_WIDGET_ID)}
-                    onPointerDown={triggerEditModeByHold}
-                    onPointerUp={cancelHold}
-                    onPointerLeave={cancelHold}
+                    className={`checkin-inner ${item.size === '2x1' ? 'checkin-wide' : ''}`}
                   >
                     <div className="checkin-head">
                       <strong>今日打卡</strong>
@@ -399,6 +463,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
                     <div className="checkin-metrics-mini">
                       <span>连续 {streakDays} 天</span>
                       <span>累计 {checkinTotal} 次</span>
+                      {item.size === '2x1' ? <span>{checkedToday ? '今天已打卡' : '今天还没打卡'}</span> : null}
                     </div>
                     <button
                       type="button"
@@ -410,19 +475,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
                     </button>
                   </article>
                 ) : widget ? (
-                  <article
-                    className="glass-card widget-card"
-                    draggable={editMode}
-                    onDragStart={(event) => event.dataTransfer.setData('text/widget-id', widget.id)}
-                    onPointerDown={triggerEditModeByHold}
-                    onPointerUp={cancelHold}
-                    onPointerLeave={cancelHold}
-                  >
-                    {editMode ? (
-                      <button type="button" className="widget-delete" onClick={() => void removeWidget(widget.id)}>
-                        ×
-                      </button>
-                    ) : null}
+                  <>
                     {widget.type === 'text' ? (
                       <p className="text-widget">{widget.text}</p>
                     ) : (
@@ -433,13 +486,16 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
                         alt="本地图片组件"
                       />
                     )}
-                  </article>
-                ) : (
-                  <div className="widget-placeholder">空位</div>
-                )}
-              </div>
+                  </>
+                ) : null}
+              </article>
             )
           })}
+          {editMode && showEmptySlots
+            ? Array.from({ length: Math.max(MAX_WIDGETS - orderedWidgetItems.length, 0) }).map((_, index) => (
+                <div key={`empty-${index}`} className="widget-placeholder" aria-hidden="true" />
+              ))
+            : null}
         </section>
 
         <section className="icons-grid" aria-label="Apps">
