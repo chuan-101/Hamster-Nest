@@ -18,6 +18,7 @@ type OpenRouterPayload = {
   stream?: boolean
   isFirstMessage?: boolean
   module?: 'snack-feed' | 'syzygy-feed' | 'rp-room' | string
+  rpKeepRecentMessages?: number
   debug?: boolean
 }
 
@@ -126,8 +127,9 @@ const resolveCompressionModule = (payload: OpenRouterPayload): 'chat' | 'rp' | n
 }
 
 const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_CHAT = 20
-const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP = 12
-const MAX_RECENT_UNCOMPRESSED_MESSAGES_RP = 12
+const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP = 10
+const MIN_RECENT_UNCOMPRESSED_MESSAGES_RP = 5
+const MAX_RECENT_UNCOMPRESSED_MESSAGES_RP = 20
 const MIN_EXTRA_MESSAGES_FOR_COMPRESSION = 10
 const MIN_NEW_MESSAGES_BEFORE_RESUMMARIZE = 5
 const DEFAULT_CONTEXT_TRIGGER_RATIO = 0.65
@@ -431,9 +433,16 @@ const maybeCompressRuntimeContext = async (
       compressionModule === 'rp'
         ? DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP
         : DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_CHAT
+    const rpKeepRecentMessages =
+      typeof payload.rpKeepRecentMessages === 'number'
+        ? payload.rpKeepRecentMessages
+        : rawKeepRecentMessages
     const keepRecentMessages =
       compressionModule === 'rp'
-        ? Math.min(rawKeepRecentMessages ?? defaultKeepRecentMessages, MAX_RECENT_UNCOMPRESSED_MESSAGES_RP)
+        ? Math.min(
+            Math.max(rpKeepRecentMessages ?? defaultKeepRecentMessages, MIN_RECENT_UNCOMPRESSED_MESSAGES_RP),
+            MAX_RECENT_UNCOMPRESSED_MESSAGES_RP,
+          )
         : (rawKeepRecentMessages ?? defaultKeepRecentMessages)
     const summarizerModel = userSettings?.summarizer_model?.trim()
       || userSettings?.default_model?.trim()
