@@ -135,6 +135,7 @@ const resolveCompressionModule = (payload: OpenRouterPayload): 'chat' | 'rp' | n
 const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_CHAT = 20
 const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP = 10
 const MIN_RECENT_UNCOMPRESSED_MESSAGES_RP = 5
+const MIN_DYNAMIC_KEEP_RECENT_MESSAGES_RP = 3
 const MAX_RECENT_UNCOMPRESSED_MESSAGES_RP = 20
 const MIN_EXTRA_MESSAGES_FOR_COMPRESSION = 10
 const MIN_NEW_MESSAGES_BEFORE_RESUMMARIZE = 5
@@ -293,14 +294,75 @@ const upsertCompressionCache = async (
     .from('compression_cache')
     .upsert(
       {
-      module,
-      conversation_id: conversationId,
-      compressed_up_to_message_id: compressedUpToMessageId,
-      summary_text: summaryText,
-      updated_at: new Date().toISOString(),
+        module,
+        conversation_id: conversationId,
+        compressed_up_to_message_id: compressedUpToMessageId,
+        summary_text: summaryText,
+        updated_at: new Date().toISOString(),
       },
-      { onConflict: 'module,conversation_id,compressed_up_to_message_id' },
+      { onConflict: 'module,conversation_id' },
     )
+}
+
+const formatHistoryMessagesForCompression = (
+  compressionModule: 'chat' | 'rp',
+  fullHistory: StoredMessageRow[],
+): OpenAiMessage[] => (compressionModule === 'rp'
+  ? fullHistory.map((message) => ({ role: 'assistant', content: `【${message.role}】${message.content}` }))
+  : fullHistory.map((message) => ({ role: message.role, content: message.content })))
+
+const buildSummarizedMessages = (
+  compressionModule: 'chat' | 'rp',
+  systemMessages: OpenAiMessage[],
+  summaryText: string,
+  fullHistory: StoredMessageRow[],
+  compressedUpToIndex: number,
+  keepRecentMessages: number,
+  rpContextTokenLimit: number,
+  conversationId: string,
+): { summarizedMessages: OpenAiMessage[]; effectiveKeepRecentMessages: number } => {
+  const summaryMessage: OpenAiMessage = {
+    role: 'system',
+    content:
+      compressionModule === 'rp'
+        ? `${RP_SUMMARY_MARKER}${summaryText}`
+        : `${CHAT_SUMMARY_MARKER}\n${summaryText}`,
+  }
+  const fullRecentHistory = fullHistory.slice(compressedUpToIndex + 1)
+  let effectiveKeepRecentMessages = keepRecentMessages
+  let recentHistorySlice =
+    compressionModule === 'rp' ? fullRecentHistory.slice(-effectiveKeepRecentMessages) : fullRecentHistory
+  let summarizedMessages: OpenAiMessage[] = [
+    ...systemMessages,
+    summaryMessage,
+    ...formatHistoryMessagesForCompression(compressionModule, recentHistorySlice),
+  ]
+
+  if (compressionModule === 'rp' && rpContextTokenLimit > 0) {
+    while (
+      estimateTotalTokens(summarizedMessages) > rpContextTokenLimit
+      && effectiveKeepRecentMessages > MIN_DYNAMIC_KEEP_RECENT_MESSAGES_RP
+    ) {
+      effectiveKeepRecentMessages -= 1
+      recentHistorySlice = fullRecentHistory.slice(-effectiveKeepRecentMessages)
+      summarizedMessages = [
+        ...systemMessages,
+        summaryMessage,
+        ...formatHistoryMessagesForCompression(compressionModule, recentHistorySlice),
+      ]
+    }
+
+    if (estimateTotalTokens(summarizedMessages) > rpContextTokenLimit) {
+      console.warn('rp compression output still exceeds context token limit', {
+        conversationId,
+        rpContextTokenLimit,
+        finalTokens: estimateTotalTokens(summarizedMessages),
+        effectiveKeepRecentMessages,
+      })
+    }
+  }
+
+  return { summarizedMessages, effectiveKeepRecentMessages }
 }
 
 const fetchRpConversationMessages = async (
@@ -506,10 +568,7 @@ const maybeCompressRuntimeContext = async (
 
     const preCompressionTokens = estimateTotalTokens(messages)
 
-    const fullAsMessages: OpenAiMessage[] =
-      compressionModule === 'rp'
-        ? fullHistory.map((message) => ({ role: 'assistant', content: `【${message.role}】${message.content}` }))
-        : fullHistory.map((message) => ({ role: message.role, content: message.content }))
+    const fullAsMessages: OpenAiMessage[] = formatHistoryMessagesForCompression(compressionModule, fullHistory)
     const contextEstimate = estimateTotalTokens([...systemMessages, ...fullAsMessages])
     const fallbackRpContextLimitFromSettings =
       rpSessionCompressionSettings?.settings && typeof rpSessionCompressionSettings.settings.rp_context_token_limit === 'number'
@@ -553,28 +612,16 @@ const maybeCompressRuntimeContext = async (
     const newMessagesCount = targetBoundaryIndex - cacheBoundaryIndex
     if (hasValidCachedSummary && newMessagesCount < MIN_NEW_MESSAGES_BEFORE_RESUMMARIZE) {
       const compressedUpToIndex = summaryText ? cacheBoundaryIndex : -1
-      const remainingMessages =
-        compressionModule === 'rp'
-          ? fullHistory.slice(compressedUpToIndex + 1).map((message) => ({
-              role: 'assistant',
-              content: `【${message.role}】${message.content}`,
-            }))
-          : fullHistory.slice(compressedUpToIndex + 1).map((message) => ({
-              role: message.role,
-              content: message.content,
-            }))
-
-      const summarizedMessages: OpenAiMessage[] = [
-        ...systemMessages,
-        {
-          role: 'system',
-          content:
-            compressionModule === 'rp'
-              ? `${RP_SUMMARY_MARKER}${summaryText}`
-              : `${CHAT_SUMMARY_MARKER}\n${summaryText}`,
-        },
-        ...remainingMessages,
-      ]
+      const { summarizedMessages } = buildSummarizedMessages(
+        compressionModule,
+        systemMessages,
+        summaryText,
+        fullHistory,
+        compressedUpToIndex,
+        keepRecentMessages,
+        rpContextTokenLimit,
+        conversationId,
+      )
 
       return {
         messages: summarizedMessages,
@@ -617,10 +664,13 @@ const maybeCompressRuntimeContext = async (
           )
           if (error) {
             cacheWriteFailed = true
-            cacheWriteErrorMessage = error.message
+            cacheWriteErrorMessage = [error.code, error.message, error.details, error.hint]
+              .filter((field) => typeof field === 'string' && field.trim().length > 0)
+              .join(' | ')
             console.error('compression_cache upsert failed', {
               module: compressionModule,
               conversationId,
+              compressedUpToMessageId: refreshBoundaryId,
               error,
             })
           } else {
@@ -637,32 +687,20 @@ const maybeCompressRuntimeContext = async (
       }
     }
 
-    const compressedUpToIndex = summaryText ? cacheBoundaryIndex : -1
-    const remainingMessages =
-      compressionModule === 'rp'
-        ? fullHistory.slice(compressedUpToIndex + 1).map((message) => ({
-            role: 'assistant',
-            content: `【${message.role}】${message.content}`,
-          }))
-        : fullHistory.slice(compressedUpToIndex + 1).map((message) => ({
-            role: message.role,
-            content: message.content,
-          }))
-
     if (!summaryText) {
       return { messages, cacheWriteFailed, cacheWriteSucceeded, cacheWriteErrorMessage }
     }
-    const summarizedMessages: OpenAiMessage[] = [
-      ...systemMessages,
-      {
-        role: 'system',
-        content:
-          compressionModule === 'rp'
-            ? `${RP_SUMMARY_MARKER}${summaryText}`
-            : `${CHAT_SUMMARY_MARKER}\n${summaryText}`,
-      },
-      ...remainingMessages,
-    ]
+    const compressedUpToIndex = summaryText ? cacheBoundaryIndex : -1
+    const { summarizedMessages, effectiveKeepRecentMessages } = buildSummarizedMessages(
+      compressionModule,
+      systemMessages,
+      summaryText,
+      fullHistory,
+      compressedUpToIndex,
+      keepRecentMessages,
+      rpContextTokenLimit,
+      conversationId,
+    )
 
     const finalTokens = estimateTotalTokens(summarizedMessages)
     const reductionRatio = preCompressionTokens > 0
@@ -675,7 +713,7 @@ const maybeCompressRuntimeContext = async (
         preCompressionTokens,
         finalTokens,
         reductionRatio,
-        keepRecentMessages,
+        keepRecentMessages: effectiveKeepRecentMessages,
       })
     }
 
