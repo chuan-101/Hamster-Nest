@@ -110,6 +110,8 @@ type RpSessionRow = {
   player_display_name: string | null
   player_avatar_url: string | null
   worldbook_text: string | null
+  rp_context_token_limit: number | null
+  rp_keep_recent_messages: number | null
   settings: Record<string, unknown> | null
 }
 
@@ -209,11 +211,13 @@ const mapRpSessionRow = (row: RpSessionRow): RpSession => ({
   playerDisplayName: row.player_display_name,
   playerAvatarUrl: row.player_avatar_url,
   worldbookText: row.worldbook_text,
+  rpContextTokenLimit: row.rp_context_token_limit,
+  rpKeepRecentMessages: row.rp_keep_recent_messages,
   settings: row.settings ?? {},
 })
 
 const RP_SESSION_SELECT_FIELDS =
-  'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url,worldbook_text,settings'
+  'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url,worldbook_text,rp_context_token_limit,rp_keep_recent_messages,settings'
 
 const mapRpMessageRow = (row: RpMessageRow): RpMessage => ({
   id: row.id,
@@ -466,6 +470,8 @@ export const updateRpSessionDashboard = async (
     playerAvatarUrl?: string
     worldbookText?: string
     settings?: Record<string, unknown>
+    rpContextTokenLimit?: number
+    rpKeepRecentMessages?: number
   },
 ): Promise<RpSession> => {
   if (!supabase) {
@@ -478,6 +484,8 @@ export const updateRpSessionDashboard = async (
     player_avatar_url?: string
     worldbook_text?: string
     settings?: Record<string, unknown>
+    rp_context_token_limit?: number
+    rp_keep_recent_messages?: number
   } = {
     updated_at: new Date().toISOString(),
   }
@@ -493,6 +501,12 @@ export const updateRpSessionDashboard = async (
   }
   if (typeof updates.settings !== 'undefined') {
     nextUpdates.settings = updates.settings
+  }
+  if (typeof updates.rpContextTokenLimit !== 'undefined') {
+    nextUpdates.rp_context_token_limit = updates.rpContextTokenLimit
+  }
+  if (typeof updates.rpKeepRecentMessages !== 'undefined') {
+    nextUpdates.rp_keep_recent_messages = updates.rpKeepRecentMessages
   }
 
   const { data, error } = await supabase

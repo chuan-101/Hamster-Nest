@@ -38,6 +38,12 @@ type NpcFormState = {
 
 const NPC_MAX_ENABLED = 3
 const RP_ROOM_ENABLE_REASONING_KEY = 'enable_reasoning'
+const RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT = 10
+const RP_ROOM_KEEP_RECENT_MESSAGES_MIN = 5
+const RP_ROOM_KEEP_RECENT_MESSAGES_MAX = 20
+const RP_ROOM_CONTEXT_TOKEN_LIMIT_DEFAULT = 32000
+const RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN = 8000
+const RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX = 128000
 
 const createEmptyNpcForm = (): NpcFormState => ({
   displayName: '',
@@ -51,6 +57,22 @@ const createEmptyNpcForm = (): NpcFormState => ({
 
 const readRoomReasoningEnabled = (settings?: Record<string, unknown>) =>
   Boolean(settings?.[RP_ROOM_ENABLE_REASONING_KEY])
+
+const readRoomKeepRecentMessages = (value?: number | null) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT
+  }
+  const normalized = Math.floor(value)
+  return Math.min(Math.max(normalized, RP_ROOM_KEEP_RECENT_MESSAGES_MIN), RP_ROOM_KEEP_RECENT_MESSAGES_MAX)
+}
+
+const readRoomContextTokenLimit = (value?: number | null) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return RP_ROOM_CONTEXT_TOKEN_LIMIT_DEFAULT
+  }
+  const normalized = Math.floor(value)
+  return Math.min(Math.max(normalized, RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN), RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX)
+}
 
 const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const { sessionId } = useParams()
@@ -70,6 +92,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const [playerAvatarUrlInput, setPlayerAvatarUrlInput] = useState('')
   const [worldbookTextInput, setWorldbookTextInput] = useState('')
   const [reasoningEnabledInput, setReasoningEnabledInput] = useState(false)
+  const [keepRecentMessagesInput, setKeepRecentMessagesInput] = useState(String(RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT))
+  const [contextTokenLimitInput, setContextTokenLimitInput] = useState(String(RP_ROOM_CONTEXT_TOKEN_LIMIT_DEFAULT))
   const [savingRoomSettings, setSavingRoomSettings] = useState(false)
   const [savingRoomReasoning, setSavingRoomReasoning] = useState(false)
   const [savingWorldbook, setSavingWorldbook] = useState(false)
@@ -155,6 +179,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setPlayerAvatarUrlInput(room.playerAvatarUrl ?? '')
     setWorldbookTextInput(room.worldbookText ?? '')
     setReasoningEnabledInput(readRoomReasoningEnabled(room.settings))
+    setKeepRecentMessagesInput(String(readRoomKeepRecentMessages(room.rpKeepRecentMessages)))
+    setContextTokenLimitInput(String(readRoomContextTokenLimit(room.rpContextTokenLimit)))
   }, [room])
 
   useEffect(() => {
@@ -448,17 +474,14 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     if (normalizedWorldbook) {
       modelMessages.push({ role: 'system', content: `世界书：${normalizedWorldbook}` })
     }
-    messages.forEach((item) => {
+    const latestUserLikeMessage = [...messages].reverse().find((item) => {
       const isNarration = item.role === '旁白' || item.meta?.kind === 'narration'
-      const role: 'user' | 'assistant' = item.role === playerName || isNarration ? 'user' : 'assistant'
-      const contentWithoutPrefix = stripSpeakerPrefix(item.content)
-      const speaker = isNarration ? '旁白' : item.role
-      modelMessages.push({ role, content: `【${speaker}】${contentWithoutPrefix}` })
+      return item.role === playerName || isNarration
     })
-    modelMessages.push({
-      role: 'user',
-      content: `请以【${selectedNpcCard.displayName}】身份继续剧情并回复。`,
-    })
+    const latestUserContent = latestUserLikeMessage
+      ? `【${latestUserLikeMessage.role}】${stripSpeakerPrefix(latestUserLikeMessage.content)}`
+      : '请继续剧情。'
+    modelMessages.push({ role: 'user', content: latestUserContent })
 
     const temperature =
       typeof selectedNpcCard.modelConfig.temperature === 'number'
@@ -578,6 +601,28 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setNotice(null)
     const normalizedDisplayName = playerDisplayNameInput.trim() || '串串'
     const normalizedAvatar = playerAvatarUrlInput.trim()
+    const parsedKeepRecentMessages = Number.parseInt(keepRecentMessagesInput, 10)
+    const parsedContextTokenLimit = Number.parseInt(contextTokenLimitInput, 10)
+    if (Number.isNaN(parsedKeepRecentMessages)) {
+      setError('保留最近消息数需为整数。')
+      setSavingRoomSettings(false)
+      return
+    }
+    if (parsedKeepRecentMessages < RP_ROOM_KEEP_RECENT_MESSAGES_MIN || parsedKeepRecentMessages > RP_ROOM_KEEP_RECENT_MESSAGES_MAX) {
+      setError(`保留最近消息数需在 ${RP_ROOM_KEEP_RECENT_MESSAGES_MIN} 到 ${RP_ROOM_KEEP_RECENT_MESSAGES_MAX} 之间。`)
+      setSavingRoomSettings(false)
+      return
+    }
+    if (Number.isNaN(parsedContextTokenLimit)) {
+      setError('上下文 Token 上限需为整数。')
+      setSavingRoomSettings(false)
+      return
+    }
+    if (parsedContextTokenLimit < RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN || parsedContextTokenLimit > RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX) {
+      setError(`上下文 Token 上限需在 ${RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN} 到 ${RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX} 之间。`)
+      setSavingRoomSettings(false)
+      return
+    }
     try {
       const nextSettings = {
         ...(room.settings ?? {}),
@@ -587,6 +632,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
         playerDisplayName: normalizedDisplayName,
         playerAvatarUrl: normalizedAvatar,
         settings: nextSettings,
+        rpKeepRecentMessages: parsedKeepRecentMessages,
+        rpContextTokenLimit: parsedContextTokenLimit,
       })
       setRoom(updated)
       setNotice('保存成功')
@@ -877,6 +924,30 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
             placeholder="https://example.com/avatar.png"
           />
         </label>
+        <label>
+          保留最近消息数
+          <input
+            type="number"
+            min={RP_ROOM_KEEP_RECENT_MESSAGES_MIN}
+            max={RP_ROOM_KEEP_RECENT_MESSAGES_MAX}
+            value={keepRecentMessagesInput}
+            onChange={(event) => setKeepRecentMessagesInput(event.target.value)}
+            placeholder={String(RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT)}
+          />
+        </label>
+        <p className="rp-dashboard-helper">范围：{RP_ROOM_KEEP_RECENT_MESSAGES_MIN} - {RP_ROOM_KEEP_RECENT_MESSAGES_MAX}，默认 {RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT}</p>
+        <label>
+          上下文 Token 上限
+          <input
+            type="number"
+            min={RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN}
+            max={RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX}
+            value={contextTokenLimitInput}
+            onChange={(event) => setContextTokenLimitInput(event.target.value)}
+            placeholder={String(RP_ROOM_CONTEXT_TOKEN_LIMIT_DEFAULT)}
+          />
+        </label>
+        <p className="rp-dashboard-helper">范围：{RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN} - {RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX}，默认 {RP_ROOM_CONTEXT_TOKEN_LIMIT_DEFAULT}</p>
         <button type="button" className="primary" onClick={() => void handleSaveRoomSettings()} disabled={savingRoomSettings}>
           {savingRoomSettings ? '保存中…' : '保存'}
         </button>
