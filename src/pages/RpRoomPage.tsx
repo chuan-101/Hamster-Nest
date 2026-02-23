@@ -635,7 +635,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       const nextSettings = {
         ...(room.settings ?? {}),
         [RP_ROOM_ENABLE_REASONING_KEY]: reasoningEnabledInput,
-        [RP_ROOM_KEEP_RECENT_MESSAGES_KEY]: parsedKeepRecentMessages,
+        [RP_ROOM_KEEP_RECENT_MESSAGES_MIN]: parsedKeepRecentMessages,
       }
       const updated = await updateRpSessionDashboard(room.id, {
         playerDisplayName: normalizedDisplayName,
