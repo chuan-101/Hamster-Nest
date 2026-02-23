@@ -125,9 +125,13 @@ const resolveCompressionModule = (payload: OpenRouterPayload): 'chat' | 'rp' | n
   return null
 }
 
-const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES = 20
+const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_CHAT = 20
+const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP = 12
+const MAX_RECENT_UNCOMPRESSED_MESSAGES_RP = 12
 const MIN_EXTRA_MESSAGES_FOR_COMPRESSION = 10
+const MIN_NEW_MESSAGES_TO_REFRESH_SUMMARY = 8
 const DEFAULT_CONTEXT_TRIGGER_RATIO = 0.65
+const RP_UNIFIED_CONTEXT_WINDOW_TOKENS = 128000
 const TOKEN_OVERHEAD_PER_MESSAGE = 8
 const CHAT_SUMMARY_MARKER = 'CHAT SUMMARY:'
 const RP_SUMMARY_MARKER = '以下为截至目前的剧情摘要：'
@@ -405,7 +409,6 @@ const maybeCompressRuntimeContext = async (
   }
 
   const systemMessages = messages.filter((message) => message.role === 'system')
-  const nonSystemMessages = messages.filter((message) => message.role !== 'system')
   const origin = new URL(reqUrl).origin
 
   let cacheWriteFailed = false
@@ -423,7 +426,15 @@ const maybeCompressRuntimeContext = async (
       return { messages, cacheWriteFailed, cacheWriteSucceeded, cacheWriteErrorMessage }
     }
     const compressionTriggerRatio = userSettings?.compression_trigger_ratio ?? DEFAULT_CONTEXT_TRIGGER_RATIO
-    const keepRecentMessages = userSettings?.compression_keep_recent_messages ?? DEFAULT_RECENT_UNCOMPRESSED_MESSAGES
+    const rawKeepRecentMessages = userSettings?.compression_keep_recent_messages
+    const defaultKeepRecentMessages =
+      compressionModule === 'rp'
+        ? DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP
+        : DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_CHAT
+    const keepRecentMessages =
+      compressionModule === 'rp'
+        ? Math.min(rawKeepRecentMessages ?? defaultKeepRecentMessages, MAX_RECENT_UNCOMPRESSED_MESSAGES_RP)
+        : (rawKeepRecentMessages ?? defaultKeepRecentMessages)
     const summarizerModel = userSettings?.summarizer_model?.trim()
       || userSettings?.default_model?.trim()
       || DEFAULT_SUMMARIZER_MODEL
@@ -444,7 +455,11 @@ const maybeCompressRuntimeContext = async (
         ? fullHistory.map((message) => ({ role: 'assistant', content: `【${message.role}】${message.content}` }))
         : fullHistory.map((message) => ({ role: message.role, content: message.content }))
     const contextEstimate = estimateTotalTokens([...systemMessages, ...fullAsMessages])
-    const triggerLimit = Math.floor(estimateModelContextLimit(payload.model ?? 'openrouter/auto') * compressionTriggerRatio)
+    const baseContextLimit =
+      compressionModule === 'rp'
+        ? RP_UNIFIED_CONTEXT_WINDOW_TOKENS
+        : estimateModelContextLimit(payload.model ?? 'openrouter/auto')
+    const triggerLimit = Math.floor(baseContextLimit * compressionTriggerRatio)
     if (contextEstimate < triggerLimit) {
       return { messages, cacheWriteFailed, cacheWriteSucceeded, cacheWriteErrorMessage }
     }
@@ -457,13 +472,30 @@ const maybeCompressRuntimeContext = async (
 
     const cache = await fetchCompressionCache(compressionModule, conversationId)
     const targetBoundaryIndex = fullHistory.findIndex((message) => message.id === targetBoundaryId)
-    const cacheBoundaryIndex = cache?.compressed_up_to_message_id
+    let cacheBoundaryIndex = cache?.compressed_up_to_message_id
       ? fullHistory.findIndex((message) => message.id === cache.compressed_up_to_message_id)
       : -1
     let summaryText = cache?.summary_text ?? ''
-    if (!cache || cacheBoundaryIndex < targetBoundaryIndex) {
+    if (cache && cacheBoundaryIndex < 0) {
+      summaryText = ''
+    }
+
+    const uncachedCompressibleMessages = targetBoundaryIndex - cacheBoundaryIndex
+    const shouldRefreshSummary =
+      !summaryText
+      || uncachedCompressibleMessages >= MIN_NEW_MESSAGES_TO_REFRESH_SUMMARY
+
+    if (shouldRefreshSummary && cacheBoundaryIndex < targetBoundaryIndex) {
       const newChunkStart = Math.max(cacheBoundaryIndex + 1, 0)
-      const newCompressibleMessages = fullHistory.slice(newChunkStart, targetBoundaryIndex + 1)
+      const refreshBoundaryIndex =
+        !summaryText
+          ? targetBoundaryIndex
+          : (cacheBoundaryIndex + uncachedCompressibleMessages)
+      const refreshBoundaryId = fullHistory[refreshBoundaryIndex]?.id
+      if (!refreshBoundaryId) {
+        return { messages, cacheWriteFailed, cacheWriteSucceeded, cacheWriteErrorMessage }
+      }
+      const newCompressibleMessages = fullHistory.slice(newChunkStart, refreshBoundaryIndex + 1)
       if (newCompressibleMessages.length > 0) {
         const refreshedSummary = await summarizeCompressedWindow(
           openRouterApiKey,
@@ -476,7 +508,7 @@ const maybeCompressRuntimeContext = async (
           const { data, error } = await upsertCompressionCache(
             compressionModule,
             conversationId,
-            targetBoundaryId,
+            refreshBoundaryId,
             summaryText,
           )
           if (error) {
@@ -492,18 +524,23 @@ const maybeCompressRuntimeContext = async (
             console.log('compression_cache upsert succeeded', {
               module: compressionModule,
               conversationId,
-              compressedUpToMessageId: targetBoundaryId,
+              compressedUpToMessageId: refreshBoundaryId,
               rows: Array.isArray(data) ? data.length : 0,
             })
+            cacheBoundaryIndex = refreshBoundaryIndex
           }
         }
       }
     }
 
+    const compressedUpToIndex = summaryText ? cacheBoundaryIndex : -1
     const remainingMessages =
       compressionModule === 'rp'
-        ? nonSystemMessages.slice(-keepRecentMessages)
-        : fullHistory.slice(targetBoundaryIndex + 1).map((message) => ({
+        ? fullHistory.slice(compressedUpToIndex + 1).map((message) => ({
+            role: 'assistant',
+            content: `【${message.role}】${message.content}`,
+          }))
+        : fullHistory.slice(compressedUpToIndex + 1).map((message) => ({
             role: message.role,
             content: message.content,
           }))
