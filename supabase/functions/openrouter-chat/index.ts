@@ -129,7 +129,7 @@ const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_CHAT = 20
 const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP = 12
 const MAX_RECENT_UNCOMPRESSED_MESSAGES_RP = 12
 const MIN_EXTRA_MESSAGES_FOR_COMPRESSION = 10
-const MIN_NEW_MESSAGES_TO_REFRESH_SUMMARY = 8
+const MIN_NEW_MESSAGES_BEFORE_RESUMMARIZE = 5
 const DEFAULT_CONTEXT_TRIGGER_RATIO = 0.65
 const RP_UNIFIED_CONTEXT_WINDOW_TOKENS = 128000
 const TOKEN_OVERHEAD_PER_MESSAGE = 8
@@ -480,10 +480,45 @@ const maybeCompressRuntimeContext = async (
       summaryText = ''
     }
 
+    const hasValidCachedSummary = Boolean(cache?.summary_text?.trim())
+    const newMessagesCount = targetBoundaryIndex - cacheBoundaryIndex
+    if (hasValidCachedSummary && newMessagesCount < MIN_NEW_MESSAGES_BEFORE_RESUMMARIZE) {
+      const compressedUpToIndex = summaryText ? cacheBoundaryIndex : -1
+      const remainingMessages =
+        compressionModule === 'rp'
+          ? fullHistory.slice(compressedUpToIndex + 1).map((message) => ({
+              role: 'assistant',
+              content: `【${message.role}】${message.content}`,
+            }))
+          : fullHistory.slice(compressedUpToIndex + 1).map((message) => ({
+              role: message.role,
+              content: message.content,
+            }))
+
+      const summarizedMessages: OpenAiMessage[] = [
+        ...systemMessages,
+        {
+          role: 'system',
+          content:
+            compressionModule === 'rp'
+              ? `${RP_SUMMARY_MARKER}${summaryText}`
+              : `${CHAT_SUMMARY_MARKER}\n${summaryText}`,
+        },
+        ...remainingMessages,
+      ]
+
+      return {
+        messages: summarizedMessages,
+        cacheWriteFailed,
+        cacheWriteSucceeded,
+        cacheWriteErrorMessage,
+      }
+    }
+
     const uncachedCompressibleMessages = targetBoundaryIndex - cacheBoundaryIndex
     const shouldRefreshSummary =
       !summaryText
-      || uncachedCompressibleMessages >= MIN_NEW_MESSAGES_TO_REFRESH_SUMMARY
+      || uncachedCompressibleMessages >= MIN_NEW_MESSAGES_BEFORE_RESUMMARIZE
 
     if (shouldRefreshSummary && cacheBoundaryIndex < targetBoundaryIndex) {
       const newChunkStart = Math.max(cacheBoundaryIndex + 1, 0)
