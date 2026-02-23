@@ -1,8 +1,17 @@
 .chat-page {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100vh;
+  min-height: 100vh;
   min-height: 100dvh;
   background: #f1f5f9;
+  overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  .chat-page {
+    height: 100dvh;
+  }
 }
 
 .chat-header {
@@ -79,8 +88,11 @@
 }
 
 .chat-messages {
-  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -277,6 +289,22 @@
   position: sticky;
   bottom: 0;
   z-index: 3;
+}
+
+@media (max-width: 768px) {
+  .chat-header {
+    position: sticky;
+    top: 0;
+  }
+
+  .chat-messages {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .chat-composer textarea,
+  .model-selector select {
+    font-size: 16px;
+  }
 }
 
 .streaming-status {
