@@ -90,6 +90,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const [triggeringNpcReply, setTriggeringNpcReply] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RpMessage | null>(null)
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
+  const [openActionsId, setOpenActionsId] = useState<string | null>(null)
   const [playerDisplayNameInput, setPlayerDisplayNameInput] = useState('串串')
   const [playerAvatarUrlInput, setPlayerAvatarUrlInput] = useState('')
   const [worldbookTextInput, setWorldbookTextInput] = useState('')
@@ -111,6 +112,8 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const playerName = room?.playerDisplayName?.trim() ? room.playerDisplayName.trim() : '串串'
   const isDashboardPage = mode === 'dashboard'
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const timelineBottomRef = useRef<HTMLDivElement | null>(null)
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null)
   const messagesRef = useRef<RpMessage[]>([])
 
   useEffect(() => {
@@ -231,6 +234,29 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   useEffect(() => {
     resizeComposer()
   }, [draft])
+
+  useEffect(() => {
+    timelineBottomRef.current?.scrollIntoView({ block: 'end' })
+  }, [messages.length, messagesLoading])
+
+  useEffect(() => {
+    if (!openActionsId) {
+      return
+    }
+    const handleClick = (event: MouseEvent) => {
+      if (!actionsMenuRef.current) {
+        return
+      }
+      if (actionsMenuRef.current.contains(event.target as Node)) {
+        return
+      }
+      setOpenActionsId(null)
+    }
+    document.addEventListener('click', handleClick)
+    return () => {
+      document.removeEventListener('click', handleClick)
+    }
+  }, [openActionsId])
 
   useEffect(() => {
     if (!selectedNpcId) {
@@ -741,6 +767,19 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     }
   }
 
+  const handleCopyMessage = async (message: RpMessage) => {
+    try {
+      await navigator.clipboard.writeText(stripSpeakerPrefix(message.content))
+      setNotice('已复制消息内容')
+      setError(null)
+    } catch (copyError) {
+      console.warn('复制 RP 消息失败', copyError)
+      setError('复制失败，请检查剪贴板权限。')
+    } finally {
+      setOpenActionsId(null)
+    }
+  }
+
   const startCreateNpc = () => {
     setEditingNpcId('new')
     setNpcForm((current) => ({
@@ -1183,19 +1222,46 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                         )}
                       </div>
                       <div className="rp-message-actions">
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() => setPendingDelete(message)}
-                          disabled={Boolean(deletingMessageId)}
-                        >
-                          删除
-                        </button>
+                        <div className="rp-message-actions-menu" ref={openActionsId === message.id ? actionsMenuRef : null}>
+                          <button
+                            type="button"
+                            className="ghost rp-action-trigger"
+                            aria-expanded={openActionsId === message.id}
+                            aria-label={openActionsId === message.id ? '关闭操作菜单' : '打开操作菜单'}
+                            onClick={() =>
+                              setOpenActionsId((current) =>
+                                current === message.id ? null : message.id,
+                              )
+                            }
+                            disabled={Boolean(deletingMessageId)}
+                          >
+                            •••
+                          </button>
+                          {openActionsId === message.id ? (
+                            <div className="rp-actions-menu" role="menu">
+                              <button type="button" role="menuitem" onClick={() => void handleCopyMessage(message)}>
+                                复制
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="danger"
+                                onClick={() => {
+                                  setPendingDelete(message)
+                                  setOpenActionsId(null)
+                                }}
+                              >
+                                删除
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </li>
                   )
                 })}
               </ul>
+              <div ref={timelineBottomRef} />
             </section>
 
             <section className="rp-composer-wrap">
