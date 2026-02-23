@@ -577,6 +577,16 @@ const maybeCompressRuntimeContext = async (
         : await fetchConversationMessages(origin, authHeader, apiKeyHeader, conversationId)
     const totalHistoryMessages = fullHistory.length
     if (totalHistoryMessages <= keepRecentMessages + MIN_EXTRA_MESSAGES_FOR_COMPRESSION) {
+      if (compressionModule === 'rp') {
+        const historyAsMessages = formatHistoryMessagesForCompression(compressionModule, fullHistory)
+        return {
+          messages: [...systemMessages, ...historyAsMessages],
+          cacheWriteFailed,
+          cacheWriteSucceeded,
+          cacheWriteErrorMessage,
+        }
+      }
+
       return { messages, cacheWriteFailed, cacheWriteSucceeded, cacheWriteErrorMessage }
     }
 
