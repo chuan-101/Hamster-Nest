@@ -1,5 +1,6 @@
 .home-page {
   --icon-tile-bg: rgba(255, 255, 255, 0.65);
+  --page-overlay-bg: rgba(255, 255, 255, 0.2);
   --home-background-image: none;
   min-height: 100vh;
   padding: max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1.25rem);
@@ -19,11 +20,11 @@
   border-radius: 36px;
   padding: 1.1rem;
   border: 1px solid rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--page-overlay-bg);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
   backdrop-filter: blur(20px);
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto 1fr;
   gap: 0.9rem;
 }
 
@@ -79,19 +80,22 @@
   flex-wrap: wrap;
 }
 
-.appearance-toolbar {
+.appearance-toolbar,
+.icon-editor-toolbar {
   padding: 0.75rem;
   display: grid;
   gap: 0.6rem;
 }
 
-.appearance-toolbar h2 {
+.appearance-toolbar h2,
+.icon-editor-toolbar h2 {
   margin: 0;
   font-size: 0.95rem;
   color: #0f172a;
 }
 
-.appearance-toolbar label {
+.appearance-toolbar label,
+.icon-editor-toolbar label {
   display: grid;
   gap: 0.35rem;
   font-size: 0.85rem;
@@ -99,7 +103,9 @@
 }
 
 .appearance-toolbar input[type='color'],
-.appearance-toolbar input[type='range'] {
+.appearance-toolbar input[type='range'],
+.icon-editor-toolbar input,
+.icon-editor-toolbar select {
   width: 100%;
   font-size: 16px;
 }
@@ -137,6 +143,13 @@
   grid-column: span 2;
 }
 
+.spacer-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .widget-controls {
   display: flex;
   justify-content: space-between;
@@ -157,6 +170,17 @@
   border: 1px solid rgba(15, 23, 42, 0.2);
   background: rgba(255, 255, 255, 0.8);
   padding: 0.1rem 0.45rem;
+  font-size: 16px;
+}
+
+.spacer-editor {
+  min-height: 60px;
+  border-radius: 14px;
+  border: 1px dashed rgba(51, 65, 85, 0.35);
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  font-size: 0.82rem;
 }
 
 .widget-placeholder {
@@ -261,6 +285,14 @@
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.14);
   font-size: clamp(1.35rem, 4.8vw, 1.8rem);
+  overflow: hidden;
+}
+
+.icon-image {
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  object-fit: contain;
+  border-radius: 12px;
 }
 
 .icon-label {

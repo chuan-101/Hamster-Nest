@@ -12,6 +12,21 @@ export type DecorativeWidget =
       fit?: 'cover' | 'contain'
       size?: '1x1' | '2x1'
     }
+  | {
+      id: string
+      type: 'spacer'
+      size?: '1x1' | '2x1'
+    }
+
+export type AppIconConfig =
+  | {
+      type: 'emoji'
+      emoji: string
+    }
+  | {
+      type: 'image'
+      imageKey: string
+    }
 
 export type HomeLayoutState = {
   iconOrder: string[]
@@ -21,7 +36,10 @@ export type HomeLayoutState = {
   showEmptySlots?: boolean
   iconTileBgColor?: string
   iconTileBgOpacity?: number
+  pageOverlayColor?: string
+  pageOverlayOpacity?: number
   homeBackgroundImageKey?: string | null
+  appIconConfigs?: Record<string, AppIconConfig>
 }
 
 const HOME_LAYOUT_STORAGE_KEY = 'hamster.home.layout.v1'
