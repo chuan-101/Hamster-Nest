@@ -290,7 +290,7 @@ const upsertCompressionCache = async (
   summaryText: string,
 ) => {
   const supabase = buildSupabaseServiceRoleClient()
-  return supabase
+  const result = await supabase
     .from('compression_cache')
     .upsert(
       {
@@ -302,6 +302,81 @@ const upsertCompressionCache = async (
       },
       { onConflict: 'module,conversation_id' },
     )
+
+  if (result.error) {
+    console.error('compression_cache upsert failed', JSON.stringify({
+      module,
+      conversationId,
+      compressedUpToMessageId,
+      message: result.error.message,
+      code: result.error.code,
+      details: result.error.details,
+      hint: result.error.hint,
+    }))
+  }
+
+  return result
+}
+
+const formatHistoryMessagesForCompression = (
+  compressionModule: 'chat' | 'rp',
+  fullHistory: StoredMessageRow[],
+): OpenAiMessage[] => (compressionModule === 'rp'
+  ? fullHistory.map((message) => ({ role: 'assistant', content: `【${message.role}】${message.content}` }))
+  : fullHistory.map((message) => ({ role: message.role, content: message.content })))
+
+const buildSummarizedMessages = (
+  compressionModule: 'chat' | 'rp',
+  systemMessages: OpenAiMessage[],
+  summaryText: string,
+  fullHistory: StoredMessageRow[],
+  compressedUpToIndex: number,
+  keepRecentMessages: number,
+  rpContextTokenLimit: number,
+  conversationId: string,
+): { summarizedMessages: OpenAiMessage[]; effectiveKeepRecentMessages: number } => {
+  const summaryMessage: OpenAiMessage = {
+    role: 'system',
+    content:
+      compressionModule === 'rp'
+        ? `${RP_SUMMARY_MARKER}${summaryText}`
+        : `${CHAT_SUMMARY_MARKER}\n${summaryText}`,
+  }
+  const fullRecentHistory = fullHistory.slice(compressedUpToIndex + 1)
+  let effectiveKeepRecentMessages = keepRecentMessages
+  let recentHistorySlice =
+    compressionModule === 'rp' ? fullRecentHistory.slice(-effectiveKeepRecentMessages) : fullRecentHistory
+  let summarizedMessages: OpenAiMessage[] = [
+    ...systemMessages,
+    summaryMessage,
+    ...formatHistoryMessagesForCompression(compressionModule, recentHistorySlice),
+  ]
+
+  if (compressionModule === 'rp' && rpContextTokenLimit > 0) {
+    while (
+      estimateTotalTokens(summarizedMessages) > rpContextTokenLimit
+      && effectiveKeepRecentMessages > MIN_DYNAMIC_KEEP_RECENT_MESSAGES_RP
+    ) {
+      effectiveKeepRecentMessages -= 1
+      recentHistorySlice = fullRecentHistory.slice(-effectiveKeepRecentMessages)
+      summarizedMessages = [
+        ...systemMessages,
+        summaryMessage,
+        ...formatHistoryMessagesForCompression(compressionModule, recentHistorySlice),
+      ]
+    }
+
+    if (estimateTotalTokens(summarizedMessages) > rpContextTokenLimit) {
+      console.warn('rp compression output still exceeds context token limit', {
+        conversationId,
+        rpContextTokenLimit,
+        finalTokens: estimateTotalTokens(summarizedMessages),
+        effectiveKeepRecentMessages,
+      })
+    }
+  }
+
+  return { summarizedMessages, effectiveKeepRecentMessages }
 }
 
 const formatHistoryMessagesForCompression = (
@@ -664,15 +739,13 @@ const maybeCompressRuntimeContext = async (
           )
           if (error) {
             cacheWriteFailed = true
-            cacheWriteErrorMessage = [error.code, error.message, error.details, error.hint]
-              .filter((field) => typeof field === 'string' && field.trim().length > 0)
-              .join(' | ')
-            console.error('compression_cache upsert failed', {
-              module: compressionModule,
-              conversationId,
-              compressedUpToMessageId: refreshBoundaryId,
-              error,
+            cacheWriteErrorMessage = JSON.stringify({
+              message: error.message,
+              code: error.code,
+              details: error.details,
+              hint: error.hint,
             })
+            console.error('compression_cache upsert failed', cacheWriteErrorMessage)
           } else {
             cacheWriteSucceeded = true
             console.log('compression_cache upsert succeeded', {
