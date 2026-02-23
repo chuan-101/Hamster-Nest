@@ -114,6 +114,13 @@ const ChatPage = ({
   }, [messages.length])
 
   useEffect(() => {
+    document.body.classList.add('chat-page-active')
+    return () => {
+      document.body.classList.remove('chat-page-active')
+    }
+  }, [])
+
+  useEffect(() => {
     if (!openHeaderMenu) {
       return
     }

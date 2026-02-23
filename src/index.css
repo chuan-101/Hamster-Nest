@@ -21,3 +21,19 @@ body {
 #root {
   min-height: 100vh;
 }
+
+
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  body.chat-page-active {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+}
