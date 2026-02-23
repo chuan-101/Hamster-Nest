@@ -38,6 +38,10 @@ type NpcFormState = {
 
 const NPC_MAX_ENABLED = 3
 const RP_ROOM_ENABLE_REASONING_KEY = 'enable_reasoning'
+const RP_ROOM_KEEP_RECENT_MESSAGES_KEY = 'compression_keep_recent_messages'
+const RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT = 10
+const RP_ROOM_KEEP_RECENT_MESSAGES_MIN = 5
+const RP_ROOM_KEEP_RECENT_MESSAGES_MAX = 20
 
 const createEmptyNpcForm = (): NpcFormState => ({
   displayName: '',
@@ -51,6 +55,15 @@ const createEmptyNpcForm = (): NpcFormState => ({
 
 const readRoomReasoningEnabled = (settings?: Record<string, unknown>) =>
   Boolean(settings?.[RP_ROOM_ENABLE_REASONING_KEY])
+
+const readRoomKeepRecentMessages = (settings?: Record<string, unknown>) => {
+  const value = settings?.[RP_ROOM_KEEP_RECENT_MESSAGES_KEY]
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT
+  }
+  const normalized = Math.floor(value)
+  return Math.min(Math.max(normalized, RP_ROOM_KEEP_RECENT_MESSAGES_MIN), RP_ROOM_KEEP_RECENT_MESSAGES_MAX)
+}
 
 const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const { sessionId } = useParams()
@@ -70,6 +83,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const [playerAvatarUrlInput, setPlayerAvatarUrlInput] = useState('')
   const [worldbookTextInput, setWorldbookTextInput] = useState('')
   const [reasoningEnabledInput, setReasoningEnabledInput] = useState(false)
+  const [keepRecentMessagesInput, setKeepRecentMessagesInput] = useState(String(RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT))
   const [savingRoomSettings, setSavingRoomSettings] = useState(false)
   const [savingRoomReasoning, setSavingRoomReasoning] = useState(false)
   const [savingWorldbook, setSavingWorldbook] = useState(false)
@@ -155,6 +169,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setPlayerAvatarUrlInput(room.playerAvatarUrl ?? '')
     setWorldbookTextInput(room.worldbookText ?? '')
     setReasoningEnabledInput(readRoomReasoningEnabled(room.settings))
+    setKeepRecentMessagesInput(String(readRoomKeepRecentMessages(room.settings)))
   }, [room])
 
   useEffect(() => {
@@ -249,6 +264,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     onDelta?: (delta: { content?: string; reasoning?: string }) => void
     stream?: boolean
     reasoning?: boolean
+    rpKeepRecentMessages?: number
   }) => {
     if (!supabase) {
       throw new Error('Supabase 客户端未配置')
@@ -274,6 +290,9 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     }
     if (typeof payload.topP === 'number') {
       requestBody.top_p = payload.topP
+    }
+    if (typeof payload.rpKeepRecentMessages === 'number') {
+      requestBody.rpKeepRecentMessages = payload.rpKeepRecentMessages
     }
     if (payload.reasoning) {
       requestBody.reasoning = true
@@ -500,6 +519,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
           topP,
           messagesPayload: modelMessages,
           reasoning: reasoningEnabled,
+          rpKeepRecentMessages: readRoomKeepRecentMessages(room.settings),
           stream: true,
           onDelta: (delta) => {
           setMessages((current) =>
@@ -532,6 +552,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
           topP,
           messagesPayload: modelMessages,
           reasoning: reasoningEnabled,
+          rpKeepRecentMessages: readRoomKeepRecentMessages(room.settings),
           stream: false,
         })
         setMessages((current) =>
@@ -578,10 +599,22 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setNotice(null)
     const normalizedDisplayName = playerDisplayNameInput.trim() || '串串'
     const normalizedAvatar = playerAvatarUrlInput.trim()
+    const parsedKeepRecentMessages = Number.parseInt(keepRecentMessagesInput, 10)
+    if (Number.isNaN(parsedKeepRecentMessages)) {
+      setError('保留最近消息数需为整数。')
+      setSavingRoomSettings(false)
+      return
+    }
+    if (parsedKeepRecentMessages < RP_ROOM_KEEP_RECENT_MESSAGES_MIN || parsedKeepRecentMessages > RP_ROOM_KEEP_RECENT_MESSAGES_MAX) {
+      setError(`保留最近消息数需在 ${RP_ROOM_KEEP_RECENT_MESSAGES_MIN} 到 ${RP_ROOM_KEEP_RECENT_MESSAGES_MAX} 之间。`)
+      setSavingRoomSettings(false)
+      return
+    }
     try {
       const nextSettings = {
         ...(room.settings ?? {}),
         [RP_ROOM_ENABLE_REASONING_KEY]: reasoningEnabledInput,
+        [RP_ROOM_KEEP_RECENT_MESSAGES_KEY]: parsedKeepRecentMessages,
       }
       const updated = await updateRpSessionDashboard(room.id, {
         playerDisplayName: normalizedDisplayName,
@@ -877,6 +910,18 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
             placeholder="https://example.com/avatar.png"
           />
         </label>
+        <label>
+          保留最近消息数
+          <input
+            type="number"
+            min={RP_ROOM_KEEP_RECENT_MESSAGES_MIN}
+            max={RP_ROOM_KEEP_RECENT_MESSAGES_MAX}
+            value={keepRecentMessagesInput}
+            onChange={(event) => setKeepRecentMessagesInput(event.target.value)}
+            placeholder={String(RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT)}
+          />
+        </label>
+        <p className="rp-dashboard-helper">范围：{RP_ROOM_KEEP_RECENT_MESSAGES_MIN} - {RP_ROOM_KEEP_RECENT_MESSAGES_MAX}，默认 {RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT}</p>
         <button type="button" className="primary" onClick={() => void handleSaveRoomSettings()} disabled={savingRoomSettings}>
           {savingRoomSettings ? '保存中…' : '保存'}
         </button>
