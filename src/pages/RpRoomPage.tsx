@@ -58,19 +58,21 @@ const createEmptyNpcForm = (): NpcFormState => ({
 const readRoomReasoningEnabled = (settings?: Record<string, unknown>) =>
   Boolean(settings?.[RP_ROOM_ENABLE_REASONING_KEY])
 
-const readRoomKeepRecentMessages = (value?: number | null) => {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
+const readRoomKeepRecentMessages = (value: unknown) => {
+  const numericValue = Number(value)
+  if (Number.isNaN(numericValue)) {
     return RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT
   }
-  const normalized = Math.floor(value)
+  const normalized = Math.floor(numericValue)
   return Math.min(Math.max(normalized, RP_ROOM_KEEP_RECENT_MESSAGES_MIN), RP_ROOM_KEEP_RECENT_MESSAGES_MAX)
 }
 
-const readRoomContextTokenLimit = (value?: number | null) => {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
+const readRoomContextTokenLimit = (value: unknown) => {
+  const numericValue = Number(value)
+  if (Number.isNaN(numericValue)) {
     return RP_ROOM_CONTEXT_TOKEN_LIMIT_DEFAULT
   }
-  const normalized = Math.floor(value)
+  const normalized = Math.floor(numericValue)
   return Math.min(Math.max(normalized, RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN), RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX)
 }
 
