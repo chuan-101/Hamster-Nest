@@ -50,6 +50,7 @@ import CheckinPage from './pages/CheckinPage'
 import ExportPage from './pages/ExportPage'
 import RpRoomsPage from './pages/RpRoomsPage'
 import RpRoomPage from './pages/RpRoomPage'
+import HomePage from './pages/HomePage'
 import {
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
@@ -166,6 +167,7 @@ const buildRecentExtractionMessages = (
 }
 
 const App = () => {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState<ChatSession[]>(initialSnapshot.sessions)
   const [messages, setMessages] = useState<ChatMessage[]>(initialSnapshot.messages)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -1298,6 +1300,30 @@ const App = () => {
         <Route path="/auth" element={<AuthPage user={user} />} />
         <Route
           path="/"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <HomePage
+                user={user}
+                onOpenChat={() => {
+                  const latest = selectMostRecentSession(sessions)
+                  if (latest) {
+                    navigate(`/chat/${latest.id}`)
+                    return
+                  }
+                  void createSessionEntry().then((session) => {
+                    navigate(`/chat/${session.id}`)
+                  })
+                }}
+              />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/home"
+          element={<Navigate to="/" replace />}
+        />
+        <Route
+          path="/chat"
           element={
             <RequireAuth ready={authReady} user={user}>
               <NewSessionRedirect
