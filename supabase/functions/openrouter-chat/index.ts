@@ -18,6 +18,7 @@ type OpenRouterPayload = {
   stream?: boolean
   isFirstMessage?: boolean
   module?: 'snack-feed' | 'syzygy-feed' | 'rp-room' | string
+  rpKeepRecentMessages?: number
   debug?: boolean
 }
 

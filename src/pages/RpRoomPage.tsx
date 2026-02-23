@@ -275,6 +275,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     onDelta?: (delta: { content?: string; reasoning?: string }) => void
     stream?: boolean
     reasoning?: boolean
+    rpKeepRecentMessages?: number
   }) => {
     if (!supabase) {
       throw new Error('Supabase 客户端未配置')
@@ -300,6 +301,9 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     }
     if (typeof payload.topP === 'number') {
       requestBody.top_p = payload.topP
+    }
+    if (typeof payload.rpKeepRecentMessages === 'number') {
+      requestBody.rpKeepRecentMessages = payload.rpKeepRecentMessages
     }
     if (payload.reasoning) {
       requestBody.reasoning = true
@@ -523,6 +527,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
           topP,
           messagesPayload: modelMessages,
           reasoning: reasoningEnabled,
+          rpKeepRecentMessages: readRoomKeepRecentMessages(room.settings),
           stream: true,
           onDelta: (delta) => {
           setMessages((current) =>
@@ -555,6 +560,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
           topP,
           messagesPayload: modelMessages,
           reasoning: reasoningEnabled,
+          rpKeepRecentMessages: readRoomKeepRecentMessages(room.settings),
           stream: false,
         })
         setMessages((current) =>
@@ -627,6 +633,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       const nextSettings = {
         ...(room.settings ?? {}),
         [RP_ROOM_ENABLE_REASONING_KEY]: reasoningEnabledInput,
+        [RP_ROOM_KEEP_RECENT_MESSAGES_KEY]: parsedKeepRecentMessages,
       }
       const updated = await updateRpSessionDashboard(room.id, {
         playerDisplayName: normalizedDisplayName,
