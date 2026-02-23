@@ -44,6 +44,12 @@ type UserCompressionSettings = {
   summarizer_model: string | null
 }
 
+type RpSessionCompressionSettingsRow = {
+  rp_context_token_limit: number | null
+  rp_keep_recent_messages: number | null
+  settings: Record<string, unknown> | null
+}
+
 type AuthUserResponse = {
   id: string
 }
@@ -133,7 +139,9 @@ const MAX_RECENT_UNCOMPRESSED_MESSAGES_RP = 20
 const MIN_EXTRA_MESSAGES_FOR_COMPRESSION = 10
 const MIN_NEW_MESSAGES_BEFORE_RESUMMARIZE = 5
 const DEFAULT_CONTEXT_TRIGGER_RATIO = 0.65
-const RP_UNIFIED_CONTEXT_WINDOW_TOKENS = 128000
+const DEFAULT_RP_CONTEXT_TOKEN_LIMIT = 32000
+const MIN_RP_CONTEXT_TOKEN_LIMIT = 8000
+const MAX_RP_CONTEXT_TOKEN_LIMIT = 128000
 const TOKEN_OVERHEAD_PER_MESSAGE = 8
 const CHAT_SUMMARY_MARKER = 'CHAT SUMMARY:'
 const RP_SUMMARY_MARKER = '以下为截至目前的剧情摘要：'
@@ -350,6 +358,40 @@ const fetchUserCompressionSettings = async (
   return rows[0] ?? null
 }
 
+const fetchRpSessionCompressionSettings = async (
+  origin: string,
+  authHeader: string,
+  apikey: string,
+  conversationId: string,
+): Promise<RpSessionCompressionSettingsRow | null> => {
+  const query = new URLSearchParams({
+    select: 'rp_context_token_limit,rp_keep_recent_messages,settings',
+    id: `eq.${conversationId}`,
+    limit: '1',
+  })
+  const response = await fetch(`${origin}/rest/v1/rp_sessions?${query.toString()}`, {
+    headers: {
+      apikey,
+      Authorization: authHeader,
+    },
+  })
+  if (!response.ok) {
+    throw new Error('load rp session settings failed')
+  }
+  const rows = (await response.json()) as Array<Record<string, unknown>>
+  const row = rows[0]
+  if (!row) {
+    return null
+  }
+  return {
+    rp_context_token_limit: typeof row.rp_context_token_limit === 'number' ? row.rp_context_token_limit : null,
+    rp_keep_recent_messages: typeof row.rp_keep_recent_messages === 'number' ? row.rp_keep_recent_messages : null,
+    settings: typeof row.settings === 'object' && row.settings
+      ? row.settings as Record<string, unknown>
+      : null,
+  }
+}
+
 const summarizeCompressedWindow = async (
   apiKey: string,
   summarizerModel: string,
@@ -429,21 +471,26 @@ const maybeCompressRuntimeContext = async (
     }
     const compressionTriggerRatio = userSettings?.compression_trigger_ratio ?? DEFAULT_CONTEXT_TRIGGER_RATIO
     const rawKeepRecentMessages = userSettings?.compression_keep_recent_messages
-    const defaultKeepRecentMessages =
+    const rpSessionCompressionSettings =
       compressionModule === 'rp'
-        ? DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP
-        : DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_CHAT
+        ? await fetchRpSessionCompressionSettings(origin, authHeader, apiKeyHeader, conversationId)
+        : null
+    const fallbackRpKeepRecentMessagesFromSettings =
+      rpSessionCompressionSettings?.settings && typeof rpSessionCompressionSettings.settings.compression_keep_recent_messages === 'number'
+        ? rpSessionCompressionSettings.settings.compression_keep_recent_messages
+        : null
     const rpKeepRecentMessages =
-      typeof payload.rpKeepRecentMessages === 'number'
-        ? payload.rpKeepRecentMessages
-        : rawKeepRecentMessages
+      rpSessionCompressionSettings?.rp_keep_recent_messages
+      ?? fallbackRpKeepRecentMessagesFromSettings
+      ?? rawKeepRecentMessages
+      ?? DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP
     const keepRecentMessages =
       compressionModule === 'rp'
         ? Math.min(
-            Math.max(rpKeepRecentMessages ?? defaultKeepRecentMessages, MIN_RECENT_UNCOMPRESSED_MESSAGES_RP),
+            Math.max(rpKeepRecentMessages, MIN_RECENT_UNCOMPRESSED_MESSAGES_RP),
             MAX_RECENT_UNCOMPRESSED_MESSAGES_RP,
           )
-        : (rawKeepRecentMessages ?? defaultKeepRecentMessages)
+        : (rawKeepRecentMessages ?? DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_CHAT)
     const summarizerModel = userSettings?.summarizer_model?.trim()
       || userSettings?.default_model?.trim()
       || DEFAULT_SUMMARIZER_MODEL
@@ -464,9 +511,22 @@ const maybeCompressRuntimeContext = async (
         ? fullHistory.map((message) => ({ role: 'assistant', content: `【${message.role}】${message.content}` }))
         : fullHistory.map((message) => ({ role: message.role, content: message.content }))
     const contextEstimate = estimateTotalTokens([...systemMessages, ...fullAsMessages])
+    const fallbackRpContextLimitFromSettings =
+      rpSessionCompressionSettings?.settings && typeof rpSessionCompressionSettings.settings.rp_context_token_limit === 'number'
+        ? rpSessionCompressionSettings.settings.rp_context_token_limit
+        : null
+    const rpContextTokenLimit = Math.min(
+      Math.max(
+        rpSessionCompressionSettings?.rp_context_token_limit
+          ?? fallbackRpContextLimitFromSettings
+          ?? DEFAULT_RP_CONTEXT_TOKEN_LIMIT,
+        MIN_RP_CONTEXT_TOKEN_LIMIT,
+      ),
+      MAX_RP_CONTEXT_TOKEN_LIMIT,
+    )
     const baseContextLimit =
       compressionModule === 'rp'
-        ? RP_UNIFIED_CONTEXT_WINDOW_TOKENS
+        ? rpContextTokenLimit
         : estimateModelContextLimit(payload.model ?? 'openrouter/auto')
     const triggerLimit = Math.floor(baseContextLimit * compressionTriggerRatio)
     if (contextEstimate < triggerLimit) {

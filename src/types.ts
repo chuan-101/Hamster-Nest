@@ -137,6 +137,8 @@ export type RpSession = {
   playerDisplayName: string | null
   playerAvatarUrl: string | null
   worldbookText: string | null
+  rpContextTokenLimit: number | null
+  rpKeepRecentMessages: number | null
   settings: Record<string, unknown>
 }
 
