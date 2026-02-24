@@ -28,7 +28,7 @@ export type AppIconConfig =
       imageKey: string
     }
 
-export type HomeLayoutState = {
+export type HomeSettingsState = {
   iconOrder: string[]
   widgetOrder: string[]
   widgets: DecorativeWidget[]
@@ -42,9 +42,10 @@ export type HomeLayoutState = {
   appIconConfigs?: Record<string, AppIconConfig>
 }
 
-const HOME_LAYOUT_STORAGE_KEY = 'hamster.home.layout.v1'
+const HOME_SETTINGS_STORAGE_KEY = 'hamster_home_settings_v1'
+const LEGACY_HOME_LAYOUT_STORAGE_KEY = 'hamster.home.layout.v1'
 const IMAGE_DB_NAME = 'hamster-home-db'
-const IMAGE_STORE_NAME = 'images'
+const IMAGE_STORE_NAME = 'home_assets'
 
 const openImageDb = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
@@ -75,22 +76,42 @@ const withImageStore = async <T>(
   })
 }
 
-export const loadHomeLayout = (): HomeLayoutState | null => {
-  const raw = localStorage.getItem(HOME_LAYOUT_STORAGE_KEY)
+const parseHomeSettings = (raw: string | null): HomeSettingsState | null => {
   if (!raw) {
     return null
   }
   try {
-    const parsed = JSON.parse(raw) as HomeLayoutState
-    return parsed
+    return JSON.parse(raw) as HomeSettingsState
   } catch (error) {
-    console.warn('解析 Home 布局失败', error)
+    console.warn('解析 Home 配置失败', error)
     return null
   }
 }
 
-export const saveHomeLayout = (state: HomeLayoutState) => {
-  localStorage.setItem(HOME_LAYOUT_STORAGE_KEY, JSON.stringify(state))
+export const loadHomeSettings = (): HomeSettingsState | null => {
+  const current = parseHomeSettings(localStorage.getItem(HOME_SETTINGS_STORAGE_KEY))
+  if (current) {
+    return current
+  }
+
+  const legacy = parseHomeSettings(localStorage.getItem(LEGACY_HOME_LAYOUT_STORAGE_KEY))
+  if (legacy) {
+    localStorage.setItem(HOME_SETTINGS_STORAGE_KEY, JSON.stringify(legacy))
+    localStorage.removeItem(LEGACY_HOME_LAYOUT_STORAGE_KEY)
+  }
+  return legacy
+}
+
+export const saveHomeSettings = (state: HomeSettingsState) => {
+  localStorage.setItem(HOME_SETTINGS_STORAGE_KEY, JSON.stringify(state))
+}
+
+export const loadHomeLayout = (): HomeSettingsState | null => {
+  return loadHomeSettings()
+}
+
+export const saveHomeLayout = (state: HomeSettingsState) => {
+  saveHomeSettings(state)
 }
 
 export const createImageKey = () =>
