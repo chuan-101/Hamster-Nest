@@ -8,10 +8,10 @@ import {
 } from '../storage/supabaseSync'
 import {
   createImageKey,
-  loadHomeLayout,
+  loadHomeSettings,
   loadImageBlob,
   removeImageBlob,
-  saveHomeLayout,
+  saveHomeSettings,
   saveImageBlob,
   type AppIconConfig,
   type DecorativeWidget,
@@ -213,7 +213,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   }, [])
 
   useEffect(() => {
-    const cached = loadHomeLayout()
+    const cached = loadHomeSettings()
     if (!cached) {
       setAppIconConfigs(defaultAppIconConfigs)
       return
@@ -241,7 +241,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   }, [defaultAppIconConfigs])
 
   useEffect(() => {
-    saveHomeLayout({
+    saveHomeSettings({
       iconOrder,
       widgetOrder,
       widgets,
