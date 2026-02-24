@@ -62,7 +62,8 @@ const SettingsPage = ({
   const [compressionSectionExpanded, setCompressionSectionExpanded] = useState(false)
   const [draftEnabledModels, setDraftEnabledModels] = useState<string[]>([])
   const [draftDefaultModel, setDraftDefaultModel] = useState(defaultModelId)
-  const [draftReasoning, setDraftReasoning] = useState(false)
+  const [draftChatReasoning, setDraftChatReasoning] = useState(true)
+  const [draftRpReasoning, setDraftRpReasoning] = useState(false)
   const [draftMemoryExtractModel, setDraftMemoryExtractModel] = useState<string | null>(null)
   const [modelStatus, setModelStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [modelError, setModelError] = useState<string | null>(null)
@@ -101,7 +102,8 @@ const SettingsPage = ({
       setCompressionKeepRecentInput(settings.compressionKeepRecentMessages.toString())
       setDraftSummarizerModel(settings.summarizerModel)
       setDraftMemoryExtractModel(settings.memoryExtractModel)
-      setDraftReasoning(settings.enableReasoning)
+      setDraftChatReasoning(settings.chatReasoningEnabled)
+      setDraftRpReasoning(settings.rpReasoningEnabled)
     }, 0)
     return () => {
       window.clearTimeout(timer)
@@ -269,7 +271,8 @@ const SettingsPage = ({
       settings.compressionTriggerRatio !== parsedCompressionRatio ||
       settings.compressionKeepRecentMessages !== parsedCompressionKeepRecent ||
       (settings.summarizerModel ?? '') !== (draftSummarizerModel ?? '') ||
-      settings.enableReasoning !== draftReasoning
+      settings.chatReasoningEnabled !== draftChatReasoning ||
+      settings.rpReasoningEnabled !== draftRpReasoning
     : false
   const hasUnsavedSystemPrompt = settings ? draftSystemPrompt !== settings.systemPrompt : false
   const hasUnsavedSnackOverlay = settings
@@ -414,8 +417,13 @@ const SettingsPage = ({
     setGenerationStatus('idle')
   }
 
-  const handleReasoningToggle = (enabled: boolean) => {
-    setDraftReasoning(enabled)
+  const handleChatReasoningToggle = (enabled: boolean) => {
+    setDraftChatReasoning(enabled)
+    setGenerationStatus('idle')
+  }
+
+  const handleRpReasoningToggle = (enabled: boolean) => {
+    setDraftRpReasoning(enabled)
     setGenerationStatus('idle')
   }
 
@@ -481,7 +489,8 @@ const SettingsPage = ({
       compressionTriggerRatio: parsedCompressionRatio,
       compressionKeepRecentMessages: parsedCompressionKeepRecent,
       summarizerModel: draftSummarizerModel,
-      enableReasoning: draftReasoning,
+      chatReasoningEnabled: draftChatReasoning,
+      rpReasoningEnabled: draftRpReasoning,
     })
     if (!nextSettings) {
       return
@@ -631,7 +640,8 @@ const SettingsPage = ({
       setDraftEnabledModels(settings.enabledModels)
       setDraftDefaultModel(settings.defaultModel)
       setDraftMemoryExtractModel(settings.memoryExtractModel)
-      setDraftReasoning(settings.enableReasoning)
+      setDraftChatReasoning(settings.chatReasoningEnabled)
+      setDraftRpReasoning(settings.rpReasoningEnabled)
       setModelStatus('idle')
       setModelError(null)
       setDraftSystemPrompt(settings.systemPrompt)
@@ -892,20 +902,39 @@ const SettingsPage = ({
               />
               {errors.maxTokens ? <span className="field-error">{errors.maxTokens}</span> : null}
             </div>
-            <div className="field-group">
-              <label htmlFor="enableReasoning">思考链（默认）</label>
-              <label className="toggle-control">
-                <input
-                  id="enableReasoning"
-                  type="checkbox"
-                  checked={draftReasoning}
-                  onChange={(event) => handleReasoningToggle(event.target.checked)}
-                />
-                <span>{draftReasoning ? '已开启' : '已关闭'}</span>
-              </label>
-            </div>
           </>
         ) : null}
+      </section>
+
+      <section className="settings-section">
+        <div className="section-title">
+          <h2>思考链</h2>
+          <p>分别控制日常聊天与跑跑滚轮是否请求思考链。</p>
+        </div>
+        <div className="field-group">
+          <label htmlFor="chatReasoningEnabled">日常聊天思考链</label>
+          <label className="toggle-control">
+            <input
+              id="chatReasoningEnabled"
+              type="checkbox"
+              checked={draftChatReasoning}
+              onChange={(event) => handleChatReasoningToggle(event.target.checked)}
+            />
+            <span>{draftChatReasoning ? '已开启' : '已关闭'}</span>
+          </label>
+        </div>
+        <div className="field-group">
+          <label htmlFor="rpReasoningEnabled">跑跑滚轮思考链</label>
+          <label className="toggle-control">
+            <input
+              id="rpReasoningEnabled"
+              type="checkbox"
+              checked={draftRpReasoning}
+              onChange={(event) => handleRpReasoningToggle(event.target.checked)}
+            />
+            <span>{draftRpReasoning ? '已开启' : '已关闭'}</span>
+          </label>
+        </div>
       </section>
 
       <section className="settings-section">

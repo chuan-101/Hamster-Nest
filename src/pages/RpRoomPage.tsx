@@ -24,6 +24,8 @@ import './RpRoomPage.css'
 type RpRoomPageProps = {
   user: User | null
   mode?: 'chat' | 'dashboard'
+  rpReasoningEnabled: boolean
+  onDisableRpReasoning: () => Promise<void>
 }
 
 type NpcFormState = {
@@ -37,7 +39,6 @@ type NpcFormState = {
 }
 
 const NPC_MAX_ENABLED = 3
-const RP_ROOM_ENABLE_REASONING_KEY = 'enable_reasoning'
 const RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT = 10
 const RP_ROOM_KEEP_RECENT_MESSAGES_MIN = 5
 const RP_ROOM_KEEP_RECENT_MESSAGES_MAX = 20
@@ -54,9 +55,6 @@ const createEmptyNpcForm = (): NpcFormState => ({
   apiBaseUrl: '',
   enabled: false,
 })
-
-const readRoomReasoningEnabled = (settings?: Record<string, unknown>) =>
-  Boolean(settings?.[RP_ROOM_ENABLE_REASONING_KEY])
 
 const readRoomKeepRecentMessages = (value: unknown) => {
   const numericValue = Number(value)
@@ -76,7 +74,7 @@ const readRoomContextTokenLimit = (value: unknown) => {
   return Math.min(Math.max(normalized, RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN), RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX)
 }
 
-const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
+const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReasoning }: RpRoomPageProps) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
   const [room, setRoom] = useState<RpSession | null>(null)
@@ -94,11 +92,9 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
   const [playerDisplayNameInput, setPlayerDisplayNameInput] = useState('串串')
   const [playerAvatarUrlInput, setPlayerAvatarUrlInput] = useState('')
   const [worldbookTextInput, setWorldbookTextInput] = useState('')
-  const [reasoningEnabledInput, setReasoningEnabledInput] = useState(false)
   const [keepRecentMessagesInput, setKeepRecentMessagesInput] = useState(String(RP_ROOM_KEEP_RECENT_MESSAGES_DEFAULT))
   const [contextTokenLimitInput, setContextTokenLimitInput] = useState(String(RP_ROOM_CONTEXT_TOKEN_LIMIT_DEFAULT))
   const [savingRoomSettings, setSavingRoomSettings] = useState(false)
-  const [savingRoomReasoning, setSavingRoomReasoning] = useState(false)
   const [savingWorldbook, setSavingWorldbook] = useState(false)
   const [npcCards, setNpcCards] = useState<RpNpcCard[]>([])
   const [npcLoading, setNpcLoading] = useState(false)
@@ -183,7 +179,6 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     setPlayerDisplayNameInput(room.playerDisplayName?.trim() || '串串')
     setPlayerAvatarUrlInput(room.playerAvatarUrl ?? '')
     setWorldbookTextInput(room.worldbookText ?? '')
-    setReasoningEnabledInput(readRoomReasoningEnabled(room.settings))
     setKeepRecentMessagesInput(String(readRoomKeepRecentMessages(room.rpKeepRecentMessages)))
     setContextTokenLimitInput(String(readRoomContextTokenLimit(room.rpContextTokenLimit)))
   }, [room])
@@ -304,6 +299,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     stream?: boolean
     reasoning?: boolean
     rpKeepRecentMessages?: number
+    bypassReasoning?: boolean
   }) => {
     if (!supabase) {
       throw new Error('Supabase 客户端未配置')
@@ -333,7 +329,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     if (typeof payload.rpKeepRecentMessages === 'number') {
       requestBody.rpKeepRecentMessages = payload.rpKeepRecentMessages
     }
-    if (payload.reasoning) {
+    if (payload.reasoning && !payload.bypassReasoning) {
       requestBody.reasoning = true
       if (/claude|anthropic/i.test(payload.modelId)) {
         requestBody.thinking = {
@@ -352,6 +348,19 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       },
       body: JSON.stringify(requestBody),
     })
+
+    if (response.status === 402 && !payload.bypassReasoning) {
+      const retryPayload = { ...payload, bypassReasoning: true }
+      setNotice('余额不足以启用思考链，已自动关闭以继续回复')
+      if (rpReasoningEnabled) {
+        try {
+          await onDisableRpReasoning()
+        } catch (disableError) {
+          console.warn('自动关闭 RP 思考链失败', disableError)
+        }
+      }
+      return requestNpcReply(retryPayload)
+    }
 
     if (!response.ok) {
       throw new Error(await response.text())
@@ -520,7 +529,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
         ? selectedNpcCard.modelConfig.temperature
         : undefined
     const topP = typeof selectedNpcCard.modelConfig.top_p === 'number' ? selectedNpcCard.modelConfig.top_p : undefined
-    const reasoningEnabled = reasoningEnabledInput
+    const reasoningEnabled = rpReasoningEnabled
 
     setTriggeringNpcReply(true)
     setError(null)
@@ -619,6 +628,17 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
       setNotice('NPC 已发言')
     } catch (triggerError) {
       setMessages((current) => current.filter((item) => item.id !== tempId))
+      const errorMessage = triggerError instanceof Error ? triggerError.message : ''
+      if (errorMessage.includes('402')) {
+        setNotice('余额不足以启用思考链，已自动关闭以继续回复')
+        if (rpReasoningEnabled) {
+          try {
+            await onDisableRpReasoning()
+          } catch (disableError) {
+            console.warn('自动关闭 RP 思考链失败', disableError)
+          }
+        }
+      }
       console.warn('触发 NPC 发言失败', triggerError)
       setError('触发发言失败，请稍后重试。')
     } finally {
@@ -660,7 +680,6 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     try {
       const nextSettings = {
         ...(room.settings ?? {}),
-        [RP_ROOM_ENABLE_REASONING_KEY]: reasoningEnabledInput,
         [RP_ROOM_KEEP_RECENT_MESSAGES_MIN]: parsedKeepRecentMessages,
       }
       const updated = await updateRpSessionDashboard(room.id, {
@@ -701,30 +720,7 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
     }
   }
 
-  const handleToggleRoomReasoning = async (checked: boolean) => {
-    setReasoningEnabledInput(checked)
-    if (!room || savingRoomReasoning) {
-      return
-    }
-    setSavingRoomReasoning(true)
-    setError(null)
-    try {
-      const updated = await updateRpSessionDashboard(room.id, {
-        settings: {
-          ...(room.settings ?? {}),
-          [RP_ROOM_ENABLE_REASONING_KEY]: checked,
-        },
-      })
-      setRoom(updated)
-      setNotice(checked ? '已开启房间思考链' : '已关闭房间思考链')
-    } catch (toggleError) {
-      setReasoningEnabledInput(readRoomReasoningEnabled(room.settings))
-      console.warn('更新房间思考链失败', toggleError)
-      setError('切换房间思考链失败，请稍后重试。')
-    } finally {
-      setSavingRoomReasoning(false)
-    }
-  }
+
 
   const handleExportMessages = () => {
     if (!room) {
@@ -1286,15 +1282,9 @@ const RpRoomPage = ({ user, mode = 'chat' }: RpRoomPageProps) => {
                 >
                   {triggeringNpcReply ? '触发中…' : '触发发言'}
                 </button>
-                <label className="rp-reasoning-toggle">
-                  <input
-                    type="checkbox"
-                    checked={reasoningEnabledInput}
-                    onChange={(event) => void handleToggleRoomReasoning(event.target.checked)}
-                    disabled={triggeringNpcReply || savingRoomReasoning}
-                  />
-                  <span>思考链（房间）</span>
-                </label>
+                <span className="rp-reasoning-toggle" aria-live="polite">
+                  思考链：{rpReasoningEnabled ? '全局已开启' : '全局已关闭'}
+                </span>
               </div>
               <section className="rp-composer">
                 <textarea

@@ -202,7 +202,7 @@ const App = () => {
 
   const latestSession = useMemo(() => selectMostRecentSession(sessions), [sessions])
   const feedAiConfigBase = useMemo(() => ({
-    reasoning: latestSession?.overrideReasoning ?? activeSettings.enableReasoning,
+    reasoning: latestSession?.overrideReasoning ?? activeSettings.chatReasoningEnabled,
     temperature: activeSettings.temperature,
     topP: activeSettings.topP,
     maxTokens: activeSettings.maxTokens,
@@ -403,7 +403,7 @@ const App = () => {
     const settings = settingsRef.current ?? fallback
     const overrideReasoning = sessionsRef.current.find((session) => session.id === sessionId)
       ?.overrideReasoning
-    return overrideReasoning ?? settings.enableReasoning
+    return overrideReasoning ?? settings.chatReasoningEnabled
   }, [user?.id])
 
   const createSessionEntry = useCallback(
@@ -833,9 +833,11 @@ const App = () => {
             temperature: paramsSnapshot.temperature,
             top_p: paramsSnapshot.top_p,
             max_tokens: paramsSnapshot.max_tokens,
-            reasoning: reasoningEnabled,
             stream: true,
             isFirstMessage: isFirstMessageInSession,
+          }
+          if (reasoningEnabled) {
+            requestBody.reasoning = true
           }
           if (reasoningEnabled && isClaudeModel(effectiveModel)) {
             const maxTokens = paramsSnapshot.max_tokens ?? 1024
@@ -1153,6 +1155,26 @@ const App = () => {
     setUserSettings(nextSettings)
   }, [user])
 
+  const handleDisableRpReasoning = useCallback(async () => {
+    if (!user) {
+      return
+    }
+    const current = settingsRef.current ?? createDefaultSettings(user.id)
+    if (!current.rpReasoningEnabled) {
+      return
+    }
+    const nextSettings: UserSettings = {
+      ...current,
+      userId: user.id,
+      rpReasoningEnabled: false,
+      updatedAt: new Date().toISOString(),
+    }
+    if (supabase) {
+      await updateUserSettings(nextSettings)
+    }
+    setUserSettings(nextSettings)
+  }, [user])
+
   const handleSaveMemoryExtractModel = useCallback(async (modelId: string | null) => {
     if (!user) {
       return
@@ -1357,7 +1379,7 @@ const App = () => {
                 enabledModels={enabledModels}
                 defaultModel={defaultModelId}
                 onSelectModel={handleSessionOverrideChange}
-                defaultReasoning={activeSettings.enableReasoning}
+                defaultReasoning={activeSettings.chatReasoningEnabled}
                 onSelectReasoning={handleSessionReasoningOverrideChange}
                 onArchiveSession={handleSessionArchiveStateChange}
                 onActiveSessionChange={setActiveChatSessionId}
@@ -1394,7 +1416,7 @@ const App = () => {
           path="/rp/:sessionId"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <RpRoomPage user={user} mode="chat" />
+              <RpRoomPage user={user} mode="chat" rpReasoningEnabled={activeSettings.rpReasoningEnabled} onDisableRpReasoning={handleDisableRpReasoning} />
             </RequireAuth>
           }
         />
@@ -1402,7 +1424,7 @@ const App = () => {
           path="/rp/:sessionId/dashboard"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <RpRoomPage user={user} mode="dashboard" />
+              <RpRoomPage user={user} mode="dashboard" rpReasoningEnabled={activeSettings.rpReasoningEnabled} onDisableRpReasoning={handleDisableRpReasoning} />
             </RequireAuth>
           }
         />
