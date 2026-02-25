@@ -226,7 +226,8 @@ const App = () => {
   useEffect(() => {
     const applyHomeBackground = () => {
       const cached = loadHomeSettings()
-      setAppBackgroundImage(cached?.homeBackgroundImageDataUrl ?? null)
+      const nextBackground = cached?.homeBackgroundImageDataUrl ?? null
+      setAppBackgroundImage((current) => (current === nextBackground ? current : nextBackground))
     }
 
     applyHomeBackground()
