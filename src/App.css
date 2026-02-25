@@ -1,7 +1,7 @@
 .app-shell {
   min-height: 100vh;
   background:
-    var(--app-background-image, none) center / cover no-repeat fixed,
+    var(--app-background-image, none) center / cover no-repeat,
     #f1f5f9;
   color: #0f172a;
 }

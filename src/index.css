@@ -25,6 +25,27 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+html.no-fx,
+html.no-fx body {
+  background: #f8fafc !important;
+}
+
+html.no-fx,
+html.no-fx *,
+html.no-fx *::before,
+html.no-fx *::after {
+  animation: none !important;
+  transition: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.no-fx {
+  --blur: 0px;
+  --page-bg: #f8fafc;
+}
+
 #root {
   min-height: 100vh;
   min-height: 100dvh;
@@ -49,4 +70,25 @@ body {
     overflow: hidden;
     overscroll-behavior: none;
   }
+}
+
+
+html.no-fx .app-shell {
+  background: #f8fafc !important;
+}
+
+html.no-fx .chat-page,
+html.no-fx .rp-room-dashboard-page,
+html.no-fx .rp-rooms-page {
+  background: #f8fafc !important;
+}
+
+html.no-fx .chat-page::before,
+html.no-fx .rp-room-dashboard-page::before,
+html.no-fx .rp-rooms-page::before,
+html.no-fx .rp-rooms-page::after,
+html.no-fx .sessions-overlay,
+html.no-fx .sessions-drawer::before {
+  background: none !important;
+  opacity: 0 !important;
 }

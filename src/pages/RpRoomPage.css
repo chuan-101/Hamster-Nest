@@ -24,7 +24,7 @@
 
 .rp-room-dashboard-page::before {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
@@ -377,5 +377,12 @@
 
   .rp-chat-composer {
     margin: 0 8px 8px;
+  }
+}
+
+
+@media (max-width: 560px) {
+  .rp-room-dashboard-page::before {
+    background-image: none;
   }
 }
