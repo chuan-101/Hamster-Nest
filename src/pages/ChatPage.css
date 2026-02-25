@@ -152,7 +152,7 @@
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.65);
   border-radius: 18px;
-  padding: 12px 40px 10px 12px;
+  padding: 12px 12px 10px;
   position: relative;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
   display: flex;
@@ -245,13 +245,22 @@
   justify-content: space-between;
 }
 
-.message-footer .timestamp {
-  font-size: 11px;
-  color: rgba(107, 114, 128, 0.9);
+.message-metadata {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  color: var(--text-subtle);
 }
 
-.message.out .message-footer .timestamp {
-  color: rgba(229, 231, 235, 0.9);
+.message-footer .timestamp {
+  font-size: 11px;
+  color: currentColor;
+}
+
+.message.out .message-metadata {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .model-tag {
@@ -271,30 +280,36 @@
 }
 
 .message-actions {
-  position: absolute;
-  top: 11px;
-  right: 11px;
+  position: relative;
 }
 
 .action-trigger {
-  width: 32px;
-  height: 32px;
+  min-width: 24px;
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  border-radius: 999px;
+  padding: 4px 6px;
+  border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
-  color: inherit;
+  color: currentColor;
   line-height: 1;
 }
 
 .message.out .action-trigger {
-  opacity: 0;
-  transition: opacity 150ms ease, background-color 150ms ease, border-color 150ms ease;
+  opacity: 0.82;
+  transition: background-color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+}
+
+.message .bubble:hover .action-trigger,
+.message .bubble:active .action-trigger,
+.message .bubble:focus-within .action-trigger,
+.message .bubble .action-trigger[aria-expanded='true'] {
+  background: rgba(15, 23, 42, 0.08);
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 .message.out .bubble:hover .action-trigger,
@@ -303,7 +318,7 @@
 .message.out .bubble .action-trigger[aria-expanded='true'] {
   opacity: 1;
   background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .actions-menu {
