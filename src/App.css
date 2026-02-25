@@ -1,4 +1,5 @@
 .app-shell {
+  transition: none;
   min-height: 100vh;
   background:
     var(--app-background-image, none) center / cover no-repeat,

@@ -1,4 +1,5 @@
 .home-page {
+  transition: none;
   --icon-tile-bg: rgba(255, 255, 255, 0.65);
   --page-overlay-bg: rgba(255, 255, 255, 0.2);
   --home-background-image: none;

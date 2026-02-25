@@ -51,9 +51,11 @@ const IMAGE_DB_NAME = 'hamster-home-db'
 const IMAGE_STORE_NAME = 'home_assets'
 const IMAGE_DB_VERSION = 2
 const IMAGE_FALLBACK_STORAGE_KEY = 'hamster_home_assets_fallback_v1'
+const DATA_URL_PREFIX = 'data:image/'
 
 let schemaUpgradeLogged = false
 let activeImageDbVersion = IMAGE_DB_VERSION
+const imageCache = new Map<string, string>()
 
 const getFallbackAssetMap = (): Record<string, string> => {
   try {
@@ -94,20 +96,8 @@ const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
   return response.blob()
 }
 
-const saveImageBlobFallback = async (blob: Blob, key: string) => {
-  const map = getFallbackAssetMap()
-  map[key] = await blobToDataUrl(blob)
-  setFallbackAssetMap(map)
-}
-
-const loadImageBlobFallback = async (key: string): Promise<Blob | null> => {
-  const map = getFallbackAssetMap()
-  const dataUrl = map[key]
-  if (!dataUrl) {
-    return null
-  }
-  return dataUrlToBlob(dataUrl)
-}
+const isImageDataUrl = (value: unknown): value is string =>
+  typeof value === 'string' && value.startsWith(DATA_URL_PREFIX)
 
 const removeImageBlobFallback = (key: string) => {
   const map = getFallbackAssetMap()
@@ -116,6 +106,18 @@ const removeImageBlobFallback = (key: string) => {
   }
   delete map[key]
   setFallbackAssetMap(map)
+}
+
+const saveImageDataUrlFallback = (dataUrl: string, key: string) => {
+  const map = getFallbackAssetMap()
+  map[key] = dataUrl
+  setFallbackAssetMap(map)
+}
+
+const loadImageDataUrlFallback = (key: string): string | null => {
+  const map = getFallbackAssetMap()
+  const dataUrl = map[key]
+  return isImageDataUrl(dataUrl) ? dataUrl : null
 }
 
 const ensureImageStore = (db: IDBDatabase) => {
@@ -224,31 +226,77 @@ export const createImageKey = () =>
   globalThis.crypto?.randomUUID?.() ?? `image-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 export const saveImageBlob = async (blob: Blob, key = createImageKey()): Promise<string> => {
+  return saveImageDataUrl(await blobToDataUrl(blob), key)
+}
+
+export const saveImageDataUrl = async (dataUrl: string, key: string = createImageKey()): Promise<string> => {
+  if (!isImageDataUrl(dataUrl)) {
+    throw new Error('仅支持 data:image/ 开头的 DataURL')
+  }
   try {
-    await withImageStore('readwrite', (store) => store.put(blob, key))
+    await withImageStore('readwrite', (store) => store.put(dataUrl, key))
   } catch (error) {
     console.warn('IndexedDB 保存图片失败，已回退到 localStorage', error)
-    await saveImageBlobFallback(blob, key)
+    saveImageDataUrlFallback(dataUrl, key)
   }
+  imageCache.set(key, dataUrl)
   return key
 }
 
 export const loadImageBlob = async (key: string): Promise<Blob | null> => {
+  const dataUrl = await loadImageDataUrl(key)
+  if (!dataUrl) {
+    return null
+  }
+  return dataUrlToBlob(dataUrl)
+}
+
+export const loadImageDataUrl = async (key: string): Promise<string | null> => {
+  const cached = imageCache.get(key)
+  if (cached) {
+    return cached
+  }
+
   try {
-    const result = await withImageStore<Blob | undefined>('readonly', (store) => store.get(key))
-    return result ?? null
+    const result = await withImageStore<Blob | string | undefined>('readonly', (store) => store.get(key))
+    if (!result) {
+      return null
+    }
+
+    if (isImageDataUrl(result)) {
+      imageCache.set(key, result)
+      return result
+    }
+
+    if (result instanceof Blob) {
+      const migratedDataUrl = await blobToDataUrl(result)
+      await saveImageDataUrl(migratedDataUrl, key)
+      return migratedDataUrl
+    }
+
+    return null
   } catch (error) {
     console.warn('IndexedDB 读取图片失败，尝试 localStorage 回退缓存', error)
-    return loadImageBlobFallback(key)
+    const fallback = loadImageDataUrlFallback(key)
+    if (fallback) {
+      imageCache.set(key, fallback)
+      return fallback
+    }
+    return null
   }
 }
 
 export const removeImageBlob = async (key: string): Promise<void> => {
+  return removeImageData(key)
+}
+
+export const removeImageData = async (key: string): Promise<void> => {
   try {
     await withImageStore('readwrite', (store) => store.delete(key))
   } catch (error) {
     console.warn('IndexedDB 删除图片失败，清理 localStorage 回退缓存', error)
   } finally {
     removeImageBlobFallback(key)
+    imageCache.delete(key)
   }
 }

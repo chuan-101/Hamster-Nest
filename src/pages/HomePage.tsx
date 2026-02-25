@@ -9,10 +9,10 @@ import {
 import {
   createImageKey,
   loadHomeSettings,
-  loadImageBlob,
-  removeImageBlob,
+  loadImageDataUrl,
+  removeImageData,
   saveHomeSettings,
-  saveImageBlob,
+  saveImageDataUrl,
   type AppIconConfig,
   type DecorativeWidget,
 } from '../storage/homeLayout'
@@ -48,6 +48,9 @@ const DEFAULT_ICON_TILE_BG_COLOR = '#ffffff'
 const DEFAULT_ICON_TILE_BG_OPACITY = 0.65
 const DEFAULT_PAGE_OVERLAY_COLOR = '#ffffff'
 const DEFAULT_PAGE_OVERLAY_OPACITY = 0.2
+
+const imageCache = new Map<string, string>()
+
 
 const hexToRgb = (hex: string) => {
   const sanitized = hex.replace('#', '').trim()
@@ -162,7 +165,6 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   const [pageOverlayOpacity, setPageOverlayOpacity] = useState(DEFAULT_PAGE_OVERLAY_OPACITY)
   const [homeBackgroundImageKey, setHomeBackgroundImageKey] = useState<string | null>(null)
   const [homeBackgroundImageDataUrl, setHomeBackgroundImageDataUrl] = useState<string | null>(null)
-  const [homeBackgroundUrl, setHomeBackgroundUrl] = useState<string | null>(null)
   const [backgroundUploading, setBackgroundUploading] = useState(false)
   const [appIconConfigs, setAppIconConfigs] = useState<AppIconState>({})
   const [appIconImageUrls, setAppIconImageUrls] = useState<Record<string, string>>({})
@@ -289,7 +291,38 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
 
   useEffect(() => {
     const imageWidgets = widgets.filter((widget) => widget.type === 'image')
-    const disposed: string[] = []
+
+    const cachedEntries = imageWidgets
+      .map((widget) => {
+        if (typeof widget.imageDataUrl === 'string' && widget.imageDataUrl.length > 0) {
+          imageCache.set(widget.id, widget.imageDataUrl)
+          return [widget.id, widget.imageDataUrl] as const
+        }
+        const imageKey = widget.imageKey
+        if (!imageKey) {
+          return null
+        }
+        const cached = imageCache.get(imageKey)
+        if (!cached) {
+          return null
+        }
+        return [widget.id, cached] as const
+      })
+      .filter((entry): entry is readonly [string, string] => Boolean(entry))
+
+    if (cachedEntries.length > 0) {
+      setImageUrls((current) => {
+        const next = { ...current }
+        let changed = false
+        cachedEntries.forEach(([id, url]) => {
+          if (next[id] !== url) {
+            next[id] = url
+            changed = true
+          }
+        })
+        return changed ? next : current
+      })
+    }
 
     void Promise.all(
       imageWidgets.map(async (widget) => {
@@ -299,11 +332,12 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
         if (!widget.imageKey) {
           return null
         }
-        const blob = await loadImageBlob(widget.imageKey)
-        if (!blob) {
+        const dataUrl = await loadImageDataUrl(widget.imageKey)
+        if (!dataUrl) {
           return null
         }
-        return { id: widget.id, url: URL.createObjectURL(blob) }
+        imageCache.set(widget.imageKey, dataUrl)
+        return { id: widget.id, url: dataUrl }
       }),
     ).then((results) => {
       setImageUrls((current) => {
@@ -313,89 +347,77 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
             next[entry.id] = entry.url
           }
         })
-        Object.entries(current).forEach(([id, url]) => {
-          if (!next[id]) {
-            disposed.push(url)
-          }
-        })
-        return next
+        const sameKeys =
+          Object.keys(next).length === Object.keys(current).length &&
+          Object.entries(next).every(([id, url]) => current[id] === url)
+        return sameKeys ? current : next
       })
-      disposed.forEach((url) => {
-      if (url.startsWith('blob:')) {
-        URL.revokeObjectURL(url)
-      }
     })
-    })
-
-    return () => {
-      disposed.forEach((url) => {
-      if (url.startsWith('blob:')) {
-        URL.revokeObjectURL(url)
-      }
-    })
-    }
   }, [widgets])
-
-  useEffect(
-    () => () => {
-      Object.values(imageUrls).forEach((url) => {
-        if (url.startsWith('blob:')) {
-          URL.revokeObjectURL(url)
-        }
-      })
-    },
-    [imageUrls],
-  )
 
   useEffect(() => {
     if (homeBackgroundImageDataUrl) {
-      setHomeBackgroundUrl(homeBackgroundImageDataUrl)
+      if (homeBackgroundImageKey) {
+        imageCache.set(homeBackgroundImageKey, homeBackgroundImageDataUrl)
+      }
       return
     }
-
-    let disposedUrl: string | null = null
 
     if (!homeBackgroundImageKey) {
-      setHomeBackgroundUrl(null)
       return
     }
 
-    void loadImageBlob(homeBackgroundImageKey).then((blob) => {
-      if (!blob) {
-        setHomeBackgroundUrl(null)
+    const cached = imageCache.get(homeBackgroundImageKey)
+    if (cached && cached !== homeBackgroundImageDataUrl) {
+      setHomeBackgroundImageDataUrl(cached)
+    }
+
+    void loadImageDataUrl(homeBackgroundImageKey).then((dataUrl) => {
+      if (!dataUrl || dataUrl === homeBackgroundImageDataUrl) {
         return
       }
-      const objectUrl = URL.createObjectURL(blob)
-      disposedUrl = objectUrl
-      setHomeBackgroundUrl((current) => {
-        if (current) {
-          URL.revokeObjectURL(current)
-        }
-        return objectUrl
-      })
+      imageCache.set(homeBackgroundImageKey, dataUrl)
+      setHomeBackgroundImageDataUrl(dataUrl)
     })
-
-    return () => {
-      if (disposedUrl) {
-        URL.revokeObjectURL(disposedUrl)
-      }
-    }
   }, [homeBackgroundImageDataUrl, homeBackgroundImageKey])
-
-  useEffect(
-    () => () => {
-      if (homeBackgroundUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(homeBackgroundUrl)
-      }
-    },
-    [homeBackgroundUrl],
-  )
 
   useEffect(() => {
     const iconEntries = Object.entries(appIconConfigs).flatMap(([id, config]) =>
       config.type === 'image' ? [{ id, imageKey: config.imageKey, imageDataUrl: config.imageDataUrl }] : [],
     )
-    const disposed: string[] = []
+
+    const cachedEntries = iconEntries
+      .map(({ id, imageKey, imageDataUrl }) => {
+        if (typeof imageDataUrl === 'string' && imageDataUrl.length > 0) {
+          if (imageKey) {
+            imageCache.set(imageKey, imageDataUrl)
+          }
+          return [id, imageDataUrl] as const
+        }
+        if (!imageKey) {
+          return null
+        }
+        const cached = imageCache.get(imageKey)
+        if (!cached) {
+          return null
+        }
+        return [id, cached] as const
+      })
+      .filter((entry): entry is readonly [string, string] => Boolean(entry))
+
+    if (cachedEntries.length > 0) {
+      setAppIconImageUrls((current) => {
+        const next = { ...current }
+        let changed = false
+        cachedEntries.forEach(([id, url]) => {
+          if (next[id] !== url) {
+            next[id] = url
+            changed = true
+          }
+        })
+        return changed ? next : current
+      })
+    }
 
     void Promise.all(
       iconEntries.map(async ({ id, imageKey, imageDataUrl }) => {
@@ -405,11 +427,12 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
         if (!imageKey) {
           return null
         }
-        const blob = await loadImageBlob(imageKey)
-        if (!blob) {
+        const dataUrl = await loadImageDataUrl(imageKey)
+        if (!dataUrl) {
           return null
         }
-        return { id, url: URL.createObjectURL(blob) }
+        imageCache.set(imageKey, dataUrl)
+        return { id, url: dataUrl }
       }),
     ).then((results) => {
       setAppIconImageUrls((current) => {
@@ -419,39 +442,13 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
             next[entry.id] = entry.url
           }
         })
-        Object.entries(current).forEach(([id, url]) => {
-          if (!next[id]) {
-            disposed.push(url)
-          }
-        })
-        return next
+        const sameKeys =
+          Object.keys(next).length === Object.keys(current).length &&
+          Object.entries(next).every(([id, url]) => current[id] === url)
+        return sameKeys ? current : next
       })
-      disposed.forEach((url) => {
-      if (url.startsWith('blob:')) {
-        URL.revokeObjectURL(url)
-      }
     })
-    })
-
-    return () => {
-      disposed.forEach((url) => {
-      if (url.startsWith('blob:')) {
-        URL.revokeObjectURL(url)
-      }
-    })
-    }
   }, [appIconConfigs])
-
-  useEffect(
-    () => () => {
-      Object.values(appIconImageUrls).forEach((url) => {
-        if (url.startsWith('blob:')) {
-          URL.revokeObjectURL(url)
-        }
-      })
-    },
-    [appIconImageUrls],
-  )
 
   const loadCheckinData = useCallback(async () => {
     if (!user) {
@@ -574,7 +571,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     const id = `widget-image-${Date.now()}`
     try {
       const imageDataUrl = await readFileAsDataUrl(file)
-      const imageKey = await saveImageBlob(file)
+      const imageKey = await saveImageDataUrl(imageDataUrl)
       setWidgets((current) => [...current, { id, type: 'image', imageKey, imageDataUrl, fit: 'cover' }])
       setWidgetOrder((current) => [...current, id])
     } catch (error) {
@@ -589,7 +586,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       return
     }
     if (target.type === 'image' && target.imageKey) {
-      await removeImageBlob(target.imageKey)
+      await removeImageData(target.imageKey)
     }
     setWidgets((current) => current.filter((widget) => widget.id !== id))
     setWidgetOrder((current) => current.filter((widgetId) => widgetId !== id))
@@ -606,9 +603,9 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     try {
       const processedBlob = await processBackgroundImage(file)
       const dataUrl = await readFileAsDataUrl(processedBlob)
-      const imageKey = await saveImageBlob(processedBlob)
+      const imageKey = await saveImageDataUrl(dataUrl)
       if (homeBackgroundImageKey) {
-        await removeImageBlob(homeBackgroundImageKey)
+        await removeImageData(homeBackgroundImageKey)
       }
       setHomeBackgroundImageKey(imageKey)
       setHomeBackgroundImageDataUrl(dataUrl)
@@ -626,7 +623,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       return
     }
     if (homeBackgroundImageKey) {
-      await removeImageBlob(homeBackgroundImageKey)
+      await removeImageData(homeBackgroundImageKey)
     }
     setHomeBackgroundImageKey(null)
     setHomeBackgroundImageDataUrl(null)
@@ -657,13 +654,13 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     try {
       const imageDataUrl = await readFileAsDataUrl(file)
       const key = createImageKey()
-      await saveImageBlob(file, key)
+      await saveImageDataUrl(imageDataUrl, key)
       setAppIconConfigs((current) => ({
         ...current,
         [iconId]: { type: 'image', imageKey: key, imageDataUrl },
       }))
       if (previous?.type === 'image' && previous.imageKey) {
-        await removeImageBlob(previous.imageKey)
+        await removeImageData(previous.imageKey)
       }
     } catch (error) {
       console.warn('保存图标失败', error)
@@ -676,7 +673,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     const fallback = defaultAppIconConfigs[iconId] as { type: 'emoji'; emoji: string }
     setAppIconConfigs((prev) => ({ ...prev, [iconId]: fallback }))
     if (current?.type === 'image' && current.imageKey) {
-      await removeImageBlob(current.imageKey)
+      await removeImageData(current.imageKey)
     }
   }
 
@@ -735,7 +732,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       className="home-page"
       style={
         {
-          '--home-background-image': homeBackgroundUrl ? `url(${homeBackgroundUrl})` : 'none',
+          '--home-background-image': homeBackgroundImageDataUrl ? `url(${homeBackgroundImageDataUrl})` : 'none',
           '--icon-tile-bg': iconTileBackground,
           '--page-overlay-bg': pageOverlayBackground,
         } as CSSProperties
@@ -826,7 +823,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
                 type="button"
                 className="ghost"
                 onClick={() => void handleRemoveHomeBackground()}
-                disabled={!homeBackgroundImageKey || backgroundUploading}
+                disabled={(!homeBackgroundImageKey && !homeBackgroundImageDataUrl) || backgroundUploading}
               >
                 移除背景图
               </button>
