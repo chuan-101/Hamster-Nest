@@ -103,6 +103,7 @@ type RpSessionRow = {
   id: string
   user_id: string
   title: string
+  tile_color: string | null
   created_at: string
   updated_at: string | null
   is_archived: boolean | null
@@ -204,6 +205,7 @@ const mapRpSessionRow = (row: RpSessionRow): RpSession => ({
   id: row.id,
   userId: row.user_id,
   title: row.title,
+  tileColor: row.tile_color ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   isArchived: row.is_archived ?? false,
@@ -217,7 +219,19 @@ const mapRpSessionRow = (row: RpSessionRow): RpSession => ({
 })
 
 const RP_SESSION_SELECT_FIELDS =
+  'id,user_id,title,tile_color,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url,worldbook_text,rp_context_token_limit,rp_keep_recent_messages,settings'
+
+const RP_SESSION_SELECT_FIELDS_LEGACY =
   'id,user_id,title,created_at,updated_at,is_archived,archived_at,player_display_name,player_avatar_url,worldbook_text,rp_context_token_limit,rp_keep_recent_messages,settings'
+
+const isMissingTileColorColumnError = (error: unknown) => {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+  const candidate = error as { code?: unknown; message?: unknown }
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
+  return candidate.code === '42703' || message.includes('tile_color')
+}
 
 const mapRpMessageRow = (row: RpMessageRow): RpMessage => ({
   id: row.id,
@@ -346,17 +360,49 @@ export const fetchRpSessions = async (userId: string, isArchived: boolean): Prom
   if (!supabase) {
     return []
   }
-  const { data, error } = await supabase
+  const query = supabase
     .from('rp_sessions')
     .select(RP_SESSION_SELECT_FIELDS)
     .eq('user_id', userId)
     .eq('is_archived', isArchived)
     .order('updated_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
+  const { data, error } = await query
+  if (error && isMissingTileColorColumnError(error)) {
+    const { data: legacyData, error: legacyError } = await supabase
+      .from('rp_sessions')
+      .select(RP_SESSION_SELECT_FIELDS_LEGACY)
+      .eq('user_id', userId)
+      .eq('is_archived', isArchived)
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+
+    if (legacyError) {
+      throw legacyError
+    }
+
+    return (legacyData ?? []).map((row) => mapRpSessionRow({ ...(row as RpSessionRow), tile_color: null }))
+  }
   if (error) {
     throw error
   }
   return (data ?? []).map((row) => mapRpSessionRow(row as RpSessionRow))
+}
+
+export const updateRpSessionTileColor = async (sessionId: string, tileColor: string): Promise<void> => {
+  if (!supabase) {
+    return
+  }
+  const userId = await requireAuthenticatedUserId()
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('rp_sessions')
+    .update({ tile_color: tileColor, updated_at: now })
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+  if (error && !isMissingTileColorColumnError(error)) {
+    throw error
+  }
 }
 
 export const createRpSession = async (

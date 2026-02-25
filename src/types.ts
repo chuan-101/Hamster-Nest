@@ -131,6 +131,7 @@ export type RpSession = {
   id: string
   userId: string
   title: string
+  tileColor: string | null
   createdAt: string
   updatedAt: string | null
   isArchived: boolean
