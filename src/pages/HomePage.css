@@ -4,15 +4,14 @@
   --page-overlay-bg: rgba(255, 255, 255, 0.2);
   --home-background-image: none;
   min-height: 100vh;
+  min-height: 100dvh;
   padding: max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1.25rem);
   display: flex;
   align-items: center;
   justify-content: center;
   background:
     var(--home-background-image) center / cover no-repeat,
-    radial-gradient(circle at 20% 20%, rgba(125, 211, 252, 0.45), transparent 40%),
-    radial-gradient(circle at 80% 30%, rgba(167, 139, 250, 0.38), transparent 42%),
-    linear-gradient(180deg, #dbeafe 0%, #bfdbfe 45%, #dbeafe 100%);
+    var(--page-bg);
 }
 
 .phone-shell {
