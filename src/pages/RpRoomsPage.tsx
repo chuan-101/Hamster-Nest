@@ -229,7 +229,7 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
     <div className="rp-rooms-page">
       <header className="rp-rooms-header">
         <div>
-          <h1>跑跑滚轮区</h1>
+          <h1 className="ui-title">跑跑滚轮区</h1>
           <p>管理你的 RP 房间，进入后可继续搭建角色与剧情。</p>
         </div>
         <button type="button" className="ghost" onClick={() => navigate('/')}>
@@ -238,7 +238,7 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
       </header>
 
       <section className="rp-create-card">
-        <h2>新建房间</h2>
+        <h2 className="ui-title">新建房间</h2>
         <div className="rp-create-row">
           <input
             value={newTitle}
@@ -278,7 +278,7 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
         {notice ? <p className="tips">{notice}</p> : null}
         {error ? <p className="error">{error}</p> : null}
 
-        <h2>{tabTitle}</h2>
+        <h2 className="ui-title">{tabTitle}</h2>
         {loading ? <p className="tips">加载中…</p> : null}
         {!loading && rooms.length === 0 ? (
           <p className="tips">{isArchivedView ? '还没有归档房间。' : '还没有房间，先新建一个吧。'}</p>
@@ -312,7 +312,7 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                     </div>
                   ) : (
                     <div className="rp-room-title-row">
-                      <h3>{room.title || '未命名房间'}</h3>
+                      <h3 className="ui-title">{room.title || '未命名房间'}</h3>
                       <span className="rp-room-count">
                         {countsLoading ? '… 条消息' : `${roomMessageCounts[room.id] ?? 0} 条消息`}
                       </span>

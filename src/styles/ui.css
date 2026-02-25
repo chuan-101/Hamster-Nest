@@ -1,4 +1,8 @@
 :root {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI',
+    Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', Arial,
+    sans-serif;
+  --font-display: 'Pixelify Sans', var(--font-sans);
   --accent: #ffd6e7;
   --accent-strong: #f8bad4;
   --text-main: #111827;
@@ -14,6 +18,16 @@
     radial-gradient(circle at 12% 10%, rgba(255, 214, 231, 0.55), transparent 40%),
     radial-gradient(circle at 85% 0%, rgba(229, 231, 235, 0.48), transparent 35%),
     linear-gradient(180deg, #fdf2f8 0%, #f8fafc 52%, #f3f4f6 100%);
+}
+
+.ui-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-transform: none;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
 }
 
 .glass-card,

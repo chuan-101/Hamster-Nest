@@ -679,7 +679,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
           <button type="button" className="edit-button" onClick={() => setEditMode((value) => !value)}>
             {editMode ? '完成' : '编辑'}
           </button>
-          <h1>{timeLabel}</h1>
+          <h1 className="ui-title">{timeLabel}</h1>
           <p>{dateLabel}</p>
         </header>
 
@@ -706,7 +706,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
 
         {editMode ? (
           <section className="glass-card appearance-toolbar">
-            <h2>外观</h2>
+            <h2 className="ui-title">外观</h2>
             <label>
               图标底色
               <input
@@ -776,7 +776,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
 
         {editMode ? (
           <section className="glass-card icon-editor-toolbar">
-            <h2>编辑图标</h2>
+            <h2 className="ui-title">编辑图标</h2>
             <label>
               应用
               <select value={editingIconId} onChange={(event) => setEditingIconId(event.target.value)}>

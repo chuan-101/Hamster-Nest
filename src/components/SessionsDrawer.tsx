@@ -202,7 +202,7 @@ const SessionsDrawer = ({
       <aside className={`sessions-drawer ${open ? 'open' : ''}`}>
         <div className="sessions-drawer-content">
           <div className="drawer-header">
-            <h2>会话</h2>
+            <h2 className="ui-title">会话</h2>
             <div className="drawer-header-actions">
               {syncing ? <span className="syncing">同步中...</span> : null}
               <button type="button" className="ghost" onClick={onClose}>

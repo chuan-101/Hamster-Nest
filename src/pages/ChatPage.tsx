@@ -175,7 +175,7 @@ const ChatPage = ({
           会话
         </button>
         <div className="header-title">
-          <h1>{session.title}</h1>
+          <h1 className="ui-title">{session.title}</h1>
           <span className="subtitle">单聊</span>
         </div>
         <div className="header-actions" ref={headerMenuRef}>

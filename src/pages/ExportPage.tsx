@@ -458,14 +458,14 @@ const ExportPage = ({ user }: { user: User | null }) => {
         <button type="button" className="ghost" onClick={() => navigate(-1)}>
           返回
         </button>
-        <h1>数据导出</h1>
+        <h1 className="ui-title">数据导出</h1>
         <button type="button" className="ghost" onClick={() => navigate('/')}>
           聊天
         </button>
       </header>
 
       <section className="export-card">
-        <h2>导出格式</h2>
+        <h2 className="ui-title">导出格式</h2>
         <label>
           <input
             type="radio"
@@ -486,7 +486,7 @@ const ExportPage = ({ user }: { user: User | null }) => {
       </section>
 
       <section className="export-card">
-        <h2>导出模块</h2>
+        <h2 className="ui-title">导出模块</h2>
         <label>
           <input type="checkbox" checked={modules.chat} onChange={() => toggleModule('chat')} />
           吱吱吱区（sessions + messages）

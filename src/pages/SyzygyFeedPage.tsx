@@ -610,7 +610,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
         <button type="button" className="ghost" onClick={() => navigate('/')}>
           返回聊天
         </button>
-        <h1>{showTrash ? '观察日志回收站' : '仓鼠观察日志'}</h1>
+        <h1 className="ui-title">{showTrash ? '观察日志回收站' : '仓鼠观察日志'}</h1>
         <button
           type="button"
           className="ghost compact-action"
