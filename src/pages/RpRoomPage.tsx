@@ -938,7 +938,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
           </button>
         </header>
         <div className="rp-room-card">
-          <h1>无法进入房间</h1>
+          <h1 className="ui-title">无法进入房间</h1>
           <p className="error">{error ?? '未找到房间。'}</p>
         </div>
       </div>
@@ -947,9 +947,9 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
 
   const dashboardContent = (
     <>
-      <h2>仪表盘</h2>
+      <h2 className="ui-title">仪表盘</h2>
       <section className="rp-dashboard-section">
-        <h3>房间设置</h3>
+        <h3 className="ui-title">房间设置</h3>
         <label>
           玩家显示名
           <input
@@ -998,7 +998,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
       </section>
 
       <section className="rp-dashboard-section">
-        <h3>NPC 角色卡</h3>
+        <h3 className="ui-title">NPC 角色卡</h3>
         <p className="rp-dashboard-helper">已启用 {enabledNpcCount} / {NPC_MAX_ENABLED} 个 NPC</p>
         <button type="button" className="primary" onClick={startCreateNpc}>
           新增NPC
@@ -1129,7 +1129,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
       </section>
 
       <section className="rp-dashboard-section">
-        <h3>世界书（基础版）</h3>
+        <h3 className="ui-title">世界书（基础版）</h3>
         <p className="rp-dashboard-helper">房间级全量注入文本</p>
         <textarea
           value={worldbookTextInput}
@@ -1143,7 +1143,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
       </section>
 
       <section className="rp-dashboard-section">
-        <h3>导出</h3>
+        <h3 className="ui-title">导出</h3>
         <p className="rp-dashboard-helper">仅导出 speaker(role) + 纯文本内容。</p>
         <button type="button" className="primary" onClick={handleExportMessages}>
           导出
@@ -1162,7 +1162,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
         >
           返回
         </button>
-        <h1>{room.title?.trim() || '新房间'}</h1>
+        <h1 className="ui-title">{room.title?.trim() || '新房间'}</h1>
         <div className="rp-room-header-slot">
           {!isDashboardPage ? (
             <button

@@ -577,7 +577,7 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
         <button type="button" className="ghost" onClick={() => navigate('/')}>
           返回聊天
         </button>
-        <h1>{showTrash ? '零食回收站' : '零食罐罐区'}</h1>
+        <h1 className="ui-title">{showTrash ? '零食回收站' : '零食罐罐区'}</h1>
         <button
           type="button"
           className="ghost compact-action"

@@ -217,14 +217,14 @@ const MemoryVaultPage = ({
         <button type="button" className="ghost" onClick={() => navigate(-1)}>
           返回
         </button>
-        <h1>囤囤库</h1>
+        <h1 className="ui-title">囤囤库</h1>
         <button type="button" className="ghost" onClick={() => navigate('/')}>
           聊天
         </button>
       </header>
 
       <section className="memory-section">
-        <h2>Confirmed</h2>
+        <h2 className="ui-title">Confirmed</h2>
         <textarea
           value={newMemory}
           onChange={(event) => setNewMemory(event.target.value)}
@@ -288,7 +288,7 @@ const MemoryVaultPage = ({
 
       <section className="memory-section">
         <div className="memory-section-heading">
-          <h2>Pending</h2>
+          <h2 className="ui-title">Pending</h2>
           <div className="memory-toggle-group">
             <button
               type="button"

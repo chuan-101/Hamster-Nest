@@ -109,7 +109,7 @@ const AuthPage = ({ user }: AuthPageProps) => {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1>邮箱验证码登录</h1>
+        <h1 className="ui-title">邮箱验证码登录</h1>
         <p className="subtitle">使用邮箱验证码登录后即可同步云端会话。</p>
         <label className="field">
           <span>邮箱地址</span>

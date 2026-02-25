@@ -98,7 +98,7 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
   return (
     <div className="checkin-page">
       <header className="checkin-page-header">
-        <h1>打卡</h1>
+        <h1 className="ui-title">打卡</h1>
         <div className="checkin-nav-actions">
           <button type="button" className="ghost" onClick={() => navigate('/')}>
             聊天
@@ -123,7 +123,7 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
 
       <section className="checkin-card standalone">
         <div className="checkin-header">
-          <h2>今日打卡</h2>
+          <h2 className="ui-title">今日打卡</h2>
           <span>{todayDisplay}</span>
         </div>
         <div className="checkin-status-row">

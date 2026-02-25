@@ -706,7 +706,7 @@ const SettingsPage = ({
           >
             返回
           </button>
-          <h1>API设置</h1>
+          <h1 className="ui-title">API设置</h1>
           <span className="header-spacer" />
         </header>
         <div className="settings-loading">正在加载设置...</div>
@@ -724,7 +724,7 @@ const SettingsPage = ({
         >
           返回
         </button>
-        <h1>API设置</h1>
+        <h1 className="ui-title">API设置</h1>
         <span className="header-spacer" />
       </header>
 
@@ -736,7 +736,7 @@ const SettingsPage = ({
           aria-expanded={modelSectionExpanded}
         >
           <span className="section-title">
-            <h2>模型库</h2>
+            <h2 className="ui-title">模型库</h2>
             <p>管理已启用模型并设置默认模型。</p>
           </span>
           <span className="collapse-indicator">{modelSectionExpanded ? '收起' : '展开'}</span>
@@ -776,7 +776,7 @@ const SettingsPage = ({
             )}
 
             <div className="section-title nested-prompt-title">
-              <h2>OpenRouter 模型库</h2>
+              <h2 className="ui-title">OpenRouter 模型库</h2>
               <p>搜索并启用你想使用的模型。</p>
             </div>
             <input
@@ -856,7 +856,7 @@ const SettingsPage = ({
           aria-expanded={generationSectionExpanded}
         >
           <span className="section-title">
-            <h2>生成参数</h2>
+            <h2 className="ui-title">生成参数</h2>
             <p>调整生成行为与推理开关。</p>
           </span>
           <span className="collapse-indicator">{generationSectionExpanded ? '收起' : '展开'}</span>
@@ -908,7 +908,7 @@ const SettingsPage = ({
 
       <section className="settings-section">
         <div className="section-title">
-          <h2>思考链</h2>
+          <h2 className="ui-title">思考链</h2>
           <p>分别控制日常聊天与跑跑滚轮是否请求思考链。</p>
         </div>
         <div className="field-group">
@@ -945,7 +945,7 @@ const SettingsPage = ({
           aria-expanded={memorySectionExpanded}
         >
           <span className="section-title">
-            <h2>记忆相关</h2>
+            <h2 className="ui-title">记忆相关</h2>
             <p>配置记忆抽取模型；自动提取与归并可在囤囤库中设置。</p>
           </span>
           <span className="collapse-indicator">{memorySectionExpanded ? '收起' : '展开'}</span>
@@ -997,7 +997,7 @@ const SettingsPage = ({
           aria-expanded={compressionSectionExpanded}
         >
           <span className="section-title">
-            <h2>上下文压缩</h2>
+            <h2 className="ui-title">上下文压缩</h2>
             <p>配置压缩触发阈值、保留条数与摘要模型。</p>
           </span>
           <span className="collapse-indicator">{compressionSectionExpanded ? '收起' : '展开'}</span>
@@ -1077,7 +1077,7 @@ const SettingsPage = ({
 
       <section className="settings-section">
         <div className="section-title">
-          <h2>系统提示词</h2>
+          <h2 className="ui-title">系统提示词</h2>
           <p>用于引导模型的全局指令，仅对当前用户生效。</p>
         </div>
         <textarea
@@ -1109,7 +1109,7 @@ const SettingsPage = ({
           aria-expanded={snackSectionExpanded}
         >
           <span className="section-title">
-            <h2>Snack Feed</h2>
+            <h2 className="ui-title">Snack Feed</h2>
             <p>仅用于零食罐罐区；基础系统提示词保持不变。</p>
           </span>
           <span className="collapse-indicator">{snackSectionExpanded ? '收起' : '展开'}</span>
@@ -1149,7 +1149,7 @@ const SettingsPage = ({
           aria-expanded={syzygySectionExpanded}
         >
           <span className="section-title">
-            <h2>仓鼠观察日志</h2>
+            <h2 className="ui-title">仓鼠观察日志</h2>
             <p>控制发帖与回复时的提示词行为。</p>
           </span>
           <span className="collapse-indicator">{syzygySectionExpanded ? '收起' : '展开'}</span>
@@ -1157,7 +1157,7 @@ const SettingsPage = ({
         {syzygySectionExpanded ? (
           <>
             <div className="section-title">
-              <h2>发帖风格（Syzygy Post Prompt）</h2>
+              <h2 className="ui-title">发帖风格（Syzygy Post Prompt）</h2>
               <p>控制 🤖 发帖按钮的文风与输出约束。</p>
             </div>
             <textarea
@@ -1181,7 +1181,7 @@ const SettingsPage = ({
             </div>
 
             <div className="section-title nested-prompt-title">
-              <h2>回复风格（Syzygy Reply Prompt）</h2>
+              <h2 className="ui-title">回复风格（Syzygy Reply Prompt）</h2>
               <p>控制 🤖 AI 回复的语气与长度。</p>
             </div>
             <textarea
