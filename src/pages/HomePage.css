@@ -325,33 +325,3 @@
     gap: 0.78rem 0.45rem;
   }
 }
-
-.home-page {
-  background:
-    radial-gradient(circle at 1px 1px, #e8e8e8 1px, transparent 0),
-    linear-gradient(180deg, #f7f7f9 0%, #f4f5f7 100%);
-  background-size: 16px 16px, 100% 100%;
-}
-
-.phone-shell,
-.glass-card,
-.widget-card {
-  background: var(--glass-base);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--card-radius-lg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.checkin-inner {
-  position: relative;
-}
-
-.checkin-inner::after {
-  content: '';
-  position: absolute;
-  inset: 4px;
-  border-radius: 18px;
-  border: 1px dashed rgba(255, 214, 231, 0.75);
-  pointer-events: none;
-}

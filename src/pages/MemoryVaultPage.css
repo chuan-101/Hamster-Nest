@@ -116,38 +116,3 @@
   background: #16a34a;
   color: #fff;
 }
-
-.memory-vault-page,
-.memory-vault-header,
-.memory-controls,
-.memory-card,
-.memory-item {
-  color: var(--text-primary);
-}
-
-.memory-vault-page {
-  background: transparent;
-}
-
-.memory-vault-page .memory-card,
-.memory-vault-page .memory-list > *,
-.memory-vault-page .memory-group,
-.memory-vault-page .memory-toggle-group {
-  background: var(--glass-base);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--card-radius-lg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.memory-vault-page .memory-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.memory-vault-page .memory-list > *::before {
-  content: '🎀📁';
-  display: block;
-  margin-bottom: 6px;
-}
