@@ -1,11 +1,13 @@
 .drawer-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.35);
+  background: rgba(248, 250, 252, 0.42);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
-  z-index: 20;
+  z-index: 1600;
 }
 
 .drawer-scrim.open {
@@ -18,17 +20,23 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: min(320px, 85vw);
-  background: #f8fafc;
-  padding: 20px;
-  padding-top: calc(20px + env(safe-area-inset-top));
-  transform: translateX(-100%);
+  width: min(360px, 90vw);
+  background: rgba(255, 255, 255, 0.72);
+  border-right: 1px solid var(--glass-border);
+  border-top-right-radius: 28px;
+  border-bottom-right-radius: 28px;
+  padding: 16px;
+  padding-top: calc(16px + env(safe-area-inset-top));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-102%);
   transition: transform 0.25s ease;
-  z-index: 30;
+  z-index: 1650;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 16px 0 30px rgba(15, 23, 42, 0.15);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
 }
 
 .sessions-drawer.open {
@@ -44,12 +52,12 @@
 .drawer-header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .syncing {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-subtle);
 }
 
 .drawer-header h2 {
@@ -57,20 +65,20 @@
   font-size: 18px;
 }
 
-
 .drawer-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
-  background: #e2e8f0;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--glass-bg) 70%, #ffffff 30%);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 75%, #e5e7eb 25%);
+  border-radius: 999px;
   padding: 4px;
 }
 
 .drawer-tabs button {
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
-  border-radius: 8px;
+  border-radius: 999px;
   padding: 6px 10px;
   font-size: 13px;
   color: #334155;
@@ -78,16 +86,27 @@
 }
 
 .drawer-tabs button.active {
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.85);
   color: #0f172a;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  border-color: rgba(209, 213, 219, 0.7);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
-.search-input {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 8px 12px;
+.search-input,
+.rename-row input {
+  border: 1px solid color-mix(in srgb, var(--glass-border) 72%, #d1d5db 28%);
+  background: rgba(255, 255, 255, 0.76);
+  border-radius: 12px;
+  padding: 9px 12px;
   font-size: 14px;
+  color: var(--text-main);
+  outline: none;
+}
+
+.search-input:focus,
+.rename-row input:focus {
+  border-color: color-mix(in srgb, var(--accent) 62%, #fda4af 38%);
+  box-shadow: 0 0 0 3px rgba(255, 214, 231, 0.3);
 }
 
 .sessions-list {
@@ -95,21 +114,23 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  padding-right: 2px;
 }
 
 .session-row {
-  background: #fff;
-  border-radius: 12px;
-  padding: 12px;
-  border: 1px solid transparent;
+  background: color-mix(in srgb, #ffffff 80%, var(--glass-bg) 20%);
+  border-radius: 14px;
+  padding: 10px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
 }
 
 .session-row.active {
-  border-color: #0f172a;
+  border-color: color-mix(in srgb, var(--accent-strong) 42%, #94a3b8 58%);
 }
 
 .session-select {
@@ -118,6 +139,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   font-size: 14px;
   padding: 0;
   cursor: pointer;
@@ -125,12 +147,20 @@
   color: #0f172a;
 }
 
-.session-select .count {
-  font-size: 12px;
-  color: #64748b;
+.session-select span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.session-actions {
+.session-select .count {
+  font-size: 12px;
+  color: var(--text-subtle);
+  flex-shrink: 0;
+}
+
+.session-actions,
+.inline-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -142,44 +172,55 @@
   gap: 8px;
 }
 
-.rename-row input {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 6px 10px;
-}
-
-.inline-actions {
-  display: flex;
-  gap: 8px;
-}
-
 .sessions-drawer button.primary {
   border: none;
-  background: #0f172a;
-  color: #fff;
+  background: var(--accent);
+  color: var(--text-main);
   border-radius: 999px;
-  padding: 8px 16px;
+  padding: 9px 14px;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 6px 14px rgba(249, 168, 212, 0.34);
 }
 
-.sessions-drawer button.ghost {
-  border: none;
-  background: transparent;
-  color: #0f172a;
+.sessions-drawer button.ghost,
+.sessions-drawer button.danger,
+.sessions-drawer .inline-actions button {
+  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, #d1d5db 30%);
+  background: rgba(255, 255, 255, 0.74);
+  color: #334155;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
   cursor: pointer;
 }
 
 .sessions-drawer button.danger {
-  border: none;
-  background: #fee2e2;
   color: #991b1b;
-  border-radius: 999px;
-  padding: 6px 12px;
-  cursor: pointer;
+  background: rgba(254, 226, 226, 0.75);
 }
 
 .sessions-drawer .empty {
   color: #94a3b8;
   font-size: 14px;
+  text-align: center;
+  padding: 18px 8px;
+}
+
+@media (max-width: 560px) {
+  .sessions-drawer {
+    width: 92vw;
+    padding: 14px 12px;
+    padding-top: calc(14px + env(safe-area-inset-top));
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    border-top-right-radius: 22px;
+    border-bottom-right-radius: 22px;
+  }
+
+  .session-select {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
 }

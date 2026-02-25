@@ -345,8 +345,15 @@ const ChatPage = ({
         ) : null}
         <div className="composer-toolbar">
           <label className="model-selector">
-            <span>模型</span>
+            <span className="chip-label">模型</span>
+            <span className="chip-value" title={selectedModel}>
+              {selectedModel}
+            </span>
+            <span className="chip-chevron" aria-hidden="true">
+              ˅
+            </span>
             <select
+              aria-label="选择模型"
               value={selectedModel}
               onChange={(event) => {
                 const next = event.target.value
@@ -360,10 +367,6 @@ const ChatPage = ({
               ))}
             </select>
           </label>
-          <span className="model-hint">
-            当前：{selectedModel}
-            {hasOverride ? '（会话覆盖）' : '（默认）'}
-          </span>
           <label className="composer-toggle">
             <input
               type="checkbox"
@@ -374,6 +377,10 @@ const ChatPage = ({
             <span className="toggle-hint">{reasoningHint}</span>
           </label>
         </div>
+        <span className="model-hint">
+          当前模型：{selectedModel}
+          {hasOverride ? '（会话覆盖）' : '（默认）'}
+        </span>
         <div className="composer-row">
           <textarea
             className="textarea-glass"
