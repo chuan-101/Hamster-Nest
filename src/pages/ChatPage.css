@@ -136,15 +136,16 @@
 
 .message {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  max-width: 100%;
 }
 
 .message.in {
-  justify-content: flex-start;
+  align-items: flex-start;
 }
 
 .message.out {
-  justify-content: flex-end;
+  align-items: flex-end;
 }
 
 .message .bubble {
@@ -240,27 +241,30 @@
 
 .message-footer {
   display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
-.message-metadata {
-  display: flex;
-  justify-content: flex-end;
+.bubble-meta {
+  margin-top: 5px;
+  display: inline-flex;
   align-items: center;
   gap: 7px;
-  margin-left: auto;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.message.in .bubble-meta {
   color: var(--text-subtle);
 }
 
-.message-footer .timestamp {
-  font-size: 11px;
-  color: currentColor;
+.message.out .bubble-meta {
+  color: rgba(17, 24, 39, 0.45);
 }
 
-.message.out .message-metadata {
-  color: rgba(255, 255, 255, 0.85);
+.bubble-meta .timestamp {
+  font-size: inherit;
+  color: currentColor;
 }
 
 .model-tag {
@@ -284,12 +288,12 @@
 }
 
 .action-trigger {
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 30px;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 6px;
+  padding: 6px;
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
@@ -297,28 +301,28 @@
   font-weight: 700;
   color: currentColor;
   line-height: 1;
+  transition: background-color 150ms ease, border-color 150ms ease, opacity 150ms ease;
 }
 
 .message.out .action-trigger {
   opacity: 0.82;
-  transition: background-color 150ms ease, border-color 150ms ease, opacity 150ms ease;
 }
 
-.message .bubble:hover .action-trigger,
-.message .bubble:active .action-trigger,
-.message .bubble:focus-within .action-trigger,
-.message .bubble .action-trigger[aria-expanded='true'] {
+.message:hover .action-trigger,
+.message:active .action-trigger,
+.message:focus-within .action-trigger,
+.message .action-trigger[aria-expanded='true'] {
   background: rgba(15, 23, 42, 0.08);
   border-color: rgba(15, 23, 42, 0.12);
 }
 
-.message.out .bubble:hover .action-trigger,
-.message.out .bubble:active .action-trigger,
-.message.out .bubble:focus-within .action-trigger,
-.message.out .bubble .action-trigger[aria-expanded='true'] {
+.message.out:hover .action-trigger,
+.message.out:active .action-trigger,
+.message.out:focus-within .action-trigger,
+.message.out .action-trigger[aria-expanded='true'] {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.12);
+  border-color: rgba(15, 23, 42, 0.15);
 }
 
 .actions-menu {
@@ -559,7 +563,7 @@
   .message .bubble {
     max-width: 86%;
     border-radius: 14px;
-    padding: 9px 40px 9px 10px;
+    padding: 9px 10px;
   }
 
   .chat-composer {
