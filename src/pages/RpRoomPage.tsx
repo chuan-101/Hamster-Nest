@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate, useParams } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import ReasoningPanel from '../components/ReasoningPanel'
@@ -46,6 +47,10 @@ const RP_ROOM_KEEP_RECENT_MESSAGES_MAX = 20
 const RP_ROOM_CONTEXT_TOKEN_LIMIT_DEFAULT = 32000
 const RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN = 8000
 const RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX = 128000
+const MESSAGE_ACTIONS_MENU_WIDTH = 140
+const MESSAGE_ACTIONS_MENU_HEIGHT = 92
+const POPOVER_GAP = 6
+const VIEWPORT_MARGIN = 8
 
 const createEmptyNpcForm = (): NpcFormState => ({
   displayName: '',
@@ -97,6 +102,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
   const [pendingDelete, setPendingDelete] = useState<RpMessage | null>(null)
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
+  const [actionsMenuPosition, setActionsMenuPosition] = useState<{ top: number; left: number } | null>(null)
   const [playerDisplayNameInput, setPlayerDisplayNameInput] = useState('串串')
   const [playerAvatarUrlInput, setPlayerAvatarUrlInput] = useState('')
   const [worldbookTextInput, setWorldbookTextInput] = useState('')
@@ -118,6 +124,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const timelineBottomRef = useRef<HTMLDivElement | null>(null)
   const actionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const actionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const messagesRef = useRef<RpMessage[]>([])
 
   useEffect(() => {
@@ -244,19 +251,51 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
 
   useEffect(() => {
     if (!openActionsId) {
+      setActionsMenuPosition(null)
       return
     }
-    const handleClick = (event: MouseEvent) => {
-      if (!actionsMenuRef.current) {
+
+    const updateActionsMenuPosition = () => {
+      const trigger = actionTriggerRefs.current[openActionsId]
+      if (!trigger) {
+        setActionsMenuPosition(null)
         return
       }
-      if (actionsMenuRef.current.contains(event.target as Node)) {
+
+      const triggerRect = trigger.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+
+      let left = triggerRect.right - MESSAGE_ACTIONS_MENU_WIDTH
+      left = Math.max(VIEWPORT_MARGIN, Math.min(left, viewportWidth - MESSAGE_ACTIONS_MENU_WIDTH - VIEWPORT_MARGIN))
+
+      let top = triggerRect.bottom + POPOVER_GAP
+      if (top + MESSAGE_ACTIONS_MENU_HEIGHT > viewportHeight - VIEWPORT_MARGIN) {
+        top = triggerRect.top - MESSAGE_ACTIONS_MENU_HEIGHT - POPOVER_GAP
+      }
+      top = Math.max(VIEWPORT_MARGIN, Math.min(top, viewportHeight - MESSAGE_ACTIONS_MENU_HEIGHT - VIEWPORT_MARGIN))
+
+      setActionsMenuPosition({ top, left })
+    }
+
+    updateActionsMenuPosition()
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as Node
+      const trigger = actionTriggerRefs.current[openActionsId]
+      if (trigger?.contains(target) || actionsMenuRef.current?.contains(target)) {
         return
       }
       setOpenActionsId(null)
     }
+
+    window.addEventListener('resize', updateActionsMenuPosition)
+    window.addEventListener('scroll', updateActionsMenuPosition, true)
     document.addEventListener('click', handleClick)
+
     return () => {
+      window.removeEventListener('resize', updateActionsMenuPosition)
+      window.removeEventListener('scroll', updateActionsMenuPosition, true)
       document.removeEventListener('click', handleClick)
     }
   }, [openActionsId])
@@ -1186,15 +1225,11 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
 
       <div className={`rp-room-body ${isDashboardPage ? 'rp-room-body-dashboard' : ''}`}>
         {isDashboardPage ? (
-          <div className="rp-dashboard-overlay" aria-label="RP 仪表盘页面">
-            <main className="rp-dashboard-page rp-dashboard-drawer">
-              <div className="rp-dashboard-drawer-content">
-                {notice ? <p className="tips">{notice}</p> : null}
-                {error ? <p className="error">{error}</p> : null}
-                {dashboardContent}
-              </div>
-            </main>
-          </div>
+          <main className="rp-dashboard-page" aria-label="RP 仪表盘页面">
+            {notice ? <p className="tips">{notice}</p> : null}
+            {error ? <p className="error">{error}</p> : null}
+            {dashboardContent}
+          </main>
         ) : (
           <section className="rp-room-main">
             <section className="chat-messages glass-panel rp-room-timeline">
@@ -1230,12 +1265,15 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
                     <div className="bubble-meta">
                       <span className="timestamp">{formatTime(message.createdAt)}</span>
                       <div className="message-actions">
-                        <div className="rp-message-actions-menu" ref={openActionsId === message.id ? actionsMenuRef : null}>
+                        <div className="rp-message-actions-menu">
                           <button
                             type="button"
                             className="ghost action-trigger"
                             aria-expanded={openActionsId === message.id}
                             aria-label={openActionsId === message.id ? '关闭操作菜单' : '打开操作菜单'}
+                            ref={(element) => {
+                              actionTriggerRefs.current[message.id] = element
+                            }}
                             onClick={() =>
                               setOpenActionsId((current) =>
                                 current === message.id ? null : message.id,
@@ -1245,24 +1283,6 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
                           >
                             •••
                           </button>
-                          {openActionsId === message.id ? (
-                            <div className="actions-menu" role="menu">
-                              <button type="button" role="menuitem" onClick={() => void handleCopyMessage(message)}>
-                                复制
-                              </button>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="danger"
-                                onClick={() => {
-                                  setPendingDelete(message)
-                                  setOpenActionsId(null)
-                                }}
-                              >
-                                删除
-                              </button>
-                            </div>
-                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -1339,6 +1359,50 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
           </section>
         )}
       </div>
+
+      {openActionsId && actionsMenuPosition
+        ? createPortal(
+            <div
+              className="actions-menu actions-menu-portal"
+              role="menu"
+              style={{ top: actionsMenuPosition.top, left: actionsMenuPosition.left }}
+              ref={actionsMenuRef}
+            >
+              {(() => {
+                const message = messages.find((item) => item.id === openActionsId)
+                if (!message) {
+                  return null
+                }
+                return (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void handleCopyMessage(message)
+                        setOpenActionsId(null)
+                      }}
+                    >
+                      复制
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="danger"
+                      onClick={() => {
+                        setPendingDelete(message)
+                        setOpenActionsId(null)
+                      }}
+                    >
+                      删除
+                    </button>
+                  </>
+                )
+              })()}
+            </div>,
+            document.body,
+          )
+        : null}
 
       <ConfirmDialog
         open={pendingDelete !== null}

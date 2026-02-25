@@ -170,9 +170,7 @@
 }
 
 .rp-actions-popover {
-  position: absolute;
-  top: 34px;
-  right: 0;
+  position: fixed;
   border: 1px solid rgba(229, 231, 235, 0.95);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
@@ -194,7 +192,11 @@
 }
 
 .rp-color-popover-portal {
-  z-index: 2200;
+  z-index: var(--z-popover);
+}
+
+.rp-actions-popover-portal {
+  z-index: var(--z-popover);
 }
 
 .rp-color-swatch {

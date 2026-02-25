@@ -1,4 +1,5 @@
 :root {
+  --z-popover: 5000;
   line-height: 1.5;
   font-weight: 400;
   color: var(--text-main, #0f172a);

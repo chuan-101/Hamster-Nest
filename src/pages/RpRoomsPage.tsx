@@ -39,6 +39,8 @@ const TILE_COLOR_PALETTE = [
 const COLOR_POPOVER_WIDTH = 196
 const COLOR_POPOVER_HEIGHT = 214
 const COLOR_POPOVER_GAP = 8
+const ACTIONS_POPOVER_WIDTH = 140
+const ACTIONS_POPOVER_HEIGHT = 124
 const VIEWPORT_MARGIN = 8
 
 const resolveRoomTileColor = (room: RpSession) => {
@@ -89,7 +91,9 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   const [openPaletteRoomId, setOpenPaletteRoomId] = useState<string | null>(null)
   const [openActionsRoomId, setOpenActionsRoomId] = useState<string | null>(null)
   const [palettePosition, setPalettePosition] = useState<{ top: number; left: number } | null>(null)
+  const [actionsPosition, setActionsPosition] = useState<{ top: number; left: number } | null>(null)
   const paletteTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const actionsTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   const isArchivedView = tab === 'archived'
   const isMutating = Boolean(savingRoomId || deletingRoomId || updatingArchive)
@@ -199,6 +203,46 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
       window.removeEventListener('scroll', updatePalettePosition, true)
     }
   }, [openPaletteRoomId])
+
+  useEffect(() => {
+    if (!openActionsRoomId) {
+      setActionsPosition(null)
+      return
+    }
+
+    const updateActionsPosition = () => {
+      const trigger = actionsTriggerRefs.current[openActionsRoomId]
+      if (!trigger) {
+        setActionsPosition(null)
+        return
+      }
+
+      const triggerRect = trigger.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+
+      let left = triggerRect.right - ACTIONS_POPOVER_WIDTH
+      left = Math.max(VIEWPORT_MARGIN, Math.min(left, viewportWidth - ACTIONS_POPOVER_WIDTH - VIEWPORT_MARGIN))
+
+      let top = triggerRect.bottom + COLOR_POPOVER_GAP
+      const wouldOverflowBottom = top + ACTIONS_POPOVER_HEIGHT > viewportHeight - VIEWPORT_MARGIN
+      if (wouldOverflowBottom) {
+        top = triggerRect.top - ACTIONS_POPOVER_HEIGHT - COLOR_POPOVER_GAP
+      }
+      top = Math.max(VIEWPORT_MARGIN, Math.min(top, viewportHeight - ACTIONS_POPOVER_HEIGHT - VIEWPORT_MARGIN))
+
+      setActionsPosition({ top, left })
+    }
+
+    updateActionsPosition()
+    window.addEventListener('resize', updateActionsPosition)
+    window.addEventListener('scroll', updateActionsPosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updateActionsPosition)
+      window.removeEventListener('scroll', updateActionsPosition, true)
+    }
+  }, [openActionsRoomId])
 
   const handleCreateRoom = async () => {
     if (!user || creating) {
@@ -428,6 +472,9 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                         type="button"
                         className="rp-tile-icon-btn"
                         aria-label="打开房间更多操作"
+                        ref={(element) => {
+                          actionsTriggerRefs.current[room.id] = element
+                        }}
                         onClick={(event) => {
                           event.stopPropagation()
                           setOpenPaletteRoomId(null)
@@ -436,26 +483,6 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                       >
                         •••
                       </button>
-                      {openActionsRoomId === room.id ? (
-                        <div className="rp-actions-popover" role="menu" onClick={(event) => event.stopPropagation()}>
-                          <button type="button" onClick={() => startRename(room)}>改名</button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPendingArchive({
-                                sessionId: room.id,
-                                nextArchived: !room.isArchived,
-                                title: room.title || '未命名房间',
-                              })
-                            }
-                          >
-                            {room.isArchived ? '取消归档' : '归档'}
-                          </button>
-                          <button type="button" className="danger" onClick={() => setPendingDelete({ sessionId: room.id })}>
-                            删除
-                          </button>
-                        </div>
-                      ) : null}
                     </div>
 
                     <div className="rp-room-tile-content">
@@ -527,6 +554,55 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                 />
                 <span>{activePaletteColor}</span>
               </label>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {openActionsRoomId && actionsPosition
+        ? createPortal(
+            <div
+              className="rp-actions-popover rp-actions-popover-portal"
+              role="menu"
+              style={{ top: actionsPosition.top, left: actionsPosition.left }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {(() => {
+                const room = rooms.find((item) => item.id === openActionsRoomId)
+                if (!room) {
+                  return null
+                }
+                return (
+                  <>
+                    <button type="button" onClick={() => startRename(room)}>改名</button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        {
+                          setPendingArchive({
+                            sessionId: room.id,
+                            nextArchived: !room.isArchived,
+                            title: room.title || '未命名房间',
+                          })
+                          setOpenActionsRoomId(null)
+                        }
+                      }
+                    >
+                      {room.isArchived ? '取消归档' : '归档'}
+                    </button>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() => {
+                        setPendingDelete({ sessionId: room.id })
+                        setOpenActionsRoomId(null)
+                      }}
+                    >
+                      删除
+                    </button>
+                  </>
+                )
+              })()}
             </div>,
             document.body,
           )
