@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
   createRpSession,
@@ -34,6 +35,11 @@ const TILE_COLOR_PALETTE = [
   '#BFD0F8', '#B7DEE8', '#BFD9C8', '#CFD4DF',
   '#B8BECF', '#D9CED8', '#A4A9B8', '#8A90A1',
 ]
+
+const COLOR_POPOVER_WIDTH = 138
+const COLOR_POPOVER_HEIGHT = 138
+const COLOR_POPOVER_GAP = 8
+const VIEWPORT_MARGIN = 8
 
 const resolveRoomTileColor = (room: RpSession) => {
   const color = room.tileColor?.trim()
@@ -74,6 +80,8 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   const [countsLoading, setCountsLoading] = useState(false)
   const [openPaletteRoomId, setOpenPaletteRoomId] = useState<string | null>(null)
   const [openActionsRoomId, setOpenActionsRoomId] = useState<string | null>(null)
+  const [palettePosition, setPalettePosition] = useState<{ top: number; left: number } | null>(null)
+  const paletteTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   const isArchivedView = tab === 'archived'
   const isMutating = Boolean(savingRoomId || deletingRoomId || updatingArchive)
@@ -143,6 +151,46 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
     document.addEventListener('click', closeMenus)
     return () => document.removeEventListener('click', closeMenus)
   }, [])
+
+  useEffect(() => {
+    if (!openPaletteRoomId) {
+      setPalettePosition(null)
+      return
+    }
+
+    const updatePalettePosition = () => {
+      const trigger = paletteTriggerRefs.current[openPaletteRoomId]
+      if (!trigger) {
+        setPalettePosition(null)
+        return
+      }
+
+      const triggerRect = trigger.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+
+      let left = triggerRect.right - COLOR_POPOVER_WIDTH
+      left = Math.max(VIEWPORT_MARGIN, Math.min(left, viewportWidth - COLOR_POPOVER_WIDTH - VIEWPORT_MARGIN))
+
+      let top = triggerRect.bottom + COLOR_POPOVER_GAP
+      const wouldOverflowBottom = top + COLOR_POPOVER_HEIGHT > viewportHeight - VIEWPORT_MARGIN
+      if (wouldOverflowBottom) {
+        top = triggerRect.top - COLOR_POPOVER_HEIGHT - COLOR_POPOVER_GAP
+      }
+      top = Math.max(VIEWPORT_MARGIN, Math.min(top, viewportHeight - COLOR_POPOVER_HEIGHT - VIEWPORT_MARGIN))
+
+      setPalettePosition({ top, left })
+    }
+
+    updatePalettePosition()
+    window.addEventListener('resize', updatePalettePosition)
+    window.addEventListener('scroll', updatePalettePosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updatePalettePosition)
+      window.removeEventListener('scroll', updatePalettePosition, true)
+    }
+  }, [openPaletteRoomId])
 
   const handleCreateRoom = async () => {
     if (!user || creating) {
@@ -341,6 +389,9 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                     type="button"
                     className="rp-tile-icon-btn"
                     aria-label="更改房间颜色"
+                    ref={(element) => {
+                      paletteTriggerRefs.current[room.id] = element
+                    }}
                     onClick={(event) => {
                       event.stopPropagation()
                       setOpenActionsRoomId(null)
@@ -349,20 +400,6 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                   >
                     🎨
                   </button>
-                  {openPaletteRoomId === room.id ? (
-                    <div className="rp-color-popover" role="menu" onClick={(event) => event.stopPropagation()}>
-                      {TILE_COLOR_PALETTE.map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          className="rp-color-swatch"
-                          style={{ backgroundColor: color }}
-                          onClick={() => void handleTileColorSelect(room.id, color)}
-                          aria-label={`使用颜色 ${color}`}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
 
                   <button
                     type="button"
@@ -435,6 +472,29 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
           })}
         </ul>
       </section>
+
+      {openPaletteRoomId && palettePosition
+        ? createPortal(
+            <div
+              className="rp-color-popover rp-color-popover-portal"
+              role="menu"
+              style={{ top: palettePosition.top, left: palettePosition.left }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {TILE_COLOR_PALETTE.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className="rp-color-swatch"
+                  style={{ backgroundColor: color }}
+                  onClick={() => void handleTileColorSelect(openPaletteRoomId, color)}
+                  aria-label={`使用颜色 ${color}`}
+                />
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
 
       <ConfirmDialog
         open={Boolean(pendingArchive)}

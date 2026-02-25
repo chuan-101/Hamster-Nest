@@ -143,7 +143,6 @@
   cursor: pointer;
 }
 
-.rp-color-popover,
 .rp-actions-popover {
   position: absolute;
   top: 34px;
@@ -156,11 +155,20 @@
 }
 
 .rp-color-popover {
+  position: fixed;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   width: 138px;
   padding: 8px;
+  border: 1px solid rgba(229, 231, 235, 0.95);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-soft);
+}
+
+.rp-color-popover-portal {
+  z-index: 2200;
 }
 
 .rp-color-swatch {
@@ -216,6 +224,21 @@
 
 .rp-enter-btn {
   width: 100%;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.26);
+  color: #111827;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(6px);
+}
+
+.rp-enter-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.rp-enter-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  background: rgba(255, 255, 255, 0.36);
 }
 
 .rp-rename-row {
