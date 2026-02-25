@@ -43,10 +43,10 @@
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background-image: radial-gradient(circle, rgba(241, 241, 241, 0.9) 1.6px, transparent 1.8px);
+  background-image: radial-gradient(circle, rgba(225, 224, 227, 0.95) 1.8px, transparent 2px);
   background-size: 14px 14px;
   background-position: 0 0;
-  opacity: 0.45;
+  opacity: 0.65;
   filter: blur(0.2px);
 }
 
