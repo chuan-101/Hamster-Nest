@@ -94,6 +94,8 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   const [actionsPosition, setActionsPosition] = useState<{ top: number; left: number } | null>(null)
   const paletteTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const actionsTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const palettePopoverRef = useRef<HTMLDivElement | null>(null)
+  const actionsPopoverRef = useRef<HTMLDivElement | null>(null)
 
   const isArchivedView = tab === 'archived'
   const isMutating = Boolean(savingRoomId || deletingRoomId || updatingArchive)
@@ -156,12 +158,24 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   }, [rooms, user])
 
   useEffect(() => {
-    const closeMenus = () => {
+    const closeMenus = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target) {
+        return
+      }
+
+      if (palettePopoverRef.current?.contains(target)) {
+        return
+      }
+      if (actionsPopoverRef.current?.contains(target)) {
+        return
+      }
+
       setOpenPaletteRoomId(null)
       setOpenActionsRoomId(null)
     }
-    document.addEventListener('click', closeMenus)
-    return () => document.removeEventListener('click', closeMenus)
+    document.addEventListener('pointerdown', closeMenus)
+    return () => document.removeEventListener('pointerdown', closeMenus)
   }, [])
 
   useEffect(() => {
@@ -271,7 +285,6 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
       return
     }
     setRooms((current) => current.map((room) => (room.id === roomId ? { ...room, tileColor: normalizedColor } : room)))
-    setOpenPaletteRoomId(null)
     try {
       await updateRpSessionTileColor(roomId, normalizedColor)
     } catch (updateError) {
@@ -531,6 +544,8 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
               className="rp-color-popover rp-color-popover-portal"
               role="menu"
               style={{ top: palettePosition.top, left: palettePosition.left }}
+              ref={palettePopoverRef}
+              onPointerDownCapture={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
             >
               {TILE_COLOR_PALETTE.map((color) => (
@@ -549,11 +564,15 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                   id="rp-custom-tile-color"
                   type="color"
                   value={activePaletteColor}
+                  onInput={(event) => void handleTileColorSelect(openPaletteRoomId, event.currentTarget.value)}
                   onChange={(event) => void handleTileColorSelect(openPaletteRoomId, event.target.value)}
                   aria-label="选择自定义颜色"
                 />
                 <span>{activePaletteColor}</span>
               </label>
+              <button type="button" className="rp-color-close-btn" onClick={() => setOpenPaletteRoomId(null)}>
+                完成
+              </button>
             </div>,
             document.body,
           )
@@ -565,6 +584,8 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
               className="rp-actions-popover rp-actions-popover-portal"
               role="menu"
               style={{ top: actionsPosition.top, left: actionsPosition.left }}
+              ref={actionsPopoverRef}
+              onPointerDownCapture={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
             >
               {(() => {
