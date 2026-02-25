@@ -82,9 +82,8 @@
 }
 
 .header-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+  position: fixed;
+  z-index: 1200;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(229, 231, 235, 0.9);
   border-radius: 12px;
@@ -94,7 +93,6 @@
   flex-direction: column;
   gap: 4px;
   min-width: 140px;
-  z-index: 3;
 }
 
 .header-menu button {
@@ -160,14 +158,22 @@
   gap: 6px;
 }
 
-.message.out .bubble {
-  background: #1f2937;
-  color: #f9fafb;
-  border-color: rgba(31, 41, 55, 0.9);
+.message .bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
 }
 
-.message.out .bubble p {
-  white-space: pre-wrap;
+.message.out .bubble {
+  background: #9fa2aa;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+}
+
+.message.out .bubble a {
+  color: #f8fafc;
+  text-decoration: underline;
 }
 
 .assistant-markdown {
@@ -349,26 +355,43 @@
 .composer-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   font-size: 12px;
   color: #4b5563;
 }
 
-.model-selector {
+.model-selector,
+.composer-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(209, 213, 219, 0.9);
+  min-height: 30px;
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 0 11px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-main);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.model-selector:hover,
+.composer-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.model-selector:focus-within,
+.composer-toggle:active {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .model-selector select {
   border: none;
   background: transparent;
   font-size: 12px;
+  font-weight: 500;
   color: var(--text-main);
   outline: none;
 }
@@ -378,19 +401,33 @@
   color: var(--text-subtle);
 }
 
-.composer-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+.composer-toggle input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(209, 213, 219, 0.9);
-  color: var(--text-main);
+  border: 1px solid rgba(107, 114, 128, 0.4);
+  background: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  position: relative;
 }
 
-.composer-toggle input {
-  accent-color: #ec4899;
+.composer-toggle input:checked {
+  background: color-mix(in srgb, var(--accent) 28%, #ffffff 72%);
+  border-color: color-mix(in srgb, var(--accent) 40%, rgba(107, 114, 128, 0.3) 60%);
+}
+
+.composer-toggle input:checked::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-strong) 70%, #f472b6 30%);
+}
+
+.composer-toggle:has(input:checked) {
+  background: color-mix(in srgb, var(--glass-bg) 75%, var(--accent) 25%);
+  border-color: color-mix(in srgb, var(--glass-border) 70%, var(--accent) 30%);
 }
 
 .composer-toggle .toggle-hint {
