@@ -140,8 +140,8 @@ const ChatPage = ({
   }, [openHeaderMenu])
 
   return (
-    <div className="chat-page">
-      <header className="chat-header">
+    <div className="chat-page chat-polka-dots">
+      <header className="chat-header top-nav">
         <button type="button" className="ghost" onClick={onOpenDrawer}>
           会话
         </button>
@@ -230,7 +230,7 @@ const ChatPage = ({
           ) : null}
         </div>
       </header>
-      <main className="chat-messages">
+      <main className="chat-messages glass-panel">
         {messages.length === 0 ? (
           <div className="empty-state">
             <p>暂无消息，开始聊点什么吧。</p>
@@ -298,7 +298,7 @@ const ChatPage = ({
         )}
         <div ref={bottomRef} />
       </main>
-      <form className="chat-composer" onSubmit={handleSubmit}>
+      <form className="chat-composer glass-card" onSubmit={handleSubmit}>
         {isStreaming ? (
           <div className="streaming-status">
             <span>生成中…</span>
@@ -340,6 +340,7 @@ const ChatPage = ({
         </div>
         <div className="composer-row">
           <textarea
+            className="textarea-glass"
             placeholder="输入你的消息"
             rows={2}
             value={draft}
@@ -354,7 +355,7 @@ const ChatPage = ({
               }
             }}
           />
-          <button type="submit" className="primary">
+          <button type="submit" className="btn-primary">
             发送
           </button>
         </div>

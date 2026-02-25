@@ -1,11 +1,34 @@
 .chat-page {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100vh;
   min-height: 100vh;
   min-height: 100dvh;
-  background: #f1f5f9;
+  background: var(--page-bg);
   overflow: hidden;
+  color: var(--text-main);
+  isolation: isolate;
+}
+
+.chat-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+}
+
+.chat-page.chat-polka-dots::before {
+  opacity: 1;
+  background-image: radial-gradient(circle, rgba(107, 114, 128, 0.08) 1.15px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
+.chat-page > * {
+  position: relative;
+  z-index: 1;
 }
 
 @supports (height: 100dvh) {
@@ -15,26 +38,26 @@
 }
 
 .chat-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
   gap: 8px;
 }
 
 .chat-header .ghost {
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
-  color: #0f172a;
+  color: var(--text-main);
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+.chat-header .ghost:hover {
+  background: rgba(255, 255, 255, 0.45);
 }
 
 .header-title {
@@ -51,7 +74,7 @@
 
 .header-title .subtitle {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-subtle);
 }
 
 .header-actions {
@@ -62,9 +85,10 @@
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.16);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 12px;
+  box-shadow: var(--shadow-soft);
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -84,7 +108,7 @@
 }
 
 .header-menu button:hover {
-  background: #f1f5f9;
+  background: #f3f4f6;
 }
 
 .chat-messages {
@@ -93,7 +117,7 @@
   overflow-x: hidden;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 16px;
+  margin: 8px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -104,7 +128,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #64748b;
+  color: var(--text-subtle);
   font-size: 14px;
   text-align: center;
   padding: 24px;
@@ -126,18 +150,20 @@
 
 .message .bubble {
   max-width: 75%;
-  background: #fff;
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 18px;
   padding: 10px 12px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
 .message.out .bubble {
-  background: #0f172a;
-  color: #fff;
+  background: #1f2937;
+  color: #f9fafb;
+  border-color: rgba(31, 41, 55, 0.9);
 }
 
 .message.out .bubble p {
@@ -147,7 +173,7 @@
 .assistant-markdown {
   font-size: 14px;
   line-height: 1.6;
-  color: #0f172a;
+  color: #1f2937;
   word-break: break-word;
 }
 
@@ -213,11 +239,11 @@
 
 .message-footer .timestamp {
   font-size: 11px;
-  color: rgba(148, 163, 184, 0.8);
+  color: rgba(107, 114, 128, 0.9);
 }
 
 .message.out .message-footer .timestamp {
-  color: rgba(226, 232, 240, 0.8);
+  color: rgba(229, 231, 235, 0.9);
 }
 
 .model-tag {
@@ -225,15 +251,15 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #475569;
-  background: rgba(148, 163, 184, 0.2);
+  color: #374151;
+  background: rgba(209, 213, 219, 0.4);
   padding: 2px 6px;
   border-radius: 999px;
 }
 
 .message.out .model-tag {
-  color: #cbd5f5;
-  background: rgba(226, 232, 240, 0.2);
+  color: #fbcfe8;
+  background: rgba(251, 207, 232, 0.2);
 }
 
 .message-actions {
@@ -250,9 +276,10 @@
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.93);
+  border: 1px solid rgba(229, 231, 235, 0.9);
   border-radius: 10px;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.16);
+  box-shadow: var(--shadow-soft);
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -272,7 +299,7 @@
 }
 
 .actions-menu button:hover {
-  background: #f1f5f9;
+  background: #f3f4f6;
 }
 
 .actions-menu .danger {
@@ -280,12 +307,11 @@
 }
 
 .chat-composer {
-  padding: 12px 16px calc(20px + env(safe-area-inset-bottom));
+  margin: 0 16px 12px;
+  padding: 12px 14px calc(16px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: #fff;
-  border-top: 1px solid #e2e8f0;
   position: sticky;
   bottom: 0;
   z-index: 3;
@@ -312,7 +338,7 @@
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-subtle);
 }
 
 .streaming-status .stop-button {
@@ -326,15 +352,15 @@
   gap: 12px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: #475569;
+  color: #4b5563;
 }
 
 .model-selector {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(209, 213, 219, 0.9);
   border-radius: 999px;
   padding: 4px 10px;
 }
@@ -343,13 +369,13 @@
   border: none;
   background: transparent;
   font-size: 12px;
-  color: #0f172a;
+  color: var(--text-main);
   outline: none;
 }
 
 .model-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-subtle);
 }
 
 .composer-toggle {
@@ -358,17 +384,17 @@
   gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #0f172a;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(209, 213, 219, 0.9);
+  color: var(--text-main);
 }
 
 .composer-toggle input {
-  accent-color: #0f172a;
+  accent-color: #ec4899;
 }
 
 .composer-toggle .toggle-hint {
-  color: #64748b;
+  color: var(--text-subtle);
 }
 
 .composer-row {
@@ -379,20 +405,7 @@
 .chat-composer textarea {
   flex: 1;
   resize: none;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 14px;
-}
-
-.chat-composer .primary {
-  border: none;
-  background: #0f172a;
-  color: #fff;
-  border-radius: 12px;
-  padding: 10px 16px;
-  font-size: 14px;
-  cursor: pointer;
+  min-height: 42px;
 }
 
 .checkin-card {
