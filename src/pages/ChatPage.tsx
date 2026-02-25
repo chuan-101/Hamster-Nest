@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { FormEvent } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
@@ -47,9 +48,11 @@ const ChatPage = ({
   const [draft, setDraft] = useState('')
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
   const [openHeaderMenu, setOpenHeaderMenu] = useState(false)
+  const [headerMenuPosition, setHeaderMenuPosition] = useState({ top: 0, right: 0 })
   const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
+  const headerMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const navigate = useNavigate()
 
   const submitDraft = async () => {
@@ -124,6 +127,32 @@ const ChatPage = ({
     if (!openHeaderMenu) {
       return
     }
+
+    const updateHeaderMenuPosition = () => {
+      const triggerRect = headerMenuButtonRef.current?.getBoundingClientRect()
+      if (!triggerRect) {
+        return
+      }
+      setHeaderMenuPosition({
+        top: triggerRect.bottom + 6,
+        right: Math.max(window.innerWidth - triggerRect.right, 12),
+      })
+    }
+
+    updateHeaderMenuPosition()
+    window.addEventListener('resize', updateHeaderMenuPosition)
+    window.addEventListener('scroll', updateHeaderMenuPosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updateHeaderMenuPosition)
+      window.removeEventListener('scroll', updateHeaderMenuPosition, true)
+    }
+  }, [openHeaderMenu])
+
+  useEffect(() => {
+    if (!openHeaderMenu) {
+      return
+    }
     const handleClick = (event: MouseEvent) => {
       if (!headerMenuRef.current) {
         return
@@ -151,6 +180,7 @@ const ChatPage = ({
         </div>
         <div className="header-actions" ref={headerMenuRef}>
           <button
+            ref={headerMenuButtonRef}
             type="button"
             className="ghost"
             onClick={(event) => {
@@ -160,74 +190,80 @@ const ChatPage = ({
           >
             聊天操作
           </button>
-          {openHeaderMenu ? (
-            <div className="header-menu">
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenHeaderMenu(false)
-                  navigate('/snacks')
-                }}
-              >
-                零食罐罐
-              </button>
+          {openHeaderMenu
+            ? createPortal(
+                <div
+                  className="header-menu"
+                  style={{ top: `${headerMenuPosition.top}px`, right: `${headerMenuPosition.right}px` }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenHeaderMenu(false)
+                      navigate('/snacks')
+                    }}
+                  >
+                    零食罐罐
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenHeaderMenu(false)
-                  navigate('/syzygy')
-                }}
-              >
-                仓鼠观察日志
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenHeaderMenu(false)
-                  navigate('/memory-vault')
-                }}
-              >
-                囤囤库
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenHeaderMenu(false)
-                  navigate('/checkin')
-                }}
-              >
-                打卡
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenHeaderMenu(false)
-                  navigate('/rp')
-                }}
-              >
-                跑跑滚轮
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenHeaderMenu(false)
-                  navigate('/settings')
-                }}
-              >
-                设置
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenHeaderMenu(false)
-                  navigate('/export')
-                }}
-              >
-                数据导出
-              </button>
-            </div>
-          ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenHeaderMenu(false)
+                      navigate('/syzygy')
+                    }}
+                  >
+                    仓鼠观察日志
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenHeaderMenu(false)
+                      navigate('/memory-vault')
+                    }}
+                  >
+                    囤囤库
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenHeaderMenu(false)
+                      navigate('/checkin')
+                    }}
+                  >
+                    打卡
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenHeaderMenu(false)
+                      navigate('/rp')
+                    }}
+                  >
+                    跑跑滚轮
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenHeaderMenu(false)
+                      navigate('/settings')
+                    }}
+                  >
+                    设置
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenHeaderMenu(false)
+                      navigate('/export')
+                    }}
+                  >
+                    数据导出
+                  </button>
+                </div>,
+                document.body,
+              )
+            : null}
         </div>
       </header>
       <main className="chat-messages glass-panel">
