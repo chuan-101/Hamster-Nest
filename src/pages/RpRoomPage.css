@@ -12,6 +12,13 @@
   background: var(--page-bg);
 }
 
+.rp-room-dashboard-page {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
 .rp-room-header {
   position: sticky;
   top: 0;
