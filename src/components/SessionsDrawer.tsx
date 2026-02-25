@@ -200,68 +200,70 @@ const SessionsDrawer = ({
     <>
       <div className={`drawer-scrim ${open ? 'open' : ''}`} onClick={onClose} />
       <aside className={`sessions-drawer ${open ? 'open' : ''}`}>
-        <div className="drawer-header">
-          <h2>会话</h2>
-          <div className="drawer-header-actions">
-            {syncing ? <span className="syncing">同步中...</span> : null}
-            <button type="button" className="ghost" onClick={onClose}>
-              关闭
+        <div className="sessions-drawer-content">
+          <div className="drawer-header">
+            <h2>会话</h2>
+            <div className="drawer-header-actions">
+              {syncing ? <span className="syncing">同步中...</span> : null}
+              <button type="button" className="ghost" onClick={onClose}>
+                关闭
+              </button>
+            </div>
+          </div>
+          <div className="drawer-tabs" role="tablist" aria-label="会话分组">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={archiveView === 'active'}
+              className={archiveView === 'active' ? 'active' : ''}
+              onClick={() => setArchiveView('active')}
+            >
+              进行中
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={archiveView === 'archived'}
+              className={archiveView === 'archived' ? 'active' : ''}
+              onClick={() => setArchiveView('archived')}
+            >
+              抽屉
             </button>
           </div>
-        </div>
-        <div className="drawer-tabs" role="tablist" aria-label="会话分组">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={archiveView === 'active'}
-            className={archiveView === 'active' ? 'active' : ''}
-            onClick={() => setArchiveView('active')}
-          >
-            进行中
+          <button type="button" className="primary" onClick={onCreateSession}>
+            + 新建聊天
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={archiveView === 'archived'}
-            className={archiveView === 'archived' ? 'active' : ''}
-            onClick={() => setArchiveView('archived')}
-          >
-            抽屉
-          </button>
-        </div>
-        <button type="button" className="primary" onClick={onCreateSession}>
-          + 新建聊天
-        </button>
-        <input
-          className="search-input"
-          type="search"
-          placeholder="搜索会话"
-          value={search}
-          onChange={(event) => handleSearchChange(event.target.value)}
-        />
-        <div className="sessions-list">
-          {filteredSessions.length === 0 ? (
-            <p className="empty">未找到会话。</p>
-          ) : (
-            filteredSessions.map((session) => (
-              <SessionRow
-                key={session.id}
-                session={session}
-                isActive={session.id === activeSessionId}
-                isEditing={editingId === session.id}
-                draftTitle={editingId === session.id ? draftTitle : ''}
-                messageCount={messageCounts[session.id] ?? 0}
-                archiveView={archiveView}
-                onSelect={handleSelectSession}
-                onStartRename={handleStartRename}
-                onDraftTitleChange={setDraftTitle}
-                onConfirmRename={handleConfirmRename}
-                onCancelRename={handleCancelRename}
-                onRequestDelete={handleRequestDelete}
-                onArchiveToggle={handleArchiveToggle}
-              />
-            ))
-          )}
+          <input
+            className="search-input"
+            type="search"
+            placeholder="搜索会话"
+            value={search}
+            onChange={(event) => handleSearchChange(event.target.value)}
+          />
+          <div className="sessions-list">
+            {filteredSessions.length === 0 ? (
+              <p className="empty">未找到会话。</p>
+            ) : (
+              filteredSessions.map((session) => (
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  isActive={session.id === activeSessionId}
+                  isEditing={editingId === session.id}
+                  draftTitle={editingId === session.id ? draftTitle : ''}
+                  messageCount={messageCounts[session.id] ?? 0}
+                  archiveView={archiveView}
+                  onSelect={handleSelectSession}
+                  onStartRename={handleStartRename}
+                  onDraftTitleChange={setDraftTitle}
+                  onConfirmRename={handleConfirmRename}
+                  onCancelRename={handleCancelRename}
+                  onRequestDelete={handleRequestDelete}
+                  onArchiveToggle={handleArchiveToggle}
+                />
+              ))
+            )}
+          </div>
         </div>
       </aside>
       <ConfirmDialog
