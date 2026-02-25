@@ -341,6 +341,13 @@
   z-index: 40;
 }
 
+.actions-menu-portal {
+  position: fixed;
+  top: auto;
+  right: auto;
+  z-index: var(--z-popover);
+}
+
 .actions-menu button {
   border: none;
   background: transparent;

@@ -126,29 +126,25 @@
   padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
 }
 
-.rp-dashboard-overlay {
-  width: 100%;
-  min-height: 100%;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.rp-dashboard-drawer {
+.rp-dashboard-page {
   position: relative;
-  width: min(500px, 92vw);
-  height: 100%;
-  margin-left: auto;
-  border-left: 1px solid color-mix(in srgb, var(--glass-border) 75%, #e5e7eb 25%);
-  border-radius: 28px 0 0 28px;
+  width: min(780px, 100%);
+  min-height: 100%;
+  margin: 0 auto;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 75%, #e5e7eb 25%);
+  border-radius: 28px;
   padding: 14px;
   background: rgba(255, 255, 255, 0.72);
   box-shadow: var(--shadow-soft);
   overflow: hidden;
   backdrop-filter: blur(var(--blur));
   -webkit-backdrop-filter: blur(var(--blur));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.rp-dashboard-drawer::before {
+.rp-dashboard-page::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -159,15 +155,9 @@
   opacity: 0.62;
 }
 
-.rp-dashboard-drawer-content {
+.rp-dashboard-page > * {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  height: 100%;
-  overflow: auto;
-  padding: 2px;
 }
 
 .rp-dashboard-page h2 {
@@ -354,10 +344,9 @@
     padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
   }
 
-  .rp-dashboard-drawer {
+  .rp-dashboard-page {
     width: 92vw;
     border-radius: 22px;
-    border: 1px solid color-mix(in srgb, var(--glass-border) 75%, #e5e7eb 25%);
     margin-inline: auto;
   }
 
