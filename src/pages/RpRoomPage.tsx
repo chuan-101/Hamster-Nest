@@ -1161,8 +1161,8 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
   )
 
   return (
-    <div className={`rp-room-page ${!isDashboardPage ? 'rp-room-chat-page chat-polka-dots' : ''}`}>
-      <header className={`rp-room-header ${!isDashboardPage ? 'chat-header top-nav' : ''}`}>
+    <div className={`rp-room-page ${isDashboardPage ? 'rp-room-dashboard-page chat-polka-dots' : 'rp-room-chat-page chat-polka-dots'}`}>
+      <header className={`rp-room-header ${!isDashboardPage ? 'chat-header top-nav' : 'top-nav rp-room-header-dashboard'}`}>
         <button
           type="button"
           className="ghost"
@@ -1186,11 +1186,15 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
 
       <div className={`rp-room-body ${isDashboardPage ? 'rp-room-body-dashboard' : ''}`}>
         {isDashboardPage ? (
-          <main className="rp-dashboard-page" aria-label="RP 仪表盘页面">
-            {notice ? <p className="tips">{notice}</p> : null}
-            {error ? <p className="error">{error}</p> : null}
-            {dashboardContent}
-          </main>
+          <div className="rp-dashboard-overlay" aria-label="RP 仪表盘页面">
+            <main className="rp-dashboard-page rp-dashboard-drawer">
+              <div className="rp-dashboard-drawer-content">
+                {notice ? <p className="tips">{notice}</p> : null}
+                {error ? <p className="error">{error}</p> : null}
+                {dashboardContent}
+              </div>
+            </main>
+          </div>
         ) : (
           <section className="rp-room-main">
             <section className="chat-messages glass-panel rp-room-timeline">
