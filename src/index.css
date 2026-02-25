@@ -15,6 +15,8 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--page-bg);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI',
     Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', Arial,
     sans-serif;
@@ -26,6 +28,7 @@ body {
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 #root input:not([type='checkbox']):not([type='radio']),

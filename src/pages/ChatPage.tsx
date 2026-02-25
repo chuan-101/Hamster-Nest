@@ -278,6 +278,36 @@ const ChatPage = ({
               className={`message ${message.role === 'user' ? 'out' : 'in'}`}
             >
               <div className="bubble">
+                <div className="message-actions">
+                  <button
+                    type="button"
+                    className="ghost action-trigger"
+                    aria-expanded={openActionsId === message.id}
+                    aria-label={actionsLabel}
+                    onClick={() =>
+                      setOpenActionsId((current) =>
+                        current === message.id ? null : message.id,
+                      )
+                    }
+                  >
+                    •••
+                  </button>
+                  {openActionsId === message.id ? (
+                    <div className="actions-menu" role="menu">
+                      <button type="button" role="menuitem" onClick={() => handleCopy(message)}>
+                        复制
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="danger"
+                        onClick={() => handleDelete(message)}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
                 {(() => {
                   const reasoningText =
                     message.meta?.reasoning_text?.trim() ?? message.meta?.reasoning?.trim()
@@ -298,36 +328,6 @@ const ChatPage = ({
                   ) : null}
                   <span className="timestamp">{formatTime(message.createdAt)}</span>
                 </div>
-              </div>
-              <div className="message-actions">
-                <button
-                  type="button"
-                  className="ghost action-trigger"
-                  aria-expanded={openActionsId === message.id}
-                  aria-label={actionsLabel}
-                  onClick={() =>
-                    setOpenActionsId((current) =>
-                      current === message.id ? null : message.id,
-                    )
-                  }
-                >
-                  •••
-                </button>
-                {openActionsId === message.id ? (
-                  <div className="actions-menu" role="menu">
-                    <button type="button" role="menuitem" onClick={() => handleCopy(message)}>
-                      复制
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="danger"
-                      onClick={() => handleDelete(message)}
-                    >
-                      删除
-                    </button>
-                  </div>
-                ) : null}
               </div>
             </div>
           ))
