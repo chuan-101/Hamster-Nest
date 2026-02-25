@@ -235,6 +235,17 @@
   color: #374151;
 }
 
+
+.rp-color-close-btn {
+  grid-column: 1 / -1;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 6px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .rp-actions-popover {
   display: grid;
   gap: 4px;

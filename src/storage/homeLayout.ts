@@ -8,7 +8,8 @@ export type DecorativeWidget =
   | {
       id: string
       type: 'image'
-      imageKey: string
+      imageKey?: string
+      imageDataUrl?: string
       fit?: 'cover' | 'contain'
       size?: '1x1' | '2x1'
     }
@@ -25,7 +26,8 @@ export type AppIconConfig =
     }
   | {
       type: 'image'
-      imageKey: string
+      imageKey?: string
+      imageDataUrl?: string
     }
 
 export type HomeSettingsState = {
@@ -39,6 +41,7 @@ export type HomeSettingsState = {
   pageOverlayColor?: string
   pageOverlayOpacity?: number
   homeBackgroundImageKey?: string | null
+  homeBackgroundImageDataUrl?: string | null
   appIconConfigs?: Record<string, AppIconConfig>
 }
 
@@ -104,6 +107,7 @@ export const loadHomeSettings = (): HomeSettingsState | null => {
 
 export const saveHomeSettings = (state: HomeSettingsState) => {
   localStorage.setItem(HOME_SETTINGS_STORAGE_KEY, JSON.stringify(state))
+  window.dispatchEvent(new Event('hamster-home-settings-changed'))
 }
 
 export const loadHomeLayout = (): HomeSettingsState | null => {
