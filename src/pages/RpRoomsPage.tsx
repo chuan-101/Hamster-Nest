@@ -36,8 +36,8 @@ const TILE_COLOR_PALETTE = [
   '#B8BECF', '#D9CED8', '#A4A9B8', '#8A90A1',
 ]
 
-const COLOR_POPOVER_WIDTH = 138
-const COLOR_POPOVER_HEIGHT = 138
+const COLOR_POPOVER_WIDTH = 196
+const COLOR_POPOVER_HEIGHT = 214
 const COLOR_POPOVER_GAP = 8
 const VIEWPORT_MARGIN = 8
 
@@ -58,6 +58,14 @@ const formatRoomTime = (session: RpSession) => {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+const normalizeHexColor = (value: string) => {
+  const trimmed = value.trim()
+  if (!/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return null
+  }
+  return trimmed.toUpperCase()
 }
 
 const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
@@ -214,10 +222,14 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   }
 
   const handleTileColorSelect = async (roomId: string, color: string) => {
-    setRooms((current) => current.map((room) => (room.id === roomId ? { ...room, tileColor: color } : room)))
+    const normalizedColor = normalizeHexColor(color)
+    if (!normalizedColor) {
+      return
+    }
+    setRooms((current) => current.map((room) => (room.id === roomId ? { ...room, tileColor: normalizedColor } : room)))
     setOpenPaletteRoomId(null)
     try {
-      await updateRpSessionTileColor(roomId, color)
+      await updateRpSessionTileColor(roomId, normalizedColor)
     } catch (updateError) {
       console.warn('更新 RP 房间颜色失败', updateError)
       setNotice('颜色已本地更新，云端保存失败。')
@@ -310,168 +322,181 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   }
 
   const tabTitle = useMemo(() => (isArchivedView ? '已归档房间' : '活跃房间'), [isArchivedView])
+  const activePaletteColor = useMemo(() => {
+    if (!openPaletteRoomId) {
+      return '#F88FA4'
+    }
+    const room = rooms.find((item) => item.id === openPaletteRoomId)
+    return room ? resolveRoomTileColor(room).toUpperCase() : '#F88FA4'
+  }, [openPaletteRoomId, rooms])
 
   return (
     <div className="rp-rooms-page">
-      <header className="rp-rooms-header glass-panel">
-        <div>
-          <h1 className="ui-title">跑跑滚轮区</h1>
-          <p>管理 RP 房间，用颜色区分剧情分线与角色组。</p>
-        </div>
-        <button type="button" className="ghost" onClick={() => navigate('/')}>
-          返回聊天
-        </button>
-      </header>
-
-      <section className="rp-create-card glass-card">
-        <h2 className="ui-title">新建房间</h2>
-        <div className="rp-create-row">
-          <input
-            value={newTitle}
-            onChange={(event) => setNewTitle(event.target.value)}
-            placeholder="输入房间标题（可留空）"
-            maxLength={80}
-          />
-          <button type="button" className="btn-primary" disabled={creating} onClick={handleCreateRoom}>
-            {creating ? '创建中…' : '新建房间'}
-          </button>
-        </div>
-      </section>
-
-      <section className="rp-list-card glass-panel">
-        <div className="rp-list-head">
-          <div className="rp-tabs" role="tablist" aria-label="房间筛选">
-            <button
-              type="button"
-              className={!isArchivedView ? 'active' : ''}
-              onClick={() => setTab('active')}
-            >
-              活跃
+      <div className="rp-rooms-shell">
+        <section className="rp-rooms-top">
+          <header className="rp-rooms-header glass-panel">
+            <div>
+              <h1 className="ui-title">跑跑滚轮区</h1>
+              <p>管理 RP 房间，用颜色区分剧情分线与角色组。</p>
+            </div>
+            <button type="button" className="ghost" onClick={() => navigate('/')}>
+              返回聊天
             </button>
-            <button
-              type="button"
-              className={isArchivedView ? 'active' : ''}
-              onClick={() => setTab('archived')}
-            >
-              已归档
-            </button>
-          </div>
-          <button type="button" className="ghost" onClick={() => void loadRooms()} disabled={loading || isMutating}>
-            刷新
-          </button>
-        </div>
+          </header>
 
-        {notice ? <p className="tips">{notice}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+          <section className="rp-create-card glass-card">
+            <h2 className="ui-title">新建房间</h2>
+            <div className="rp-create-row">
+              <input
+                value={newTitle}
+                onChange={(event) => setNewTitle(event.target.value)}
+                placeholder="输入房间标题（可留空）"
+                maxLength={80}
+              />
+              <button type="button" className="btn-primary" disabled={creating} onClick={handleCreateRoom}>
+                {creating ? '创建中…' : '新建房间'}
+              </button>
+            </div>
+          </section>
+        </section>
 
-        <h2 className="ui-title">{tabTitle}</h2>
-        {loading ? <p className="tips">加载中…</p> : null}
-        {!loading && rooms.length === 0 ? (
-          <p className="tips">{isArchivedView ? '还没有归档房间。' : '还没有房间，先新建一个吧。'}</p>
-        ) : null}
+        <section className="rp-rooms-scroll">
+          <section className="rp-list-card glass-panel">
+            <div className="rp-list-head">
+              <div className="rp-tabs" role="tablist" aria-label="房间筛选">
+                <button
+                  type="button"
+                  className={!isArchivedView ? 'active' : ''}
+                  onClick={() => setTab('active')}
+                >
+                  活跃
+                </button>
+                <button
+                  type="button"
+                  className={isArchivedView ? 'active' : ''}
+                  onClick={() => setTab('archived')}
+                >
+                  已归档
+                </button>
+              </div>
+              <button type="button" className="ghost" onClick={() => void loadRooms()} disabled={loading || isMutating}>
+                刷新
+              </button>
+            </div>
 
-        <ul className="rp-room-grid">
-          {rooms.map((room) => {
-            const isRenaming = editingRoomId === room.id
-            const isSaving = savingRoomId === room.id
-            const isDeleting = deletingRoomId === room.id
-            const isBusy = isMutating || isSaving || isDeleting
-            const tileColor = resolveRoomTileColor(room)
+            {notice ? <p className="tips">{notice}</p> : null}
+            {error ? <p className="error">{error}</p> : null}
 
-            return (
-              <li
-                key={room.id}
-                className="rp-room-tile"
-                style={{ backgroundColor: tileColor }}
-              >
-                <div className="rp-room-tile-top">
-                  <button
-                    type="button"
-                    className="rp-tile-icon-btn"
-                    aria-label="更改房间颜色"
-                    ref={(element) => {
-                      paletteTriggerRefs.current[room.id] = element
-                    }}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setOpenActionsRoomId(null)
-                      setOpenPaletteRoomId((current) => (current === room.id ? null : room.id))
-                    }}
+            <h2 className="ui-title">{tabTitle}</h2>
+            {loading ? <p className="tips">加载中…</p> : null}
+            {!loading && rooms.length === 0 ? (
+              <p className="tips">{isArchivedView ? '还没有归档房间。' : '还没有房间，先新建一个吧。'}</p>
+            ) : null}
+
+            <ul className="rp-room-grid">
+              {rooms.map((room) => {
+                const isRenaming = editingRoomId === room.id
+                const isSaving = savingRoomId === room.id
+                const isDeleting = deletingRoomId === room.id
+                const isBusy = isMutating || isSaving || isDeleting
+                const tileColor = resolveRoomTileColor(room)
+
+                return (
+                  <li
+                    key={room.id}
+                    className="rp-room-tile"
+                    style={{ backgroundColor: tileColor }}
                   >
-                    🎨
-                  </button>
-
-                  <button
-                    type="button"
-                    className="rp-tile-icon-btn"
-                    aria-label="打开房间更多操作"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setOpenPaletteRoomId(null)
-                      setOpenActionsRoomId((current) => (current === room.id ? null : room.id))
-                    }}
-                  >
-                    •••
-                  </button>
-                  {openActionsRoomId === room.id ? (
-                    <div className="rp-actions-popover" role="menu" onClick={(event) => event.stopPropagation()}>
-                      <button type="button" onClick={() => startRename(room)}>改名</button>
+                    <div className="rp-room-tile-top">
                       <button
                         type="button"
-                        onClick={() =>
-                          setPendingArchive({
-                            sessionId: room.id,
-                            nextArchived: !room.isArchived,
-                            title: room.title || '未命名房间',
-                          })
-                        }
+                        className="rp-tile-icon-btn"
+                        aria-label="更改房间颜色"
+                        ref={(element) => {
+                          paletteTriggerRefs.current[room.id] = element
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setOpenActionsRoomId(null)
+                          setOpenPaletteRoomId((current) => (current === room.id ? null : room.id))
+                        }}
                       >
-                        {room.isArchived ? '取消归档' : '归档'}
+                        🎨
                       </button>
-                      <button type="button" className="danger" onClick={() => setPendingDelete({ sessionId: room.id })}>
-                        删除
+
+                      <button
+                        type="button"
+                        className="rp-tile-icon-btn"
+                        aria-label="打开房间更多操作"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setOpenPaletteRoomId(null)
+                          setOpenActionsRoomId((current) => (current === room.id ? null : room.id))
+                        }}
+                      >
+                        •••
                       </button>
+                      {openActionsRoomId === room.id ? (
+                        <div className="rp-actions-popover" role="menu" onClick={(event) => event.stopPropagation()}>
+                          <button type="button" onClick={() => startRename(room)}>改名</button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPendingArchive({
+                                sessionId: room.id,
+                                nextArchived: !room.isArchived,
+                                title: room.title || '未命名房间',
+                              })
+                            }
+                          >
+                            {room.isArchived ? '取消归档' : '归档'}
+                          </button>
+                          <button type="button" className="danger" onClick={() => setPendingDelete({ sessionId: room.id })}>
+                            删除
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
 
-                <div className="rp-room-tile-content">
-                  {isRenaming ? (
-                    <div className="rp-rename-row">
-                      <input
-                        value={editingTitle}
-                        onChange={(event) => setEditingTitle(event.target.value)}
-                        placeholder="输入房间标题（可留空）"
-                        maxLength={80}
-                        disabled={isBusy}
-                      />
-                      <div className="rp-rename-actions">
-                        <button type="button" className="btn-primary" disabled={isBusy} onClick={() => void handleRenameRoom(room.id)}>
-                          {isSaving ? '保存中…' : '保存'}
-                        </button>
-                        <button type="button" className="ghost" disabled={isSaving} onClick={cancelRename}>
-                          取消
-                        </button>
-                      </div>
+                    <div className="rp-room-tile-content">
+                      {isRenaming ? (
+                        <div className="rp-rename-row">
+                          <input
+                            value={editingTitle}
+                            onChange={(event) => setEditingTitle(event.target.value)}
+                            placeholder="输入房间标题（可留空）"
+                            maxLength={80}
+                            disabled={isBusy}
+                          />
+                          <div className="rp-rename-actions">
+                            <button type="button" className="btn-primary" disabled={isBusy} onClick={() => void handleRenameRoom(room.id)}>
+                              {isSaving ? '保存中…' : '保存'}
+                            </button>
+                            <button type="button" className="ghost" disabled={isSaving} onClick={cancelRename}>
+                              取消
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <h3 className="ui-title">{room.title || '未命名房间'}</h3>
+                          <p className="rp-room-meta">
+                            {countsLoading ? '… 条消息' : `${roomMessageCounts[room.id] ?? 0} 条消息`} · {formatRoomTime(room)}
+                          </p>
+                        </>
+                      )}
                     </div>
-                  ) : (
-                    <>
-                      <h3 className="ui-title">{room.title || '未命名房间'}</h3>
-                      <p className="rp-room-meta">
-                        {countsLoading ? '… 条消息' : `${roomMessageCounts[room.id] ?? 0} 条消息`} · {formatRoomTime(room)}
-                      </p>
-                    </>
-                  )}
-                </div>
 
-                <button type="button" className="btn-primary rp-enter-btn" onClick={() => navigate(`/rp/${room.id}`)} disabled={isBusy}>
-                  进入
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      </section>
+                    <button type="button" className="btn-primary rp-enter-btn" onClick={() => navigate(`/rp/${room.id}`)} disabled={isBusy}>
+                      进入
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        </section>
+      </div>
 
       {openPaletteRoomId && palettePosition
         ? createPortal(
@@ -491,6 +516,17 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                   aria-label={`使用颜色 ${color}`}
                 />
               ))}
+              <label className="rp-color-custom" htmlFor="rp-custom-tile-color">
+                自定义
+                <input
+                  id="rp-custom-tile-color"
+                  type="color"
+                  value={activePaletteColor}
+                  onChange={(event) => void handleTileColorSelect(openPaletteRoomId, event.target.value)}
+                  aria-label="选择自定义颜色"
+                />
+                <span>{activePaletteColor}</span>
+              </label>
             </div>,
             document.body,
           )

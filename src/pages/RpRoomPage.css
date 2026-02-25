@@ -1,17 +1,15 @@
 .rp-room-page {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100vh;
   min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .rp-room-chat-page {
   background: var(--page-bg);
-}
-
-.rp-room-chat-page.rp-room-page {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  overflow: hidden;
 }
 
 .rp-room-header {
@@ -23,6 +21,10 @@
   align-items: center;
   gap: 8px;
   padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+}
+
+.rp-room-header-dashboard {
+  background: rgba(255, 255, 255, 0.56);
 }
 
 .rp-room-header h1 {
@@ -50,7 +52,6 @@
 }
 
 .rp-room-body {
-  flex: 1;
   min-height: 0;
   display: flex;
 }
@@ -120,16 +121,65 @@
   position: relative;
 }
 
+.rp-room-body-dashboard {
+  overflow: auto;
+  padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+}
+
+.rp-dashboard-overlay {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.rp-dashboard-drawer {
+  position: relative;
+  width: min(500px, 92vw);
+  height: 100%;
+  margin-left: auto;
+  border-left: 1px solid color-mix(in srgb, var(--glass-border) 75%, #e5e7eb 25%);
+  border-radius: 28px 0 0 28px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+}
+
+.rp-dashboard-drawer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(circle, rgba(225, 224, 227, 0.95) 1.8px, transparent 2px);
+  background-size: 14px 14px;
+  opacity: 0.62;
+}
+
+.rp-dashboard-drawer-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow: auto;
+  padding: 2px;
+}
+
 .rp-dashboard-page h2 {
   margin: 0;
   font-size: 15px;
 }
 
 .rp-dashboard-section {
-  margin-top: 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 72%, #d1d5db 28%);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -152,10 +202,20 @@
 .rp-dashboard-section input,
 .rp-dashboard-section textarea,
 .rp-dashboard-section select {
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 72%, #d1d5db 28%);
+  border-radius: 12px;
   padding: 8px 10px;
   font-size: 13px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text-main);
+}
+
+.rp-dashboard-section input:focus,
+.rp-dashboard-section textarea:focus,
+.rp-dashboard-section select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 62%, #fda4af 38%);
+  box-shadow: 0 0 0 3px rgba(255, 214, 231, 0.3);
 }
 
 .rp-dashboard-helper {
@@ -164,14 +224,28 @@
   color: #64748b;
 }
 
-.rp-dashboard-page {
-  width: min(860px, 100%);
-  margin: 0 auto;
-  padding: 16px;
+.rp-dashboard-page button.primary,
+.rp-dashboard-page .rp-npc-form-actions .primary {
+  border: none;
+  background: var(--accent);
+  color: var(--text-main);
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(249, 168, 212, 0.34);
 }
 
-.rp-room-body-dashboard {
-  justify-content: center;
+.rp-dashboard-page button.ghost,
+.rp-dashboard-page .rp-model-empty-hint .ghost {
+  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, #d1d5db 30%);
+  background: rgba(255, 255, 255, 0.74);
+  color: #334155;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .rp-room-card {
@@ -202,9 +276,10 @@
 }
 
 .rp-npc-item {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--glass-border) 72%, #d1d5db 28%);
+  border-radius: 12px;
   padding: 10px;
+  background: rgba(255, 255, 255, 0.66);
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -264,16 +339,6 @@
   gap: 8px;
 }
 
-.rp-model-empty-hint .ghost {
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #0f172a;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
 .rp-model-warning {
   margin: 0;
   font-size: 12px;
@@ -281,6 +346,21 @@
 }
 
 @media (max-width: 640px) {
+  .rp-room-header {
+    padding-inline: 10px;
+  }
+
+  .rp-room-body-dashboard {
+    padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .rp-dashboard-drawer {
+    width: 92vw;
+    border-radius: 22px;
+    border: 1px solid color-mix(in srgb, var(--glass-border) 75%, #e5e7eb 25%);
+    margin-inline: auto;
+  }
+
   .rp-trigger-row {
     flex-wrap: wrap;
     gap: 6px;
