@@ -42,6 +42,7 @@ const COLOR_POPOVER_GAP = 8
 const ACTIONS_POPOVER_WIDTH = 140
 const ACTIONS_POPOVER_HEIGHT = 124
 const VIEWPORT_MARGIN = 8
+const TILE_COLOR_DEBOUNCE_MS = 320
 
 const resolveRoomTileColor = (room: RpSession) => {
   const color = room.tileColor?.trim()
@@ -70,6 +71,11 @@ const normalizeHexColor = (value: string) => {
   return trimmed.toUpperCase()
 }
 
+
+const isAbortError = (error: unknown) => (
+  error instanceof DOMException && error.name === 'AbortError'
+)
+
 const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   const navigate = useNavigate()
   const [rooms, setRooms] = useState<RpSession[]>([])
@@ -96,6 +102,8 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   const actionsTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const palettePopoverRef = useRef<HTMLDivElement | null>(null)
   const actionsPopoverRef = useRef<HTMLDivElement | null>(null)
+  const pendingTileColorTimeoutsRef = useRef<Record<string, number>>({})
+  const tileColorRequestControllersRef = useRef<Record<string, AbortController>>({})
 
   const isArchivedView = tab === 'archived'
   const isMutating = Boolean(savingRoomId || deletingRoomId || updatingArchive)
@@ -129,16 +137,20 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
     }
 
     let canceled = false
+    const controller = new AbortController()
     const roomIds = rooms.map((room) => room.id)
 
     const loadMessageCounts = async () => {
       setCountsLoading(true)
       try {
-        const counts = await fetchRpMessageCounts(user.id, roomIds)
+        const counts = await fetchRpMessageCounts(user.id, roomIds, controller.signal)
         if (!canceled) {
           setRoomMessageCounts(counts)
         }
       } catch (countError) {
+        if (isAbortError(countError)) {
+          return
+        }
         console.warn('加载 RP 房间消息数量失败', countError)
         if (!canceled) {
           setRoomMessageCounts({})
@@ -154,8 +166,23 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
 
     return () => {
       canceled = true
+      controller.abort()
     }
   }, [rooms, user])
+
+  useEffect(() => {
+    return () => {
+      Object.values(pendingTileColorTimeoutsRef.current).forEach((timerId) => {
+        window.clearTimeout(timerId)
+      })
+      pendingTileColorTimeoutsRef.current = {}
+
+      Object.values(tileColorRequestControllersRef.current).forEach((controller) => {
+        controller.abort()
+      })
+      tileColorRequestControllersRef.current = {}
+    }
+  }, [])
 
   useEffect(() => {
     const closeMenus = (event: PointerEvent) => {
@@ -184,7 +211,10 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
       return
     }
 
+    let frameId: number | null = null
+
     const updatePalettePosition = () => {
+      frameId = null
       const trigger = paletteTriggerRefs.current[openPaletteRoomId]
       if (!trigger) {
         setPalettePosition(null)
@@ -208,13 +238,23 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
       setPalettePosition({ top, left })
     }
 
+    const scheduleUpdatePalettePosition = () => {
+      if (frameId !== null) {
+        return
+      }
+      frameId = window.requestAnimationFrame(updatePalettePosition)
+    }
+
     updatePalettePosition()
-    window.addEventListener('resize', updatePalettePosition)
-    window.addEventListener('scroll', updatePalettePosition, true)
+    window.addEventListener('resize', scheduleUpdatePalettePosition)
+    window.addEventListener('scroll', scheduleUpdatePalettePosition, true)
 
     return () => {
-      window.removeEventListener('resize', updatePalettePosition)
-      window.removeEventListener('scroll', updatePalettePosition, true)
+      window.removeEventListener('resize', scheduleUpdatePalettePosition)
+      window.removeEventListener('scroll', scheduleUpdatePalettePosition, true)
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId)
+      }
     }
   }, [openPaletteRoomId])
 
@@ -224,7 +264,10 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
       return
     }
 
+    let frameId: number | null = null
+
     const updateActionsPosition = () => {
+      frameId = null
       const trigger = actionsTriggerRefs.current[openActionsRoomId]
       if (!trigger) {
         setActionsPosition(null)
@@ -248,13 +291,23 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
       setActionsPosition({ top, left })
     }
 
+    const scheduleUpdateActionsPosition = () => {
+      if (frameId !== null) {
+        return
+      }
+      frameId = window.requestAnimationFrame(updateActionsPosition)
+    }
+
     updateActionsPosition()
-    window.addEventListener('resize', updateActionsPosition)
-    window.addEventListener('scroll', updateActionsPosition, true)
+    window.addEventListener('resize', scheduleUpdateActionsPosition)
+    window.addEventListener('scroll', scheduleUpdateActionsPosition, true)
 
     return () => {
-      window.removeEventListener('resize', updateActionsPosition)
-      window.removeEventListener('scroll', updateActionsPosition, true)
+      window.removeEventListener('resize', scheduleUpdateActionsPosition)
+      window.removeEventListener('scroll', scheduleUpdateActionsPosition, true)
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId)
+      }
     }
   }, [openActionsRoomId])
 
@@ -279,18 +332,47 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
     }
   }
 
-  const handleTileColorSelect = async (roomId: string, color: string) => {
+  const handleTileColorSelect = (roomId: string, color: string) => {
     const normalizedColor = normalizeHexColor(color)
     if (!normalizedColor) {
       return
     }
+
     setRooms((current) => current.map((room) => (room.id === roomId ? { ...room, tileColor: normalizedColor } : room)))
-    try {
-      await updateRpSessionTileColor(roomId, normalizedColor)
-    } catch (updateError) {
-      console.warn('更新 RP 房间颜色失败', updateError)
-      setNotice('颜色已本地更新，云端保存失败。')
+
+    const existingTimeoutId = pendingTileColorTimeoutsRef.current[roomId]
+    if (typeof existingTimeoutId !== 'undefined') {
+      window.clearTimeout(existingTimeoutId)
+      delete pendingTileColorTimeoutsRef.current[roomId]
     }
+
+    const existingController = tileColorRequestControllersRef.current[roomId]
+    if (existingController) {
+      existingController.abort()
+      delete tileColorRequestControllersRef.current[roomId]
+    }
+
+    pendingTileColorTimeoutsRef.current[roomId] = window.setTimeout(() => {
+      const controller = new AbortController()
+      tileColorRequestControllersRef.current[roomId] = controller
+      delete pendingTileColorTimeoutsRef.current[roomId]
+
+      void (async () => {
+        try {
+          await updateRpSessionTileColor(roomId, normalizedColor, controller.signal)
+        } catch (updateError) {
+          if (isAbortError(updateError)) {
+            return
+          }
+          console.warn('更新 RP 房间颜色失败', updateError)
+          setNotice('颜色已本地更新，云端保存失败。')
+        } finally {
+          if (tileColorRequestControllersRef.current[roomId] === controller) {
+            delete tileColorRequestControllersRef.current[roomId]
+          }
+        }
+      })()
+    }, TILE_COLOR_DEBOUNCE_MS)
   }
 
   const handleToggleArchive = async () => {
