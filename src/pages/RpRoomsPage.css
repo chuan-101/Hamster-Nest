@@ -36,7 +36,7 @@
 
 .rp-rooms-page::before {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: -1;
   background:
@@ -47,7 +47,7 @@
 
 .rp-rooms-page::after {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: -1;
@@ -352,5 +352,16 @@
   .rp-room-tile {
     min-height: 148px;
     border-radius: 18px;
+  }
+}
+
+
+@media (max-width: 560px) {
+  .rp-rooms-page::before {
+    background: linear-gradient(180deg, #fdf8fb 0%, #f4f4f6 100%);
+  }
+
+  .rp-rooms-page::after {
+    opacity: 0.16;
   }
 }
