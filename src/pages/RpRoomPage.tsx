@@ -19,6 +19,7 @@ import {
   updateRpSessionDashboard,
 } from '../storage/supabaseSync'
 import type { RpMessage, RpNpcCard, RpSession } from '../types'
+import './ChatPage.css'
 import './RpRoomPage.css'
 
 type RpRoomPageProps = {
@@ -64,6 +65,13 @@ const readRoomKeepRecentMessages = (value: unknown) => {
   const normalized = Math.floor(numericValue)
   return Math.min(Math.max(normalized, RP_ROOM_KEEP_RECENT_MESSAGES_MIN), RP_ROOM_KEEP_RECENT_MESSAGES_MAX)
 }
+
+
+const formatTime = (timestamp: string) =>
+  new Date(timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 
 const readRoomContextTokenLimit = (value: unknown) => {
   const numericValue = Number(value)
@@ -926,15 +934,15 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
   }
 
   if (loading) {
-    return <div className="rp-room-page"><p className="tips">房间加载中…</p></div>
+    return <div className="rp-room-page rp-room-chat-page chat-polka-dots"><p className="tips">房间加载中…</p></div>
   }
 
   if (error || !room) {
     return (
-      <div className="rp-room-page">
+      <div className="rp-room-page rp-room-chat-page chat-polka-dots">
         <header className="rp-room-header">
           <button type="button" className="ghost" onClick={() => navigate('/rp')}>
-            返回
+            {isDashboardPage ? '返回聊天' : '返回房间列表'}
           </button>
         </header>
         <div className="rp-room-card">
@@ -1153,14 +1161,14 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
   )
 
   return (
-    <div className="rp-room-page">
-      <header className="rp-room-header">
+    <div className={`rp-room-page ${!isDashboardPage ? 'rp-room-chat-page chat-polka-dots' : ''}`}>
+      <header className={`rp-room-header ${!isDashboardPage ? 'chat-header top-nav' : ''}`}>
         <button
           type="button"
           className="ghost"
           onClick={() => navigate(isDashboardPage ? `/rp/${room.id}` : '/rp')}
         >
-          返回
+          {isDashboardPage ? '返回房间' : '返回房间列表'}
         </button>
         <h1 className="ui-title">{room.title?.trim() || '新房间'}</h1>
         <div className="rp-room-header-slot">
@@ -1185,43 +1193,43 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
           </main>
         ) : (
           <section className="rp-room-main">
-            <section className="rp-room-timeline">
+            <section className="chat-messages glass-panel rp-room-timeline">
               {notice ? <p className="tips">{notice}</p> : null}
               {error ? <p className="error">{error}</p> : null}
 
               {messagesLoading ? <p className="tips">时间线加载中…</p> : null}
-              {!messagesLoading && messages.length === 0 ? <p className="tips">还没有消息，先说点什么吧。</p> : null}
+              {!messagesLoading && messages.length === 0 ? (
+                <div className="empty-state"><p>还没有消息，先说点什么吧。</p></div>
+              ) : null}
 
-              <ul className="rp-message-list">
-                {messages.map((message) => {
-                  const isPlayer = message.role === playerName
-                  const isNarration = message.role === '旁白' || message.meta?.kind === 'narration'
-                  return (
-                    <li
-                      key={message.id}
-                      className={`rp-message ${isNarration ? 'narration' : isPlayer ? 'out' : 'in'}`}
-                    >
-                      <div className="rp-bubble">
-                        <p className="rp-speaker">{isNarration ? '旁白' : message.role}</p>
-                        {isNarration || isPlayer ? (
-                          <p>{stripSpeakerPrefix(message.content)}</p>
-                        ) : (
-                          <>
-                            {(() => {
-                              const reasoningText = readReasoningText(message.meta).trim()
-                              return reasoningText ? <ReasoningPanel reasoning={reasoningText} /> : null
-                            })()}
-                            <div className="rp-assistant-markdown">
-                              <MarkdownRenderer content={stripSpeakerPrefix(message.content)} />
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      <div className="rp-message-actions">
+              {messages.map((message) => {
+                const isPlayer = message.role === playerName
+                const isNarration = message.role === '旁白' || message.meta?.kind === 'narration'
+                return (
+                  <div key={message.id} className={`message ${isNarration ? 'narration' : isPlayer ? 'out' : 'in'}`}>
+                    <div className="bubble">
+                      <p className="rp-speaker">{isNarration ? '旁白' : message.role}</p>
+                      {isNarration || isPlayer ? (
+                        <p>{stripSpeakerPrefix(message.content)}</p>
+                      ) : (
+                        <>
+                          {(() => {
+                            const reasoningText = readReasoningText(message.meta).trim()
+                            return reasoningText ? <ReasoningPanel reasoning={reasoningText} /> : null
+                          })()}
+                          <div className="assistant-markdown">
+                            <MarkdownRenderer content={stripSpeakerPrefix(message.content)} />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="bubble-meta">
+                      <span className="timestamp">{formatTime(message.createdAt)}</span>
+                      <div className="message-actions">
                         <div className="rp-message-actions-menu" ref={openActionsId === message.id ? actionsMenuRef : null}>
                           <button
                             type="button"
-                            className="ghost rp-action-trigger"
+                            className="ghost action-trigger"
                             aria-expanded={openActionsId === message.id}
                             aria-label={openActionsId === message.id ? '关闭操作菜单' : '打开操作菜单'}
                             onClick={() =>
@@ -1234,7 +1242,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
                             •••
                           </button>
                           {openActionsId === message.id ? (
-                            <div className="rp-actions-menu" role="menu">
+                            <div className="actions-menu" role="menu">
                               <button type="button" role="menuitem" onClick={() => void handleCopyMessage(message)}>
                                 复制
                               </button>
@@ -1253,15 +1261,21 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
                           ) : null}
                         </div>
                       </div>
-                    </li>
-                  )
-                })}
-              </ul>
+                    </div>
+                  </div>
+                )
+              })}
               <div ref={timelineBottomRef} />
             </section>
 
-            <section className="rp-composer-wrap">
-              <div className="rp-trigger-row" aria-label="NPC 选择区域">
+            <form
+              className="chat-composer glass-card rp-chat-composer"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleSend('player')
+              }}
+            >
+              <div className="composer-toolbar rp-trigger-row" aria-label="NPC 选择区域">
                 <label htmlFor="rp-npc-selector">选择NPC</label>
                 <select
                   id="rp-npc-selector"
@@ -1276,7 +1290,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
                 </select>
                 <button
                   type="button"
-                  className="primary"
+                  className="btn-primary"
                   onClick={() => void handleTriggerNpcReply()}
                   disabled={!selectedNpcCard || !selectedNpcCard.enabled || triggeringNpcReply}
                 >
@@ -1286,9 +1300,10 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
                   思考链：{rpReasoningEnabled ? '全局已开启' : '全局已关闭'}
                 </span>
               </div>
-              <section className="rp-composer">
+              <div className="composer-row">
                 <textarea
                   ref={textareaRef}
+                  className="textarea-glass"
                   placeholder="输入消息内容"
                   rows={1}
                   value={draft}
@@ -1300,30 +1315,23 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
                     }
                     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                       event.preventDefault()
-                      void handleSend()
+                      void handleSend('player')
                     }
                   }}
                 />
-                <div className="rp-composer-actions">
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={() => void handleSend('player')}
-                    disabled={sending || triggeringNpcReply}
-                  >
-                    {sending ? '发送中…' : '发送'}
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => void handleSend('narration')}
-                    disabled={sending || triggeringNpcReply}
-                  >
-                    旁白
-                  </button>
-                </div>
-              </section>
-            </section>
+                <button type="submit" className="btn-primary" disabled={sending || triggeringNpcReply}>
+                  {sending ? '发送中…' : '发送'}
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => void handleSend('narration')}
+                  disabled={sending || triggeringNpcReply}
+                >
+                  旁白
+                </button>
+              </div>
+            </form>
           </section>
         )}
       </div>
