@@ -43,24 +43,3 @@
 .export-button {
   align-self: flex-start;
 }
-
-.export-page,
-.export-header,
-.export-card,
-.export-option {
-  color: var(--text-primary);
-}
-
-.export-header,
-.export-section,
-.export-card {
-  background: var(--glass-base);
-  border-color: var(--glass-border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.export-page .primary {
-  background: var(--pink-primary);
-  color: var(--text-primary);
-}

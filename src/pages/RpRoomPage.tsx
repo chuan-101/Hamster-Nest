@@ -1201,12 +1201,6 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
                       key={message.id}
                       className={`rp-message ${isNarration ? 'narration' : isPlayer ? 'out' : 'in'}`}
                     >
-                      {!isNarration && !isPlayer ? (
-                        <div className="rp-ai-avatar" aria-hidden="true">
-                          <span className="pixel-bow">🎀</span>
-                          <span className="avatar-dot">🐹</span>
-                        </div>
-                      ) : null}
                       <div className="rp-bubble">
                         <p className="rp-speaker">{isNarration ? '旁白' : message.role}</p>
                         {isNarration || isPlayer ? (

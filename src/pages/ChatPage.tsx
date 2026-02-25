@@ -241,12 +241,6 @@ const ChatPage = ({
               key={message.id}
               className={`message ${message.role === 'user' ? 'out' : 'in'}`}
             >
-              {message.role === 'assistant' ? (
-                <div className="ai-avatar" aria-hidden="true">
-                  <span className="pixel-bow">🎀</span>
-                  <span className="avatar-dot">🐹</span>
-                </div>
-              ) : null}
               <div className="bubble">
                 {(() => {
                   const reasoningText =
