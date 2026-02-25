@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
 import type { CheckinEntry } from '../types'
@@ -55,8 +55,9 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
   const recentDateKeys = useMemo(() => recentCheckins.map((entry) => entry.checkinDate), [recentCheckins])
   const checkedToday = useMemo(() => recentDateKeys.includes(todayKey), [recentDateKeys, todayKey])
   const streakDays = useMemo(() => computeStreak(recentDateKeys, todayKey), [recentDateKeys, todayKey])
+  const streakPercent = useMemo(() => Math.min(100, Math.round((streakDays / 30) * 100)), [streakDays])
 
-  const loadCheckinData = async () => {
+  const loadCheckinData = useCallback(async () => {
     if (!user) {
       return
     }
@@ -72,11 +73,11 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
     } finally {
       setCheckinLoading(false)
     }
-  }
+  }, [user])
 
   useEffect(() => {
     void loadCheckinData()
-  }, [user])
+  }, [loadCheckinData])
 
   const handleCheckin = async () => {
     if (!user || checkinSubmitting) {
@@ -139,6 +140,25 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
             {checkedToday ? '已打卡' : checkinSubmitting ? '打卡中…' : '打卡'}
           </button>
         </div>
+        <div className="checkin-widget" aria-label="打卡进度小组件">
+          <div
+            className="checkin-progress-ring"
+            style={{
+              background: `conic-gradient(var(--pink-primary) ${streakPercent}%, rgba(255, 214, 231, 0.25) ${streakPercent}% 100%)`,
+            }}
+          >
+            <div className="checkin-progress-core">
+              <strong>{streakDays}</strong>
+              <span>连签天</span>
+            </div>
+          </div>
+          <div className="checkin-stamp-grid" aria-hidden="true">
+            {Array.from({ length: 9 }).map((_, index) => (
+              <span key={index} className={index < Math.min(streakDays, 9) ? 'active' : ''}>🐾</span>
+            ))}
+          </div>
+        </div>
+
         <div className="checkin-metrics">
           <p>连续打卡：<strong>{streakDays}</strong> 天</p>
           <p>累计打卡：<strong>{checkinTotal}</strong> 次</p>

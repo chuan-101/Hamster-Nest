@@ -472,3 +472,79 @@
   font-size: 12px;
   color: #64748b;
 }
+
+/* Salt-style glassmorphism overrides */
+.chat-page {
+  background: transparent;
+}
+
+.chat-header,
+.chat-composer,
+.header-menu,
+.actions-menu {
+  background: var(--glass-base);
+  border-color: var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.chat-header .ghost,
+.header-title .subtitle,
+.empty-state,
+.model-hint,
+.toggle-hint {
+  color: var(--text-secondary);
+}
+
+.message .bubble {
+  background: var(--glass-base);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--card-radius-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.message.out .bubble {
+  background: var(--pink-primary);
+  color: var(--text-primary);
+}
+
+.message {
+  align-items: flex-end;
+}
+
+.ai-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--glass-base);
+  border: 1px solid var(--glass-border);
+  display: grid;
+  place-items: center;
+  position: relative;
+  margin-bottom: 2px;
+}
+
+.pixel-bow {
+  position: absolute;
+  top: -9px;
+  left: -3px;
+  font-size: 12px;
+  filter: saturate(0.85);
+}
+
+.avatar-dot {
+  font-size: 14px;
+}
+
+.chat-composer textarea,
+.chat-composer select {
+  border-radius: var(--card-radius-md);
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-primary);
+}
+
+.chat-composer .primary {
+  background: var(--pink-primary);
+  color: var(--text-primary);
+}

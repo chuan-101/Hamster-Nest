@@ -515,3 +515,48 @@
   background: rgba(255, 255, 255, 0.15);
   color: #e2e8f0;
 }
+
+.rp-room-page,
+.rp-dashboard-page {
+  background: transparent;
+}
+
+.rp-room-header,
+.rp-composer-wrap,
+.rp-actions-menu,
+.rp-room-sidebar,
+.rp-dashboard-card {
+  background: var(--glass-base);
+  border-color: var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.rp-bubble {
+  background: var(--glass-base);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--card-radius-md);
+  box-shadow: var(--shadow-soft);
+  color: var(--text-primary);
+}
+
+.rp-message.out .rp-bubble {
+  background: var(--pink-primary);
+  color: var(--text-primary);
+}
+
+.rp-message.narration .rp-bubble {
+  border-style: dashed;
+}
+
+.rp-ai-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-base);
+  display: grid;
+  place-items: center;
+  position: relative;
+  margin-bottom: 2px;
+}

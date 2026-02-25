@@ -350,3 +350,66 @@
   font-size: 12px;
   color: #475569;
 }
+
+.settings-page {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.settings-header,
+.settings-section,
+.model-item,
+.catalog-item,
+.model-select-card {
+  background: var(--glass-base);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.settings-page button {
+  background: var(--pink-primary);
+  color: var(--text-primary);
+  border-radius: 14px;
+}
+
+.settings-page button.ghost {
+  border-color: var(--glass-border);
+  background: rgba(255,255,255,0.55);
+  color: var(--text-primary);
+}
+
+.toggle-control {
+  width: 100%;
+  justify-content: space-between;
+  border-color: var(--glass-border);
+}
+
+.toggle-control input {
+  appearance: none;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(140, 140, 140, 0.35);
+  position: relative;
+}
+
+.toggle-control input::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #fff;
+  transition: transform .2s ease;
+}
+
+.toggle-control input:checked {
+  background: var(--pink-primary);
+}
+
+.toggle-control input:checked::before {
+  transform: translateX(18px);
+}

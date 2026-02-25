@@ -726,10 +726,13 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
 
                   {isExpanded ? (
                     <div className="reply-list">
-                      {replies.map((reply) => (
-                        <div key={reply.id} className={`reply-bubble ${reply.role === 'assistant' ? 'assistant' : 'user'}`}>
+                      {replies.map((reply, index) => {
+                        const threadLevel = (index % 3) + 1
+                        return (
+                        <div key={reply.id} className={`reply-bubble reply-level-${threadLevel} ${reply.role === 'assistant' ? 'assistant' : 'user'}`}>
                           <div className="reply-content-wrap">
                             <div className="reply-role">
+                              <span className="reply-thread-tag">{threadLevel === 1 ? '评论' : `回复 ${threadLevel - 1}`}</span>
                               {reply.role === 'assistant' ? (
                                 <>
                                   <span>Syzygy</span>
@@ -752,7 +755,8 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
                             删除
                           </button>
                         </div>
-                      ))}
+                        )
+                      })}
                       {isGenerating ? <div className="reply-bubble pending">生成中…</div> : null}
 
                       <div className="reply-composer">
