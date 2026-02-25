@@ -389,17 +389,27 @@ export const fetchRpSessions = async (userId: string, isArchived: boolean): Prom
   return (data ?? []).map((row) => mapRpSessionRow(row as RpSessionRow))
 }
 
-export const updateRpSessionTileColor = async (sessionId: string, tileColor: string): Promise<void> => {
+export const updateRpSessionTileColor = async (
+  sessionId: string,
+  tileColor: string,
+  signal?: AbortSignal,
+): Promise<void> => {
   if (!supabase) {
     return
   }
   const userId = await requireAuthenticatedUserId()
   const now = new Date().toISOString()
-  const { error } = await supabase
+  let query = supabase
     .from('rp_sessions')
     .update({ tile_color: tileColor, updated_at: now })
     .eq('id', sessionId)
     .eq('user_id', userId)
+
+  if (signal) {
+    query = query.abortSignal(signal)
+  }
+
+  const { error } = await query
   if (error && !isMissingTileColorColumnError(error)) {
     throw error
   }
@@ -589,16 +599,23 @@ export const fetchRpMessages = async (sessionId: string, userId: string): Promis
 export const fetchRpMessageCounts = async (
   userId: string,
   sessionIds: string[],
+  signal?: AbortSignal,
 ): Promise<Record<string, number>> => {
   if (!supabase || sessionIds.length === 0) {
     return {}
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('rp_messages')
     .select('session_id')
     .eq('user_id', userId)
     .in('session_id', sessionIds)
+
+  if (signal) {
+    query = query.abortSignal(signal)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     throw error
