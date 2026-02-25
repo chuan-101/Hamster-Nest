@@ -13,10 +13,28 @@
 }
 
 .rp-room-dashboard-page {
+  position: relative;
   height: 100vh;
   height: 100dvh;
   display: flex;
   flex-direction: column;
+  background: var(--page-bg);
+  isolation: isolate;
+}
+
+.rp-room-dashboard-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(circle, rgba(107, 114, 128, 0.08) 1.15px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
+.rp-room-dashboard-page > * {
+  position: relative;
+  z-index: 1;
 }
 
 .rp-room-header {
@@ -138,37 +156,14 @@
 }
 
 .rp-dashboard-page {
-  position: relative;
   width: min(780px, 100%);
   min-height: 100%;
   margin: 0 auto;
-  border: 1px solid color-mix(in srgb, var(--glass-border) 75%, #e5e7eb 25%);
-  border-radius: 28px;
   padding: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: var(--shadow-soft);
   overflow: visible;
-  backdrop-filter: blur(var(--blur));
-  -webkit-backdrop-filter: blur(var(--blur));
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.rp-dashboard-page::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image: radial-gradient(circle, rgba(225, 224, 227, 0.95) 1.8px, transparent 2px);
-  background-size: 14px 14px;
-  opacity: 0.62;
-}
-
-.rp-dashboard-page > * {
-  position: relative;
-  z-index: 1;
 }
 
 .rp-dashboard-page h2 {
