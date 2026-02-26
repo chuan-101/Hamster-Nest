@@ -697,8 +697,8 @@ const SettingsPage = ({
 
   if (!ready || !settings) {
     return (
-      <div className="settings-page">
-        <header className="settings-header">
+      <div className="settings-shell app-shell">
+        <header className="settings-header app-shell__header">
           <button
             type="button"
             className="ghost"
@@ -709,14 +709,16 @@ const SettingsPage = ({
           <h1 className="ui-title">API设置</h1>
           <span className="header-spacer" />
         </header>
-        <div className="settings-loading">正在加载设置...</div>
+        <div className="settings-page app-shell__content">
+          <div className="settings-loading">正在加载设置...</div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="settings-page">
-      <header className="settings-header">
+    <div className="settings-shell app-shell">
+      <header className="settings-header app-shell__header">
         <button
           type="button"
           className="ghost"
@@ -728,6 +730,7 @@ const SettingsPage = ({
         <span className="header-spacer" />
       </header>
 
+      <div className="settings-page app-shell__content">
       <section className="settings-section">
         <button
           type="button"
@@ -1207,7 +1210,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
-
+      </div>
 
       <ConfirmDialog
         open={pendingDisable !== null}
