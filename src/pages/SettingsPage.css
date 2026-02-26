@@ -28,7 +28,7 @@
   border-radius: 20px;
   backdrop-filter: blur(12px);
   box-shadow: var(--shadow-soft);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .settings-header {
