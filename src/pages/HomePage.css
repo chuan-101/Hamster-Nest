@@ -51,9 +51,17 @@
   border-radius: inherit;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.6);
-  background: var(--page-overlay-bg);
-  backdrop-filter: blur(20px);
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
   z-index: 0;
+}
+
+.phone-shell__mask::before,
+.phone-shell__mask::after {
+  background: none !important;
+  background-image: none !important;
 }
 
 .phone-shell__content {

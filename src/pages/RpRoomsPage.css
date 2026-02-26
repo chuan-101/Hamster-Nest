@@ -21,10 +21,19 @@
   padding-top: 4px;
 }
 
+.rp-rooms-top.app-shell__header {
+  background: transparent;
+  background-image: none;
+}
+
 .rp-rooms-scroll {
   min-height: 0;
   overscroll-behavior: contain;
   padding-bottom: 16px;
+}
+
+.rp-rooms-scroll.app-shell__content {
+  background: transparent;
 }
 
 .rp-rooms-page::before {
