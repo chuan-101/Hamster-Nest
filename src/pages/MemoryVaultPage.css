@@ -115,7 +115,7 @@
       transparent 1px,
       transparent 30px
     ),
-    #e6edf8;
+    #eae9ec;
   padding: 12px;
   box-shadow: 0 8px 18px rgba(255, 214, 231, 0.28);
 }
@@ -155,7 +155,7 @@
 }
 
 .memory-card--archive {
-  background: #e6edf8;
+  background: #eae9ec;
   border: 1px solid #ffd6e7;
 }
 
