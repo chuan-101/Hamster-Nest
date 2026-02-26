@@ -107,7 +107,7 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--accent);
+  background: transparent;
   background-image: none;
   color: var(--text-main);
   border-bottom: 1px solid var(--glass-border);
@@ -129,11 +129,16 @@
   top: 0;
   z-index: 10;
   padding-top: env(safe-area-inset-top);
-  background: var(--accent);
+  background: transparent;
   background-image: none;
   color: var(--text-main);
   border-bottom: 1px solid var(--glass-border);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+.app-shell__header::before,
+.app-shell__header::after {
+  background: none;
 }
 
 .app-shell__content {
