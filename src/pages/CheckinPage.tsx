@@ -73,6 +73,18 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
   const [checkinSubmitting, setCheckinSubmitting] = useState(false)
   const [checkinNotice, setCheckinNotice] = useState<string | null>(null)
   const navigate = useNavigate()
+  const navTabs = useMemo(
+    () => [
+      { label: '聊天', path: '/' },
+      { label: '囤囤库', path: '/memory-vault' },
+      { label: '零食罐罐', path: '/snacks' },
+      { label: '仓鼠饲养日志', path: '/syzygy' },
+      { label: '打卡', path: '/checkin' },
+      { label: '设置', path: '/settings' },
+      { label: '数据导出', path: '/export' },
+    ],
+    [],
+  )
 
   const todayKey = useMemo(() => formatDateKey(new Date()), [])
   const todayDisplay = useMemo(
@@ -128,26 +140,21 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
   return (
     <div className="checkin-page">
       <header className="checkin-page-header">
-        <h1 className="ui-title">打卡</h1>
         <div className="checkin-nav-actions">
-          <button type="button" className="ghost" onClick={() => navigate('/')}>
-            聊天
-          </button>
-          <button type="button" className="ghost" onClick={() => navigate('/memory-vault')}>
-            囤囤库
-          </button>
-          <button type="button" className="ghost" onClick={() => navigate('/snacks')}>
-            零食罐罐
-          </button>
-          <button type="button" className="ghost" onClick={() => navigate('/syzygy')}>
-            仓鼠饲养日志
-          </button>
-          <button type="button" className="ghost" onClick={() => navigate('/settings')}>
-            设置
-          </button>
-          <button type="button" className="ghost" onClick={() => navigate('/export')}>
-            数据导出
-          </button>
+          {navTabs.map((tab) => {
+            const isActive = tab.path === '/checkin'
+            return (
+              <button
+                key={tab.path}
+                type="button"
+                className={`checkin-nav-tab ${isActive ? 'active' : ''}`}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => navigate(tab.path)}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
       </header>
 
