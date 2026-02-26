@@ -17,29 +17,116 @@
 .export-header h1 {
   margin: 0;
   font-size: 1.1rem;
+  color: #5c5c5c;
 }
 
-.export-card {
-  border: 1px solid var(--border-color, #e2e8f0);
-  border-radius: 14px;
-  background: var(--card-bg, #fff);
-  padding: 14px;
+.export-package-card {
+  position: relative;
+  border: 1px solid #ffd6e7;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.export-package-card h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #5c5c5c;
+  font-weight: 700;
+}
+
+.export-washi-tape {
+  position: absolute;
+  top: -12px;
+  left: 20px;
+  width: 92px;
+  height: 24px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 214, 231, 0.86), rgba(255, 255, 255, 0.6));
+  border: 1px dashed rgba(255, 255, 255, 0.8);
+  transform: rotate(-10deg);
+  box-shadow: 0 4px 8px rgba(92, 92, 92, 0.08);
+}
+
+.export-subsection {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.export-card h2 {
+.export-subsection h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.95rem;
+  color: #5c5c5c;
 }
 
-.export-card label {
+.export-format-stickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.export-sticker {
+  border: 1px solid #ffd6e7;
+  background: transparent;
+  color: #8c8c8c;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.export-sticker.active {
+  background: #ffd6e7;
+  color: #5c5c5c;
+}
+
+.export-package-card label {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: #5c5c5c;
+}
+
+.export-note,
+.export-signoff {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #8c8c8c;
+}
+
+.export-signoff {
+  font-style: italic;
 }
 
 .export-button {
-  align-self: flex-start;
+  align-self: stretch;
+  border: 0;
+  border-radius: 999px;
+  background: #ffd6e7;
+  color: #5c5c5c;
+  font-size: 0.98rem;
+  font-weight: 700;
+  padding: 12px 18px;
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.2s ease;
+}
+
+.export-button:hover {
+  filter: brightness(0.98);
+}
+
+.export-button:active {
+  transform: scale(0.98);
+}
+
+.export-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
