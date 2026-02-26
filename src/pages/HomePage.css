@@ -55,7 +55,7 @@
 }
 
 .phone-shell__content {
-  padding: 1.1rem clamp(18px, 4vw, 22px);
+  padding: 1.1rem clamp(22px, 5vw, 28px);
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
@@ -390,11 +390,11 @@
 
 @media (max-width: 420px) {
   .phone-shell {
-    border-radius: 28px;
+    border-radius: 22px;
   }
 
   .phone-shell__content {
-    padding: 0.85rem 18px;
+    padding: 0.85rem 22px;
   }
 
   .home-header h1 {
@@ -406,10 +406,22 @@
   }
 }
 
+@media (max-width: 900px) {
+  .home-page--settings .home-page__header {
+    max-height: calc(100dvh - 10rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 @media (min-width: 901px) {
-  .home-page--settings .phone-shell--settings {
+  .home-page--settings .phone-shell {
     width: min(1120px, 100%);
     max-width: 1120px;
+    border-radius: 24px;
+  }
+
+  .home-page--settings .phone-shell__content {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -423,7 +435,7 @@
   .home-page--settings .home-page__header {
     grid-area: settings;
     max-height: calc(100dvh - 4rem);
-    overflow: auto;
+    overflow-y: auto;
     padding-right: 0.25rem;
   }
 
