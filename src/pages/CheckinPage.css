@@ -1,6 +1,6 @@
 .checkin-page {
   min-height: 100vh;
-  width: min(960px, 100%);
+  width: min(980px, 100%);
   margin: 0 auto;
   padding: 1.25rem 1rem 2rem;
   display: flex;
@@ -28,14 +28,17 @@
 }
 
 .checkin-card.standalone {
-  width: min(680px, 100%);
+  width: min(760px, 100%);
 }
 
 .checkin-card {
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 16px;
-  padding: 1rem;
-  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid #ffd6e7;
+  border-radius: 24px;
+  padding: 1.25rem;
+  background-color: #ffffff;
+  background-image: radial-gradient(circle, rgba(255, 214, 231, 0.35) 1px, transparent 1px);
+  background-size: 12px 12px;
+  box-shadow: 0 20px 35px rgba(92, 92, 92, 0.12);
 }
 
 .checkin-header {
@@ -43,43 +46,208 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 0.75rem;
+  color: #5c5c5c;
 }
 
 .checkin-header h2 {
   margin: 0;
+  font-size: 1.55rem;
+  letter-spacing: 0.02em;
 }
 
 .checkin-status-row {
-  margin-top: 0.8rem;
+  margin-top: 0.9rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.checkin-status.done { color: #22c55e; }
-.checkin-status.todo { color: #f59e0b; }
-
-.checkin-button { min-width: 5.5rem; }
-
-.checkin-metrics {
-  margin-top: 0.8rem;
-  display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 
-.checkin-metrics p {
-  margin: 0;
+.checkin-status.done {
+  color: #5c5c5c;
 }
 
-.checkin-history {
-  margin: 0.8rem 0 0;
-  padding-left: 1.2rem;
+.checkin-status.todo {
+  color: #8f7b82;
+}
+
+.checkin-button {
+  min-width: 13rem;
+  border-radius: 999px;
+  border: 0;
+  padding: 0.85rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.checkin-button.unchecked {
+  color: #ffffff;
+  background: #ffd6e7;
+  box-shadow: 0 10px 18px rgba(255, 182, 214, 0.45);
+  animation: stamp-pulse 1.9s ease-in-out infinite;
+}
+
+.checkin-button.unchecked:hover {
+  transform: translateY(-1px);
+}
+
+.checkin-button.checked {
+  color: #7d6c74;
+  background: rgba(255, 255, 255, 0.55);
+  border: 2px dashed #ffd6e7;
+  box-shadow: inset 0 1px 6px rgba(255, 214, 231, 0.55);
+}
+
+.checkin-button:disabled {
+  cursor: not-allowed;
+}
+
+.checkin-metrics {
+  margin-top: 1rem;
   display: grid;
-  gap: 0.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.metric-card {
+  background: rgba(255, 240, 245, 0.88);
+  border: 1px solid rgba(255, 214, 231, 0.8);
+  border-radius: 18px;
+  padding: 0.7rem 1rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.metric-card p {
+  margin: 0;
+  color: #7a6f73;
+  font-size: 0.8rem;
+}
+
+.metric-card strong {
+  color: #ff9ac3;
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+
+.calendar-panel {
+  margin-top: 1.1rem;
+  position: relative;
+  padding: 1.1rem 0.8rem 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 214, 231, 0.8);
+}
+
+.calendar-panel h3 {
+  margin: 0;
+  text-align: center;
+  color: #5c5c5c;
+  font-size: 1rem;
+}
+
+.calendar-tape {
+  position: absolute;
+  top: -9px;
+  width: 62px;
+  height: 17px;
+  background: rgba(255, 214, 231, 0.58);
+  border: 1px solid rgba(255, 214, 231, 0.75);
+}
+
+.tape-left {
+  left: 12%;
+  transform: rotate(-9deg);
+}
+
+.tape-right {
+  right: 12%;
+  transform: rotate(8deg);
+}
+
+.calendar-weekdays {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.calendar-weekdays span {
+  text-align: center;
+  font-size: 0.76rem;
+  color: #8f8287;
+}
+
+.calendar-grid {
+  margin-top: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.calendar-day {
+  min-height: 74px;
+  border-radius: 12px;
+  padding: 0.35rem 0.45rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.calendar-day.unchecked {
+  border: 1px dashed #d7d7d7;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.calendar-day.checked {
+  border: 1px solid rgba(255, 214, 231, 0.95);
+  background: rgba(255, 214, 231, 0.78);
+}
+
+.calendar-day.blank {
+  border: none;
+  background: transparent;
+}
+
+.day-number {
+  color: #72676c;
+  font-size: 0.78rem;
+}
+
+.day-stamp {
+  align-self: center;
+  font-size: 1.1rem;
 }
 
 .checkin-tip {
-  margin: 0.6rem 0 0;
-  color: #cbd5e1;
+  margin: 0.75rem 0 0;
+  color: #7d6f75;
+}
+
+@keyframes stamp-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 10px 18px rgba(255, 182, 214, 0.45);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 10px 24px rgba(255, 182, 214, 0.62);
+  }
+}
+
+@media (max-width: 640px) {
+  .checkin-card {
+    padding: 1rem;
+  }
+
+  .checkin-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-day {
+    min-height: 62px;
+    padding: 0.3rem;
+  }
 }
