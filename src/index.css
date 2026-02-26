@@ -80,6 +80,18 @@ html.no-fx {
   body.chat-page-active #root {
     height: 100dvh;
   }
+
+  html.settings-page-active,
+  html.settings-page-active body,
+  body.settings-page-active {
+    height: auto;
+    overflow: auto !important;
+    overscroll-behavior: auto;
+  }
+
+  body.settings-page-active #root {
+    height: 100%;
+  }
 }
 
 
