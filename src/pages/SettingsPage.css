@@ -19,10 +19,11 @@
 
 .settings-group {
   margin: 0 16px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #ffd6e7;
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #f0f0f0;
+  border-radius: 16px;
   backdrop-filter: blur(12px);
+  box-shadow: 0 10px 24px rgba(112, 112, 112, 0.08);
   overflow: hidden;
 }
 
@@ -75,6 +76,7 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  background: transparent;
 }
 
 .section-title {
@@ -125,20 +127,21 @@
   background: transparent;
   border: none;
   border-radius: 0;
-  padding: 14px;
+  min-height: 56px;
+  padding: 12px 16px;
   text-align: left;
   transition: background-color 0.2s ease;
   position: relative;
 }
 
 .collapse-header[aria-expanded='false']:hover {
-  background: rgba(255, 245, 250, 0.65);
+  background: rgba(243, 243, 245, 0.45);
 }
 
 .settings-section:not(:last-child) .collapse-header::after {
   content: '';
   position: absolute;
-  left: 56px;
+  left: 0;
   right: 0;
   bottom: 0;
   border-bottom: 1px solid #f0f0f0;
