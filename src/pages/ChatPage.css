@@ -42,7 +42,16 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--page-bg);
+}
+
+.chat-page .app-shell__header {
+  background: var(--accent) !important;
+  background-image: none !important;
+}
+
+.chat-page .app-shell__header::before,
+.chat-page .app-shell__header::after {
+  background: none !important;
 }
 
 .chat-header .ghost {
