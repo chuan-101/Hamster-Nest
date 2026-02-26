@@ -90,6 +90,17 @@ const SettingsPage = ({
   const pendingNavigationRef = useRef<null | (() => void)>(null)
 
   useEffect(() => {
+    document.documentElement.classList.add('settings-page-active')
+    document.body.classList.add('settings-page-active')
+    document.body.classList.remove('chat-page-active')
+
+    return () => {
+      document.documentElement.classList.remove('settings-page-active')
+      document.body.classList.remove('settings-page-active')
+    }
+  }, [])
+
+  useEffect(() => {
     if (!settings) {
       return
     }
