@@ -42,6 +42,9 @@
   position: sticky;
   top: 0;
   z-index: 20;
+}
+
+.chat-header--pink {
   background: var(--accent);
   background-image: none;
   color: var(--text-main);
