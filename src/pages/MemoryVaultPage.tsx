@@ -223,21 +223,29 @@ const MemoryVaultPage = ({
         </button>
       </header>
 
-      <section className="memory-section">
-        <h2 className="ui-title">Confirmed</h2>
-        <textarea
-          value={newMemory}
-          onChange={(event) => setNewMemory(event.target.value)}
-          placeholder="新增一条确认记忆"
-          rows={3}
-        />
-        <button type="button" onClick={handleCreate} disabled={saving || !newMemory.trim()}>
-          保存
-        </button>
-        <div className="memory-list">
+      <section className="memory-section memory-section--archive">
+        <h2 className="ui-title">我们的珍藏 (Archived Memories)</h2>
+        <div className="memory-memo-pad">
+          <textarea
+            value={newMemory}
+            onChange={(event) => setNewMemory(event.target.value)}
+            placeholder="写下一条值得收藏的记忆碎片..."
+            rows={3}
+          />
+          <button
+            type="button"
+            className="memory-save-sticker"
+            onClick={handleCreate}
+            disabled={saving || !newMemory.trim()}
+          >
+            Save
+          </button>
+        </div>
+        <div className="memory-list memory-list--archive">
           {confirmed.length === 0 ? <p className="tips">暂无 confirmed 记忆</p> : null}
           {confirmed.map((entry) => (
-            <article key={entry.id} className="memory-card">
+            <article key={entry.id} className="memory-card memory-card--archive">
+              <span className="memory-washi" aria-hidden="true" />
               {editingId === entry.id ? (
                 <textarea
                   rows={3}
@@ -286,47 +294,60 @@ const MemoryVaultPage = ({
         </div>
       </section>
 
-      <section className="memory-section">
+      <div className="memory-divider" aria-hidden="true">
+        <span className="memory-divider-line" />
+        <span className="memory-divider-bow">🎀</span>
+        <span className="memory-divider-line" />
+      </div>
+
+      <section className="memory-section memory-section--pending">
         <div className="memory-section-heading">
-          <h2 className="ui-title">Pending</h2>
+          <h2 className="ui-title">Syzygy的提取碎片 (Syzygy's Suggestions)</h2>
+        </div>
+        <div className="memory-control-bar">
           <div className="memory-toggle-group">
             <button
               type="button"
               role="switch"
               aria-checked={autoExtractEnabled}
-              className={`merge-toggle ${autoExtractEnabled ? 'is-on' : 'is-off'}`}
+              className={`ios-toggle ${autoExtractEnabled ? 'is-on' : 'is-off'}`}
               onClick={() => void handleToggleAutoExtract()}
               disabled={autoExtractSaving}
             >
-              <span className="merge-toggle-label">自动提取候选记忆（会产生费用）</span>
-              <span className="merge-toggle-state">{autoExtractEnabled ? 'ON' : 'OFF'}</span>
+              <span className="ios-toggle-track" aria-hidden="true">
+                <span className="ios-toggle-thumb" />
+              </span>
+              <span className="ios-toggle-label">自动提取候选记忆（会产生费用）</span>
             </button>
             <button
               type="button"
               role="switch"
               aria-checked={mergeEnabled}
-              className={`merge-toggle ${mergeEnabled ? 'is-on' : 'is-off'}`}
+              className={`ios-toggle ${mergeEnabled ? 'is-on' : 'is-off'}`}
               onClick={() => void handleToggleMerge()}
               disabled={mergeSaving}
             >
-              <span className="merge-toggle-label">自动归并同类项（额外模型调用）</span>
-              <span className="merge-toggle-state">{mergeEnabled ? 'ON' : 'OFF'}</span>
+              <span className="ios-toggle-track" aria-hidden="true">
+                <span className="ios-toggle-thumb" />
+              </span>
+              <span className="ios-toggle-label">自动归并同类项（额外模型调用）</span>
             </button>
           </div>
+          <button
+            type="button"
+            className="extract-button"
+            onClick={() => void handleExtractSuggestions()}
+            disabled={extracting || recentMessages.length === 0}
+          >
+            ✨ {extracting ? 'Extracting…' : 'Extract suggestions'}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void handleExtractSuggestions()}
-          disabled={extracting || recentMessages.length === 0}
-        >
-          {extracting ? 'Extracting…' : 'Extract suggestions'}
-        </button>
         {recentMessages.length === 0 ? <p className="tips">暂无可抽取的聊天上下文</p> : null}
         {extractMessage ? <p className="tips">{extractMessage}</p> : null}
-        <div className="memory-list">
+        <div className="memory-list memory-list--pending">
           {pending.length === 0 ? <p className="tips">暂无 pending 记忆</p> : null}
           {pending.map((entry) => (
-            <article key={entry.id} className="memory-card">
+            <article key={entry.id} className="memory-card memory-card--pending">
               {editingId === entry.id ? (
                 <textarea
                   rows={3}
@@ -359,8 +380,13 @@ const MemoryVaultPage = ({
                   </>
                 ) : (
                   <>
-                    <button type="button" onClick={() => void handleConfirm(entry)} disabled={saving}>
-                      确认
+                    <button
+                      type="button"
+                      className="stamp-button stamp-button--approve"
+                      onClick={() => void handleConfirm(entry)}
+                      disabled={saving}
+                    >
+                      💗 Keep
                     </button>
                     <button
                       type="button"
@@ -371,8 +397,12 @@ const MemoryVaultPage = ({
                     >
                       编辑+确认
                     </button>
-                    <button type="button" className="danger" onClick={() => void handleDiscard(entry.id)}>
-                      丢弃
+                    <button
+                      type="button"
+                      className="stamp-button stamp-button--reject"
+                      onClick={() => void handleDiscard(entry.id)}
+                    >
+                      🗑 Reject
                     </button>
                   </>
                 )}
