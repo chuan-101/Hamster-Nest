@@ -4,6 +4,10 @@
   background: var(--page-bg);
 }
 
+.settings-shell.app-shell {
+  background: var(--page-bg);
+}
+
 .settings-page {
   min-height: 0;
   display: flex;
@@ -14,7 +18,7 @@
   overflow: visible;
 }
 
-.settings-group {
+.settings-page .settings-group {
   margin: 0 16px;
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -115,13 +119,15 @@
   font-size: 13px;
 }
 
-.collapse-header {
+.settings-page .collapse-header {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: transparent;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
   border: none;
   border-radius: 0;
   min-height: 56px;
@@ -131,19 +137,24 @@
   position: relative;
 }
 
-.collapse-header[aria-expanded='false']:hover {
+.settings-page .collapse-header::before,
+.settings-page .collapse-header::after {
+  background: none !important;
+}
+
+.settings-page .collapse-header[aria-expanded='false']:hover {
   background: rgba(255, 255, 255, 0.28);
 }
 
-.settings-section + .settings-section .collapse-header {
+.settings-page .settings-section + .settings-section .collapse-header {
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.settings-section .collapse-header[aria-expanded='true']::after {
+.settings-page .settings-section .collapse-header[aria-expanded='true']::after {
   display: none;
 }
 
-.collapse-header .section-title {
+.settings-page .collapse-header .section-title {
   flex: 1;
 }
 
@@ -155,7 +166,7 @@
   transition: transform 0.2s ease;
 }
 
-.collapse-header[aria-expanded='true'] .collapse-indicator {
+.settings-page .collapse-header[aria-expanded='true'] .collapse-indicator {
   transform: rotate(90deg);
 }
 
