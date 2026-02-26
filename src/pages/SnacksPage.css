@@ -1,5 +1,7 @@
 .snacks-page {
   min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--page-bg);
   max-width: 720px;
   margin: 0 auto;
   padding: 12px;
