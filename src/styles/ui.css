@@ -107,10 +107,11 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.42);
+  background: var(--accent);
+  background-image: none;
+  color: var(--text-main);
   border-bottom: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--blur));
-  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
 }
 
 .app-shell {
@@ -128,7 +129,11 @@
   top: 0;
   z-index: 10;
   padding-top: env(safe-area-inset-top);
-  background: inherit;
+  background: var(--accent);
+  background-image: none;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
 }
 
 .app-shell__content {
@@ -152,22 +157,28 @@
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-card,
-  .glass-panel,
-  .top-nav {
+  .glass-panel {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     background: rgba(255, 255, 255, 0.76);
+  }
+
+  .top-nav {
+    background-image: none;
   }
 }
 
 @media (max-width: 560px) {
   .glass-card,
   .glass-panel,
-  .top-nav,
   .input-glass,
   .textarea-glass {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     background: rgba(255, 255, 255, 0.35);
+  }
+
+  .top-nav {
+    background-image: none;
   }
 }
