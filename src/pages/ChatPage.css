@@ -44,12 +44,14 @@
   z-index: 20;
 }
 
-.chat-header--pink {
-  background: var(--accent);
-  background-image: none;
-  color: var(--text-main);
-  border-bottom: 1px solid var(--glass-border);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+.chat-page .app-shell__header {
+  background: var(--accent) !important;
+  background-image: none !important;
+}
+
+.chat-page .app-shell__header::before,
+.chat-page .app-shell__header::after {
+  background: none !important;
 }
 
 .chat-header .ghost {

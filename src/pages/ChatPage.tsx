@@ -170,7 +170,7 @@ const ChatPage = ({
 
   return (
     <div className="chat-page chat-polka-dots">
-      <header className="chat-header top-nav chat-header--pink">
+      <header className="chat-header top-nav app-shell__header">
         <button type="button" className="ghost" onClick={onOpenDrawer}>
           会话
         </button>
