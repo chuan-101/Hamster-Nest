@@ -655,9 +655,21 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
         </main>
       ) : (
         <>
+          <section className="profile-header-card" aria-label="串串主页头部">
+            <div className="profile-cover-banner" />
+            <div className="profile-avatar-surrogate" aria-hidden="true">
+              <span className="profile-avatar-letter">C</span>
+              <span className="profile-avatar-accent">🐾</span>
+            </div>
+            <div className="profile-meta">
+              <h2 className="profile-title">串串的零食罐罐</h2>
+              <p className="profile-bio">专属于某只小仓鼠的加餐记录</p>
+            </div>
+          </section>
+
           <section className="snacks-composer">
             <textarea
-              rows={3}
+              rows={2}
               placeholder="写点今天的零食…"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
