@@ -3,28 +3,38 @@
   --icon-tile-bg: rgba(255, 255, 255, 0.65);
   --page-overlay-bg: rgba(255, 255, 255, 0.2);
   --home-background-image: none;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding: max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1.25rem);
-  display: flex;
+  padding: 1rem;
   align-items: center;
-  justify-content: center;
   background:
     var(--home-background-image) center / cover no-repeat,
     var(--page-bg);
 }
 
+.home-page__header {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.home-page__content {
+  flex: 1;
+  display: grid;
+  gap: 0.9rem;
+}
+
 .phone-shell {
   width: min(420px, 100%);
-  min-height: min(880px, calc(100vh - 2rem));
+  height: 100%;
+  max-height: 100%;
+  margin: 0 auto;
+  min-height: 0;
   border-radius: 36px;
   padding: 1.1rem;
   border: 1px solid rgba(255, 255, 255, 0.6);
   background: var(--page-overlay-bg);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
   backdrop-filter: blur(20px);
-  display: grid;
-  grid-template-rows: auto auto auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 0.9rem;
 }
 
@@ -312,7 +322,6 @@
 
 @media (max-width: 420px) {
   .phone-shell {
-    min-height: calc(100vh - 1rem);
     border-radius: 28px;
     padding: 0.85rem;
   }
