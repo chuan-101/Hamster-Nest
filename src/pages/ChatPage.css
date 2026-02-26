@@ -1,13 +1,14 @@
 .chat-page {
   position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
   min-height: 100dvh;
-  padding-top: env(safe-area-inset-top);
   background: var(--page-bg);
   overflow: hidden;
+  overscroll-behavior: none;
   color: var(--text-main);
   isolation: isolate;
 }
@@ -32,18 +33,16 @@
   z-index: 1;
 }
 
-@supports (height: 100dvh) {
-  .chat-page {
-    height: 100dvh;
-  }
-}
-
 .chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
   gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--page-bg);
 }
 
 .chat-header .ghost {
@@ -111,13 +110,14 @@
 }
 
 .chat-messages {
+  flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
   overflow-x: hidden;
-  overscroll-behavior-y: contain;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   margin: 8px 16px;
-  padding: 2px;
+  padding: 2px 2px calc(16px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -378,15 +378,6 @@
 }
 
 @media (max-width: 768px) {
-  .chat-header {
-    position: sticky;
-    top: 0;
-  }
-
-  .chat-messages {
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  }
-
   .chat-composer textarea,
   .model-selector select {
     font-size: 16px;

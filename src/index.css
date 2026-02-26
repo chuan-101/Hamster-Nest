@@ -25,6 +25,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 html.no-fx,
 html.no-fx body {
   background: #f8fafc !important;
@@ -69,6 +75,10 @@ html.no-fx {
     height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
+  }
+
+  body.chat-page-active #root {
+    height: 100dvh;
   }
 }
 

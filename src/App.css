@@ -1,10 +1,16 @@
 .app-shell {
   transition: none;
   min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
   background:
     var(--app-background-image, none) center / cover no-repeat,
     #f1f5f9;
   color: #0f172a;
+  overscroll-behavior: none;
 }
 
 button {
@@ -13,6 +19,7 @@ button {
 
 .loading-state {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
