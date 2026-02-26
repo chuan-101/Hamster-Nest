@@ -104,6 +104,13 @@
   padding: 10px 14px;
 }
 
+.rp-room-page .glass-card:empty {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .rp-trigger-row {
   justify-content: flex-start;
 }

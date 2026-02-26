@@ -225,7 +225,7 @@
   grid-column: span 2;
 }
 
-.spacer-card {
+.home-page .glass-card.spacer-card {
   background: transparent;
   border: none;
   box-shadow: none;
