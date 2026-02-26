@@ -1,11 +1,7 @@
 .settings-shell {
   min-height: 100vh;
   min-height: 100dvh;
-  background-color: #fcfcfc;
-  background-image:
-    radial-gradient(circle at 18px 18px, rgba(255, 214, 231, 0.28) 1.8px, transparent 2px),
-    radial-gradient(circle at 52px 52px, rgba(224, 224, 231, 0.24) 1.8px, transparent 2px);
-  background-size: 72px 72px;
+  background: var(--page-bg);
 }
 
 .settings-page {
@@ -13,17 +9,18 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  background: var(--page-bg);
   padding-bottom: calc(28px + env(safe-area-inset-bottom));
   overflow: visible;
 }
 
 .settings-group {
   margin: 0 16px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid #f0f0f0;
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 20px;
   backdrop-filter: blur(12px);
-  box-shadow: 0 10px 24px rgba(112, 112, 112, 0.08);
+  box-shadow: var(--shadow-soft);
   overflow: hidden;
 }
 
@@ -33,7 +30,7 @@
   justify-content: space-between;
   padding: 12px 16px;
   background: rgba(255, 255, 255, 0.86);
-  border-bottom: 1px solid rgba(255, 214, 231, 0.7);
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
   backdrop-filter: blur(12px);
 }
 
@@ -65,10 +62,10 @@
 .settings-page .empty-state {
   color: #7c7c7c;
   font-size: 13px;
-  background: #fffdf5;
+  background: rgba(255, 255, 255, 0.8);
   border-radius: 12px;
   padding: 12px;
-  border: 1px solid #ffe4ee;
+  border: 1px solid rgba(17, 24, 39, 0.08);
 }
 
 .settings-section {
@@ -98,8 +95,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: #ffd6e7;
-  color: #ffffff;
+  background: rgba(107, 114, 128, 0.12);
+  color: #6b7280;
   font-size: 18px;
 }
 
@@ -128,23 +125,18 @@
   border: none;
   border-radius: 0;
   min-height: 56px;
-  padding: 12px 16px;
+  padding: 14px;
   text-align: left;
   transition: background-color 0.2s ease;
   position: relative;
 }
 
 .collapse-header[aria-expanded='false']:hover {
-  background: rgba(243, 243, 245, 0.45);
+  background: rgba(255, 255, 255, 0.28);
 }
 
-.settings-section:not(:last-child) .collapse-header::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-bottom: 1px solid #f0f0f0;
+.settings-section + .settings-section .collapse-header {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .settings-section .collapse-header[aria-expanded='true']::after {
@@ -156,7 +148,7 @@
 }
 
 .collapse-indicator {
-  color: #c7c7cc;
+  color: rgba(17, 24, 39, 0.35);
   font-size: 24px;
   line-height: 1;
   transform: rotate(0deg);
