@@ -733,7 +733,8 @@ const SettingsPage = ({
       </header>
 
       <div className="settings-page app-shell__content">
-      <section className="settings-section">
+        <div className="settings-group" role="list">
+      <section className="settings-section" role="listitem">
         <button
           type="button"
           className="collapse-header"
@@ -745,7 +746,7 @@ const SettingsPage = ({
             <h2 className="ui-title">模型库</h2>
             <p>管理已启用模型并设置默认模型。</p>
           </span>
-          <span className="collapse-indicator" aria-hidden="true">˅</span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
         </button>
         {modelSectionExpanded ? (
           <div className="accordion-content">
@@ -854,7 +855,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
-      <section className="settings-section">
+      <section className="settings-section" role="listitem">
         <button
           type="button"
           className="collapse-header"
@@ -866,7 +867,7 @@ const SettingsPage = ({
             <h2 className="ui-title">生成参数</h2>
             <p>调整生成行为与推理开关。</p>
           </span>
-          <span className="collapse-indicator" aria-hidden="true">˅</span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
         </button>
         {generationSectionExpanded ? (
           <div className="accordion-content">
@@ -913,7 +914,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
-      <section className="settings-section">
+      <section className="settings-section" role="listitem">
         <button
           type="button"
           className="collapse-header"
@@ -925,7 +926,7 @@ const SettingsPage = ({
             <h2 className="ui-title">思考链</h2>
             <p>分别控制日常聊天与跑跑滚轮是否请求思考链。</p>
           </span>
-          <span className="collapse-indicator" aria-hidden="true">˅</span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
         </button>
         {reasoningSectionExpanded ? (
           <div className="accordion-content">
@@ -957,7 +958,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
-      <section className="settings-section">
+      <section className="settings-section" role="listitem">
         <button
           type="button"
           className="collapse-header"
@@ -969,7 +970,7 @@ const SettingsPage = ({
             <h2 className="ui-title">记忆相关</h2>
             <p>配置记忆抽取模型；自动提取与归并可在囤囤库中设置。</p>
           </span>
-          <span className="collapse-indicator" aria-hidden="true">˅</span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
         </button>
         {memorySectionExpanded ? (
           <div className="accordion-content">
@@ -1012,7 +1013,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
-      <section className="settings-section">
+      <section className="settings-section" role="listitem">
         <button
           type="button"
           className="collapse-header"
@@ -1024,7 +1025,7 @@ const SettingsPage = ({
             <h2 className="ui-title">上下文压缩</h2>
             <p>配置压缩触发阈值、保留条数与摘要模型。</p>
           </span>
-          <span className="collapse-indicator" aria-hidden="true">˅</span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
         </button>
         {compressionSectionExpanded ? (
           <div className="accordion-content">
@@ -1101,7 +1102,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
-      <section className="settings-section">
+      <section className="settings-section" role="listitem">
         <button
           type="button"
           className="collapse-header"
@@ -1113,7 +1114,7 @@ const SettingsPage = ({
             <h2 className="ui-title">系统提示词</h2>
             <p>用于引导模型的全局指令，仅对当前用户生效。</p>
           </span>
-          <span className="collapse-indicator" aria-hidden="true">˅</span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
         </button>
         {systemPromptSectionExpanded ? (
           <div className="accordion-content">
@@ -1140,7 +1141,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
-      <section className="settings-section">
+      <section className="settings-section" role="listitem">
         <button
           type="button"
           className="collapse-header"
@@ -1152,7 +1153,7 @@ const SettingsPage = ({
             <h2 className="ui-title">Snack Feed</h2>
             <p>仅用于零食罐罐区；基础系统提示词保持不变。</p>
           </span>
-          <span className="collapse-indicator" aria-hidden="true">˅</span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
         </button>
         {snackSectionExpanded ? (
           <div className="accordion-content">
@@ -1181,7 +1182,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
-      <section className="settings-section">
+      <section className="settings-section" role="listitem">
         <button
           type="button"
           className="collapse-header"
@@ -1193,7 +1194,7 @@ const SettingsPage = ({
             <h2 className="ui-title">仓鼠观察日志</h2>
             <p>控制发帖与回复时的提示词行为。</p>
           </span>
-          <span className="collapse-indicator" aria-hidden="true">˅</span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
         </button>
         {syzygySectionExpanded ? (
           <div className="accordion-content">
@@ -1248,6 +1249,7 @@ const SettingsPage = ({
         ) : null}
       </section>
 
+        </div>
       </div>
 
       <ConfirmDialog
