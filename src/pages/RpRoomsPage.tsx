@@ -470,9 +470,9 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   }, [openPaletteRoomId, rooms])
 
   return (
-    <div className="rp-rooms-page">
+    <div className="rp-rooms-page app-shell">
       <div className="rp-rooms-shell">
-        <section className="rp-rooms-top">
+        <section className="rp-rooms-top app-shell__header">
           <header className="rp-rooms-header glass-panel">
             <div>
               <h1 className="ui-title">跑跑滚轮区</h1>
@@ -499,7 +499,7 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
           </section>
         </section>
 
-        <section className="rp-rooms-scroll">
+        <section className="rp-rooms-scroll app-shell__content">
           <section className="rp-list-card glass-panel">
             <div className="rp-list-head">
               <div className="rp-tabs" role="tablist" aria-label="房间筛选">

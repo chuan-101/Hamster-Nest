@@ -1,9 +1,5 @@
 .rp-rooms-page {
   position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
-  height: 100vh;
-  height: 100dvh;
   overflow: hidden;
   isolation: isolate;
 }
@@ -19,19 +15,16 @@
 }
 
 .rp-rooms-top {
-  position: sticky;
-  top: 0;
   z-index: 12;
   display: grid;
   gap: 12px;
-  padding-top: calc(4px + env(safe-area-inset-top));
+  padding-top: 4px;
 }
 
 .rp-rooms-scroll {
   min-height: 0;
-  overflow: auto;
   overscroll-behavior: contain;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  padding-bottom: 16px;
 }
 
 .rp-rooms-page::before {
