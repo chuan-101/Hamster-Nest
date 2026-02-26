@@ -56,10 +56,12 @@ const SettingsPage = ({
   const [compressionRatioInput, setCompressionRatioInput] = useState('0.65')
   const [compressionKeepRecentInput, setCompressionKeepRecentInput] = useState('20')
   const [draftSummarizerModel, setDraftSummarizerModel] = useState<string | null>(null)
-  const [modelSectionExpanded, setModelSectionExpanded] = useState(true)
-  const [generationSectionExpanded, setGenerationSectionExpanded] = useState(true)
-  const [memorySectionExpanded, setMemorySectionExpanded] = useState(true)
+  const [modelSectionExpanded, setModelSectionExpanded] = useState(false)
+  const [generationSectionExpanded, setGenerationSectionExpanded] = useState(false)
+  const [reasoningSectionExpanded, setReasoningSectionExpanded] = useState(false)
+  const [memorySectionExpanded, setMemorySectionExpanded] = useState(false)
   const [compressionSectionExpanded, setCompressionSectionExpanded] = useState(false)
+  const [systemPromptSectionExpanded, setSystemPromptSectionExpanded] = useState(false)
   const [draftEnabledModels, setDraftEnabledModels] = useState<string[]>([])
   const [draftDefaultModel, setDraftDefaultModel] = useState(defaultModelId)
   const [draftChatReasoning, setDraftChatReasoning] = useState(true)
@@ -739,13 +741,14 @@ const SettingsPage = ({
           aria-expanded={modelSectionExpanded}
         >
           <span className="section-title">
+            <span className="section-icon" aria-hidden="true">⚙️</span>
             <h2 className="ui-title">模型库</h2>
             <p>管理已启用模型并设置默认模型。</p>
           </span>
-          <span className="collapse-indicator">{modelSectionExpanded ? '收起' : '展开'}</span>
+          <span className="collapse-indicator" aria-hidden="true">˅</span>
         </button>
         {modelSectionExpanded ? (
-          <>
+          <div className="accordion-content">
             {draftEnabledModels.length === 0 ? (
               <div className="empty-state">暂无启用模型，请从下方模型库启用。</div>
             ) : (
@@ -847,7 +850,7 @@ const SettingsPage = ({
               {modelStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
               {modelStatus === 'error' ? <span className="field-error">{modelError}</span> : null}
             </div>
-          </>
+          </div>
         ) : null}
       </section>
 
@@ -859,13 +862,14 @@ const SettingsPage = ({
           aria-expanded={generationSectionExpanded}
         >
           <span className="section-title">
+            <span className="section-icon" aria-hidden="true">🎛️</span>
             <h2 className="ui-title">生成参数</h2>
             <p>调整生成行为与推理开关。</p>
           </span>
-          <span className="collapse-indicator">{generationSectionExpanded ? '收起' : '展开'}</span>
+          <span className="collapse-indicator" aria-hidden="true">˅</span>
         </button>
         {generationSectionExpanded ? (
-          <>
+          <div className="accordion-content">
             <div className="field-group">
               <label htmlFor="temperature">温度 (0 - 2)</label>
               <input
@@ -905,39 +909,52 @@ const SettingsPage = ({
               />
               {errors.maxTokens ? <span className="field-error">{errors.maxTokens}</span> : null}
             </div>
-          </>
+          </div>
         ) : null}
       </section>
 
       <section className="settings-section">
-        <div className="section-title">
-          <h2 className="ui-title">思考链</h2>
-          <p>分别控制日常聊天与跑跑滚轮是否请求思考链。</p>
-        </div>
-        <div className="field-group">
-          <label htmlFor="chatReasoningEnabled">日常聊天思考链</label>
-          <label className="toggle-control">
-            <input
-              id="chatReasoningEnabled"
-              type="checkbox"
-              checked={draftChatReasoning}
-              onChange={(event) => handleChatReasoningToggle(event.target.checked)}
-            />
-            <span>{draftChatReasoning ? '已开启' : '已关闭'}</span>
-          </label>
-        </div>
-        <div className="field-group">
-          <label htmlFor="rpReasoningEnabled">跑跑滚轮思考链</label>
-          <label className="toggle-control">
-            <input
-              id="rpReasoningEnabled"
-              type="checkbox"
-              checked={draftRpReasoning}
-              onChange={(event) => handleRpReasoningToggle(event.target.checked)}
-            />
-            <span>{draftRpReasoning ? '已开启' : '已关闭'}</span>
-          </label>
-        </div>
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setReasoningSectionExpanded((current) => !current)}
+          aria-expanded={reasoningSectionExpanded}
+        >
+          <span className="section-title">
+            <span className="section-icon" aria-hidden="true">🔮</span>
+            <h2 className="ui-title">思考链</h2>
+            <p>分别控制日常聊天与跑跑滚轮是否请求思考链。</p>
+          </span>
+          <span className="collapse-indicator" aria-hidden="true">˅</span>
+        </button>
+        {reasoningSectionExpanded ? (
+          <div className="accordion-content">
+            <div className="field-group">
+              <label htmlFor="chatReasoningEnabled">日常聊天思考链</label>
+              <label className="toggle-control">
+                <input
+                  id="chatReasoningEnabled"
+                  type="checkbox"
+                  checked={draftChatReasoning}
+                  onChange={(event) => handleChatReasoningToggle(event.target.checked)}
+                />
+                <span>{draftChatReasoning ? '已开启' : '已关闭'}</span>
+              </label>
+            </div>
+            <div className="field-group">
+              <label htmlFor="rpReasoningEnabled">跑跑滚轮思考链</label>
+              <label className="toggle-control">
+                <input
+                  id="rpReasoningEnabled"
+                  type="checkbox"
+                  checked={draftRpReasoning}
+                  onChange={(event) => handleRpReasoningToggle(event.target.checked)}
+                />
+                <span>{draftRpReasoning ? '已开启' : '已关闭'}</span>
+              </label>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="settings-section">
@@ -948,45 +965,48 @@ const SettingsPage = ({
           aria-expanded={memorySectionExpanded}
         >
           <span className="section-title">
+            <span className="section-icon" aria-hidden="true">🗂️</span>
             <h2 className="ui-title">记忆相关</h2>
             <p>配置记忆抽取模型；自动提取与归并可在囤囤库中设置。</p>
           </span>
-          <span className="collapse-indicator">{memorySectionExpanded ? '收起' : '展开'}</span>
+          <span className="collapse-indicator" aria-hidden="true">˅</span>
         </button>
         {memorySectionExpanded ? (
-          <div className="field-group">
-            <label htmlFor="memoryExtractModel">Memory Extract Model</label>
-            <select
-              id="memoryExtractModel"
-              value={draftMemoryExtractModel ?? ''}
-              onChange={(event) => {
-                const next = event.target.value.trim()
-                setDraftMemoryExtractModel(next.length > 0 ? next : null)
-                setExtractModelStatus('idle')
-              }}
-            >
-              <option value="">跟随默认模型（{draftDefaultModel}）</option>
-              {draftEnabledModels.map((modelId) => (
-                <option key={modelId} value={modelId}>
-                  {catalogMap.get(modelId) ?? modelId}
-                </option>
-              ))}
-            </select>
-            {!extractModelValid ? (
-              <span className="field-error">所选模型不在 enabled_models 中，请先启用该模型。</span>
-            ) : null}
-            <div className="system-prompt-actions">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => void handleSaveExtractModel()}
-                disabled={!hasUnsavedExtractModel || !extractModelValid || extractModelStatus === 'saving'}
+          <div className="accordion-content">
+            <div className="field-group">
+              <label htmlFor="memoryExtractModel">Memory Extract Model</label>
+              <select
+                id="memoryExtractModel"
+                value={draftMemoryExtractModel ?? ''}
+                onChange={(event) => {
+                  const next = event.target.value.trim()
+                  setDraftMemoryExtractModel(next.length > 0 ? next : null)
+                  setExtractModelStatus('idle')
+                }}
               >
-                {extractModelStatus === 'saving' ? '保存中…' : '保存'}
-              </button>
-              {hasUnsavedExtractModel ? <span className="system-prompt-status">有未保存修改</span> : null}
-              {extractModelStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
-              {extractModelStatus === 'error' ? <span className="field-error">{extractModelError}</span> : null}
+                <option value="">跟随默认模型（{draftDefaultModel}）</option>
+                {draftEnabledModels.map((modelId) => (
+                  <option key={modelId} value={modelId}>
+                    {catalogMap.get(modelId) ?? modelId}
+                  </option>
+                ))}
+              </select>
+              {!extractModelValid ? (
+                <span className="field-error">所选模型不在 enabled_models 中，请先启用该模型。</span>
+              ) : null}
+              <div className="system-prompt-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => void handleSaveExtractModel()}
+                  disabled={!hasUnsavedExtractModel || !extractModelValid || extractModelStatus === 'saving'}
+                >
+                  {extractModelStatus === 'saving' ? '保存中…' : '保存'}
+                </button>
+                {hasUnsavedExtractModel ? <span className="system-prompt-status">有未保存修改</span> : null}
+                {extractModelStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+                {extractModelStatus === 'error' ? <span className="field-error">{extractModelError}</span> : null}
+              </div>
             </div>
           </div>
         ) : null}
@@ -1000,13 +1020,15 @@ const SettingsPage = ({
           aria-expanded={compressionSectionExpanded}
         >
           <span className="section-title">
+            <span className="section-icon" aria-hidden="true">🧩</span>
             <h2 className="ui-title">上下文压缩</h2>
             <p>配置压缩触发阈值、保留条数与摘要模型。</p>
           </span>
-          <span className="collapse-indicator">{compressionSectionExpanded ? '收起' : '展开'}</span>
+          <span className="collapse-indicator" aria-hidden="true">˅</span>
         </button>
         {compressionSectionExpanded ? (
-          <div className="compression-fields">
+          <div className="accordion-content">
+            <div className="compression-fields">
             <label className="toggle-control" htmlFor="compressionEnabled">
               <input
                 id="compressionEnabled"
@@ -1061,47 +1083,61 @@ const SettingsPage = ({
                 </option>
               ))}
             </select>
+            </div>
+            <div className="system-prompt-actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => void handleSaveGenerationSettings()}
+                disabled={!hasUnsavedGeneration || !generationDraftValid || generationStatus === 'saving'}
+              >
+                {generationStatus === 'saving' ? '保存中…' : '保存'}
+              </button>
+              {hasUnsavedGeneration ? <span className="system-prompt-status">有未保存修改</span> : null}
+              {generationStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+              {generationStatus === 'error' ? <span className="field-error">{generationError}</span> : null}
+            </div>
           </div>
         ) : null}
-        <div className="system-prompt-actions">
-          <button
-            type="button"
-            className="primary"
-            onClick={() => void handleSaveGenerationSettings()}
-            disabled={!hasUnsavedGeneration || !generationDraftValid || generationStatus === 'saving'}
-          >
-            {generationStatus === 'saving' ? '保存中…' : '保存'}
-          </button>
-          {hasUnsavedGeneration ? <span className="system-prompt-status">有未保存修改</span> : null}
-          {generationStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
-          {generationStatus === 'error' ? <span className="field-error">{generationError}</span> : null}
-        </div>
       </section>
 
       <section className="settings-section">
-        <div className="section-title">
-          <h2 className="ui-title">系统提示词</h2>
-          <p>用于引导模型的全局指令，仅对当前用户生效。</p>
-        </div>
-        <textarea
-          className="system-prompt"
-          placeholder="例如：你是一个耐心的助手，请用简洁的方式回答。"
-          value={draftSystemPrompt}
-          onChange={(event) => handleSystemPromptChange(event.target.value)}
-        />
-        <div className="system-prompt-actions">
-          <button
-            type="button"
-            className="primary"
-            disabled={!hasUnsavedSystemPrompt}
-            onClick={() => void handleSaveSystemPrompt()}
-          >
-            保存
-          </button>
-          {systemPromptStatus === 'saved' ? (
-            <span className="system-prompt-status">已保存</span>
-          ) : null}
-        </div>
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setSystemPromptSectionExpanded((current) => !current)}
+          aria-expanded={systemPromptSectionExpanded}
+        >
+          <span className="section-title">
+            <span className="section-icon" aria-hidden="true">📝</span>
+            <h2 className="ui-title">系统提示词</h2>
+            <p>用于引导模型的全局指令，仅对当前用户生效。</p>
+          </span>
+          <span className="collapse-indicator" aria-hidden="true">˅</span>
+        </button>
+        {systemPromptSectionExpanded ? (
+          <div className="accordion-content">
+            <textarea
+              className="system-prompt"
+              placeholder="例如：你是一个耐心的助手，请用简洁的方式回答。"
+              value={draftSystemPrompt}
+              onChange={(event) => handleSystemPromptChange(event.target.value)}
+            />
+            <div className="system-prompt-actions">
+              <button
+                type="button"
+                className="primary"
+                disabled={!hasUnsavedSystemPrompt}
+                onClick={() => void handleSaveSystemPrompt()}
+              >
+                保存
+              </button>
+              {systemPromptStatus === 'saved' ? (
+                <span className="system-prompt-status">已保存</span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="settings-section">
@@ -1112,13 +1148,14 @@ const SettingsPage = ({
           aria-expanded={snackSectionExpanded}
         >
           <span className="section-title">
+            <span className="section-icon" aria-hidden="true">🍪</span>
             <h2 className="ui-title">Snack Feed</h2>
             <p>仅用于零食罐罐区；基础系统提示词保持不变。</p>
           </span>
-          <span className="collapse-indicator">{snackSectionExpanded ? '收起' : '展开'}</span>
+          <span className="collapse-indicator" aria-hidden="true">˅</span>
         </button>
         {snackSectionExpanded ? (
-          <>
+          <div className="accordion-content">
             <textarea
               className="system-prompt"
               value={draftSnackSystemPrompt}
@@ -1140,7 +1177,7 @@ const SettingsPage = ({
                 <span className="system-prompt-status">已保存</span>
               ) : null}
             </div>
-          </>
+          </div>
         ) : null}
       </section>
 
@@ -1152,13 +1189,14 @@ const SettingsPage = ({
           aria-expanded={syzygySectionExpanded}
         >
           <span className="section-title">
+            <span className="section-icon" aria-hidden="true">📓</span>
             <h2 className="ui-title">仓鼠观察日志</h2>
             <p>控制发帖与回复时的提示词行为。</p>
           </span>
-          <span className="collapse-indicator">{syzygySectionExpanded ? '收起' : '展开'}</span>
+          <span className="collapse-indicator" aria-hidden="true">˅</span>
         </button>
         {syzygySectionExpanded ? (
-          <>
+          <div className="accordion-content">
             <div className="section-title">
               <h2 className="ui-title">发帖风格（Syzygy Post Prompt）</h2>
               <p>控制 🤖 发帖按钮的文风与输出约束。</p>
@@ -1206,7 +1244,7 @@ const SettingsPage = ({
               </button>
               {syzygyReplyStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
             </div>
-          </>
+          </div>
         ) : null}
       </section>
 
