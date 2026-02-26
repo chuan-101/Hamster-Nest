@@ -109,16 +109,24 @@ const AuthPage = ({ user }: AuthPageProps) => {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1 className="ui-title">邮箱验证码登录</h1>
-        <p className="subtitle">使用邮箱验证码登录后即可同步云端会话。</p>
+        <div className="hamster-logo" aria-hidden="true">
+          🐹🎀
+        </div>
+        <h1 className="ui-title">Welcome to Hamster Nest 🐹🏰</h1>
+        <p className="subtitle">Enter your password to unlock your secret lair 🤫🔑</p>
         <label className="field">
-          <span>邮箱地址</span>
-          <input
-            type="email"
-            placeholder="输入你的邮箱"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
+          <span className="field-label">邮箱地址</span>
+          <div className="input-shell">
+            <span className="input-icon" aria-hidden="true">
+              👤
+            </span>
+            <input
+              type="email"
+              placeholder="输入你的邮箱"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
         </label>
         <button
           type="button"
@@ -126,16 +134,21 @@ const AuthPage = ({ user }: AuthPageProps) => {
           onClick={handleSendOtp}
           disabled={sending}
         >
-          {sending ? '发送中...' : '发送验证码'}
+          {sending ? '发送中...' : 'Go! 🐹💨 发送验证码'}
         </button>
         <label className="field">
-          <span>验证码</span>
-          <input
-            type="text"
-            placeholder="输入邮箱中的验证码"
-            value={otp}
-            onChange={(event) => setOtp(event.target.value)}
-          />
+          <span className="field-label">验证码</span>
+          <div className="input-shell">
+            <span className="input-icon" aria-hidden="true">
+              🔒
+            </span>
+            <input
+              type="text"
+              placeholder="输入邮箱中的验证码"
+              value={otp}
+              onChange={(event) => setOtp(event.target.value)}
+            />
+          </div>
         </label>
         <button
           type="button"
@@ -143,7 +156,10 @@ const AuthPage = ({ user }: AuthPageProps) => {
           onClick={handleVerifyOtp}
           disabled={verifying}
         >
-          {verifying ? '验证中...' : '验证并登录'}
+          {verifying ? '验证中...' : 'Go! 🐹💨 验证并登录'}
+        </button>
+        <button type="button" className="forgot-link" onClick={handleSendOtp}>
+          Forgot Password?
         </button>
         {status ? <p className="status">{status}</p> : null}
         {error ? <p className="error">{error}</p> : null}
