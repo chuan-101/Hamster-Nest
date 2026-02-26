@@ -146,6 +146,7 @@
   min-height: 0;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
+  background: transparent;
   padding-bottom: env(safe-area-inset-bottom);
 }
 
