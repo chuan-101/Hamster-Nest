@@ -1293,7 +1293,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
             </section>
 
             <form
-              className="chat-composer glass-card rp-chat-composer"
+              className="chat-composer rp-chat-composer"
               onSubmit={(event) => {
                 event.preventDefault()
                 void handleSend('player')

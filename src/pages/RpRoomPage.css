@@ -104,11 +104,13 @@
   padding: 10px 14px;
 }
 
-.rp-room-page .glass-card:empty {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  backdrop-filter: none;
+.rp-chat-composer {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
 }
 
 .rp-trigger-row {
