@@ -6,6 +6,7 @@
 
 .settings-shell.app-shell {
   background: var(--page-bg);
+  overscroll-behavior: auto;
 }
 
 .settings-page {
@@ -15,7 +16,9 @@
   gap: 14px;
   background: var(--page-bg);
   padding-bottom: calc(28px + env(safe-area-inset-bottom));
-  overflow: visible;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: auto;
 }
 
 .settings-page .settings-group {
@@ -178,6 +181,16 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: none;
+  overflow: visible;
+}
+
+@media (max-width: 560px) {
+  .accordion-content {
+    transition: none;
+    max-height: none;
+    overflow: visible;
+  }
 }
 
 .nested-prompt-title {
