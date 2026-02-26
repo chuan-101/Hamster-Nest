@@ -89,6 +89,12 @@ type ExportDataBundle = {
   checkins: CheckinRow[]
 }
 
+const formatOptions: Array<{ value: ExportFormat; label: string }> = [
+  { value: 'markdown', label: 'Markdown (.md)' },
+  { value: 'json', label: 'JSON (.json)' },
+  { value: 'txt', label: 'TXT (.txt)' },
+]
+
 const defaultModules: ExportModules = {
   chat: true,
   snacks: true,
@@ -464,62 +470,71 @@ const ExportPage = ({ user }: { user: User | null }) => {
         </button>
       </header>
 
-      <section className="export-card">
-        <h2 className="ui-title">导出格式</h2>
-        <label>
-          <input
-            type="radio"
-            name="format"
-            checked={format === 'markdown'}
-            onChange={() => setFormat('markdown')}
-          />
-          Markdown (.md)
-        </label>
-        <label>
-          <input type="radio" name="format" checked={format === 'json'} onChange={() => setFormat('json')} />
-          JSON (.json)
-        </label>
-        <label>
-          <input type="radio" name="format" checked={format === 'txt'} onChange={() => setFormat('txt')} />
-          TXT (.txt)
-        </label>
+      <section className="export-card export-package-card">
+        <span className="export-washi-tape" aria-hidden="true" />
+        <h2 className="ui-title">我的数据仓库 📦🐹</h2>
+
+        <div className="export-subsection">
+          <h3>格式便签贴</h3>
+          <div className="export-format-stickers" role="radiogroup" aria-label="导出格式">
+            {formatOptions.map((option) => {
+              const isActive = format === option.value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  className={`export-sticker ${isActive ? 'active' : ''}`}
+                  onClick={() => setFormat(option.value)}
+                >
+                  {isActive ? '✔ ' : ''}
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="export-subsection">
+          <h3>导出模块</h3>
+          <label>
+            <input type="checkbox" checked={modules.chat} onChange={() => toggleModule('chat')} />
+            吱吱吱区（sessions + messages）
+          </label>
+          <label>
+            <input type="checkbox" checked={modules.snacks} onChange={() => toggleModule('snacks')} />
+            零食罐罐（snack_posts + snack_replies）
+          </label>
+          <label>
+            <input type="checkbox" checked={modules.syzygy} onChange={() => toggleModule('syzygy')} />
+            仓鼠饲养日志（syzygy_posts + syzygy_replies）
+          </label>
+          <label>
+            <input type="checkbox" checked={modules.memory} onChange={() => toggleModule('memory')} />
+            囤囤库（memory_entries）
+          </label>
+          <label>
+            <input type="checkbox" checked={modules.checkins} onChange={() => toggleModule('checkins')} />
+            打卡（checkins）
+          </label>
+        </div>
+
+        <p className="export-note">可一次性打包多个模块，导出后将自动下载到本地设备。</p>
+        <p className="export-signoff">Your memories are safely packed by Syzygy. 🎀</p>
+
+        {warning ? <p className="tips">{warning}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+
+        <button
+          type="button"
+          className="export-button"
+          disabled={!user || !supabase || selectedCount === 0 || exporting}
+          onClick={() => void handleExport()}
+        >
+          {exporting ? '打包中…' : '打包我的藏品 / Pack My Hoard 📥✨'}
+        </button>
       </section>
-
-      <section className="export-card">
-        <h2 className="ui-title">导出模块</h2>
-        <label>
-          <input type="checkbox" checked={modules.chat} onChange={() => toggleModule('chat')} />
-          吱吱吱区（sessions + messages）
-        </label>
-        <label>
-          <input type="checkbox" checked={modules.snacks} onChange={() => toggleModule('snacks')} />
-          零食罐罐（snack_posts + snack_replies）
-        </label>
-        <label>
-          <input type="checkbox" checked={modules.syzygy} onChange={() => toggleModule('syzygy')} />
-          仓鼠饲养日志（syzygy_posts + syzygy_replies）
-        </label>
-        <label>
-          <input type="checkbox" checked={modules.memory} onChange={() => toggleModule('memory')} />
-          囤囤库（memory_entries）
-        </label>
-        <label>
-          <input type="checkbox" checked={modules.checkins} onChange={() => toggleModule('checkins')} />
-          打卡（checkins）
-        </label>
-      </section>
-
-      {warning ? <p className="tips">{warning}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-
-      <button
-        type="button"
-        className="primary export-button"
-        disabled={!user || !supabase || selectedCount === 0 || exporting}
-        onClick={() => void handleExport()}
-      >
-        {exporting ? '导出中…' : '导出'}
-      </button>
     </div>
   )
 }
