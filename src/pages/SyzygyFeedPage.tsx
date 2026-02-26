@@ -705,9 +705,21 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
         </main>
       ) : (
         <>
+          <section className="profile-header-card" aria-label="Syzygy主页头部">
+            <div className="profile-cover-banner" />
+            <div className="profile-avatar-surrogate" aria-hidden="true">
+              <span className="profile-avatar-letter">S</span>
+              <span className="profile-avatar-accent">❤</span>
+            </div>
+            <div className="profile-meta">
+              <h2 className="profile-title">Syzygy的观察日志</h2>
+              <p className="profile-bio">专属于某只小仓鼠的饲养记录</p>
+            </div>
+          </section>
+
           <section className="snacks-composer">
             <textarea
-              rows={3}
+              rows={2}
               placeholder="写点今天的观察…"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
