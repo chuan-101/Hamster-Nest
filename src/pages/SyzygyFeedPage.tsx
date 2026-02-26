@@ -605,7 +605,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
   }
 
   return (
-    <div className="snacks-page">
+    <div className="snacks-page app-shell__content">
       <header className="snacks-header">
         <button type="button" className="ghost" onClick={() => navigate('/')}>
           返回聊天
