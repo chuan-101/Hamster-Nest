@@ -51,6 +51,7 @@ import ExportPage from './pages/ExportPage'
 import RpRoomsPage from './pages/RpRoomsPage'
 import RpRoomPage from './pages/RpRoomPage'
 import HomePage from './pages/HomePage'
+import HomeLayoutSettingsPage from './pages/HomeLayoutSettingsPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1366,6 +1367,26 @@ const App = () => {
         <Route
           path="/home"
           element={<Navigate to="/" replace />}
+        />
+        <Route
+          path="/home-layout"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <HomeLayoutSettingsPage
+                user={user}
+                onOpenChat={() => {
+                  const latest = selectMostRecentSession(sessions)
+                  if (latest) {
+                    navigate(`/chat/${latest.id}`)
+                    return
+                  }
+                  void createSessionEntry().then((session) => {
+                    navigate(`/chat/${session.id}`)
+                  })
+                }}
+              />
+            </RequireAuth>
+          }
         />
         <Route
           path="/chat"

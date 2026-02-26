@@ -28,6 +28,7 @@ import "./HomePage.css";
 type HomePageProps = {
   user: User | null;
   onOpenChat: () => void;
+  mode?: "default" | "settings";
 };
 
 type AppIcon = {
@@ -161,7 +162,8 @@ const computeStreak = (dates: string[], todayKey: string) => {
   return streak;
 };
 
-const HomePage = ({ user, onOpenChat }: HomePageProps) => {
+const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
+  const isSettingsPage = mode === "settings";
   const navigate = useNavigate();
   const [now, setNow] = useState(() => new Date());
   const [checkinDates, setCheckinDates] = useState<string[]>([]);
@@ -170,6 +172,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   const [checkinLoading, setCheckinLoading] = useState(false);
 
   const [editMode, setEditMode] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"settings" | "preview">("settings");
   const [notice, setNotice] = useState<string | null>(null);
 
   const [iconOrder, setIconOrder] = useState<string[]>(DEFAULT_ICON_ORDER);
@@ -197,6 +200,9 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
     string | null
   >(null);
   const [backgroundUploading, setBackgroundUploading] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 900px)").matches : true,
+  );
   const [appIconConfigs, setAppIconConfigs] = useState<AppIconState>({});
   const [appIconImageUrls, setAppIconImageUrls] = useState<
     Record<string, string>
@@ -277,11 +283,25 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   );
 
   useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    const update = () => setIsMobileViewport(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
     const intervalId = window.setInterval(() => {
       setNow(new Date());
     }, 1000);
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    if (isSettingsPage) {
+      setEditMode(true);
+    }
+  }, [isSettingsPage]);
 
   useEffect(() => {
     const cached = loadHomeSettings();
@@ -599,7 +619,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   };
 
   const triggerEditModeByHold = () => {
-    if (editMode) {
+    if (!isSettingsPage || editMode) {
       return;
     }
     holdTimerRef.current = window.setTimeout(() => {
@@ -615,6 +635,16 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
   };
 
   const canAddWidget = decoratedWidgetCount < MAX_WIDGETS;
+  const showSettingsPanel = isSettingsPage
+    ? isMobileViewport
+      ? mobileTab === "settings"
+      : true
+    : editMode;
+  const showPreviewPanel = isSettingsPage
+    ? isMobileViewport
+      ? mobileTab === "preview"
+      : true
+    : true;
 
   const handleAddTextWidget = () => {
     if (!canAddWidget) {
@@ -842,7 +872,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
 
   return (
     <main
-      className="home-page app-shell"
+      className={`home-page app-shell ${isSettingsPage ? "home-page--settings" : ""}`}
       style={
         {
           "--home-background-image": homeBackgroundImageDataUrl
@@ -853,24 +883,65 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
         } as CSSProperties
       }
     >
-      <div className="phone-shell">
+      <div className={`phone-shell ${isSettingsPage ? "phone-shell--settings" : ""}`}>
         <div className="phone-shell__mask" aria-hidden="true" />
         <div className="home-page__header app-shell__header">
           <header className="home-header">
-            <button
-              type="button"
-              className="edit-button"
-              onClick={() => setEditMode((value) => !value)}
-            >
-              {editMode ? "完成" : "编辑"}
-            </button>
-            <h1 className="ui-title">{timeLabel}</h1>
-            <p>{dateLabel}</p>
+            {isSettingsPage ? (
+              <>
+                <button
+                  type="button"
+                  className="edit-button edit-button-back"
+                  onClick={() => navigate(-1)}
+                >
+                  返回
+                </button>
+                <button
+                  type="button"
+                  className="edit-button"
+                  onClick={() => navigate("/")}
+                >
+                  完成
+                </button>
+                <h1 className="ui-title">主页布局</h1>
+                <p>编辑组件并实时预览</p>
+                {isMobileViewport ? (
+                  <div className="home-mode-toggle" role="tablist" aria-label="设置预览切换">
+                    <button
+                      type="button"
+                      className={mobileTab === "settings" ? "active" : ""}
+                      onClick={() => setMobileTab("settings")}
+                    >
+                      设置
+                    </button>
+                    <button
+                      type="button"
+                      className={mobileTab === "preview" ? "active" : ""}
+                      onClick={() => setMobileTab("preview")}
+                    >
+                      预览
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="edit-button"
+                  onClick={() => navigate("/home-layout")}
+                >
+                  编辑
+                </button>
+                <h1 className="ui-title">{timeLabel}</h1>
+                <p>{dateLabel}</p>
+              </>
+            )}
           </header>
 
           {notice ? <p className="home-notice">{notice}</p> : null}
 
-          {editMode ? (
+          {showSettingsPanel ? (
             <section className="glass-card widget-toolbar">
               <button
                 type="button"
@@ -913,7 +984,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
             </section>
           ) : null}
 
-          {editMode ? (
+          {showSettingsPanel ? (
             <section className="glass-card appearance-toolbar">
               <h2 className="ui-title">外观</h2>
               <label>
@@ -990,7 +1061,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
             </section>
           ) : null}
 
-          {editMode ? (
+          {showSettingsPanel ? (
             <section className="glass-card icon-editor-toolbar">
               <h2 className="ui-title">编辑图标</h2>
               <label>
@@ -1052,7 +1123,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
           ) : null}
         </div>
 
-        <div className="home-page__content app-shell__content">
+        {showPreviewPanel ? (<div className="home-page__content app-shell__content">
           <div className="home-layout">
             <section
               className="widget-grid home-widget-stage"
@@ -1243,7 +1314,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
               })}
             </section>
           </div>
-        </div>
+        </div>) : null}
       </div>
     </main>
   );
