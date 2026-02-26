@@ -65,6 +65,28 @@
   position: relative;
 }
 
+.home-mode-toggle {
+  margin-top: 0.7rem;
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.22rem;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.home-mode-toggle button {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  color: #334155;
+}
+
+.home-mode-toggle button.active {
+  background: #ffd6e7;
+  color: #0f172a;
+}
+
 .home-header h1 {
   margin: 0;
   font-size: 3.5rem;
@@ -86,6 +108,11 @@
   color: #0f172a;
   border-radius: 999px;
   padding: 0.32rem 0.75rem;
+}
+
+.edit-button-back {
+  right: auto;
+  left: 0;
 }
 
 .home-notice {
@@ -369,5 +396,32 @@
 
   .home-dock {
     gap: 0.78rem 0.45rem;
+  }
+}
+
+@media (min-width: 901px) {
+  .home-page--settings .phone-shell--settings {
+    width: min(1120px, 100%);
+    max-width: 1120px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "preview settings"
+      "preview settings";
+    align-items: start;
+    gap: 1rem;
+  }
+
+  .home-page--settings .home-page__header {
+    grid-area: settings;
+    max-height: calc(100dvh - 4rem);
+    overflow: auto;
+    padding-right: 0.25rem;
+  }
+
+  .home-page--settings .home-page__content {
+    grid-area: preview;
+    height: calc(100dvh - 4rem);
   }
 }
