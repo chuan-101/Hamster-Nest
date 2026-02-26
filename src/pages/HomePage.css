@@ -16,11 +16,17 @@
 }
 
 .home-page__content {
-  flex: 1;
-  display: grid;
-  gap: 0.9rem;
   min-height: 0;
-  overflow: visible;
+  overflow: auto;
+}
+
+.home-layout {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 0.25rem;
 }
 
 .phone-shell {
@@ -128,8 +134,8 @@
   color: #334155;
 }
 
-.appearance-toolbar input[type='color'],
-.appearance-toolbar input[type='range'],
+.appearance-toolbar input[type="color"],
+.appearance-toolbar input[type="range"],
 .icon-editor-toolbar input,
 .icon-editor-toolbar select {
   width: 100%;
@@ -157,6 +163,10 @@
 }
 
 .home-widget-stage {
+  width: 100%;
+  height: fit-content;
+  align-self: stretch;
+  align-content: start;
   overflow: visible;
 }
 
@@ -287,11 +297,13 @@
   object-fit: cover;
 }
 
-.icons-grid {
+.home-dock {
+  width: 100%;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(2, auto);
-  gap: 0.9rem 0.65rem;
+  grid-auto-rows: minmax(92px, auto);
+  gap: 0.85rem 0.65rem;
+  align-content: start;
 }
 
 .app-icon-slot {
@@ -355,7 +367,7 @@
     font-size: 3rem;
   }
 
-  .icons-grid {
+  .home-dock {
     gap: 0.78rem 0.45rem;
   }
 }
