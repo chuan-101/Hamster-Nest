@@ -1,5 +1,6 @@
 .memory-page {
   min-height: 100vh;
+  min-height: 100dvh;
   max-width: 720px;
   margin: 0 auto;
   padding: 16px 14px 28px;
@@ -7,8 +8,13 @@
   flex-direction: column;
   gap: 16px;
   background:
-    radial-gradient(circle at 10px 10px, rgba(255, 214, 231, 0.4) 2px, transparent 2.5px) 0 0 / 24px 24px,
-    #fcfcfc;
+    radial-gradient(
+        circle at 10px 10px,
+        rgba(255, 214, 231, 0.4) 2px,
+        transparent 2.5px
+      )
+      0 0 / 24px 24px,
+    transparent;
 }
 
 .memory-header {
@@ -71,7 +77,7 @@
 .memory-card p {
   margin: 0;
   white-space: pre-wrap;
-  color: #5c5c5c;
+  color: var(--text-main);
 }
 
 .memory-actions {
@@ -102,8 +108,14 @@
   border: 1px solid #ffd6e7;
   border-radius: 14px;
   background:
-    repeating-linear-gradient(180deg, rgba(255, 214, 231, 0.24) 0, rgba(255, 214, 231, 0.24) 1px, transparent 1px, transparent 30px),
-    #fffdf0;
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 214, 231, 0.24) 0,
+      rgba(255, 214, 231, 0.24) 1px,
+      transparent 1px,
+      transparent 30px
+    ),
+    #e6edf8;
   padding: 12px;
   box-shadow: 0 8px 18px rgba(255, 214, 231, 0.28);
 }
@@ -112,6 +124,11 @@
   background: transparent;
   border: none;
   padding: 4px 2px;
+  color: var(--text-main);
+}
+
+.memory-memo-pad textarea::placeholder {
+  color: var(--text-subtle);
 }
 
 .memory-memo-pad textarea:focus {
@@ -138,7 +155,7 @@
 }
 
 .memory-card--archive {
-  background: #fffdf0;
+  background: #e6edf8;
   border: 1px solid #ffd6e7;
 }
 

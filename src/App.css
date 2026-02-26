@@ -8,7 +8,7 @@
   flex-direction: column;
   background:
     var(--app-background-image, none) center / cover no-repeat,
-    #f1f5f9;
+    var(--page-bg);
   color: #0f172a;
   overscroll-behavior: none;
 }
