@@ -15,6 +15,11 @@
   gap: 0.9rem;
 }
 
+.home-page .app-shell__header {
+  border-bottom: none;
+  box-shadow: none;
+}
+
 .home-page__content {
   min-height: 0;
   overflow: auto;
