@@ -739,6 +739,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
       }
     >
       <div className="phone-shell">
+        <div className="phone-shell__mask" aria-hidden="true" />
         <div className="home-page__header app-shell__header">
           <header className="home-header">
             <button type="button" className="edit-button" onClick={() => setEditMode((value) => !value)}>
@@ -885,7 +886,7 @@ const HomePage = ({ user, onOpenChat }: HomePageProps) => {
         </div>
 
         <div className="home-page__content app-shell__content">
-          <section className="widget-grid" aria-label="Widgets">
+          <section className="widget-grid home-widget-stage" aria-label="Widgets">
             {orderedWidgetItems.map((item) => {
               const isCheckin = item.kind === 'checkin'
               const widget = item.widget

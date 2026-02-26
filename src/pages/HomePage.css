@@ -19,6 +19,8 @@
   flex: 1;
   display: grid;
   gap: 0.9rem;
+  min-height: 0;
+  overflow: visible;
 }
 
 .phone-shell {
@@ -29,13 +31,27 @@
   min-height: 0;
   border-radius: 36px;
   padding: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  position: relative;
+  overflow: visible;
+}
+
+.phone-shell__mask {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   border: 1px solid rgba(255, 255, 255, 0.6);
   background: var(--page-overlay-bg);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
   backdrop-filter: blur(20px);
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
+  z-index: 0;
+}
+
+.phone-shell > *:not(.phone-shell__mask) {
+  position: relative;
+  z-index: 1;
 }
 
 .home-header {
@@ -137,6 +153,11 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
   align-content: start;
+  overflow: visible;
+}
+
+.home-widget-stage {
+  overflow: visible;
 }
 
 .widget-card {
@@ -197,7 +218,13 @@
   width: 100%;
   min-height: 105px;
   border-radius: 16px;
-  border: 1px dashed rgba(51, 65, 85, 0.35);
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .checkin-inner {
@@ -261,12 +288,10 @@
 }
 
 .icons-grid {
-  margin-top: auto;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows: repeat(2, auto);
   gap: 0.9rem 0.65rem;
-  align-content: end;
 }
 
 .app-icon-slot {
