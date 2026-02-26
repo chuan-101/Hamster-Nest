@@ -42,7 +42,14 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--page-bg);
+}
+
+.chat-header--pink {
+  background: var(--accent);
+  background-image: none;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
 }
 
 .chat-header .ghost {
