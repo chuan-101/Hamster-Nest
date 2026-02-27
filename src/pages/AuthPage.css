@@ -5,11 +5,9 @@
   justify-content: center;
   padding: 32px 16px;
   color: #5f4b54;
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ctext y='21' font-size='20'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E") 6 6, auto;
-  background-color: #fff7f2;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Ctext x='12' y='34' font-size='20'%3E%F0%9F%92%96%3C/text%3E%3Ctext x='90' y='28' font-size='18'%3E%E2%9C%A8%3C/text%3E%3Ctext x='44' y='70' font-size='18'%3E%F0%9F%90%B9%3C/text%3E%3Ctext x='8' y='112' font-size='16'%3E%E2%9C%A8%3C/text%3E%3Ctext x='86' y='108' font-size='18'%3E%F0%9F%92%96%3C/text%3E%3C/svg%3E"),
-    radial-gradient(circle at top, rgba(255, 214, 231, 0.55), transparent 64%);
-  background-repeat: repeat;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(232, 232, 232, 0.55) 1px, transparent 0) 0 0 / 28px 28px,
+    linear-gradient(165deg, #fdfbfb 0%, #f4f5f7 100%);
 }
 
 .auth-card {
@@ -30,31 +28,51 @@
       border-box,
     radial-gradient(circle at calc(100% - 18px) calc(100% - 18px), rgba(255, 214, 231, 0.65) 0 4px, transparent 4px)
       border-box,
-    linear-gradient(145deg, #ffffff 0%, #fff8fc 100%);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 248, 252, 0.82) 100%);
+  box-shadow: 0 18px 42px rgba(108, 88, 96, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .auth-card::before {
-  content: '🎀';
+  content: '';
   position: absolute;
-  top: -14px;
-  right: 18px;
-  font-size: 26px;
-  transform: rotate(10deg);
+  top: -12px;
+  right: 26px;
+  width: 44px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 2px solid #ffc2d9;
+  background: linear-gradient(180deg, rgba(255, 214, 231, 0.95), rgba(255, 194, 217, 0.88));
+  box-shadow: 0 6px 12px rgba(216, 124, 163, 0.2);
+  transform: rotate(9deg);
 }
 
 .auth-card::after {
-  content: '📎';
+  content: '';
   position: absolute;
   left: 18px;
   top: -16px;
-  font-size: 24px;
+  width: 18px;
+  height: 32px;
+  border: 2px solid rgba(209, 213, 219, 0.95);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
   transform: rotate(-14deg);
 }
 
 .hamster-logo {
-  text-align: center;
-  font-size: 56px;
-  line-height: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-logo-icon {
+  width: 56px;
+  height: 56px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M31.8 21.3c-8.8-11.2-20-9.7-20 .8 0 7.8 9 12.5 15.3 14-6.4 1.7-12.5 6.2-12.5 12.3 0 9 10.7 9.7 17.2-2 6.5 11.7 17.2 11 17.2 2 0-6.1-6.1-10.6-12.5-12.3 6.3-1.5 15.3-6.2 15.3-14 0-10.5-11.2-12-20-.8z' fill='%23ffd6e7'/%3E%3Cpath d='M32 27.5c-5.2-7.4-12.8-6.7-12.8.1 0 5.6 6.8 8.7 11 9.6-4.3 1.1-8.9 4.4-8.9 9.2 0 6.3 7.7 6.8 10.7-1.9 3 8.7 10.7 8.2 10.7 1.9 0-4.8-4.6-8.1-8.9-9.2 4.2-.9 11-4 11-9.6 0-6.8-7.6-7.5-12.8-.1z' fill='%23fff8fc'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
 }
 
 .auth-card h1 {
@@ -100,7 +118,9 @@
 }
 
 .input-icon {
-  font-size: 1.02rem;
+  font-size: 0.95rem;
+  color: #c97ea0;
+  font-weight: 700;
 }
 
 .field input {
@@ -143,15 +163,6 @@
   transform: rotate(-8deg);
 }
 
-.auth-card .primary::after {
-  content: '🩹';
-  position: absolute;
-  right: 8px;
-  top: -10px;
-  font-size: 20px;
-  transform: rotate(16deg);
-}
-
 .auth-card .primary:disabled {
   opacity: 0.68;
   cursor: not-allowed;
@@ -162,7 +173,7 @@
   margin-top: -4px;
   border: none;
   background: transparent;
-  color: #ffd6e7;
+  color: #d68db0;
   font-size: 0.8rem;
   cursor: pointer;
   padding: 0;
