@@ -110,15 +110,15 @@ const AuthPage = ({ user }: AuthPageProps) => {
     <div className="auth-page">
       <div className="auth-card">
         <div className="hamster-logo" aria-hidden="true">
-          🐹🎀
+          <span className="auth-logo-icon" />
         </div>
-        <h1 className="ui-title">Welcome to Hamster Nest 🐹🏰</h1>
-        <p className="subtitle">Enter your password to unlock your secret lair 🤫🔑</p>
+        <h1 className="ui-title">Welcome to Hamster Nest</h1>
+        <p className="subtitle">Enter your password to unlock your secret lair</p>
         <label className="field">
           <span className="field-label">邮箱地址</span>
           <div className="input-shell">
             <span className="input-icon" aria-hidden="true">
-              👤
+              @
             </span>
             <input
               type="email"
@@ -134,13 +134,13 @@ const AuthPage = ({ user }: AuthPageProps) => {
           onClick={handleSendOtp}
           disabled={sending}
         >
-          {sending ? '发送中...' : 'Go! 🐹💨 发送验证码'}
+          {sending ? '发送中...' : '发送验证码 ✨'}
         </button>
         <label className="field">
           <span className="field-label">验证码</span>
           <div className="input-shell">
             <span className="input-icon" aria-hidden="true">
-              🔒
+              #
             </span>
             <input
               type="text"
@@ -156,7 +156,7 @@ const AuthPage = ({ user }: AuthPageProps) => {
           onClick={handleVerifyOtp}
           disabled={verifying}
         >
-          {verifying ? '验证中...' : 'Go! 🐹💨 验证并登录'}
+          {verifying ? '验证中...' : '验证并登录 ✨'}
         </button>
         <button type="button" className="forgot-link" onClick={handleSendOtp}>
           Forgot Password?
