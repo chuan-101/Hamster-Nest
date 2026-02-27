@@ -163,6 +163,7 @@
   color: #ff9ac3;
   font-size: 1.6rem;
   line-height: 1.2;
+  font-family: var(--font-rounded);
 }
 
 .calendar-panel {
