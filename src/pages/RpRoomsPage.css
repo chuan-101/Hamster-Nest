@@ -11,13 +11,13 @@
   padding: 12px 16px 16px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
+  gap: 18px;
 }
 
 .rp-rooms-top {
   z-index: 12;
   display: grid;
-  gap: 12px;
+  gap: 24px;
   padding-top: 4px;
 }
 
@@ -68,10 +68,17 @@
 }
 
 .rp-rooms-header {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+  padding: 16px 18px;
+  border: none;
+  border-bottom: 1px dashed #ffd6e7;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 14px 30px rgba(148, 163, 184, 0.15);
+  backdrop-filter: blur(14px);
 }
 
 .rp-rooms-header h1,
@@ -81,7 +88,34 @@
 
 .rp-rooms-header p {
   margin: 6px 0 0;
-  color: var(--text-subtle);
+  color: #8c8c8c;
+}
+
+.rp-rooms-header .ui-title {
+  color: #5c5c5c;
+  font-weight: 800;
+}
+
+.rp-back-btn {
+  border: 1px solid rgba(255, 214, 231, 0.9);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #5c5c5c;
+  font-weight: 600;
+  box-shadow: 0 8px 18px rgba(92, 92, 92, 0.1);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: box-shadow 140ms ease, transform 140ms ease;
+}
+
+.rp-back-btn:hover {
+  box-shadow: 0 0 0 3px rgba(255, 214, 231, 0.4), 0 10px 20px rgba(92, 92, 92, 0.14);
+  transform: translateY(-1px);
+}
+
+.rp-back-btn:active {
+  transform: translateY(1px);
 }
 
 .rp-create-row {
@@ -90,12 +124,87 @@
   gap: 8px;
 }
 
+.rp-create-card {
+  position: relative;
+  overflow: visible;
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(rgba(231, 231, 231, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(231, 231, 231, 0.35) 1px, transparent 1px);
+  background-size: 18px 18px;
+  border: 1px solid #ffd6e7;
+  box-shadow: 0 14px 30px rgba(92, 92, 92, 0.1);
+}
+
+.rp-create-card::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  left: 16px;
+  width: 66px;
+  height: 20px;
+  border-radius: 4px;
+  background: linear-gradient(120deg, rgba(255, 214, 231, 0.7), rgba(255, 214, 231, 0.45));
+  box-shadow: 0 4px 8px rgba(92, 92, 92, 0.12);
+  transform: rotate(-7deg);
+}
+
+.rp-create-card .ui-title {
+  color: #5c5c5c;
+  margin-bottom: 14px;
+}
+
 .rp-create-row input,
 .rp-rename-row input {
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.74);
+}
+
+.rp-create-row input {
+  border: 0;
+  border-bottom: 2px solid #f0f0f0;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.9);
+  color: #5c5c5c;
+  padding-left: 2px;
+}
+
+.rp-create-row input::placeholder {
+  color: #a8a8a8;
+}
+
+.rp-create-row input:focus {
+  outline: none;
+  border-bottom-color: #ffd6e7;
+  box-shadow: 0 6px 10px -8px rgba(255, 214, 231, 0.9);
+}
+
+.rp-create-btn {
+  border: 1px solid #ffd6e7;
+  border-radius: 999px;
+  background: #ffd6e7;
+  color: #5c5c5c;
+  font-weight: 700;
+  padding: 10px 16px;
+  cursor: pointer;
+  box-shadow: 0 10px 18px rgba(255, 214, 231, 0.45);
+  transition: transform 110ms ease, box-shadow 120ms ease;
+}
+
+.rp-create-btn:hover:not(:disabled) {
+  box-shadow: 0 12px 20px rgba(255, 214, 231, 0.55);
+}
+
+.rp-create-btn:active:not(:disabled) {
+  transform: translateY(2px) scale(0.99);
+  box-shadow: 0 4px 10px rgba(255, 214, 231, 0.45);
+}
+
+.rp-create-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 .rp-list-head {

@@ -473,27 +473,27 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
     <div className="rp-rooms-page app-shell">
       <div className="rp-rooms-shell">
         <section className="rp-rooms-top app-shell__header">
-          <header className="rp-rooms-header glass-panel">
+          <header className="rp-rooms-header">
             <div>
-              <h1 className="ui-title">跑跑滚轮区</h1>
-              <p>管理 RP 房间，用颜色区分剧情分线与角色组。</p>
+              <h1 className="ui-title">跑跑滚轮区 🎡🐹</h1>
+              <p>管理 RP 房间，给每段剧情留好场记与分镜。</p>
             </div>
-            <button type="button" className="ghost" onClick={() => navigate('/')}>
+            <button type="button" className="rp-back-btn" onClick={() => navigate('/')}>
               返回聊天
             </button>
           </header>
 
-          <section className="rp-create-card glass-card">
+          <section className="rp-create-card">
             <h2 className="ui-title">新建房间</h2>
             <div className="rp-create-row">
               <input
                 value={newTitle}
                 onChange={(event) => setNewTitle(event.target.value)}
-                placeholder="输入房间标题（可留空）"
+                placeholder="给新剧本起个名字... 📝"
                 maxLength={80}
               />
-              <button type="button" className="btn-primary" disabled={creating} onClick={handleCreateRoom}>
-                {creating ? '创建中…' : '新建房间'}
+              <button type="button" className="rp-create-btn" disabled={creating} onClick={handleCreateRoom}>
+                {creating ? '准备中…' : '开跑！/ Start! 🎬'}
               </button>
             </div>
           </section>
