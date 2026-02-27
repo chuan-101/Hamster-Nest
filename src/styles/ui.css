@@ -1,8 +1,10 @@
 :root {
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI',
+  --font-sans: 'Nunito', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI',
     Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', Arial,
     sans-serif;
-  --font-display: 'Pixelify Sans', var(--font-sans);
+  --font-rounded: 'Nunito', 'Quicksand', 'Comfortaa', 'Avenir Next Rounded', 'Arial Rounded MT Bold', var(--font-sans);
+  --font-display: 'Rounded Mplus 1c', 'Nunito', system-ui, -apple-system, 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --accent: #ffd6e7;
   --accent-strong: #f8bad4;
   --text-main: #111827;
@@ -19,12 +21,17 @@
 
 .ui-title {
   font-family: var(--font-display);
-  font-weight: 400;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   line-height: 1.15;
   text-transform: none;
   -webkit-font-smoothing: auto;
   -moz-osx-font-smoothing: auto;
+}
+
+.ui-numeric {
+  font-family: var(--font-rounded);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .glass-card,

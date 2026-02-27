@@ -723,6 +723,11 @@ const SettingsPage = ({
           <span className="header-spacer" />
         </header>
         <div className="settings-page app-shell__content">
+          <div className="settings-ribbon-divider" aria-hidden="true">
+            <span className="settings-ribbon-line" />
+            <span className="settings-ribbon-icon">🎀</span>
+            <span className="settings-ribbon-line" />
+          </div>
           <div className="settings-loading">正在加载设置...</div>
         </div>
       </div>
@@ -744,6 +749,11 @@ const SettingsPage = ({
       </header>
 
       <div className="settings-page app-shell__content">
+        <div className="settings-ribbon-divider" aria-hidden="true">
+          <span className="settings-ribbon-line" />
+          <span className="settings-ribbon-icon">🎀</span>
+          <span className="settings-ribbon-line" />
+        </div>
         <div className="settings-group" role="list">
       <section className="settings-section" role="listitem">
         <button

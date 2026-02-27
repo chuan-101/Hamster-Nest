@@ -960,7 +960,7 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
                   >
                     编辑
                   </button>
-                  <h1 className="ui-title">{timeLabel}</h1>
+                  <h1 className="ui-title ui-numeric home-clock-title">{timeLabel}</h1>
                   <p>{dateLabel}</p>
                 </>
               )}
@@ -1226,22 +1226,24 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
                                     <span>累计陪伴 {checkinTotal} 天</span>
                                     <span>{dateLabel}</span>
                                   </div>
-                                  <button
-                                    type="button"
-                                    className={`checkin-stamp-button ${checkedToday ? "checked" : "unchecked"}`}
-                                    disabled={
-                                      checkedToday ||
-                                      checkinSubmitting ||
-                                      checkinLoading
-                                    }
-                                    onClick={() => void handleCheckin()}
-                                  >
-                                    {checkedToday
-                                      ? "已陪伴 💖"
-                                      : checkinSubmitting
-                                        ? "盖章中…"
-                                        : "打卡 / Stamp"}
-                                  </button>
+                                  <div className="checkin-stamp-row">
+                                    <button
+                                      type="button"
+                                      className={`checkin-stamp-button ${checkedToday ? "checked" : "unchecked"}`}
+                                      disabled={
+                                        checkedToday ||
+                                        checkinSubmitting ||
+                                        checkinLoading
+                                      }
+                                      onClick={() => void handleCheckin()}
+                                    >
+                                      {checkedToday
+                                        ? "已陪伴 💖"
+                                        : checkinSubmitting
+                                          ? "盖章中…"
+                                          : "打卡 / Stamp"}
+                                    </button>
+                                  </div>
                                 </div>
                                 <div className="weekly-tracker" aria-label="weekly checkin tracker">
                                   {weeklyTracker.map((day) => (
@@ -1263,22 +1265,24 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
                                   <strong>{streakDays}</strong>
                                   <span>Days Together</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  className={`checkin-stamp-button ${checkedToday ? "checked" : "unchecked"}`}
-                                  disabled={
-                                    checkedToday ||
-                                    checkinSubmitting ||
-                                    checkinLoading
-                                  }
-                                  onClick={() => void handleCheckin()}
-                                >
-                                  {checkedToday
-                                    ? "已陪伴 💖"
-                                    : checkinSubmitting
-                                      ? "盖章中…"
-                                      : "打卡 / Stamp"}
-                                </button>
+                                <div className="checkin-stamp-row">
+                                  <button
+                                    type="button"
+                                    className={`checkin-stamp-button ${checkedToday ? "checked" : "unchecked"}`}
+                                    disabled={
+                                      checkedToday ||
+                                      checkinSubmitting ||
+                                      checkinLoading
+                                    }
+                                    onClick={() => void handleCheckin()}
+                                  >
+                                    {checkedToday
+                                      ? "已陪伴 💖"
+                                      : checkinSubmitting
+                                        ? "盖章中…"
+                                        : "打卡 / Stamp"}
+                                  </button>
+                                </div>
                               </>
                             )}
                           </article>
