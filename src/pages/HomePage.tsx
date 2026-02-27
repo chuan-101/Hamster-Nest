@@ -262,6 +262,26 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
     () => computeStreak(checkinDates, todayKey),
     [checkinDates, todayKey],
   );
+  const weeklyTracker = useMemo(() => {
+    const checkedSet = new Set(checkinDates);
+    const currentDay = now.getDay();
+    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(now);
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(now.getDate() + mondayOffset);
+
+    return Array.from({ length: 7 }).map((_, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+      const dateKey = formatDateKey(date);
+      return {
+        dateKey,
+        label: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index],
+        checked: checkedSet.has(dateKey),
+        isToday: dateKey === todayKey,
+      };
+    });
+  }, [checkinDates, now, todayKey]);
   const dateLabel = useMemo(
     () =>
       now.toLocaleDateString("zh-CN", {
@@ -1199,37 +1219,72 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
                           <article
                             className={`checkin-inner ${item.size === "2x1" ? "checkin-wide" : ""}`}
                           >
-                            <div className="checkin-head">
-                              <strong>今日打卡</strong>
-                              <span className={checkedToday ? "done" : "todo"}>
-                                {checkedToday ? "已完成" : "未完成"}
-                              </span>
-                            </div>
-                            <div className="checkin-metrics-mini">
-                              <span>连续 {streakDays} 天</span>
-                              <span>累计 {checkinTotal} 次</span>
-                              {item.size === "2x1" ? (
-                                <span>
-                                  {checkedToday ? "今天已打卡" : "今天还没打卡"}
-                                </span>
-                              ) : null}
-                            </div>
-                            <button
-                              type="button"
-                              className="primary"
-                              disabled={
-                                checkedToday ||
-                                checkinSubmitting ||
-                                checkinLoading
-                              }
-                              onClick={() => void handleCheckin()}
-                            >
-                              {checkedToday
-                                ? "已打卡"
-                                : checkinSubmitting
-                                  ? "打卡中…"
-                                  : "立即打卡"}
-                            </button>
+                            {item.size === "2x1" ? (
+                              <>
+                                <div className="checkin-wide-left">
+                                  <div className="checkin-streak-hero">
+                                    <strong>{streakDays}</strong>
+                                    <span>Days Together</span>
+                                  </div>
+                                  <div className="checkin-metrics-mini">
+                                    <span>累计陪伴 {checkinTotal} 天</span>
+                                    <span>{dateLabel}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`checkin-stamp-button ${checkedToday ? "checked" : "unchecked"}`}
+                                    disabled={
+                                      checkedToday ||
+                                      checkinSubmitting ||
+                                      checkinLoading
+                                    }
+                                    onClick={() => void handleCheckin()}
+                                  >
+                                    {checkedToday
+                                      ? "已陪伴 💖"
+                                      : checkinSubmitting
+                                        ? "盖章中…"
+                                        : "打卡 / Stamp"}
+                                  </button>
+                                </div>
+                                <div className="weekly-tracker" aria-label="weekly checkin tracker">
+                                  {weeklyTracker.map((day) => (
+                                    <div key={day.dateKey} className="weekly-day-item">
+                                      <span
+                                        className={`weekly-dot ${day.checked ? "checked" : "unchecked"} ${day.isToday ? "today" : ""}`}
+                                        aria-label={`${day.label} ${day.checked ? "已打卡" : "未打卡"}`}
+                                      >
+                                        {day.checked ? "✓" : ""}
+                                      </span>
+                                      <small>{day.label}</small>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="checkin-streak-hero">
+                                  <strong>{streakDays}</strong>
+                                  <span>Days Together</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className={`checkin-stamp-button ${checkedToday ? "checked" : "unchecked"}`}
+                                  disabled={
+                                    checkedToday ||
+                                    checkinSubmitting ||
+                                    checkinLoading
+                                  }
+                                  onClick={() => void handleCheckin()}
+                                >
+                                  {checkedToday
+                                    ? "已陪伴 💖"
+                                    : checkinSubmitting
+                                      ? "盖章中…"
+                                      : "打卡 / Stamp"}
+                                </button>
+                              </>
+                            )}
                           </article>
                         ) : widget ? (
                           widget.type === "text" ? (
