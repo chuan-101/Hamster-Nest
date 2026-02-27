@@ -142,11 +142,13 @@
 }
 
 .home-page .glass-card {
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(12px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 214, 231, 0.78);
+  background: rgba(255, 255, 255, 0.45);
+  box-shadow:
+    0 8px 24px rgba(255, 214, 231, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52);
+  backdrop-filter: blur(20px);
 }
 
 .widget-toolbar {
@@ -218,7 +220,7 @@
 
 .widget-card {
   min-height: 105px;
-  padding: 0.7rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -286,36 +288,123 @@
 .checkin-inner {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.7rem;
+  height: 100%;
 }
 
-.checkin-wide .checkin-metrics-mini {
+.checkin-wide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.8rem;
+  align-items: stretch;
 }
 
-.checkin-head {
+.checkin-wide-left {
   display: flex;
-  justify-content: space-between;
-  gap: 0.4rem;
-  align-items: center;
-  font-size: 0.9rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
 }
 
-.checkin-head .done {
-  color: #15803d;
+.checkin-streak-hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.45rem;
+  color: #5c5c5c;
 }
 
-.checkin-head .todo {
-  color: #b45309;
+.checkin-streak-hero strong {
+  font-size: 2rem;
+  line-height: 0.95;
+  color: #ffd6e7;
+}
+
+.checkin-streak-hero span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.18rem;
 }
 
 .checkin-metrics-mini {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.4rem;
-  color: #334155;
+  color: #5c5c5c;
   font-size: 0.78rem;
   flex-wrap: wrap;
+}
+
+.checkin-stamp-button {
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  padding: 0.56rem 0.9rem;
+  font-size: 0.83rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.checkin-stamp-button.unchecked {
+  background: #ffd6e7;
+  color: #ffffff;
+}
+
+.checkin-stamp-button.checked {
+  color: #5c5c5c;
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid rgba(255, 214, 231, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.checkin-stamp-button:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.weekly-tracker {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  justify-content: flex-end;
+}
+
+.weekly-day-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.weekly-day-item small {
+  color: #5c5c5c;
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+.weekly-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.weekly-dot.unchecked {
+  border: 1px dashed #ffd6e7;
+  color: transparent;
+  background: transparent;
+}
+
+.weekly-dot.checked {
+  border: 1px solid #ffd6e7;
+  background: #ffd6e7;
+  color: #ffffff;
+}
+
+.weekly-dot.today {
+  box-shadow: 0 0 0 3px rgba(255, 214, 231, 0.24);
 }
 
 .widget-delete {
