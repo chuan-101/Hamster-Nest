@@ -784,15 +784,11 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
   };
 
   const handleEmojiChange = (iconId: string, emoji: string) => {
-    const fallback =
-      (defaultAppIconConfigs[iconId] as { type: "emoji"; emoji: string })
-        ?.emoji ?? "🙂";
-    const nextEmoji = emoji.trim() || fallback;
     setAppIconConfigs((current) => ({
       ...current,
       [iconId]: {
         type: "emoji",
-        emoji: nextEmoji,
+        emoji,
       },
     }));
   };

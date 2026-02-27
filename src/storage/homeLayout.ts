@@ -188,7 +188,46 @@ const parseHomeSettings = (raw: string | null): HomeSettingsState | null => {
     return null
   }
   try {
-    return JSON.parse(raw) as HomeSettingsState
+    const parsed = JSON.parse(raw) as HomeSettingsState
+    const normalizedWidgets = Array.isArray(parsed.widgets)
+      ? parsed.widgets.reduce<DecorativeWidget[]>((accumulator, widget) => {
+          if (!widget || typeof widget !== 'object' || typeof widget.id !== 'string') {
+            return accumulator
+          }
+
+          if (widget.type === 'text') {
+            accumulator.push({
+              ...widget,
+              size: widget.size ?? '1x1',
+            })
+            return accumulator
+          }
+
+          if (widget.type === 'image') {
+            accumulator.push({
+              ...widget,
+              size: widget.size ?? '1x1',
+            })
+            return accumulator
+          }
+
+          if (widget.type === 'spacer') {
+            accumulator.push({
+              ...widget,
+              size: widget.size ?? '1x1',
+            })
+          }
+
+          return accumulator
+        }, [])
+      : []
+
+    return {
+      ...parsed,
+      widgetOrder: Array.isArray(parsed.widgetOrder) ? parsed.widgetOrder : [],
+      widgets: normalizedWidgets,
+      checkinSize: parsed.checkinSize ?? '1x1',
+    }
   } catch (error) {
     console.warn('解析 Home 配置失败', error)
     return null
@@ -210,7 +249,15 @@ export const loadHomeSettings = (): HomeSettingsState | null => {
 }
 
 export const saveHomeSettings = (state: HomeSettingsState) => {
-  localStorage.setItem(HOME_SETTINGS_STORAGE_KEY, JSON.stringify(state))
+  const nextState: HomeSettingsState = {
+    ...state,
+    widgets: state.widgets.map((widget) => ({
+      ...widget,
+      size: widget.size ?? '1x1',
+    })),
+    checkinSize: state.checkinSize ?? '1x1',
+  }
+  localStorage.setItem(HOME_SETTINGS_STORAGE_KEY, JSON.stringify(nextState))
   window.dispatchEvent(new Event('hamster-home-settings-changed'))
 }
 
