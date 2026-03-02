@@ -35,6 +35,49 @@ type UserSettingsRow = {
 
 const defaultModel = 'openrouter/auto'
 
+const HIGH_THINKING_STORAGE_KEY_PREFIX = 'hamster-high-thinking:'
+
+type HighThinkingLocalSettings = {
+  chatHighThinkingEnabled: boolean
+  rpHighThinkingEnabled: boolean
+}
+
+const readHighThinkingLocalSettings = (userId: string): HighThinkingLocalSettings => {
+  if (typeof window === 'undefined') {
+    return { chatHighThinkingEnabled: false, rpHighThinkingEnabled: false }
+  }
+  try {
+    const raw = window.localStorage.getItem(`${HIGH_THINKING_STORAGE_KEY_PREFIX}${userId}`)
+    if (!raw) {
+      return { chatHighThinkingEnabled: false, rpHighThinkingEnabled: false }
+    }
+    const parsed = JSON.parse(raw) as Partial<HighThinkingLocalSettings>
+    return {
+      chatHighThinkingEnabled: parsed.chatHighThinkingEnabled === true,
+      rpHighThinkingEnabled: parsed.rpHighThinkingEnabled === true,
+    }
+  } catch {
+    return { chatHighThinkingEnabled: false, rpHighThinkingEnabled: false }
+  }
+}
+
+const writeHighThinkingLocalSettings = (
+  userId: string,
+  settings: HighThinkingLocalSettings,
+) => {
+  if (typeof window === 'undefined') {
+    return
+  }
+  try {
+    window.localStorage.setItem(
+      `${HIGH_THINKING_STORAGE_KEY_PREFIX}${userId}`,
+      JSON.stringify(settings),
+    )
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export const createDefaultSettings = (userId: string): UserSettings => ({
   userId,
   enabledModels: [defaultModel],
@@ -55,10 +98,14 @@ export const createDefaultSettings = (userId: string): UserSettings => ({
   syzygyReplySystemPrompt: DEFAULT_SYZYGY_REPLY_PROMPT,
   chatReasoningEnabled: true,
   rpReasoningEnabled: false,
+  chatHighThinkingEnabled: false,
+  rpHighThinkingEnabled: false,
   updatedAt: new Date().toISOString(),
 })
 
-const mapSettingsRow = (row: UserSettingsRow): UserSettings => ({
+const mapSettingsRow = (row: UserSettingsRow): UserSettings => {
+  const localHighThinking = readHighThinkingLocalSettings(row.user_id)
+  return ({
   userId: row.user_id,
   enabledModels: row.enabled_models ?? [defaultModel],
   defaultModel: row.default_model ?? defaultModel,
@@ -78,8 +125,11 @@ const mapSettingsRow = (row: UserSettingsRow): UserSettings => ({
   syzygyReplySystemPrompt: resolveSyzygyReplyPrompt(row.syzygy_reply_system_prompt),
   chatReasoningEnabled: row.chat_reasoning_enabled ?? row.enable_reasoning ?? true,
   rpReasoningEnabled: row.rp_reasoning_enabled ?? false,
+  chatHighThinkingEnabled: localHighThinking.chatHighThinkingEnabled,
+  rpHighThinkingEnabled: localHighThinking.rpHighThinkingEnabled,
   updatedAt: row.updated_at,
 })
+}
 
 export const ensureUserSettings = async (userId: string): Promise<UserSettings> => {
   if (!supabase) {
@@ -168,6 +218,10 @@ export const updateUserSettings = async (settings: UserSettings): Promise<void> 
   if (error) {
     throw error
   }
+  writeHighThinkingLocalSettings(settings.userId, {
+    chatHighThinkingEnabled: settings.chatHighThinkingEnabled,
+    rpHighThinkingEnabled: settings.rpHighThinkingEnabled,
+  })
 }
 
 export const saveSnackSystemPrompt = async (userId: string, value: string): Promise<void> => {

@@ -14,7 +14,7 @@ type OpenRouterPayload = {
   temperature?: number
   top_p?: number
   max_tokens?: number
-  reasoning?: boolean
+  reasoning?: boolean | Record<string, unknown>
   stream?: boolean
   isFirstMessage?: boolean
   module?: 'snack-feed' | 'syzygy-feed' | 'rp-room' | string
@@ -118,6 +118,16 @@ const injectMemoryBlock = (messages: OpenAiMessage[], memoryMessage: OpenAiMessa
 }
 
 const shouldInjectSnackFeedMemory = (payload: OpenRouterPayload) => payload.module === 'snack-feed'
+
+const resolveReasoningPayload = (reasoning: OpenRouterPayload['reasoning']) => {
+  if (reasoning === true) {
+    return { effort: 'medium' }
+  }
+  if (reasoning && typeof reasoning === 'object' && !Array.isArray(reasoning)) {
+    return reasoning
+  }
+  return null
+}
 
 const shouldInjectSyzygyFeedMemory = (payload: OpenRouterPayload) => payload.module === 'syzygy-feed'
 
@@ -956,7 +966,7 @@ serve(async (req) => {
         temperature,
         top_p,
         max_tokens,
-        ...(reasoning ? { reasoning: { effort: 'medium' } } : {}),
+        ...(resolveReasoningPayload(reasoning) ? { reasoning: resolveReasoningPayload(reasoning) } : {}),
         stream,
       }),
     })

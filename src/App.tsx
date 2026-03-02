@@ -58,7 +58,7 @@ import {
   resolveSyzygyPostPrompt,
   resolveSyzygyReplyPrompt,
 } from './constants/aiOverlays'
-import { resolveModelId } from './utils/modelResolver'
+import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -558,6 +558,7 @@ const App = () => {
       const activeSettings = settingsRef.current ?? fallbackSettings
       const effectiveModel = resolveSessionModel(sessionId)
       const reasoningEnabled = resolveSessionReasoning(sessionId)
+      const highThinkingEnabled = activeSettings.chatHighThinkingEnabled
       const paramsSnapshot = {
         temperature: activeSettings.temperature,
         top_p: activeSettings.topP,
@@ -858,7 +859,9 @@ const App = () => {
             isFirstMessage: isFirstMessageInSession,
           }
           if (reasoningEnabled) {
-            requestBody.reasoning = true
+            requestBody.reasoning = highThinkingEnabled && isGpt5Auto(effectiveModel)
+              ? { effort: 'high' }
+              : true
           }
           if (reasoningEnabled && isClaudeModel(effectiveModel)) {
             const maxTokens = paramsSnapshot.max_tokens ?? 1024
@@ -1460,7 +1463,7 @@ const App = () => {
           path="/rp/:sessionId"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <RpRoomPage user={user} mode="chat" rpReasoningEnabled={activeSettings.rpReasoningEnabled} onDisableRpReasoning={handleDisableRpReasoning} />
+              <RpRoomPage user={user} mode="chat" rpReasoningEnabled={activeSettings.rpReasoningEnabled} rpHighThinkingEnabled={activeSettings.rpHighThinkingEnabled} onDisableRpReasoning={handleDisableRpReasoning} />
             </RequireAuth>
           }
         />
@@ -1468,7 +1471,7 @@ const App = () => {
           path="/rp/:sessionId/dashboard"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <RpRoomPage user={user} mode="dashboard" rpReasoningEnabled={activeSettings.rpReasoningEnabled} onDisableRpReasoning={handleDisableRpReasoning} />
+              <RpRoomPage user={user} mode="dashboard" rpReasoningEnabled={activeSettings.rpReasoningEnabled} rpHighThinkingEnabled={activeSettings.rpHighThinkingEnabled} onDisableRpReasoning={handleDisableRpReasoning} />
             </RequireAuth>
           }
         />

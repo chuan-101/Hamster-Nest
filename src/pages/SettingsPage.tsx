@@ -66,6 +66,8 @@ const SettingsPage = ({
   const [draftDefaultModel, setDraftDefaultModel] = useState(defaultModelId)
   const [draftChatReasoning, setDraftChatReasoning] = useState(true)
   const [draftRpReasoning, setDraftRpReasoning] = useState(false)
+  const [draftChatHighThinking, setDraftChatHighThinking] = useState(false)
+  const [draftRpHighThinking, setDraftRpHighThinking] = useState(false)
   const [draftMemoryExtractModel, setDraftMemoryExtractModel] = useState<string | null>(null)
   const [modelStatus, setModelStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [modelError, setModelError] = useState<string | null>(null)
@@ -117,6 +119,8 @@ const SettingsPage = ({
       setDraftMemoryExtractModel(settings.memoryExtractModel)
       setDraftChatReasoning(settings.chatReasoningEnabled)
       setDraftRpReasoning(settings.rpReasoningEnabled)
+      setDraftChatHighThinking(settings.chatHighThinkingEnabled)
+      setDraftRpHighThinking(settings.rpHighThinkingEnabled)
     }, 0)
     return () => {
       window.clearTimeout(timer)
@@ -285,7 +289,9 @@ const SettingsPage = ({
       settings.compressionKeepRecentMessages !== parsedCompressionKeepRecent ||
       (settings.summarizerModel ?? '') !== (draftSummarizerModel ?? '') ||
       settings.chatReasoningEnabled !== draftChatReasoning ||
-      settings.rpReasoningEnabled !== draftRpReasoning
+      settings.rpReasoningEnabled !== draftRpReasoning ||
+      settings.chatHighThinkingEnabled !== draftChatHighThinking ||
+      settings.rpHighThinkingEnabled !== draftRpHighThinking
     : false
   const hasUnsavedSystemPrompt = settings ? draftSystemPrompt !== settings.systemPrompt : false
   const hasUnsavedSnackOverlay = settings
@@ -440,6 +446,16 @@ const SettingsPage = ({
     setGenerationStatus('idle')
   }
 
+  const handleChatHighThinkingToggle = (enabled: boolean) => {
+    setDraftChatHighThinking(enabled)
+    setGenerationStatus('idle')
+  }
+
+  const handleRpHighThinkingToggle = (enabled: boolean) => {
+    setDraftRpHighThinking(enabled)
+    setGenerationStatus('idle')
+  }
+
   const handleCompressionRatioChange = (value: string) => {
     setCompressionRatioInput(value)
     const parsed = Number(value)
@@ -504,6 +520,8 @@ const SettingsPage = ({
       summarizerModel: draftSummarizerModel,
       chatReasoningEnabled: draftChatReasoning,
       rpReasoningEnabled: draftRpReasoning,
+      chatHighThinkingEnabled: draftChatHighThinking,
+      rpHighThinkingEnabled: draftRpHighThinking,
     })
     if (!nextSettings) {
       return
@@ -655,6 +673,8 @@ const SettingsPage = ({
       setDraftMemoryExtractModel(settings.memoryExtractModel)
       setDraftChatReasoning(settings.chatReasoningEnabled)
       setDraftRpReasoning(settings.rpReasoningEnabled)
+      setDraftChatHighThinking(settings.chatHighThinkingEnabled)
+      setDraftRpHighThinking(settings.rpHighThinkingEnabled)
       setModelStatus('idle')
       setModelError(null)
       setDraftSystemPrompt(settings.systemPrompt)
@@ -974,6 +994,31 @@ const SettingsPage = ({
                 />
                 <span>{draftRpReasoning ? '已开启' : '已关闭'}</span>
               </label>
+            </div>
+            <div className="field-group">
+              <label htmlFor="chatHighThinkingEnabled">聊天：高触发 Thinking（仅 GPT-5.1/5.2）</label>
+              <label className="toggle-control">
+                <input
+                  id="chatHighThinkingEnabled"
+                  type="checkbox"
+                  checked={draftChatHighThinking}
+                  onChange={(event) => handleChatHighThinkingToggle(event.target.checked)}
+                />
+                <span>{draftChatHighThinking ? '已开启' : '已关闭'}</span>
+              </label>
+            </div>
+            <div className="field-group">
+              <label htmlFor="rpHighThinkingEnabled">跑跑滚轮区/RP：高触发 Thinking（仅 GPT-5.1/5.2）</label>
+              <label className="toggle-control">
+                <input
+                  id="rpHighThinkingEnabled"
+                  type="checkbox"
+                  checked={draftRpHighThinking}
+                  onChange={(event) => handleRpHighThinkingToggle(event.target.checked)}
+                />
+                <span>{draftRpHighThinking ? '已开启' : '已关闭'}</span>
+              </label>
+              <p className="field-hint">仅对 GPT-5.1 / GPT-5.2 生效；其他模型自动忽略。开启后会更积极触发思考（可能更慢/更耗费）。</p>
             </div>
           </div>
         ) : null}
