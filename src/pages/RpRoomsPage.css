@@ -241,20 +241,21 @@
   margin: 10px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 13px;
 }
 
 .rp-room-tile {
   position: relative;
+  width: 100%;
   border-radius: 20px;
-  padding: 10px;
-  min-height: 160px;
+  padding: 12px;
+  min-height: 0;
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.14);
-  overflow: hidden;
+  overflow: visible;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 8px;
+  grid-template-rows: auto auto auto;
+  gap: 10px;
 }
 
 .rp-room-tile::before {
@@ -381,6 +382,7 @@
 
 .rp-room-tile-content {
   min-height: 0;
+  min-width: 0;
   display: grid;
   align-content: start;
   gap: 5px;
@@ -428,7 +430,12 @@
 
 .rp-rename-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+}
+
+.rp-rename-actions > button {
+  flex: 1 1 120px;
 }
 
 .rp-rooms-page .tips {
@@ -458,12 +465,12 @@
   }
 
   .rp-room-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 11px;
   }
 
   .rp-room-tile {
-    min-height: 148px;
+    min-height: 0;
     border-radius: 18px;
   }
 }
