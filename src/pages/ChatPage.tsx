@@ -31,6 +31,11 @@ const formatTime = (timestamp: string) =>
     minute: '2-digit',
   })
 
+const MESSAGE_ACTIONS_MENU_WIDTH = 140
+const MESSAGE_ACTIONS_MENU_HEIGHT = 84
+const VIEWPORT_MARGIN = 12
+const POPOVER_GAP = 6
+
 const ChatPage = ({
   session,
   messages,
@@ -47,10 +52,13 @@ const ChatPage = ({
 }: ChatPageProps) => {
   const [draft, setDraft] = useState('')
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
+  const [actionsMenuPosition, setActionsMenuPosition] = useState<{ top: number; left: number } | null>(null)
   const [openHeaderMenu, setOpenHeaderMenu] = useState(false)
   const [headerMenuPosition, setHeaderMenuPosition] = useState({ top: 0, right: 0 })
   const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const actionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const navigate = useNavigate()
@@ -122,6 +130,63 @@ const ChatPage = ({
       document.body.classList.remove('chat-page-active')
     }
   }, [])
+
+  useEffect(() => {
+    if (!openActionsId) {
+      setActionsMenuPosition(null)
+      return
+    }
+
+    const updateActionsMenuPosition = () => {
+      const trigger = actionTriggerRefs.current[openActionsId]
+      if (!trigger) {
+        setActionsMenuPosition(null)
+        return
+      }
+
+      const triggerRect = trigger.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+
+      let left = triggerRect.right - MESSAGE_ACTIONS_MENU_WIDTH
+      left = Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(left, viewportWidth - MESSAGE_ACTIONS_MENU_WIDTH - VIEWPORT_MARGIN),
+      )
+
+      let top = triggerRect.bottom + POPOVER_GAP
+      if (top + MESSAGE_ACTIONS_MENU_HEIGHT > viewportHeight - VIEWPORT_MARGIN) {
+        top = triggerRect.top - MESSAGE_ACTIONS_MENU_HEIGHT - POPOVER_GAP
+      }
+      top = Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(top, viewportHeight - MESSAGE_ACTIONS_MENU_HEIGHT - VIEWPORT_MARGIN),
+      )
+
+      setActionsMenuPosition({ top, left })
+    }
+
+    updateActionsMenuPosition()
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as Node
+      const trigger = actionTriggerRefs.current[openActionsId]
+      if (trigger?.contains(target) || actionsMenuRef.current?.contains(target)) {
+        return
+      }
+      setOpenActionsId(null)
+    }
+
+    window.addEventListener('resize', updateActionsMenuPosition)
+    window.addEventListener('scroll', updateActionsMenuPosition, true)
+    document.addEventListener('click', handleClick)
+
+    return () => {
+      window.removeEventListener('resize', updateActionsMenuPosition)
+      window.removeEventListener('scroll', updateActionsMenuPosition, true)
+      document.removeEventListener('click', handleClick)
+    }
+  }, [openActionsId])
 
   useEffect(() => {
     if (!openHeaderMenu) {
@@ -302,6 +367,9 @@ const ChatPage = ({
                 <span className="timestamp">{formatTime(message.createdAt)}</span>
                 <div className="message-actions">
                   <button
+                    ref={(node) => {
+                      actionTriggerRefs.current[message.id] = node
+                    }}
                     type="button"
                     className="ghost action-trigger"
                     aria-expanded={openActionsId === message.id}
@@ -314,21 +382,6 @@ const ChatPage = ({
                   >
                     •••
                   </button>
-                  {openActionsId === message.id ? (
-                    <div className="actions-menu" role="menu">
-                      <button type="button" role="menuitem" onClick={() => handleCopy(message)}>
-                        复制
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="danger"
-                        onClick={() => handleDelete(message)}
-                      >
-                        删除
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -336,6 +389,43 @@ const ChatPage = ({
         )}
         <div ref={bottomRef} />
       </main>
+      {openActionsId && actionsMenuPosition
+        ? createPortal(
+            <div
+              className="actions-menu actions-menu-portal"
+              role="menu"
+              style={{ top: actionsMenuPosition.top, left: actionsMenuPosition.left }}
+              ref={actionsMenuRef}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const targetMessage = messages.find((message) => message.id === openActionsId)
+                  if (targetMessage) {
+                    void handleCopy(targetMessage)
+                  }
+                }}
+              >
+                复制
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="danger"
+                onClick={() => {
+                  const targetMessage = messages.find((message) => message.id === openActionsId)
+                  if (targetMessage) {
+                    handleDelete(targetMessage)
+                  }
+                }}
+              >
+                删除
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
       <form className="chat-composer glass-card" onSubmit={handleSubmit}>
         {isStreaming ? (
           <div className="streaming-status">
