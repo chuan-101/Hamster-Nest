@@ -212,6 +212,7 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
     Record<string, string>
   >({});
   const [editingIconId, setEditingIconId] = useState(DEFAULT_ICON_ORDER[0]);
+  const [homeSettingsReady, setHomeSettingsReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const homeBackgroundInputRef = useRef<HTMLInputElement | null>(null);
   const appIconInputRef = useRef<HTMLInputElement | null>(null);
@@ -331,6 +332,7 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
     const cached = loadHomeSettings();
     if (!cached) {
       setAppIconConfigs(defaultAppIconConfigs);
+      setHomeSettingsReady(true);
       return;
     }
 
@@ -370,9 +372,14 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
       ...defaultAppIconConfigs,
       ...(cached.appIconConfigs ?? {}),
     });
+    setHomeSettingsReady(true);
   }, [defaultAppIconConfigs]);
 
   useEffect(() => {
+    if (!homeSettingsReady) {
+      return;
+    }
+
     saveHomeSettings({
       iconOrder,
       widgetOrder,
@@ -397,6 +404,7 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
     iconTileBgOpacity,
     pageOverlayColor,
     pageOverlayOpacity,
+    homeSettingsReady,
     showEmptySlots,
     widgetOrder,
     widgets,

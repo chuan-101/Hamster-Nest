@@ -45,8 +45,9 @@ export type HomeSettingsState = {
   appIconConfigs?: Record<string, AppIconConfig>
 }
 
-const HOME_SETTINGS_STORAGE_KEY = 'hamster_home_settings_v1'
+const HOME_SETTINGS_STORAGE_KEY = 'hamster_widget_prefs_v1'
 const LEGACY_HOME_LAYOUT_STORAGE_KEY = 'hamster.home.layout.v1'
+const LEGACY_HOME_SETTINGS_STORAGE_KEY = 'hamster_home_settings_v1'
 const IMAGE_DB_NAME = 'hamster-home-db'
 const IMAGE_STORE_NAME = 'home_assets'
 const IMAGE_DB_VERSION = 2
@@ -238,6 +239,13 @@ export const loadHomeSettings = (): HomeSettingsState | null => {
   const current = parseHomeSettings(localStorage.getItem(HOME_SETTINGS_STORAGE_KEY))
   if (current) {
     return current
+  }
+
+  const legacySettings = parseHomeSettings(localStorage.getItem(LEGACY_HOME_SETTINGS_STORAGE_KEY))
+  if (legacySettings) {
+    localStorage.setItem(HOME_SETTINGS_STORAGE_KEY, JSON.stringify(legacySettings))
+    localStorage.removeItem(LEGACY_HOME_SETTINGS_STORAGE_KEY)
+    return legacySettings
   }
 
   const legacy = parseHomeSettings(localStorage.getItem(LEGACY_HOME_LAYOUT_STORAGE_KEY))
