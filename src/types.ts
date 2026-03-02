@@ -53,6 +53,8 @@ export type UserSettings = {
   syzygyReplySystemPrompt: string
   chatReasoningEnabled: boolean
   rpReasoningEnabled: boolean
+  chatHighThinkingEnabled: boolean
+  rpHighThinkingEnabled: boolean
   updatedAt: string
 }
 

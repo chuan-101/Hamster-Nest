@@ -32,3 +32,13 @@ export const resolveModelId = (
 
   return defaultModelId
 }
+
+export const isGpt5Auto = (modelId: string) => {
+  const normalized = modelId.trim().toLowerCase()
+  return (
+    normalized.includes('gpt-5.1') ||
+    normalized.includes('gpt-5.2') ||
+    normalized.includes('openai/gpt-5.1') ||
+    normalized.includes('openai/gpt-5.2')
+  )
+}

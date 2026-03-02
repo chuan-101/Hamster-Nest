@@ -7,6 +7,7 @@ import MarkdownRenderer from '../components/MarkdownRenderer'
 import ReasoningPanel from '../components/ReasoningPanel'
 import { useEnabledModels } from '../hooks/useEnabledModels'
 import { stripSpeakerPrefix } from '../utils/rpMessage'
+import { isGpt5Auto } from '../utils/modelResolver'
 import { supabase } from '../supabase/client'
 import {
   createRpMessage,
@@ -27,6 +28,7 @@ type RpRoomPageProps = {
   user: User | null
   mode?: 'chat' | 'dashboard'
   rpReasoningEnabled: boolean
+  rpHighThinkingEnabled: boolean
   onDisableRpReasoning: () => Promise<void>
 }
 
@@ -87,7 +89,7 @@ const readRoomContextTokenLimit = (value: unknown) => {
   return Math.min(Math.max(normalized, RP_ROOM_CONTEXT_TOKEN_LIMIT_MIN), RP_ROOM_CONTEXT_TOKEN_LIMIT_MAX)
 }
 
-const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReasoning }: RpRoomPageProps) => {
+const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, rpHighThinkingEnabled, onDisableRpReasoning }: RpRoomPageProps) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
   const [room, setRoom] = useState<RpSession | null>(null)
@@ -347,6 +349,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
     reasoning?: boolean
     rpKeepRecentMessages?: number
     bypassReasoning?: boolean
+    highThinking?: boolean
   }) => {
     if (!supabase) {
       throw new Error('Supabase 客户端未配置')
@@ -377,7 +380,9 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
       requestBody.rpKeepRecentMessages = payload.rpKeepRecentMessages
     }
     if (payload.reasoning && !payload.bypassReasoning) {
-      requestBody.reasoning = true
+      requestBody.reasoning = payload.highThinking && isGpt5Auto(payload.modelId)
+        ? { effort: 'high' }
+        : true
       if (/claude|anthropic/i.test(payload.modelId)) {
         requestBody.thinking = {
           type: 'enabled',
@@ -611,6 +616,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
           topP,
           messagesPayload: modelMessages,
           reasoning: reasoningEnabled,
+          highThinking: rpHighThinkingEnabled,
           rpKeepRecentMessages: readRoomKeepRecentMessages(room.settings),
           stream: true,
           onDelta: (delta) => {
@@ -644,6 +650,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, onDisableRpReason
           topP,
           messagesPayload: modelMessages,
           reasoning: reasoningEnabled,
+          highThinking: rpHighThinkingEnabled,
           rpKeepRecentMessages: readRoomKeepRecentMessages(room.settings),
           stream: false,
         })
