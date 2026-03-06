@@ -52,6 +52,8 @@ import RpRoomsPage from './pages/RpRoomsPage'
 import RpRoomPage from './pages/RpRoomPage'
 import HomePage from './pages/HomePage'
 import HomeLayoutSettingsPage from './pages/HomeLayoutSettingsPage'
+import ForumPage from './pages/ForumPage'
+import LettersPage from './pages/LettersPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1400,6 +1402,22 @@ const App = () => {
                 sessionsReady={sessionsReady}
                 onCreateSession={createSessionEntry}
               />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/forum"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <ForumPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/letters"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <LettersPage />
             </RequireAuth>
           }
         />
