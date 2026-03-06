@@ -53,6 +53,9 @@ import RpRoomPage from './pages/RpRoomPage'
 import HomePage from './pages/HomePage'
 import HomeLayoutSettingsPage from './pages/HomeLayoutSettingsPage'
 import ForumPage from './pages/ForumPage'
+import ForumNewThreadPage from './pages/ForumNewThreadPage'
+import ForumThreadPage from './pages/ForumThreadPage'
+import ForumSettingsPage from './pages/ForumSettingsPage'
 import LettersPage from './pages/LettersPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
@@ -1410,6 +1413,30 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <ForumPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/forum/new"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <ForumNewThreadPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/forum/thread/:id"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <ForumThreadPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/forum/settings"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <ForumSettingsPage />
             </RequireAuth>
           }
         />
