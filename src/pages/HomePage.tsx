@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type SetStateAction,
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +23,8 @@ import {
   saveImageDataUrl,
   type AppIconConfig,
   type DecorativeWidget,
+  type HomeLayoutPageId,
+  type HomePageLayoutState,
 } from "../storage/homeLayout";
 import "./HomePage.css";
 
@@ -59,12 +62,37 @@ const DEFAULT_ICON_ORDER = [
   "settings",
   "export",
 ];
+const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters"];
+const PAGE_IDS: HomeLayoutPageId[] = ["page1", "page2"];
 const CORE_WIDGET_ID = "widget-checkin";
 const MAX_WIDGETS = 6;
 const DEFAULT_ICON_TILE_BG_COLOR = "#ffffff";
 const DEFAULT_ICON_TILE_BG_OPACITY = 0.65;
 const DEFAULT_PAGE_OVERLAY_COLOR = "#ffffff";
 const DEFAULT_PAGE_OVERLAY_OPACITY = 0.2;
+const PAGE_LABELS: Record<HomeLayoutPageId, string> = {
+  page1: "Page 1",
+  page2: "Page 2",
+};
+
+const createDefaultPageLayouts = (): Record<HomeLayoutPageId, HomePageLayoutState> => ({
+  page1: {
+    iconOrder: DEFAULT_ICON_ORDER,
+    widgetOrder: [CORE_WIDGET_ID],
+    widgets: [],
+    checkinSize: "1x1",
+    showEmptySlots: false,
+    appIconConfigs: {},
+  },
+  page2: {
+    iconOrder: DEFAULT_PAGE2_ICON_ORDER,
+    widgetOrder: [CORE_WIDGET_ID],
+    widgets: [],
+    checkinSize: "1x1",
+    showEmptySlots: false,
+    appIconConfigs: {},
+  },
+});
 
 const imageCache = new Map<string, string>();
 
@@ -177,11 +205,11 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
   );
   const [notice, setNotice] = useState<string | null>(null);
 
-  const [iconOrder, setIconOrder] = useState<string[]>(DEFAULT_ICON_ORDER);
-  const [widgetOrder, setWidgetOrder] = useState<string[]>([CORE_WIDGET_ID]);
-  const [widgets, setWidgets] = useState<DecorativeWidget[]>([]);
-  const [checkinSize, setCheckinSize] = useState<WidgetSize>("1x1");
-  const [showEmptySlots, setShowEmptySlots] = useState(false);
+  const [activePage, setActivePage] = useState<HomeLayoutPageId>("page1");
+  const [pageLayouts, setPageLayouts] = useState<Record<
+    HomeLayoutPageId,
+    HomePageLayoutState
+  >>(() => createDefaultPageLayouts());
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [iconTileBgColor, setIconTileBgColor] = useState(
     DEFAULT_ICON_TILE_BG_COLOR,
@@ -207,7 +235,6 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
       ? window.matchMedia("(max-width: 900px)").matches
       : true,
   );
-  const [appIconConfigs, setAppIconConfigs] = useState<AppIconState>({});
   const [appIconImageUrls, setAppIconImageUrls] = useState<
     Record<string, string>
   >({});
@@ -234,6 +261,8 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
       { id: "rp", defaultEmoji: "🎭", label: "RP 房间", route: "/rp" },
       { id: "settings", defaultEmoji: "⚙️", label: "设置", route: "/settings" },
       { id: "export", defaultEmoji: "📦", label: "导出", route: "/export" },
+      { id: "forum", defaultEmoji: "💭", label: "Forum", route: "/forum" },
+      { id: "letters", defaultEmoji: "💌", label: "Letters", route: "/letters" },
     ],
     [onOpenChat],
   );
@@ -253,6 +282,78 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
       ),
     [appIcons],
   );
+
+  const activeLayout = pageLayouts[activePage];
+  const iconOrder = activeLayout.iconOrder;
+  const widgetOrder = activeLayout.widgetOrder;
+  const widgets = activeLayout.widgets;
+  const checkinSize = activeLayout.checkinSize ?? "1x1";
+  const showEmptySlots = activeLayout.showEmptySlots ?? false;
+  const appIconConfigs = useMemo(
+    () => activeLayout.appIconConfigs ?? {},
+    [activeLayout.appIconConfigs],
+  );
+
+  const updateActiveLayout = (
+    updater: (layout: HomePageLayoutState) => HomePageLayoutState,
+  ) => {
+    setPageLayouts((current) => ({
+      ...current,
+      [activePage]: updater(current[activePage]),
+    }));
+  };
+
+  const setIconOrder = (next: SetStateAction<string[]>) => {
+    updateActiveLayout((layout) => ({
+      ...layout,
+      iconOrder: typeof next === "function" ? next(layout.iconOrder) : next,
+    }));
+  };
+
+  const setWidgetOrder = (next: SetStateAction<string[]>) => {
+    updateActiveLayout((layout) => ({
+      ...layout,
+      widgetOrder:
+        typeof next === "function" ? next(layout.widgetOrder) : next,
+    }));
+  };
+
+  const setWidgets = (next: SetStateAction<DecorativeWidget[]>) => {
+    updateActiveLayout((layout) => ({
+      ...layout,
+      widgets: typeof next === "function" ? next(layout.widgets) : next,
+    }));
+  };
+
+  const setCheckinSize = (next: SetStateAction<WidgetSize>) => {
+    updateActiveLayout((layout) => ({
+      ...layout,
+      checkinSize:
+        typeof next === "function"
+          ? next((layout.checkinSize ?? "1x1") as WidgetSize)
+          : next,
+    }));
+  };
+
+  const setShowEmptySlots = (next: SetStateAction<boolean>) => {
+    updateActiveLayout((layout) => ({
+      ...layout,
+      showEmptySlots:
+        typeof next === "function"
+          ? next(layout.showEmptySlots ?? false)
+          : next,
+    }));
+  };
+
+  const setAppIconConfigs = (next: SetStateAction<AppIconState>) => {
+    updateActiveLayout((layout) => ({
+      ...layout,
+      appIconConfigs:
+        typeof next === "function"
+          ? next((layout.appIconConfigs ?? {}) as AppIconState)
+          : next,
+    }));
+  };
 
   const todayKey = useMemo(() => formatDateKey(now), [now]);
   const checkedToday = useMemo(
@@ -329,35 +430,88 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
   }, [isSettingsPage]);
 
   useEffect(() => {
+    if (!iconOrder.includes(editingIconId)) {
+      setEditingIconId(iconOrder[0] ?? "chat");
+    }
+  }, [editingIconId, iconOrder]);
+
+  useEffect(() => {
     const cached = loadHomeSettings();
     if (!cached) {
-      setAppIconConfigs(defaultAppIconConfigs);
+      setPageLayouts((current) => ({
+        ...current,
+        page1: {
+          ...current.page1,
+          appIconConfigs: defaultAppIconConfigs,
+        },
+      }));
       setHomeSettingsReady(true);
       return;
     }
 
-    const safeIconOrder = DEFAULT_ICON_ORDER.filter((id) =>
-      cached.iconOrder.includes(id),
-    );
-    const missing = DEFAULT_ICON_ORDER.filter(
-      (id) => !safeIconOrder.includes(id),
-    );
-    setIconOrder([...safeIconOrder, ...missing]);
+    const normalizePage = (
+      page: HomePageLayoutState | undefined,
+      fallbackOrder: string[],
+      fallbackConfigs: AppIconState,
+    ): HomePageLayoutState => {
+      const safeIconOrder = fallbackOrder.filter((id) =>
+        page?.iconOrder?.includes(id),
+      );
+      const extra = (page?.iconOrder ?? []).filter(
+        (id) => !safeIconOrder.includes(id),
+      );
+      const missing = fallbackOrder.filter((id) => !safeIconOrder.includes(id));
 
-    const safeWidgets = cached.widgets.filter(
-      (widget) =>
-        widget.type === "image" ||
-        widget.type === "text" ||
-        widget.type === "spacer",
-    );
-    const widgetIds = safeWidgets.map((widget) => widget.id);
-    const restoredOrder = cached.widgetOrder.filter(
-      (id) => id === CORE_WIDGET_ID || widgetIds.includes(id),
-    );
-    setWidgets(safeWidgets);
-    setWidgetOrder(Array.from(new Set([CORE_WIDGET_ID, ...restoredOrder])));
-    setCheckinSize(cached.checkinSize ?? "1x1");
-    setShowEmptySlots(cached.showEmptySlots ?? false);
+      const safeWidgets = (page?.widgets ?? []).filter(
+        (widget) =>
+          widget.type === "image" ||
+          widget.type === "text" ||
+          widget.type === "spacer",
+      );
+      const widgetIds = safeWidgets.map((widget) => widget.id);
+      const restoredOrder = (page?.widgetOrder ?? []).filter(
+        (id) => id === CORE_WIDGET_ID || widgetIds.includes(id),
+      );
+
+      return {
+        iconOrder: [...safeIconOrder, ...extra, ...missing],
+        widgetOrder: Array.from(new Set([CORE_WIDGET_ID, ...restoredOrder])),
+        widgets: safeWidgets,
+        checkinSize: page?.checkinSize ?? "1x1",
+        showEmptySlots: page?.showEmptySlots ?? false,
+        appIconConfigs: {
+          ...fallbackConfigs,
+          ...(page?.appIconConfigs ?? {}),
+        },
+      };
+    };
+
+    const pageLayoutsFromCache = cached.pageLayouts;
+    const legacyPage1: HomePageLayoutState = {
+      iconOrder: cached.iconOrder,
+      widgetOrder: cached.widgetOrder,
+      widgets: cached.widgets,
+      checkinSize: cached.checkinSize,
+      showEmptySlots: cached.showEmptySlots,
+      appIconConfigs: cached.appIconConfigs,
+    };
+
+    setPageLayouts({
+      page1: normalizePage(
+        pageLayoutsFromCache?.page1 ?? legacyPage1,
+        DEFAULT_ICON_ORDER,
+        defaultAppIconConfigs,
+      ),
+      page2: normalizePage(
+        pageLayoutsFromCache?.page2,
+        DEFAULT_PAGE2_ICON_ORDER,
+        {
+          forum: defaultAppIconConfigs.forum,
+          letters: defaultAppIconConfigs.letters,
+        },
+      ),
+    });
+
     setIconTileBgColor(cached.iconTileBgColor ?? DEFAULT_ICON_TILE_BG_COLOR);
     setIconTileBgOpacity(
       cached.iconTileBgOpacity ?? DEFAULT_ICON_TILE_BG_OPACITY,
@@ -368,10 +522,6 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
     );
     setHomeBackgroundImageKey(cached.homeBackgroundImageKey ?? null);
     setHomeBackgroundImageDataUrl(cached.homeBackgroundImageDataUrl ?? null);
-    setAppIconConfigs({
-      ...defaultAppIconConfigs,
-      ...(cached.appIconConfigs ?? {}),
-    });
     setHomeSettingsReady(true);
   }, [defaultAppIconConfigs]);
 
@@ -381,33 +531,29 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
     }
 
     saveHomeSettings({
-      iconOrder,
-      widgetOrder,
-      widgets,
-      checkinSize,
-      showEmptySlots,
+      iconOrder: pageLayouts.page1.iconOrder,
+      widgetOrder: pageLayouts.page1.widgetOrder,
+      widgets: pageLayouts.page1.widgets,
+      checkinSize: pageLayouts.page1.checkinSize,
+      showEmptySlots: pageLayouts.page1.showEmptySlots,
       iconTileBgColor,
       iconTileBgOpacity,
       pageOverlayColor,
       pageOverlayOpacity,
       homeBackgroundImageKey,
       homeBackgroundImageDataUrl,
-      appIconConfigs,
+      appIconConfigs: pageLayouts.page1.appIconConfigs,
+      pageLayouts,
     });
   }, [
-    appIconConfigs,
-    checkinSize,
     homeBackgroundImageKey,
     homeBackgroundImageDataUrl,
-    iconOrder,
     iconTileBgColor,
     iconTileBgOpacity,
+    pageLayouts,
     pageOverlayColor,
     pageOverlayOpacity,
     homeSettingsReady,
-    showEmptySlots,
-    widgetOrder,
-    widgets,
   ]);
 
   useEffect(() => {
@@ -664,6 +810,10 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
       window.clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
+  };
+
+  const handleSwitchPage = (page: HomeLayoutPageId) => {
+    setActivePage(page);
   };
 
   const canAddWidget = decoratedWidgetCount < MAX_WIDGETS;
@@ -935,7 +1085,7 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
                     完成
                   </button>
                   <h1 className="ui-title">主页布局</h1>
-                  <p>编辑组件并实时预览</p>
+                  <p>编辑组件并实时预览（当前：{PAGE_LABELS[activePage]}）</p>
                   {isMobileViewport ? (
                     <div
                       className="home-mode-toggle"
@@ -968,11 +1118,35 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
                   >
                     编辑
                   </button>
-                  <h1 className="ui-title ui-numeric home-clock-title">{timeLabel}</h1>
-                  <p>{dateLabel}</p>
+                  {activePage === "page1" ? (
+                    <>
+                      <h1 className="ui-title ui-numeric home-clock-title">{timeLabel}</h1>
+                      <p>{dateLabel}</p>
+                    </>
+                  ) : (
+                    <>
+                      <h1 className="ui-title">{PAGE_LABELS[activePage]}</h1>
+                      <p>主屏第 2 页</p>
+                    </>
+                  )}
                 </>
               )}
             </header>
+
+            <div className="home-page-switch" role="tablist" aria-label="主页分页">
+              {PAGE_IDS.map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  role="tab"
+                  aria-selected={activePage === page}
+                  className={activePage === page ? "active" : ""}
+                  onClick={() => handleSwitchPage(page)}
+                >
+                  {PAGE_LABELS[page]}
+                </button>
+              ))}
+            </div>
 
             {notice ? <p className="home-notice">{notice}</p> : null}
 

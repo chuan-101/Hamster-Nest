@@ -30,7 +30,19 @@ export type AppIconConfig =
       imageDataUrl?: string
     }
 
+export type HomeLayoutPageId = 'page1' | 'page2'
+
+export type HomePageLayoutState = {
+  iconOrder: string[]
+  widgetOrder: string[]
+  widgets: DecorativeWidget[]
+  checkinSize?: '1x1' | '2x1'
+  showEmptySlots?: boolean
+  appIconConfigs?: Record<string, AppIconConfig>
+}
+
 export type HomeSettingsState = {
+  pageLayouts?: Record<HomeLayoutPageId, HomePageLayoutState>
   iconOrder: string[]
   widgetOrder: string[]
   widgets: DecorativeWidget[]
@@ -53,6 +65,25 @@ const IMAGE_STORE_NAME = 'home_assets'
 const IMAGE_DB_VERSION = 2
 const IMAGE_FALLBACK_STORAGE_KEY = 'hamster_home_assets_fallback_v1'
 const DATA_URL_PREFIX = 'data:image/'
+
+const DEFAULT_PAGE_LAYOUTS: Record<HomeLayoutPageId, HomePageLayoutState> = {
+  page1: {
+    iconOrder: ['chat', 'checkin', 'memory', 'snacks', 'syzygy', 'rp', 'settings', 'export'],
+    widgetOrder: ['widget-checkin'],
+    widgets: [],
+    checkinSize: '1x1',
+    showEmptySlots: false,
+    appIconConfigs: {},
+  },
+  page2: {
+    iconOrder: ['forum', 'letters'],
+    widgetOrder: ['widget-checkin'],
+    widgets: [],
+    checkinSize: '1x1',
+    showEmptySlots: false,
+    appIconConfigs: {},
+  },
+}
 
 let schemaUpgradeLogged = false
 let activeImageDbVersion = IMAGE_DB_VERSION
@@ -223,11 +254,53 @@ const parseHomeSettings = (raw: string | null): HomeSettingsState | null => {
         }, [])
       : []
 
+    const normalizePageLayout = (
+      candidate: Partial<HomePageLayoutState> | undefined,
+      fallback: HomePageLayoutState,
+    ): HomePageLayoutState => ({
+      iconOrder: Array.isArray(candidate?.iconOrder) ? candidate.iconOrder : fallback.iconOrder,
+      widgetOrder: Array.isArray(candidate?.widgetOrder) ? candidate.widgetOrder : fallback.widgetOrder,
+      widgets: Array.isArray(candidate?.widgets)
+        ? candidate.widgets.reduce<DecorativeWidget[]>((accumulator, widget) => {
+            if (!widget || typeof widget !== 'object' || typeof widget.id !== 'string') {
+              return accumulator
+            }
+            if (widget.type === 'text' || widget.type === 'image' || widget.type === 'spacer') {
+              accumulator.push({ ...widget, size: widget.size ?? '1x1' })
+            }
+            return accumulator
+          }, [])
+        : fallback.widgets,
+      checkinSize: candidate?.checkinSize ?? fallback.checkinSize ?? '1x1',
+      showEmptySlots: candidate?.showEmptySlots ?? fallback.showEmptySlots ?? false,
+      appIconConfigs:
+        candidate?.appIconConfigs && typeof candidate.appIconConfigs === 'object'
+          ? candidate.appIconConfigs
+          : fallback.appIconConfigs,
+    })
+
+    const rawPageLayouts = parsed.pageLayouts
+    const normalizedPageLayouts: Record<HomeLayoutPageId, HomePageLayoutState> = {
+      page1: normalizePageLayout(
+        rawPageLayouts?.page1 ?? {
+          iconOrder: parsed.iconOrder,
+          widgetOrder: parsed.widgetOrder,
+          widgets: normalizedWidgets,
+          checkinSize: parsed.checkinSize,
+          showEmptySlots: parsed.showEmptySlots,
+          appIconConfigs: parsed.appIconConfigs,
+        },
+        DEFAULT_PAGE_LAYOUTS.page1,
+      ),
+      page2: normalizePageLayout(rawPageLayouts?.page2, DEFAULT_PAGE_LAYOUTS.page2),
+    }
+
     return {
       ...parsed,
       widgetOrder: Array.isArray(parsed.widgetOrder) ? parsed.widgetOrder : [],
       widgets: normalizedWidgets,
       checkinSize: parsed.checkinSize ?? '1x1',
+      pageLayouts: normalizedPageLayouts,
     }
   } catch (error) {
     console.warn('解析 Home 配置失败', error)
@@ -257,6 +330,7 @@ export const loadHomeSettings = (): HomeSettingsState | null => {
 }
 
 export const saveHomeSettings = (state: HomeSettingsState) => {
+  const pageLayouts = state.pageLayouts ?? DEFAULT_PAGE_LAYOUTS
   const nextState: HomeSettingsState = {
     ...state,
     widgets: state.widgets.map((widget) => ({
@@ -264,6 +338,24 @@ export const saveHomeSettings = (state: HomeSettingsState) => {
       size: widget.size ?? '1x1',
     })),
     checkinSize: state.checkinSize ?? '1x1',
+    pageLayouts: {
+      page1: {
+        ...pageLayouts.page1,
+        widgets: pageLayouts.page1.widgets.map((widget) => ({
+          ...widget,
+          size: widget.size ?? '1x1',
+        })),
+        checkinSize: pageLayouts.page1.checkinSize ?? '1x1',
+      },
+      page2: {
+        ...pageLayouts.page2,
+        widgets: pageLayouts.page2.widgets.map((widget) => ({
+          ...widget,
+          size: widget.size ?? '1x1',
+        })),
+        checkinSize: pageLayouts.page2.checkinSize ?? '1x1',
+      },
+    },
   }
   localStorage.setItem(HOME_SETTINGS_STORAGE_KEY, JSON.stringify(nextState))
   window.dispatchEvent(new Event('hamster-home-settings-changed'))

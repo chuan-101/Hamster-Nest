@@ -141,6 +141,31 @@
   font-size: 0.9rem;
 }
 
+.home-page-switch {
+  display: inline-flex;
+  align-self: center;
+  gap: 0.35rem;
+  padding: 0.22rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.home-page-switch button {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.26rem 0.72rem;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.home-page-switch button.active {
+  background: #ffd6e7;
+  color: #0f172a;
+}
+
 .home-page .glass-card {
   border-radius: 24px;
   border: 1px solid rgba(255, 214, 231, 0.78);
