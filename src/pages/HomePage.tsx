@@ -86,7 +86,7 @@ const createDefaultPageLayouts = (): Record<HomeLayoutPageId, HomePageLayoutStat
   },
   page2: {
     iconOrder: DEFAULT_PAGE2_ICON_ORDER,
-    widgetOrder: [CORE_WIDGET_ID],
+    widgetOrder: [],
     widgets: [],
     checkinSize: "1x1",
     showEmptySlots: false,
@@ -289,6 +289,7 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
   const widgets = activeLayout.widgets;
   const checkinSize = activeLayout.checkinSize ?? "1x1";
   const showEmptySlots = activeLayout.showEmptySlots ?? false;
+  const hasCheckinWidget = widgetOrder.includes(CORE_WIDGET_ID);
   const appIconConfigs = useMemo(
     () => activeLayout.appIconConfigs ?? {},
     [activeLayout.appIconConfigs],
@@ -404,8 +405,8 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
   );
 
   const decoratedWidgetCount = useMemo(
-    () => widgets.length + 1,
-    [widgets.length],
+    () => widgets.length + (hasCheckinWidget ? 1 : 0),
+    [hasCheckinWidget, widgets.length],
   );
 
   useEffect(() => {
@@ -453,6 +454,7 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
       page: HomePageLayoutState | undefined,
       fallbackOrder: string[],
       fallbackConfigs: AppIconState,
+      includeCheckinWidget: boolean,
     ): HomePageLayoutState => {
       const safeIconOrder = fallbackOrder.filter((id) =>
         page?.iconOrder?.includes(id),
@@ -470,12 +472,16 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
       );
       const widgetIds = safeWidgets.map((widget) => widget.id);
       const restoredOrder = (page?.widgetOrder ?? []).filter(
-        (id) => id === CORE_WIDGET_ID || widgetIds.includes(id),
+        (id) =>
+          (includeCheckinWidget && id === CORE_WIDGET_ID) ||
+          widgetIds.includes(id),
       );
 
       return {
         iconOrder: [...safeIconOrder, ...extra, ...missing],
-        widgetOrder: Array.from(new Set([CORE_WIDGET_ID, ...restoredOrder])),
+        widgetOrder: includeCheckinWidget
+          ? Array.from(new Set([CORE_WIDGET_ID, ...restoredOrder]))
+          : restoredOrder,
         widgets: safeWidgets,
         checkinSize: page?.checkinSize ?? "1x1",
         showEmptySlots: page?.showEmptySlots ?? false,
@@ -501,6 +507,7 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
         pageLayoutsFromCache?.page1 ?? legacyPage1,
         DEFAULT_ICON_ORDER,
         defaultAppIconConfigs,
+        true,
       ),
       page2: normalizePage(
         pageLayoutsFromCache?.page2,
@@ -509,6 +516,7 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
           forum: defaultAppIconConfigs.forum,
           letters: defaultAppIconConfigs.letters,
         },
+        false,
       ),
     });
 
@@ -1118,17 +1126,8 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
                   >
                     编辑
                   </button>
-                  {activePage === "page1" ? (
-                    <>
-                      <h1 className="ui-title ui-numeric home-clock-title">{timeLabel}</h1>
-                      <p>{dateLabel}</p>
-                    </>
-                  ) : (
-                    <>
-                      <h1 className="ui-title">{PAGE_LABELS[activePage]}</h1>
-                      <p>主屏第 2 页</p>
-                    </>
-                  )}
+                  <h1 className="ui-title ui-numeric home-clock-title">{timeLabel}</h1>
+                  <p>{dateLabel}</p>
                 </>
               )}
             </header>
