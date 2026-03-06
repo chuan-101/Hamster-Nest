@@ -2,6 +2,10 @@ import type {
   ChatMessage,
   ChatSession,
   CheckinEntry,
+  ForumAiProfile,
+  ForumReply,
+  ForumThread,
+  ForumAuthorType,
   MemoryEntry,
   MemoryStatus,
   RpNpcCard,
@@ -141,6 +145,44 @@ type RpNpcCardRow = {
   updated_at: string | null
 }
 
+type ForumThreadRow = {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  author_type: ForumAuthorType
+  author_slot: number | null
+  created_at: string
+  updated_at: string
+}
+
+type ForumReplyRow = {
+  id: string
+  thread_id: string
+  user_id: string
+  content: string
+  author_type: ForumAuthorType
+  author_slot: number | null
+  reply_to_type: 'thread' | 'reply' | null
+  reply_to_reply_id: string | null
+  created_at: string
+}
+
+type ForumAiProfileRow = {
+  id: string
+  user_id: string
+  slot_index: number
+  enabled: boolean | null
+  display_name: string | null
+  system_prompt: string | null
+  model: string | null
+  temperature: number | null
+  top_p: number | null
+  api_base_url: string | null
+  created_at: string
+  updated_at: string
+}
+
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
   userId: row.user_id,
@@ -257,6 +299,44 @@ const mapRpNpcCardRow = (row: RpNpcCardRow): RpNpcCard => ({
   modelConfig: row.model_config ?? {},
   apiConfig: row.api_config ?? {},
   enabled: row.enabled ?? false,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapForumThreadRow = (row: ForumThreadRow): ForumThread => ({
+  id: row.id,
+  userId: row.user_id,
+  title: row.title,
+  content: row.content,
+  authorType: row.author_type,
+  authorSlot: row.author_slot,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapForumReplyRow = (row: ForumReplyRow): ForumReply => ({
+  id: row.id,
+  threadId: row.thread_id,
+  userId: row.user_id,
+  content: row.content,
+  authorType: row.author_type,
+  authorSlot: row.author_slot,
+  replyToType: row.reply_to_type,
+  replyToReplyId: row.reply_to_reply_id,
+  createdAt: row.created_at,
+})
+
+const mapForumAiProfileRow = (row: ForumAiProfileRow): ForumAiProfile => ({
+  id: row.id,
+  userId: row.user_id,
+  slotIndex: row.slot_index,
+  enabled: row.enabled ?? true,
+  displayName: row.display_name ?? `AI Slot ${row.slot_index}`,
+  systemPrompt: row.system_prompt ?? '',
+  model: row.model ?? 'openrouter/auto',
+  temperature: row.temperature ?? 0.8,
+  topP: row.top_p ?? 0.9,
+  apiBaseUrl: row.api_base_url ?? '',
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -1381,6 +1461,201 @@ export const permanentlyDeleteSyzygyReply = async (replyId: string): Promise<voi
   if (error) {
     throw error
   }
+}
+
+export const fetchForumThreads = async (): Promise<ForumThread[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('forum_threads')
+    .select('id,user_id,title,content,author_type,author_slot,created_at,updated_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapForumThreadRow(row as ForumThreadRow))
+}
+
+export const fetchForumThreadById = async (threadId: string): Promise<ForumThread | null> => {
+  if (!supabase) {
+    return null
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('forum_threads')
+    .select('id,user_id,title,content,author_type,author_slot,created_at,updated_at')
+    .eq('id', threadId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+  return data ? mapForumThreadRow(data as ForumThreadRow) : null
+}
+
+export const createForumThread = async (params: {
+  title: string
+  content: string
+  authorType: ForumAuthorType
+  authorSlot?: number | null
+}): Promise<ForumThread> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('forum_threads')
+    .insert({
+      user_id: userId,
+      title: params.title,
+      content: params.content,
+      author_type: params.authorType,
+      author_slot: params.authorType === 'ai' ? params.authorSlot ?? 1 : null,
+      created_at: now,
+      updated_at: now,
+    })
+    .select('id,user_id,title,content,author_type,author_slot,created_at,updated_at')
+    .single()
+
+  if (error || !data) {
+    throw error ?? new Error('创建论坛主题失败')
+  }
+  return mapForumThreadRow(data as ForumThreadRow)
+}
+
+export const fetchForumRepliesByThread = async (threadId: string): Promise<ForumReply[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('forum_replies')
+    .select('id,thread_id,user_id,content,author_type,author_slot,reply_to_type,reply_to_reply_id,created_at')
+    .eq('thread_id', threadId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapForumReplyRow(row as ForumReplyRow))
+}
+
+export const createForumReply = async (params: {
+  threadId: string
+  content: string
+  authorType: ForumAuthorType
+  authorSlot?: number | null
+  replyToType?: 'thread' | 'reply' | null
+  replyToReplyId?: string | null
+}): Promise<ForumReply> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('forum_replies')
+    .insert({
+      thread_id: params.threadId,
+      user_id: userId,
+      content: params.content,
+      author_type: params.authorType,
+      author_slot: params.authorType === 'ai' ? params.authorSlot ?? 1 : null,
+      reply_to_type: params.replyToType ?? null,
+      reply_to_reply_id: params.replyToReplyId ?? null,
+    })
+    .select('id,thread_id,user_id,content,author_type,author_slot,reply_to_type,reply_to_reply_id,created_at')
+    .single()
+
+  if (error || !data) {
+    throw error ?? new Error('创建论坛回复失败')
+  }
+  return mapForumReplyRow(data as ForumReplyRow)
+}
+
+export const fetchForumAiProfiles = async (): Promise<ForumAiProfile[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('forum_ai_profiles')
+    .select('id,user_id,slot_index,enabled,display_name,system_prompt,model,temperature,top_p,api_base_url,created_at,updated_at')
+    .eq('user_id', userId)
+    .in('slot_index', [1, 2, 3])
+    .order('slot_index', { ascending: true })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapForumAiProfileRow(row as ForumAiProfileRow))
+}
+
+export const upsertForumAiProfile = async (
+  slotIndex: number,
+  payload: {
+    enabled: boolean
+    displayName: string
+    systemPrompt: string
+    model: string
+    temperature: number
+    topP: number
+    apiBaseUrl: string
+  },
+): Promise<ForumAiProfile> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('forum_ai_profiles')
+    .upsert(
+      {
+        user_id: userId,
+        slot_index: slotIndex,
+        enabled: payload.enabled,
+        display_name: payload.displayName,
+        system_prompt: payload.systemPrompt,
+        model: payload.model,
+        temperature: payload.temperature,
+        top_p: payload.topP,
+        api_base_url: payload.apiBaseUrl,
+        updated_at: now,
+      },
+      { onConflict: 'user_id,slot_index' },
+    )
+    .select('id,user_id,slot_index,enabled,display_name,system_prompt,model,temperature,top_p,api_base_url,created_at,updated_at')
+    .single()
+
+  if (error || !data) {
+    throw error ?? new Error('保存论坛 AI 档案失败')
+  }
+
+  return mapForumAiProfileRow(data as ForumAiProfileRow)
+}
+
+export const fetchAllMemoryEntries = async (): Promise<MemoryEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('memory_entries')
+    .select('id,user_id,content,source,status,created_at,updated_at,is_deleted')
+    .eq('user_id', userId)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapMemoryEntryRow(row as MemoryEntryRow))
 }
 
 export const listMemories = async (status: MemoryStatus): Promise<MemoryEntry[]> => {

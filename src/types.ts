@@ -170,3 +170,43 @@ export type RpNpcCard = {
   createdAt: string
   updatedAt: string | null
 }
+
+export type ForumAuthorType = 'user' | 'ai'
+
+export type ForumThread = {
+  id: string
+  userId: string
+  title: string
+  content: string
+  authorType: ForumAuthorType
+  authorSlot: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ForumReply = {
+  id: string
+  threadId: string
+  userId: string
+  content: string
+  authorType: ForumAuthorType
+  authorSlot: number | null
+  replyToType: 'thread' | 'reply' | null
+  replyToReplyId: string | null
+  createdAt: string
+}
+
+export type ForumAiProfile = {
+  id: string
+  userId: string
+  slotIndex: number
+  enabled: boolean
+  displayName: string
+  systemPrompt: string
+  model: string
+  temperature: number
+  topP: number
+  apiBaseUrl: string
+  createdAt: string
+  updatedAt: string
+}
