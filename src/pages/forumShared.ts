@@ -3,6 +3,7 @@ import { supabase } from '../supabase/client'
 import type { MemoryEntry } from '../types'
 
 export const FORUM_AI_SLOTS = [1, 2, 3] as const
+export const FORUM_USER_DISPLAY_NAME = '串串'
 
 export const defaultForumProfile = (slotIndex: number): Omit<ForumAiProfile, 'id' | 'userId' | 'createdAt' | 'updatedAt'> => ({
   slotIndex,
@@ -25,7 +26,7 @@ export const getForumAuthorLabel = (
     return authorName
   }
   if (authorType === 'user') {
-    return '你'
+    return FORUM_USER_DISPLAY_NAME
   }
   const profile = profiles.find((item) => item.slotIndex === authorSlot)
   if (profile?.displayName) {

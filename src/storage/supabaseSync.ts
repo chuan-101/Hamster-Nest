@@ -18,6 +18,8 @@ import type {
 } from '../types'
 import { supabase } from '../supabase/client'
 
+const FORUM_USER_AUTHOR_NAME = '串串'
+
 type SessionRow = {
   id: string
   user_id: string
@@ -1468,6 +1470,63 @@ export const permanentlyDeleteSyzygyReply = async (replyId: string): Promise<voi
   }
 }
 
+const resolveForumAuthorPayload = async (
+  userId: string,
+  authorType: ForumAuthorType,
+  authorSlot?: number | null,
+): Promise<{ authorSlot: number | null; authorName: string }> => {
+  if (authorType === 'user') {
+    return { authorSlot: null, authorName: FORUM_USER_AUTHOR_NAME }
+  }
+
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+
+  const normalizedSlot = authorSlot ?? 1
+  const { data, error } = await supabase
+    .from('forum_ai_profiles')
+    .select('name')
+    .eq('user_id', userId)
+    .eq('slot_index', normalizedSlot)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  const profileName = data?.name?.trim()
+  return {
+    authorSlot: normalizedSlot,
+    authorName: profileName || `AI Slot ${normalizedSlot}`,
+  }
+}
+
+const resolveReplyTargetAuthorName = async (userId: string, threadId: string, replyId?: string | null) => {
+  if (!replyId) {
+    return null
+  }
+
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+
+  const { data, error } = await supabase
+    .from('forum_replies')
+    .select('author_name')
+    .eq('id', replyId)
+    .eq('thread_id', threadId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  const targetName = data?.author_name?.trim()
+  return targetName || null
+}
+
 export const fetchForumThreads = async (): Promise<ForumThread[]> => {
   if (!supabase) {
     return []
@@ -1514,6 +1573,7 @@ export const createForumThread = async (params: {
   }
   const userId = await requireAuthenticatedUserId()
   const now = new Date().toISOString()
+  const authorPayload = await resolveForumAuthorPayload(userId, params.authorType, params.authorSlot)
   const { data, error } = await supabase
     .from('forum_threads')
     .insert({
@@ -1521,8 +1581,8 @@ export const createForumThread = async (params: {
       title: params.title,
       body: params.content,
       author_type: params.authorType,
-      author_slot: params.authorType === 'ai' ? params.authorSlot ?? 1 : null,
-      author_name: null,
+      author_slot: authorPayload.authorSlot,
+      author_name: authorPayload.authorName,
       created_at: now,
       updated_at: now,
     })
@@ -1565,6 +1625,8 @@ export const createForumReply = async (params: {
     throw new Error('Supabase 客户端未配置')
   }
   const userId = await requireAuthenticatedUserId()
+  const authorPayload = await resolveForumAuthorPayload(userId, params.authorType, params.authorSlot)
+  const replyToAuthorName = await resolveReplyTargetAuthorName(userId, params.threadId, params.replyToReplyId)
   const { data, error } = await supabase
     .from('forum_replies')
     .insert({
@@ -1572,10 +1634,10 @@ export const createForumReply = async (params: {
       user_id: userId,
       body: params.content,
       author_type: params.authorType,
-      author_slot: params.authorType === 'ai' ? params.authorSlot ?? 1 : null,
-      author_name: null,
+      author_slot: authorPayload.authorSlot,
+      author_name: authorPayload.authorName,
       reply_to_reply_id: params.replyToReplyId ?? null,
-      reply_to_author_name: null,
+      reply_to_author_name: replyToAuthorName,
     })
     .select('id,thread_id,user_id,body,author_type,author_slot,author_name,reply_to_reply_id,reply_to_author_name,created_at')
     .single()
