@@ -1503,28 +1503,42 @@ const resolveForumAuthorPayload = async (
 }
 
 const resolveReplyTargetAuthorName = async (userId: string, threadId: string, replyId?: string | null) => {
-  if (!replyId) {
-    return null
-  }
-
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
 
-  const { data, error } = await supabase
-    .from('forum_replies')
+  if (replyId) {
+    const { data, error } = await supabase
+      .from('forum_replies')
+      .select('author_name')
+      .eq('id', replyId)
+      .eq('thread_id', threadId)
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (error) {
+      throw error
+    }
+
+    const targetName = data?.author_name?.trim()
+    if (targetName) {
+      return targetName
+    }
+  }
+
+  const { data: threadData, error: threadError } = await supabase
+    .from('forum_threads')
     .select('author_name')
-    .eq('id', replyId)
-    .eq('thread_id', threadId)
+    .eq('id', threadId)
     .eq('user_id', userId)
     .maybeSingle()
 
-  if (error) {
-    throw error
+  if (threadError) {
+    throw threadError
   }
 
-  const targetName = data?.author_name?.trim()
-  return targetName || null
+  const threadAuthorName = threadData?.author_name?.trim()
+  return threadAuthorName || FORUM_USER_AUTHOR_NAME
 }
 
 export const fetchForumThreads = async (): Promise<ForumThread[]> => {
@@ -1625,8 +1639,9 @@ export const createForumReply = async (params: {
     throw new Error('Supabase 客户端未配置')
   }
   const userId = await requireAuthenticatedUserId()
+  const normalizedReplyToReplyId = params.replyToType === 'thread' ? null : params.replyToReplyId ?? null
   const authorPayload = await resolveForumAuthorPayload(userId, params.authorType, params.authorSlot)
-  const replyToAuthorName = await resolveReplyTargetAuthorName(userId, params.threadId, params.replyToReplyId)
+  const replyToAuthorName = await resolveReplyTargetAuthorName(userId, params.threadId, normalizedReplyToReplyId)
   const { data, error } = await supabase
     .from('forum_replies')
     .insert({
@@ -1636,7 +1651,7 @@ export const createForumReply = async (params: {
       author_type: params.authorType,
       author_slot: authorPayload.authorSlot,
       author_name: authorPayload.authorName,
-      reply_to_reply_id: params.replyToReplyId ?? null,
+      reply_to_reply_id: normalizedReplyToReplyId,
       reply_to_author_name: replyToAuthorName,
     })
     .select('id,thread_id,user_id,body,author_type,author_slot,author_name,reply_to_reply_id,reply_to_author_name,created_at')
