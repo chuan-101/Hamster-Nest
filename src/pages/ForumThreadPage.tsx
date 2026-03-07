@@ -68,7 +68,7 @@ const ForumThreadPage = () => {
     if (!target) {
       return '主题帖'
     }
-    return `${getForumAuthorLabel(target.authorType, target.authorSlot, profiles)} 的回复`
+    return `${getForumAuthorLabel(target.authorType, target.authorSlot, profiles, target.authorName)} 的回复`
   }, [profiles, replies, targetReplyId])
 
   const handleSubmitReply = async () => {
@@ -164,7 +164,7 @@ const ForumThreadPage = () => {
         <h2>{thread.title}</h2>
         <p>{thread.content}</p>
         <footer>
-          <strong>{getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles)}</strong>
+          <strong>{getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles, thread.authorName)}</strong>
           <small>{formatTime(thread.createdAt)}</small>
         </footer>
       </article>
@@ -177,14 +177,14 @@ const ForumThreadPage = () => {
               reply.replyToType === 'reply' ? replies.find((item) => item.id === reply.replyToReplyId) : null
             const targetName =
               reply.replyToType === 'thread'
-                ? getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles)
+                ? getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles, thread.authorName)
                 : target
-                  ? getForumAuthorLabel(target.authorType, target.authorSlot, profiles)
+                  ? getForumAuthorLabel(target.authorType, target.authorSlot, profiles, target.authorName)
                   : '未知目标'
             return (
               <article className="forum-reply-item" key={reply.id}>
                 <header>
-                  <strong>{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles)}</strong>
+                  <strong>{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}</strong>
                   <small>{formatTime(reply.createdAt)}</small>
                 </header>
                 <p>{reply.content}</p>
@@ -210,7 +210,7 @@ const ForumThreadPage = () => {
             <option value="thread-root">主题帖</option>
             {replies.map((reply, index) => (
               <option key={reply.id} value={reply.id}>
-                回复 #{index + 1}（{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles)}）
+                回复 #{index + 1}（{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}）
               </option>
             ))}
           </select>

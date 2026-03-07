@@ -149,9 +149,10 @@ type ForumThreadRow = {
   id: string
   user_id: string
   title: string
-  content: string
+  body: string
   author_type: ForumAuthorType
   author_slot: number | null
+  author_name: string | null
   created_at: string
   updated_at: string
 }
@@ -160,11 +161,12 @@ type ForumReplyRow = {
   id: string
   thread_id: string
   user_id: string
-  content: string
+  body: string
   author_type: ForumAuthorType
   author_slot: number | null
-  reply_to_type: 'thread' | 'reply' | null
+  author_name: string | null
   reply_to_reply_id: string | null
+  reply_to_author_name: string | null
   created_at: string
 }
 
@@ -173,7 +175,7 @@ type ForumAiProfileRow = {
   user_id: string
   slot_index: number
   enabled: boolean | null
-  display_name: string | null
+  name: string | null
   system_prompt: string | null
   model: string | null
   temperature: number | null
@@ -307,9 +309,10 @@ const mapForumThreadRow = (row: ForumThreadRow): ForumThread => ({
   id: row.id,
   userId: row.user_id,
   title: row.title,
-  content: row.content,
+  content: row.body,
   authorType: row.author_type,
   authorSlot: row.author_slot,
+  authorName: row.author_name,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -318,11 +321,13 @@ const mapForumReplyRow = (row: ForumReplyRow): ForumReply => ({
   id: row.id,
   threadId: row.thread_id,
   userId: row.user_id,
-  content: row.content,
+  content: row.body,
   authorType: row.author_type,
   authorSlot: row.author_slot,
-  replyToType: row.reply_to_type,
+  authorName: row.author_name,
+  replyToType: row.reply_to_reply_id ? 'reply' : 'thread',
   replyToReplyId: row.reply_to_reply_id,
+  replyToAuthorName: row.reply_to_author_name,
   createdAt: row.created_at,
 })
 
@@ -331,7 +336,7 @@ const mapForumAiProfileRow = (row: ForumAiProfileRow): ForumAiProfile => ({
   userId: row.user_id,
   slotIndex: row.slot_index,
   enabled: row.enabled ?? true,
-  displayName: row.display_name ?? `AI Slot ${row.slot_index}`,
+  displayName: row.name ?? `AI Slot ${row.slot_index}`,
   systemPrompt: row.system_prompt ?? '',
   model: row.model ?? 'openrouter/auto',
   temperature: row.temperature ?? 0.8,
@@ -1470,7 +1475,7 @@ export const fetchForumThreads = async (): Promise<ForumThread[]> => {
   const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('forum_threads')
-    .select('id,user_id,title,content,author_type,author_slot,created_at,updated_at')
+    .select('id,user_id,title,body,author_type,author_slot,author_name,created_at,updated_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
@@ -1487,7 +1492,7 @@ export const fetchForumThreadById = async (threadId: string): Promise<ForumThrea
   const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('forum_threads')
-    .select('id,user_id,title,content,author_type,author_slot,created_at,updated_at')
+    .select('id,user_id,title,body,author_type,author_slot,author_name,created_at,updated_at')
     .eq('id', threadId)
     .eq('user_id', userId)
     .maybeSingle()
@@ -1514,13 +1519,14 @@ export const createForumThread = async (params: {
     .insert({
       user_id: userId,
       title: params.title,
-      content: params.content,
+      body: params.content,
       author_type: params.authorType,
       author_slot: params.authorType === 'ai' ? params.authorSlot ?? 1 : null,
+      author_name: null,
       created_at: now,
       updated_at: now,
     })
-    .select('id,user_id,title,content,author_type,author_slot,created_at,updated_at')
+    .select('id,user_id,title,body,author_type,author_slot,author_name,created_at,updated_at')
     .single()
 
   if (error || !data) {
@@ -1536,7 +1542,7 @@ export const fetchForumRepliesByThread = async (threadId: string): Promise<Forum
   const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('forum_replies')
-    .select('id,thread_id,user_id,content,author_type,author_slot,reply_to_type,reply_to_reply_id,created_at')
+    .select('id,thread_id,user_id,body,author_type,author_slot,author_name,reply_to_reply_id,reply_to_author_name,created_at')
     .eq('thread_id', threadId)
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
@@ -1564,13 +1570,14 @@ export const createForumReply = async (params: {
     .insert({
       thread_id: params.threadId,
       user_id: userId,
-      content: params.content,
+      body: params.content,
       author_type: params.authorType,
       author_slot: params.authorType === 'ai' ? params.authorSlot ?? 1 : null,
-      reply_to_type: params.replyToType ?? null,
+      author_name: null,
       reply_to_reply_id: params.replyToReplyId ?? null,
+      reply_to_author_name: null,
     })
-    .select('id,thread_id,user_id,content,author_type,author_slot,reply_to_type,reply_to_reply_id,created_at')
+    .select('id,thread_id,user_id,body,author_type,author_slot,author_name,reply_to_reply_id,reply_to_author_name,created_at')
     .single()
 
   if (error || !data) {
@@ -1586,7 +1593,7 @@ export const fetchForumAiProfiles = async (): Promise<ForumAiProfile[]> => {
   const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('forum_ai_profiles')
-    .select('id,user_id,slot_index,enabled,display_name,system_prompt,model,temperature,top_p,api_base_url,created_at,updated_at')
+    .select('id,user_id,slot_index,enabled,name,system_prompt,model,temperature,top_p,api_base_url,created_at,updated_at')
     .eq('user_id', userId)
     .in('slot_index', [1, 2, 3])
     .order('slot_index', { ascending: true })
@@ -1621,7 +1628,7 @@ export const upsertForumAiProfile = async (
         user_id: userId,
         slot_index: slotIndex,
         enabled: payload.enabled,
-        display_name: payload.displayName,
+        name: payload.displayName,
         system_prompt: payload.systemPrompt,
         model: payload.model,
         temperature: payload.temperature,
@@ -1631,7 +1638,7 @@ export const upsertForumAiProfile = async (
       },
       { onConflict: 'user_id,slot_index' },
     )
-    .select('id,user_id,slot_index,enabled,display_name,system_prompt,model,temperature,top_p,api_base_url,created_at,updated_at')
+    .select('id,user_id,slot_index,enabled,name,system_prompt,model,temperature,top_p,api_base_url,created_at,updated_at')
     .single()
 
   if (error || !data) {
