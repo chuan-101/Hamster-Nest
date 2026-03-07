@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import type { ForumAiProfile, ForumThread } from '../types'
-import { fetchForumAiProfiles, fetchForumThreads } from '../storage/supabaseSync'
-import { FORUM_AI_SLOTS, defaultForumProfile, getForumAuthorLabel } from './forumShared'
+import type { ForumThread } from '../types'
+import { fetchForumThreads } from '../storage/supabaseSync'
+import { getForumAuthorLabel } from './forumShared'
 import './ForumPage.css'
 
 const formatTime = (value: string) =>
@@ -11,31 +11,16 @@ const formatTime = (value: string) =>
 const ForumPage = () => {
   const navigate = useNavigate()
   const [threads, setThreads] = useState<ForumThread[]>([])
-  const [profiles, setProfiles] = useState<ForumAiProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const profilesBySlot = useMemo(() => {
-    const entries = new Map<number, ForumAiProfile>()
-    profiles.forEach((profile) => entries.set(profile.slotIndex, profile))
-    return FORUM_AI_SLOTS.map((slot) => entries.get(slot) ?? {
-      ...defaultForumProfile(slot),
-      id: `slot-${slot}`,
-      userId: '',
-      createdAt: '',
-      updatedAt: '',
-    })
-  }, [profiles])
 
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [threadList, profileList] = await Promise.all([fetchForumThreads(), fetchForumAiProfiles()])
+      const threadList = await fetchForumThreads()
       setThreads(threadList)
-      setProfiles(profileList)
-    } catch (loadError) {
-      console.warn('加载论坛失败', loadError)
+    } catch {
       setError('论坛加载失败，请稍后重试。')
     } finally {
       setLoading(false)
@@ -63,18 +48,6 @@ const ForumPage = () => {
         </div>
       </header>
 
-      <section className="forum-ai-overview glass-card">
-        <h2 className="ui-title">AI 档案</h2>
-        <div className="forum-ai-overview__cards">
-          {profilesBySlot.map((profile) => (
-            <article key={profile.slotIndex} className="forum-ai-mini-card">
-              <p>{profile.displayName}</p>
-              <small>{profile.enabled ? '已启用' : '已停用'}</small>
-            </article>
-          ))}
-        </div>
-      </section>
-
       <section className="forum-thread-list glass-card">
         <h2 className="ui-title">主题列表</h2>
         {loading ? <p>加载中…</p> : null}
@@ -88,7 +61,7 @@ const ForumPage = () => {
                 <p>{thread.content}</p>
               </div>
               <aside>
-                <strong>{getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles)}</strong>
+                <strong>{thread.authorName ?? getForumAuthorLabel(thread.authorType, thread.authorSlot, [])}</strong>
                 <small>{formatTime(thread.createdAt)}</small>
               </aside>
             </Link>

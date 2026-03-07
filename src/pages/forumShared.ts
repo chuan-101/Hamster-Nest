@@ -19,7 +19,11 @@ export const getForumAuthorLabel = (
   authorType: 'user' | 'ai',
   authorSlot: number | null,
   profiles: ForumAiProfile[],
+  authorName?: string | null,
 ) => {
+  if (authorName && authorName.trim()) {
+    return authorName
+  }
   if (authorType === 'user') {
     return '你'
   }

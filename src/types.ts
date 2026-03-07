@@ -180,6 +180,7 @@ export type ForumThread = {
   content: string
   authorType: ForumAuthorType
   authorSlot: number | null
+  authorName: string | null
   createdAt: string
   updatedAt: string
 }
@@ -191,8 +192,10 @@ export type ForumReply = {
   content: string
   authorType: ForumAuthorType
   authorSlot: number | null
+  authorName: string | null
   replyToType: 'thread' | 'reply' | null
   replyToReplyId: string | null
+  replyToAuthorName: string | null
   createdAt: string
 }
 

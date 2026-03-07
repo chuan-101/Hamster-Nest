@@ -96,6 +96,7 @@ const ForumNewThreadPage = () => {
           content: content.trim() || '（空草稿）',
           authorType: 'user',
           authorSlot: null,
+          authorName: null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
