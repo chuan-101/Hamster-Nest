@@ -61,6 +61,7 @@ export type ForumGlobalAiConfig = {
 }
 
 const DEFAULT_MODEL = 'openrouter/auto'
+const FORUM_AI_DEBUG = import.meta.env.DEV
 
 const unwrapCodeFence = (value: string) => {
   let next = value.trim()
@@ -197,6 +198,45 @@ const normalizeForumAiNewThreadDraft = (rawText: string): ForumAiNewThreadDraft 
     title: parsed.title,
     body: parsed.body,
   }
+}
+
+const flattenTextParts = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (!Array.isArray(value)) {
+    return ''
+  }
+  return value
+    .map((part) => {
+      if (typeof part === 'string') {
+        return part
+      }
+      if (!part || typeof part !== 'object') {
+        return ''
+      }
+      const candidate = part as Record<string, unknown>
+      if (typeof candidate.text === 'string') {
+        return candidate.text
+      }
+      if (typeof candidate.content === 'string') {
+        return candidate.content
+      }
+      return ''
+    })
+    .filter(Boolean)
+    .join('')
+}
+
+const extractOpenRouterContent = (payload: Record<string, unknown>) => {
+  const choice = (payload?.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined
+  const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<string, unknown>
+  const messageContent = flattenTextParts(message.content)
+  const choiceText = typeof choice?.text === 'string' ? choice.text : ''
+  const outputText = flattenTextParts(payload.output_text)
+  const outputParts = flattenTextParts(payload.output)
+  const candidate = [messageContent, choiceText, outputText, outputParts].find((item) => item.trim())
+  return (candidate ?? '').trim()
 }
 
 const parseReplyFromJson = (rawText: string) => {
@@ -398,11 +438,10 @@ export async function requestForumAiContent({
   }
 
   const payload = (await response.json()) as Record<string, unknown>
-  const choice = (payload?.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined
-  const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<string, unknown>
-  const content =
-    typeof message.content === 'string' ? message.content : typeof choice?.text === 'string' ? choice.text : ''
-  const normalizedContent = content.trim()
+  if (FORUM_AI_DEBUG) {
+    console.info('[Forum AI] openrouter-chat payload', payload)
+  }
+  const normalizedContent = extractOpenRouterContent(payload)
 
   if (task === 'new-thread') {
     const draft = normalizeForumAiNewThreadDraft(normalizedContent)
