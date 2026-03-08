@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ForumAiProfile } from '../types'
 import { createForumThread, fetchAllMemoryEntries, fetchForumAiProfiles } from '../storage/supabaseSync'
-import { FORUM_AI_SLOTS, defaultForumProfile, requestForumAiContent } from './forumShared'
+import { FORUM_AI_SLOTS, defaultForumProfile, loadForumGlobalAiConfig, requestForumAiContent, type ForumGlobalAiConfig } from './forumShared'
 import './ForumPage.css'
 
 type AuthorDraft = 'user' | 'ai-1' | 'ai-2' | 'ai-3'
@@ -17,6 +17,7 @@ const ForumNewThreadPage = () => {
   const [submitting, setSubmitting] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [globalAiConfig, setGlobalAiConfig] = useState<ForumGlobalAiConfig | null>(null)
 
   const authorIsAi = authorDraft !== 'user'
   const selectedSlot = authorIsAi ? Number(authorDraft.split('-')[1]) : null
@@ -25,8 +26,9 @@ const ForumNewThreadPage = () => {
     const loadProfiles = async () => {
       setLoading(true)
       try {
-        const list = await fetchForumAiProfiles()
+        const [list, config] = await Promise.all([fetchForumAiProfiles(), loadForumGlobalAiConfig()])
         setProfiles(list)
+        setGlobalAiConfig(config)
       } catch (loadError) {
         console.warn('加载 AI 配置失败', loadError)
       } finally {
@@ -73,7 +75,7 @@ const ForumNewThreadPage = () => {
   }
 
   const handleGenerateAiThread = async () => {
-    if (!authorIsAi || !selectedSlot || !title.trim()) {
+    if (!authorIsAi || !selectedSlot || !title.trim() || !globalAiConfig) {
       return
     }
     const profile = profileLookup.get(selectedSlot)
@@ -88,6 +90,7 @@ const ForumNewThreadPage = () => {
       const generated = await requestForumAiContent({
         profile,
         memoryEntries,
+        globalModelConfig: globalAiConfig,
         task: 'new-thread',
         thread: {
           id: 'draft-thread',
@@ -112,6 +115,8 @@ const ForumNewThreadPage = () => {
       setGenerating(false)
     }
   }
+
+  const aiConfigReady = Boolean(globalAiConfig)
 
   return (
     <div className="forum-page app-shell__content">
@@ -170,7 +175,7 @@ const ForumNewThreadPage = () => {
           <button
             type="button"
             className="btn-secondary"
-            disabled={!authorIsAi || submitting || generating}
+            disabled={!authorIsAi || submitting || generating || !aiConfigReady}
             onClick={handleGenerateAiThread}
           >
             {generating ? 'AI 生成中…' : '生成 AI 主题'}

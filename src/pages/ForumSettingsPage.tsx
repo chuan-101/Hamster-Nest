@@ -1,11 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
+import { useEnabledModels } from '../hooks/useEnabledModels'
 import type { ForumAiProfile } from '../types'
 import { fetchForumAiProfiles, upsertForumAiProfile } from '../storage/supabaseSync'
 import { FORUM_AI_SLOTS, defaultForumProfile } from './forumShared'
 import './ForumPage.css'
 
-const toCard = (slotIndex: number, profile?: ForumAiProfile) => ({
+type ForumSettingsPageProps = {
+  user: User | null
+}
+
+type EditorMode =
+  | { type: 'list' }
+  | { type: 'edit'; slotIndex: number }
+
+const toCard = (slotIndex: number, profile?: ForumAiProfile): ForumAiProfile => ({
   ...(profile ?? {
     ...defaultForumProfile(slotIndex),
     id: `slot-${slotIndex}`,
@@ -15,19 +25,22 @@ const toCard = (slotIndex: number, profile?: ForumAiProfile) => ({
   }),
 })
 
-const ForumSettingsPage = () => {
+const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
   const navigate = useNavigate()
   const [profiles, setProfiles] = useState<ForumAiProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [savingSlot, setSavingSlot] = useState<number | null>(null)
+  const [mode, setMode] = useState<EditorMode>({ type: 'list' })
+  const [draft, setDraft] = useState<ForumAiProfile | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { enabledModelOptions } = useEnabledModels(user)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       try {
         const data = await fetchForumAiProfiles()
-        setProfiles(data)
+        setProfiles(data.sort((a, b) => a.slotIndex - b.slotIndex))
       } catch (loadError) {
         console.warn('加载论坛 AI 档案失败', loadError)
         setError('加载失败，请稍后重试。')
@@ -38,47 +51,75 @@ const ForumSettingsPage = () => {
     void load()
   }, [])
 
-  const cards = useMemo(() => {
+  const cardsBySlot = useMemo(() => {
     const map = new Map<number, ForumAiProfile>()
     profiles.forEach((item) => map.set(item.slotIndex, item))
-    return FORUM_AI_SLOTS.map((slot) => toCard(slot, map.get(slot)))
+    return map
   }, [profiles])
 
-  const updateCard = (slotIndex: number, updater: (card: ForumAiProfile) => ForumAiProfile) => {
-    setProfiles((current) => {
-      const map = new Map<number, ForumAiProfile>()
-      current.forEach((item) => map.set(item.slotIndex, item))
-      const card = toCard(slotIndex, map.get(slotIndex))
-      map.set(slotIndex, updater(card))
-      return Array.from(map.values()).sort((a, b) => a.slotIndex - b.slotIndex)
-    })
-  }
+  const enabledCount = useMemo(() => profiles.filter((item) => item.enabled).length, [profiles])
 
-  const handleSave = async (slotIndex: number) => {
-    const card = cards.find((item) => item.slotIndex === slotIndex)
-    if (!card) {
+  const nextAvailableSlot = useMemo(
+    () => FORUM_AI_SLOTS.find((slot) => !cardsBySlot.has(slot)) ?? null,
+    [cardsBySlot],
+  )
+
+  const visibleCards = useMemo(
+    () => profiles.slice().sort((a, b) => a.slotIndex - b.slotIndex),
+    [profiles],
+  )
+
+  const startAdd = () => {
+    if (nextAvailableSlot === null) {
       return
     }
-    setSavingSlot(slotIndex)
+    setDraft(toCard(nextAvailableSlot))
+    setMode({ type: 'edit', slotIndex: nextAvailableSlot })
+    setError(null)
+  }
+
+  const startEdit = (slotIndex: number) => {
+    setDraft(toCard(slotIndex, cardsBySlot.get(slotIndex)))
+    setMode({ type: 'edit', slotIndex })
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    if (!draft) {
+      return
+    }
+    setSavingSlot(draft.slotIndex)
     setError(null)
     try {
-      const saved = await upsertForumAiProfile(slotIndex, {
-        enabled: card.enabled,
-        displayName: card.displayName,
-        systemPrompt: card.systemPrompt,
-        model: card.model,
-        temperature: card.temperature,
-        topP: card.topP,
-        apiBaseUrl: card.apiBaseUrl,
+      const saved = await upsertForumAiProfile(draft.slotIndex, {
+        enabled: draft.enabled,
+        displayName: draft.displayName,
+        systemPrompt: draft.systemPrompt,
+        model: draft.model,
+        temperature: draft.temperature,
+        topP: draft.topP,
+        apiBaseUrl: '',
       })
-      updateCard(slotIndex, () => saved)
+      setProfiles((current) => {
+        const map = new Map<number, ForumAiProfile>()
+        current.forEach((item) => map.set(item.slotIndex, item))
+        map.set(saved.slotIndex, saved)
+        return Array.from(map.values()).sort((a, b) => a.slotIndex - b.slotIndex)
+      })
+      setMode({ type: 'list' })
+      setDraft(null)
     } catch (saveError) {
       console.warn('保存论坛 AI 档案失败', saveError)
-      setError(`保存 Slot ${slotIndex} 失败，请重试。`)
+      setError(`保存 Slot ${draft.slotIndex} 失败，请重试。`)
     } finally {
       setSavingSlot(null)
     }
   }
+
+  const editingModelEnabled =
+    draft?.model.trim() && enabledModelOptions.length > 0
+      ? enabledModelOptions.some((model) => model.id === draft.model.trim())
+      : true
 
   return (
     <div className="forum-page app-shell__content">
@@ -92,60 +133,88 @@ const ForumSettingsPage = () => {
       {loading ? <p className="forum-loading">加载中…</p> : null}
       {error ? <p className="forum-error">{error}</p> : null}
 
-      <div className="forum-settings-grid">
-        {cards.map((card) => (
-          <section key={card.slotIndex} className="glass-card forum-settings-card">
-            <h2 className="ui-title">AI Slot {card.slotIndex}</h2>
-            <label>
-              <span>Enabled</span>
-              <input
-                type="checkbox"
-                checked={card.enabled}
-                onChange={(event) =>
-                  updateCard(card.slotIndex, (current) => ({ ...current, enabled: event.target.checked }))
-                }
-              />
-            </label>
-            <label>
-              <span>Display name</span>
-              <input
-                className="input-glass"
-                value={card.displayName}
-                onChange={(event) =>
-                  updateCard(card.slotIndex, (current) => ({ ...current, displayName: event.target.value }))
-                }
-              />
-            </label>
-            <label>
-              <span>System prompt</span>
-              <textarea
-                className="textarea-glass"
-                rows={5}
-                value={card.systemPrompt}
-                onChange={(event) =>
-                  updateCard(card.slotIndex, (current) => ({ ...current, systemPrompt: event.target.value }))
-                }
-              />
-            </label>
-            <label>
-              <span>Model</span>
-              <input
-                className="input-glass"
-                value={card.model}
-                onChange={(event) =>
-                  updateCard(card.slotIndex, (current) => ({ ...current, model: event.target.value }))
-                }
-              />
-            </label>
+      {mode.type === 'list' ? (
+        <section className="glass-card forum-settings-list">
+          <div className="forum-settings-list__header">
+            <p className="forum-settings-summary">Enabled {enabledCount}/{FORUM_AI_SLOTS.length} AI</p>
+            <button type="button" className="btn-primary" onClick={startAdd} disabled={nextAvailableSlot === null}>
+              Add AI Card
+            </button>
+          </div>
+
+          {visibleCards.length === 0 ? <p className="tips">还没有已保存的 AI 卡片，先添加一个吧。</p> : null}
+
+          <div className="forum-settings-list__cards">
+            {visibleCards.map((card) => {
+              const modelLabel = card.model.trim() ? card.model.trim() : '默认模型（跟随全局）'
+              return (
+                <article key={card.slotIndex} className="forum-settings-summary-card">
+                  <div>
+                    <p className="forum-settings-summary-card__name">{card.displayName || `AI Slot ${card.slotIndex}`}</p>
+                    <p className="forum-settings-summary-card__meta">Slot {card.slotIndex}</p>
+                    <p className="forum-settings-summary-card__meta">模型：{modelLabel}</p>
+                    <p className="forum-settings-summary-card__meta">状态：{card.enabled ? '已启用' : '已禁用'}</p>
+                  </div>
+                  <button type="button" className="btn-secondary" onClick={() => startEdit(card.slotIndex)}>
+                    编辑
+                  </button>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {mode.type === 'edit' && draft ? (
+        <section className="glass-card forum-settings-editor">
+          <h2 className="ui-title">{cardsBySlot.has(mode.slotIndex) ? '编辑 AI 卡片' : '新增 AI 卡片'}</h2>
+          <p className="forum-settings-summary">Slot {mode.slotIndex}</p>
+          <label>
+            <span>Display name</span>
+            <input
+              className="input-glass"
+              value={draft.displayName}
+              onChange={(event) => setDraft((current) => (current ? { ...current, displayName: event.target.value } : current))}
+            />
+          </label>
+          <label>
+            <span>System prompt</span>
+            <textarea
+              className="textarea-glass"
+              rows={5}
+              value={draft.systemPrompt}
+              onChange={(event) => setDraft((current) => (current ? { ...current, systemPrompt: event.target.value } : current))}
+            />
+          </label>
+          <label>
+            <span>Model</span>
+            <select
+              className="input-glass"
+              value={draft.model}
+              onChange={(event) => setDraft((current) => (current ? { ...current, model: event.target.value } : current))}
+              disabled={enabledModelOptions.length === 0}
+            >
+              <option value="">默认模型（跟随全局）</option>
+              {enabledModelOptions.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {!editingModelEnabled && draft.model.trim() ? (
+            <p className="forum-model-warning">当前：{draft.model.trim()}（未在全局模型库启用）</p>
+          ) : null}
+          <div className="forum-settings-editor__grid">
             <label>
               <span>Temperature</span>
               <input
                 className="input-glass"
                 type="number"
                 step="0.1"
-                value={card.temperature}
+                value={draft.temperature}
                 onChange={(event) =>
-                  updateCard(card.slotIndex, (current) => ({ ...current, temperature: Number(event.target.value) }))
+                  setDraft((current) => (current ? { ...current, temperature: Number(event.target.value) } : current))
                 }
               />
             </label>
@@ -155,33 +224,38 @@ const ForumSettingsPage = () => {
                 className="input-glass"
                 type="number"
                 step="0.1"
-                value={card.topP}
+                value={draft.topP}
                 onChange={(event) =>
-                  updateCard(card.slotIndex, (current) => ({ ...current, topP: Number(event.target.value) }))
+                  setDraft((current) => (current ? { ...current, topP: Number(event.target.value) } : current))
                 }
               />
             </label>
-            <label>
-              <span>API base url</span>
-              <input
-                className="input-glass"
-                value={card.apiBaseUrl}
-                onChange={(event) =>
-                  updateCard(card.slotIndex, (current) => ({ ...current, apiBaseUrl: event.target.value }))
-                }
-              />
-            </label>
+          </div>
+          <label className="forum-settings-toggle">
+            <input
+              type="checkbox"
+              checked={draft.enabled}
+              onChange={(event) => setDraft((current) => (current ? { ...current, enabled: event.target.checked } : current))}
+            />
+            <span>启用该 AI 卡片</span>
+          </label>
+          <div className="forum-editor__actions">
             <button
               type="button"
-              className="btn-primary"
-              disabled={savingSlot === card.slotIndex}
-              onClick={() => void handleSave(card.slotIndex)}
+              className="btn-secondary"
+              onClick={() => {
+                setMode({ type: 'list' })
+                setDraft(null)
+              }}
             >
-              {savingSlot === card.slotIndex ? '保存中…' : '保存'}
+              取消
             </button>
-          </section>
-        ))}
-      </div>
+            <button type="button" className="btn-primary" disabled={savingSlot === draft.slotIndex} onClick={() => void handleSave()}>
+              {savingSlot === draft.slotIndex ? '保存中…' : '保存'}
+            </button>
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }

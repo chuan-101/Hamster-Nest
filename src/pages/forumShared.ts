@@ -1,6 +1,7 @@
 import type { ForumAiProfile, ForumReply, ForumThread } from '../types'
 import { supabase } from '../supabase/client'
 import type { MemoryEntry } from '../types'
+import { ensureUserSettings } from '../storage/userSettings'
 
 export const FORUM_AI_SLOTS = [1, 2, 3] as const
 export const FORUM_USER_DISPLAY_NAME = '串串'
@@ -40,9 +41,37 @@ type RequestForumAiContentParams = {
   thread: ForumThread
   replies: ForumReply[]
   memoryEntries: MemoryEntry[]
+  globalModelConfig: ForumGlobalAiConfig
   task: 'new-thread' | 'reply'
   replyTargetLabel?: string
   userPrompt?: string
+}
+
+export type ForumGlobalAiConfig = {
+  defaultModelId: string
+  enabledModelIds: string[]
+}
+
+const DEFAULT_MODEL = 'openrouter/auto'
+
+export const loadForumGlobalAiConfig = async (): Promise<ForumGlobalAiConfig> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
+  if (error || !user) {
+    throw error ?? new Error('登录状态异常')
+  }
+  const settings = await ensureUserSettings(user.id)
+  const defaultModelId = settings.defaultModel?.trim() || DEFAULT_MODEL
+  const enabled = Array.from(new Set([...settings.enabledModels, defaultModelId]))
+  return {
+    defaultModelId,
+    enabledModelIds: enabled,
+  }
 }
 
 export const requestForumAiContent = async ({
@@ -50,6 +79,7 @@ export const requestForumAiContent = async ({
   thread,
   replies,
   memoryEntries,
+  globalModelConfig,
   task,
   replyTargetLabel,
   userPrompt,
@@ -107,9 +137,15 @@ export const requestForumAiContent = async ({
         : `请生成一条论坛回复。回复目标：${replyTargetLabel ?? '主题帖'}。${userPrompt ? `用户补充：${userPrompt}` : ''}`,
   })
 
+  const selectedModel = profile.model.trim()
+  const resolvedModel =
+    selectedModel && globalModelConfig.enabledModelIds.includes(selectedModel)
+      ? selectedModel
+      : globalModelConfig.defaultModelId
+
   const requestBody: Record<string, unknown> = {
-    model: profile.model,
-    modelId: profile.model,
+    model: resolvedModel,
+    modelId: resolvedModel,
     module: 'forum',
     messages: messagesPayload,
     temperature: profile.temperature,
@@ -117,9 +153,10 @@ export const requestForumAiContent = async ({
     max_tokens: 800,
     stream: false,
     extra: {
-      forumApiBaseUrl: profile.apiBaseUrl,
       identitySlot: profile.slotIndex,
       scope: 'thread-only',
+      enabledModelIds: globalModelConfig.enabledModelIds,
+      defaultModelId: globalModelConfig.defaultModelId,
     },
   }
 
