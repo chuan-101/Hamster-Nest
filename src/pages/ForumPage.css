@@ -121,6 +121,26 @@
   gap: 0.5rem;
 }
 
+
+.forum-editor__target,
+.forum-inline-editor__target {
+  margin: 0;
+  color: #334155;
+}
+
+.forum-inline-editor {
+  margin-top: 0.7rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  padding-top: 0.7rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.forum-inline-editor label {
+  display: grid;
+  gap: 0.3rem;
+}
+
 .forum-settings-card {
   display: grid;
   gap: 0.5rem;
@@ -203,6 +223,15 @@
 }
 
 @media (max-width: 640px) {
+  .forum-reply-item {
+    flex-direction: column;
+  }
+
+  .forum-reply-item header,
+  .forum-reply-item footer {
+    justify-items: start;
+  }
+
   .forum-settings-summary-card {
     flex-direction: column;
     align-items: flex-start;
