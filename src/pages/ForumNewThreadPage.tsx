@@ -147,14 +147,31 @@ const ForumNewThreadPage = () => {
       setTitle(generated.title)
       setContent(generated.body)
       setSubmitting(true)
-      const created = await createForumThread({
-        title: generated.title,
-        content: generated.body,
-        authorType: 'ai',
+      console.info('[Forum AI][new-thread] creating DB row', {
+        titleLength: generated.title.length,
+        bodyLength: generated.body.length,
         authorSlot: selectedSlot,
         authorName: profile.displayName,
       })
-      navigate(`/forum/thread/${created.id}`)
+      try {
+        const created = await createForumThread({
+          title: generated.title,
+          content: generated.body,
+          authorType: 'ai',
+          authorSlot: selectedSlot,
+          authorName: profile.displayName,
+        })
+        navigate(`/forum/thread/${created.id}`)
+      } catch (insertError) {
+        console.error('[Forum AI][new-thread] DB insert failed', {
+          titlePreview: generated.title.slice(0, 200),
+          bodyPreview: generated.body.slice(0, 400),
+          authorSlot: selectedSlot,
+          authorName: profile.displayName,
+          error: insertError,
+        })
+        throw insertError
+      }
     } catch (generateError) {
       console.warn('生成 AI 主题失败', generateError)
       setError('生成失败，请检查模型配置后重试。')
