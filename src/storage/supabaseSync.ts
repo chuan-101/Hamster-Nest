@@ -184,6 +184,7 @@ type ForumAiProfileRow = {
   top_p: number | null
   api_base_url: string | null
   context_token_limit: number | null
+  max_output_tokens: number | null
   created_at: string
   updated_at: string
 }
@@ -342,6 +343,14 @@ const normalizeForumContextTokenLimit = (value: number | null | undefined) => {
   return rounded >= 8000 && rounded <= 128000 ? rounded : 32000
 }
 
+const normalizeForumMaxOutputTokens = (value: number | null | undefined) => {
+  if (!Number.isFinite(value)) {
+    return 1600
+  }
+  const rounded = Math.round(value as number)
+  return rounded >= 128 && rounded <= 4000 ? rounded : 1600
+}
+
 const mapForumAiProfileRow = (row: ForumAiProfileRow): ForumAiProfile => ({
   id: row.id,
   userId: row.user_id,
@@ -352,6 +361,7 @@ const mapForumAiProfileRow = (row: ForumAiProfileRow): ForumAiProfile => ({
   model: row.model ?? 'openrouter/auto',
   temperature: row.temperature ?? 0.8,
   topP: row.top_p ?? 0.9,
+  maxOutputTokens: normalizeForumMaxOutputTokens(row.max_output_tokens),
   contextTokenLimit: normalizeForumContextTokenLimit(row.context_token_limit),
   apiBaseUrl: row.api_base_url ?? '',
   createdAt: row.created_at,
@@ -1741,7 +1751,7 @@ export const fetchForumAiProfiles = async (): Promise<ForumAiProfile[]> => {
   const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('forum_ai_profiles')
-    .select('id,user_id,slot_index,enabled,name,system_prompt,model,temperature,top_p,api_base_url,context_token_limit,created_at,updated_at')
+    .select('id,user_id,slot_index,enabled,name,system_prompt,model,temperature,top_p,api_base_url,context_token_limit,max_output_tokens,created_at,updated_at')
     .eq('user_id', userId)
     .in('slot_index', [1, 2, 3])
     .order('slot_index', { ascending: true })
@@ -1762,6 +1772,7 @@ export const upsertForumAiProfile = async (
     temperature: number
     topP: number
     contextTokenLimit: number
+    maxOutputTokens: number
     apiBaseUrl: string
   },
 ): Promise<ForumAiProfile> => {
@@ -1783,12 +1794,13 @@ export const upsertForumAiProfile = async (
         temperature: payload.temperature,
         top_p: payload.topP,
         context_token_limit: normalizeForumContextTokenLimit(payload.contextTokenLimit),
+        max_output_tokens: normalizeForumMaxOutputTokens(payload.maxOutputTokens),
         api_base_url: payload.apiBaseUrl,
         updated_at: now,
       },
       { onConflict: 'user_id,slot_index' },
     )
-    .select('id,user_id,slot_index,enabled,name,system_prompt,model,temperature,top_p,api_base_url,context_token_limit,created_at,updated_at')
+    .select('id,user_id,slot_index,enabled,name,system_prompt,model,temperature,top_p,api_base_url,context_token_limit,max_output_tokens,created_at,updated_at')
     .single()
 
   if (error || !data) {

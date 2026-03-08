@@ -209,6 +209,7 @@ export type ForumAiProfile = {
   model: string
   temperature: number
   topP: number
+  maxOutputTokens: number
   contextTokenLimit: number
   apiBaseUrl: string
   createdAt: string
