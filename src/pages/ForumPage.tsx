@@ -74,12 +74,10 @@ const ForumPage = () => {
 
   const threadCards = useMemo(
     () =>
-      threads.map((thread, index) => ({
+      threads.map((thread) => ({
         ...thread,
-        order: index + 1,
         author: thread.authorName ?? getForumAuthorLabel(thread.authorType, thread.authorSlot, []),
         replies: replyCountMap[thread.id] ?? 0,
-        isHot: (replyCountMap[thread.id] ?? 0) >= 5,
       })),
     [threads, replyCountMap],
   )
@@ -116,13 +114,6 @@ const ForumPage = () => {
                   className="forum-thread-item__main"
                   onClick={() => navigate(`/forum/thread/${thread.id}`)}
                 >
-                  <div className="forum-thread-item__left">
-                    <span className="forum-thread-stamp">#{thread.order}</span>
-                    <span className="forum-thread-type" aria-label={thread.isHot ? '热门主题' : '讨论主题'}>
-                      {thread.isHot ? '🔥' : '💬'}
-                    </span>
-                  </div>
-
                   <div className="forum-thread-item__content">
                     <h3>{thread.title}</h3>
                     <p>{thread.content}</p>

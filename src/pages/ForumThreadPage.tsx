@@ -240,7 +240,6 @@ const ForumThreadPage = () => {
             <span className="forum-op-badge">楼主 / OP</span>
           </strong>
           <small>{formatTime(thread.createdAt)}</small>
-          <span className="forum-floor-tag">#1</span>
         </header>
         <div className="forum-bbs-card__content forum-bbs-card__content--op">
           <h2>{thread.title}</h2>
@@ -256,7 +255,7 @@ const ForumThreadPage = () => {
       <section className="glass-card forum-thread-list">
         <h3 className="ui-title">回复（按时间顺序）</h3>
         <div className="forum-thread-list__items">
-          {replies.map((reply, index) => {
+          {replies.map((reply) => {
             const target =
               reply.replyToType === 'reply' ? replies.find((item) => item.id === reply.replyToReplyId) : null
             const targetName =
@@ -270,7 +269,6 @@ const ForumThreadPage = () => {
                 <header className="forum-bbs-card__author forum-bbs-card__author--reply">
                   <strong>{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}</strong>
                   <small>{formatTime(reply.createdAt)}</small>
-                  <span className="forum-floor-tag">#{index + 2}</span>
                 </header>
                 <div className="forum-bbs-card__content forum-bbs-card__content--reply">
                   <p>{reply.content}</p>
