@@ -1474,6 +1474,7 @@ const resolveForumAuthorPayload = async (
   userId: string,
   authorType: ForumAuthorType,
   authorSlot?: number | null,
+  preferredAuthorName?: string,
 ): Promise<{ authorSlot: number | null; authorName: string }> => {
   if (authorType === 'user') {
     return { authorSlot: null, authorName: FORUM_USER_AUTHOR_NAME }
@@ -1484,6 +1485,14 @@ const resolveForumAuthorPayload = async (
   }
 
   const normalizedSlot = authorSlot ?? 1
+  const preferredName = preferredAuthorName?.trim()
+  if (preferredName) {
+    return {
+      authorSlot: normalizedSlot,
+      authorName: preferredName,
+    }
+  }
+
   const { data, error } = await supabase
     .from('forum_ai_profiles')
     .select('name')
@@ -1603,13 +1612,14 @@ export const createForumThread = async (params: {
   content: string
   authorType: ForumAuthorType
   authorSlot?: number | null
+  authorName?: string
 }): Promise<ForumThread> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
   const userId = await requireAuthenticatedUserId()
   const now = new Date().toISOString()
-  const authorPayload = await resolveForumAuthorPayload(userId, params.authorType, params.authorSlot)
+  const authorPayload = await resolveForumAuthorPayload(userId, params.authorType, params.authorSlot, params.authorName)
   const { data, error } = await supabase
     .from('forum_threads')
     .insert({

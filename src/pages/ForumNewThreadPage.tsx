@@ -44,6 +44,23 @@ const ForumNewThreadPage = () => {
     return map
   }, [profiles])
 
+  const selectedAiProfile = useMemo(() => {
+    if (!selectedSlot) {
+      return null
+    }
+    const existing = profileLookup.get(selectedSlot)
+    if (existing) {
+      return existing
+    }
+    return {
+      ...defaultForumProfile(selectedSlot),
+      id: `slot-${selectedSlot}`,
+      userId: '',
+      createdAt: '',
+      updatedAt: '',
+    }
+  }, [profileLookup, selectedSlot])
+
   const createDirectThread = async (nextContent: string) => {
     if (!title.trim() || !nextContent.trim()) {
       return
@@ -56,6 +73,7 @@ const ForumNewThreadPage = () => {
         content: nextContent.trim(),
         authorType: authorIsAi ? 'ai' : 'user',
         authorSlot: selectedSlot,
+        authorName: authorIsAi ? selectedAiProfile?.displayName : undefined,
       })
       navigate(`/forum/thread/${created.id}`)
     } catch (submitError) {
@@ -78,7 +96,7 @@ const ForumNewThreadPage = () => {
     if (!authorIsAi || !selectedSlot || !title.trim() || !globalAiConfig) {
       return
     }
-    const profile = profileLookup.get(selectedSlot)
+    const profile = selectedAiProfile
     if (!profile?.enabled) {
       setError('该 AI 档案未启用，请先在 Forum 设置页启用。')
       return
@@ -117,6 +135,7 @@ const ForumNewThreadPage = () => {
   }
 
   const aiConfigReady = Boolean(globalAiConfig)
+  const canGenerateAi = Boolean(authorIsAi && selectedAiProfile?.enabled && title.trim() && aiConfigReady)
 
   return (
     <div className="forum-page app-shell__content">
@@ -175,7 +194,7 @@ const ForumNewThreadPage = () => {
           <button
             type="button"
             className="btn-secondary"
-            disabled={!authorIsAi || submitting || generating || !aiConfigReady}
+            disabled={!canGenerateAi || submitting || generating}
             onClick={handleGenerateAiThread}
           >
             {generating ? 'AI 生成中…' : '生成 AI 主题'}
