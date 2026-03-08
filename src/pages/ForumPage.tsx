@@ -26,8 +26,7 @@ const ForumPage = () => {
     try {
       const threadList = await fetchForumThreads()
       setThreads(threadList)
-      const threadIds = threadList.map((thread) => thread.id)
-      const counts = await fetchForumReplyCountMap(threadIds)
+      const counts = await fetchForumReplyCountMap(threadList.map((thread) => thread.id))
       setReplyCountMap(counts)
     } catch {
       setError('论坛加载失败，请稍后重试。')
@@ -129,20 +128,19 @@ const ForumPage = () => {
                     <p>{thread.content}</p>
                     <small>Author: {thread.author} | Date: {formatTime(thread.createdAt)}</small>
                   </div>
-
-                  <aside className="forum-thread-item__stats">
-                    <div className="forum-thread-replies">💖 x{thread.replies}</div>
-                    <div className="forum-thread-status" aria-label="主题状态：开放">
-                      <span className="forum-status-icon forum-status-icon--open">◼◻◼</span>
-                      <span>Open</span>
-                    </div>
-                  </aside>
                 </button>
 
-                <div className="forum-thread-item__actions">
+                <div className="forum-thread-item__footer">
+                  <div className="forum-thread-replies" aria-label={`点赞数 ${thread.replies}`}>
+                    <span className="forum-heart-pixel" aria-hidden="true" />x{thread.replies}
+                  </div>
+                  <div className="forum-thread-status" aria-label="主题状态：开放">
+                    <span className="forum-status-check" aria-hidden="true" />
+                    <span>Open</span>
+                  </div>
                   <button
                     type="button"
-                    className="forum-pixel-btn"
+                    className="forum-pixel-btn forum-pixel-btn--subtle"
                     onClick={() => handleOpenDeleteDialog(thread.id)}
                     disabled={deletingThreadId === thread.id}
                   >
