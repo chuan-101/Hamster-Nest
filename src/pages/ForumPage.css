@@ -355,15 +355,24 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  align-self: start;
+  width: 100%;
+  min-height: 100%;
 }
 
 .forum-settings-shell {
-  width: min(100%, 560px);
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
   border: none;
   box-shadow: none;
   background: transparent;
   gap: 0.55rem;
+}
+
+@media (max-width: 640px) {
+  .forum-settings-page {
+    padding-inline: 0.75rem;
+  }
 }
 
 .forum-settings-content {
