@@ -3,11 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type { ForumAiProfile, ForumReply, ForumThread } from '../types'
 import {
   createForumReply,
+  deleteForumReply,
+  deleteForumThread,
   fetchAllMemoryEntries,
   fetchForumAiProfiles,
   fetchForumRepliesByThread,
   fetchForumThreadById,
 } from '../storage/supabaseSync'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { FORUM_AI_SLOTS, defaultForumProfile, getForumAuthorLabel, requestForumAiContent } from './forumShared'
 import './ForumPage.css'
 
@@ -26,6 +29,11 @@ const ForumThreadPage = () => {
   const [submitting, setSubmitting] = useState(false)
   const [generatingSlot, setGeneratingSlot] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [pendingDeleteThread, setPendingDeleteThread] = useState(false)
+  const [pendingDeleteReplyId, setPendingDeleteReplyId] = useState<string | null>(null)
+  const [deletingThread, setDeletingThread] = useState(false)
+  const [deletingReplyId, setDeletingReplyId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     if (!id) {
@@ -33,6 +41,7 @@ const ForumThreadPage = () => {
     }
     setLoading(true)
     setError(null)
+    setSuccessMessage(null)
     try {
       const [threadData, replyData, profileData] = await Promise.all([
         fetchForumThreadById(id),
@@ -53,6 +62,47 @@ const ForumThreadPage = () => {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+
+  const handleDeleteThread = async () => {
+    if (!thread || deletingThread) {
+      return
+    }
+    setDeletingThread(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      await deleteForumThread(thread.id)
+      navigate('/forum', { replace: true, state: { forumSuccessMessage: '主题已删除。' } })
+    } catch (deleteError) {
+      console.warn('删除主题失败', deleteError)
+      setError('删除主题失败，请稍后重试。')
+    } finally {
+      setDeletingThread(false)
+      setPendingDeleteThread(false)
+    }
+  }
+
+  const handleDeleteReply = async () => {
+    if (!thread || !pendingDeleteReplyId) {
+      return
+    }
+    setDeletingReplyId(pendingDeleteReplyId)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      await deleteForumReply(pendingDeleteReplyId, thread.id)
+      setReplies((current) => current.filter((item) => item.id !== pendingDeleteReplyId))
+      setTargetReplyId((current) => (current === pendingDeleteReplyId ? 'thread-root' : current))
+      setSuccessMessage('回复已删除。')
+      setPendingDeleteReplyId(null)
+    } catch (deleteError) {
+      console.warn('删除回复失败', deleteError)
+      setError('删除回复失败，请稍后重试。')
+    } finally {
+      setDeletingReplyId(null)
+    }
+  }
 
   const profileMap = useMemo(() => {
     const map = new Map<number, ForumAiProfile>()
@@ -166,6 +216,9 @@ const ForumThreadPage = () => {
         <footer>
           <strong>{getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles, thread.authorName)}</strong>
           <small>{formatTime(thread.createdAt)}</small>
+          <button type="button" className="btn-secondary" onClick={() => setPendingDeleteThread(true)}>
+            删除主题
+          </button>
         </footer>
       </article>
 
@@ -191,6 +244,14 @@ const ForumThreadPage = () => {
                 <footer>
                   <span>#{index + 1}</span>
                   <span>回复给：{targetName}</span>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setPendingDeleteReplyId(reply.id)}
+                    disabled={deletingReplyId === reply.id}
+                  >
+                    {deletingReplyId === reply.id ? '删除中…' : '删除'}
+                  </button>
                 </footer>
               </article>
             )
@@ -226,6 +287,7 @@ const ForumThreadPage = () => {
           />
         </label>
         {error ? <p className="forum-error">{error}</p> : null}
+        {successMessage ? <p className="forum-success">{successMessage}</p> : null}
         <div className="forum-editor__actions">
           <button type="button" className="btn-primary" disabled={submitting} onClick={handleSubmitReply}>
             发布用户回复
@@ -252,6 +314,28 @@ const ForumThreadPage = () => {
           })}
         </div>
       </section>
+
+      <ConfirmDialog
+        open={pendingDeleteThread}
+        title="确定删除这个主题吗？"
+        description="删除后将同时移除该主题下的全部回复。"
+        confirmLabel="删除"
+        cancelLabel="取消"
+        confirmDisabled={deletingThread}
+        cancelDisabled={deletingThread}
+        onCancel={() => setPendingDeleteThread(false)}
+        onConfirm={() => void handleDeleteThread()}
+      />
+      <ConfirmDialog
+        open={pendingDeleteReplyId !== null}
+        title="确定删除这条回复吗？"
+        confirmLabel="删除"
+        cancelLabel="取消"
+        confirmDisabled={deletingReplyId !== null}
+        cancelDisabled={deletingReplyId !== null}
+        onCancel={() => setPendingDeleteReplyId(null)}
+        onConfirm={() => void handleDeleteReply()}
+      />
     </div>
   )
 }
