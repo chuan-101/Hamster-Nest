@@ -43,9 +43,26 @@
   border: 1px solid rgba(148, 163, 184, 0.36);
   border-radius: 14px;
   padding: 0.8rem;
-  text-decoration: none;
   color: inherit;
   background: rgba(255, 255, 255, 0.62);
+}
+
+.forum-thread-item__main {
+  border: none;
+  background: transparent;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.forum-thread-item__actions {
+  display: flex;
+  align-items: center;
 }
 
 .forum-thread-item h3,
@@ -69,6 +86,11 @@
   gap: 0.2rem;
   justify-items: end;
   color: #475569;
+}
+
+.forum-success {
+  color: #047857;
+  margin: 0;
 }
 
 .forum-root-post h2,

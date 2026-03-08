@@ -1663,6 +1663,35 @@ export const createForumReply = async (params: {
   return mapForumReplyRow(data as ForumReplyRow)
 }
 
+export const deleteForumThread = async (threadId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase.from('forum_threads').delete().eq('id', threadId).eq('user_id', userId)
+
+  if (error) {
+    throw error
+  }
+}
+
+export const deleteForumReply = async (replyId: string, threadId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('forum_replies')
+    .delete()
+    .eq('id', replyId)
+    .eq('thread_id', threadId)
+    .eq('user_id', userId)
+
+  if (error) {
+    throw error
+  }
+}
+
 export const fetchForumAiProfiles = async (): Promise<ForumAiProfile[]> => {
   if (!supabase) {
     return []
