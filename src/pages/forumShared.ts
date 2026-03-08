@@ -15,6 +15,7 @@ export const defaultForumProfile = (slotIndex: number): Omit<ForumAiProfile, 'id
   temperature: 0.8,
   topP: 0.9,
   contextTokenLimit: 32000,
+  maxOutputTokens: 1600,
   apiBaseUrl: '',
 })
 
@@ -63,7 +64,6 @@ export type ForumGlobalAiConfig = {
 }
 
 const DEFAULT_MODEL = 'openrouter/auto'
-const FORUM_REPLY_MAX_TOKENS = 1600
 const FORUM_NEW_THREAD_MAX_TOKENS = 1200
 const FORUM_CONTEXT_TOKEN_LIMIT_MIN = 8000
 const FORUM_CONTEXT_TOKEN_LIMIT_MAX = 128000
@@ -302,6 +302,17 @@ const buildFullThreadConversationContext = (thread: ForumThread, replies: ForumR
   return [rootSection, repliesSection].join('\n\n')
 }
 
+export const clampForumMaxOutputTokens = (value: number | null | undefined) => {
+  if (!Number.isFinite(value)) {
+    return 1600
+  }
+  const rounded = Math.round(value as number)
+  if (rounded < 128 || rounded > 4000) {
+    return 1600
+  }
+  return rounded
+}
+
 export const clampForumContextTokenLimit = (value: number | null | undefined) => {
   if (!Number.isFinite(value)) {
     return FORUM_CONTEXT_TOKEN_LIMIT_DEFAULT
@@ -487,6 +498,7 @@ export async function requestForumAiContent({
   }
 
   const contextTokenLimit = clampForumContextTokenLimit(profile.contextTokenLimit)
+  const configuredMaxOutputTokens = clampForumMaxOutputTokens(profile.maxOutputTokens)
   const threadContext = buildFullThreadConversationContext(thread, replies)
   const threadAuthorName = resolveForumSpeakerName(thread)
 
@@ -594,7 +606,7 @@ export async function requestForumAiContent({
     messages: messagesPayload,
     temperature: profile.temperature,
     top_p: profile.topP,
-    max_tokens: task === 'reply' ? FORUM_REPLY_MAX_TOKENS : FORUM_NEW_THREAD_MAX_TOKENS,
+    max_tokens: task === 'reply' ? configuredMaxOutputTokens : FORUM_NEW_THREAD_MAX_TOKENS,
     stream: false,
     extra: {
       identitySlot: profile.slotIndex,
@@ -603,6 +615,15 @@ export async function requestForumAiContent({
       defaultModelId: globalModelConfig.defaultModelId,
       contextTokenLimit,
     },
+  }
+
+  if (task === 'reply') {
+    console.info('[Forum AI][reply] generation token settings', {
+      configuredMaxOutputTokens,
+      sentMaxTokens: requestBody.max_tokens,
+      profileSlot: profile.slotIndex,
+      model: resolvedModel,
+    })
   }
 
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
@@ -646,14 +667,21 @@ export async function requestForumAiContent({
     return draft
   }
 
-  if (isLikelyTruncatedCompletion(payload)) {
+  const replyBody = normalizeForumAiReplyBody(normalizedContent)
+  const truncated = isLikelyTruncatedCompletion(payload)
+
+  if (truncated) {
     console.warn('[Forum AI][reply] model completion likely truncated by token limit', {
+      configuredMaxOutputTokens,
+      sentMaxTokens: requestBody.max_tokens,
+      parsedReplyLength: replyBody?.length ?? 0,
       payloadPreview: JSON.stringify(payload).slice(0, 1200),
     })
-    throw new Error('AI 回复疑似因长度限制被截断，请重试。')
+    if (!replyBody) {
+      throw new Error('AI 回复疑似因长度限制被截断，请重试。')
+    }
   }
 
-  const replyBody = normalizeForumAiReplyBody(normalizedContent)
   if (!replyBody) {
     throw new Error('AI 回复格式解析失败')
   }
