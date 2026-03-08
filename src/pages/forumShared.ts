@@ -45,6 +45,7 @@ type RequestForumAiContentParams = {
   globalModelConfig: ForumGlobalAiConfig
   task: 'new-thread' | 'reply'
   replyTargetLabel?: string
+  replyTargetReplyId?: string | null
   userPrompt?: string
 }
 
@@ -67,7 +68,6 @@ const FORUM_NEW_THREAD_MAX_TOKENS = 1200
 const FORUM_CONTEXT_TOKEN_LIMIT_MIN = 8000
 const FORUM_CONTEXT_TOKEN_LIMIT_MAX = 128000
 const FORUM_CONTEXT_TOKEN_LIMIT_DEFAULT = 32000
-const FORUM_REPLY_CONTEXT_REPLY_MAX_CHARS = 280
 const FORUM_AI_DEBUG = import.meta.env.DEV
 
 const unwrapCodeFence = (value: string) => {
@@ -259,24 +259,47 @@ const normalizeForumAiNewThreadDraft = (
   return { draft: null, failureReasons }
 }
 
-const buildCompactReplyContext = (thread: ForumThread, replies: ForumReply[], omittedReplyCount = 0) => {
-  const compactReplies = replies.map((reply, index) => {
-    const content = normalizeForumThreadBody(reply.content)
-    const compactContent =
-      content.length > FORUM_REPLY_CONTEXT_REPLY_MAX_CHARS
-        ? `${content.slice(0, FORUM_REPLY_CONTEXT_REPLY_MAX_CHARS)}…`
-        : content
-    return `${index + 1}. [${reply.authorType === 'user' ? 'user' : `ai_${reply.authorSlot ?? 1}`}] ${compactContent}`
-  })
+const resolveForumSpeakerName = (author: { authorType: 'user' | 'ai'; authorSlot: number | null; authorName?: string | null }) => {
+  if (author.authorName?.trim()) {
+    return author.authorName.trim()
+  }
+  if (author.authorType === 'user') {
+    return FORUM_USER_DISPLAY_NAME
+  }
+  return `AI Slot ${author.authorSlot ?? 1}`
+}
 
-  return [
-    `主题标题：${thread.title}`,
-    `主题正文：${thread.content}`,
-    omittedReplyCount > 0 ? `（已省略较早 ${omittedReplyCount} 条回复，仅保留最近上下文）` : '',
-    ...compactReplies,
-  ]
-    .filter(Boolean)
-    .join('\n')
+const buildFullThreadConversationContext = (thread: ForumThread, replies: ForumReply[]) => {
+  const threadAuthorName = resolveForumSpeakerName(thread)
+  const rootSection = [
+    'Root thread:',
+    `Author: ${threadAuthorName}`,
+    `Title: ${normalizeForumTitle(thread.title)}`,
+    `Body: ${normalizeForumThreadBody(thread.content)}`,
+  ].join('\n')
+
+  const replyLookup = new Map<string, ForumReply>()
+  replies.forEach((reply) => replyLookup.set(reply.id, reply))
+
+  const repliesSection = [
+    'Replies:',
+    ...replies.map((reply, index) => {
+      const authorName = resolveForumSpeakerName(reply)
+      const fallbackReplyToAuthor =
+        reply.replyToType === 'thread'
+          ? threadAuthorName
+          : resolveForumSpeakerName(replyLookup.get(reply.replyToReplyId ?? '') ?? thread)
+      const replyToAuthor = reply.replyToAuthorName?.trim() || fallbackReplyToAuthor
+      return [
+        `Reply #${index + 1}`,
+        `Author: ${authorName}`,
+        `Replying to: ${replyToAuthor}`,
+        `Content: ${normalizeForumThreadBody(reply.content)}`,
+      ].join('\n')
+    }),
+  ].join('\n\n')
+
+  return [rootSection, repliesSection].join('\n\n')
 }
 
 export const clampForumContextTokenLimit = (value: number | null | undefined) => {
@@ -289,35 +312,6 @@ export const clampForumContextTokenLimit = (value: number | null | undefined) =>
   }
   return rounded
 }
-
-const estimateForumContextTokens = (value: string) => Math.ceil(value.length / 4)
-
-const cropForumThreadContextToTokenLimit = (thread: ForumThread, replies: ForumReply[], contextTokenLimit: number) => {
-  const effectiveLimit = clampForumContextTokenLimit(contextTokenLimit)
-  let visibleReplies = replies
-  let omittedReplyCount = 0
-
-  while (visibleReplies.length >= 0) {
-    const candidate = buildCompactReplyContext(thread, visibleReplies, omittedReplyCount)
-    if (estimateForumContextTokens(candidate) <= effectiveLimit) {
-      return candidate
-    }
-    if (visibleReplies.length === 0) {
-      break
-    }
-    visibleReplies = visibleReplies.slice(1)
-    omittedReplyCount += 1
-  }
-
-  const threadBody = normalizeForumThreadBody(thread.content)
-  const threadBodyMaxChars = Math.max(1200, Math.floor(effectiveLimit * 2.2))
-  const compactThread = {
-    ...thread,
-    content: threadBody.length > threadBodyMaxChars ? `${threadBody.slice(0, threadBodyMaxChars)}…` : threadBody,
-  }
-  return buildCompactReplyContext(compactThread, [], replies.length)
-}
-
 
 const cropTextToTokenLimit = (value: string, tokenLimit: number) => {
   if (!value.trim()) {
@@ -479,6 +473,7 @@ export async function requestForumAiContent({
   globalModelConfig,
   task,
   replyTargetLabel,
+  replyTargetReplyId,
   userPrompt,
 }: RequestForumAiContentParams) {
   if (!supabase) {
@@ -492,7 +487,24 @@ export async function requestForumAiContent({
   }
 
   const contextTokenLimit = clampForumContextTokenLimit(profile.contextTokenLimit)
-  const threadContext = cropForumThreadContextToTokenLimit(thread, replies, contextTokenLimit)
+  const threadContext = buildFullThreadConversationContext(thread, replies)
+  const threadAuthorName = resolveForumSpeakerName(thread)
+
+  const replyTarget =
+    task === 'reply' && replyTargetReplyId
+      ? replies.find((item) => item.id === replyTargetReplyId) ?? null
+      : null
+  const replyTargetType = task === 'reply' ? (replyTargetReplyId ? 'reply' : 'thread') : null
+  const replyTargetAuthorName =
+    task === 'reply'
+      ? replyTarget
+        ? resolveForumSpeakerName(replyTarget)
+        : threadAuthorName
+      : null
+  const replyTargetContent =
+    task === 'reply'
+      ? normalizeForumThreadBody(replyTarget ? replyTarget.content : thread.content)
+      : null
 
   const memoryBlockRaw = memoryEntries.length
     ? memoryEntries
@@ -505,6 +517,15 @@ export async function requestForumAiContent({
   messagesPayload.push({
     role: 'system',
     content: `Forum 模式指令层。你的身份是 slot_${profile.slotIndex}（${profile.displayName}）。严格遵循输出格式要求，不要包含额外解释。`,
+  })
+  messagesPayload.push({
+    role: 'system',
+    content: [
+      'Current AI identity:',
+      `Selected AI slot: ${profile.slotIndex}`,
+      `Display name: ${profile.displayName}`,
+      `Forum system prompt: ${profile.systemPrompt.trim() || '（未设置）'}`,
+    ].join('\n'),
   })
   if (profile.systemPrompt.trim()) {
     messagesPayload.push({ role: 'system', content: profile.systemPrompt.trim() })
@@ -534,7 +555,25 @@ export async function requestForumAiContent({
   } else {
     messagesPayload.push({
       role: 'user',
-      content: `当前线程上下文（严格线程内）：\n${threadContext}`,
+      content: [
+        'Root thread metadata:',
+        `Thread author: ${threadAuthorName}`,
+        `Thread title: ${normalizeForumTitle(thread.title)}`,
+        `Thread body: ${normalizeForumThreadBody(thread.content)}`,
+      ].join('\n'),
+    })
+    messagesPayload.push({
+      role: 'user',
+      content: [
+        'Reply target metadata:',
+        `Current reply target type: ${replyTargetType ?? 'thread'}`,
+        `Current reply target author name: ${replyTargetAuthorName ?? threadAuthorName}`,
+        `Current reply target content: ${replyTargetContent ?? normalizeForumThreadBody(thread.content)}`,
+      ].join('\n'),
+    })
+    messagesPayload.push({
+      role: 'user',
+      content: `Full thread conversation (chronological, speaker-labeled):\n${threadContext}`,
     })
     messagesPayload.push({
       role: 'user',
