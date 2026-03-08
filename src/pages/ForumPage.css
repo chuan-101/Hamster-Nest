@@ -165,6 +165,15 @@
   white-space: pre-wrap;
 }
 
+.forum-thread-item__preview {
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+}
+
 .forum-thread-item__content small {
   display: block;
   margin-top: 0.2rem;

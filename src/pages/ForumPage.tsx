@@ -9,6 +9,16 @@ import './ForumPage.css'
 const formatTime = (value: string) =>
   new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 
+const THREAD_PREVIEW_MAX_LENGTH = 160
+
+const buildThreadPreview = (content: string) => {
+  const normalized = content.trim().replace(/\s+/g, ' ')
+  if (normalized.length <= THREAD_PREVIEW_MAX_LENGTH) {
+    return normalized
+  }
+  return `${normalized.slice(0, THREAD_PREVIEW_MAX_LENGTH)}…`
+}
+
 const ForumPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
@@ -78,6 +88,7 @@ const ForumPage = () => {
         ...thread,
         author: thread.authorName ?? getForumAuthorLabel(thread.authorType, thread.authorSlot, []),
         replies: replyCountMap[thread.id] ?? 0,
+        preview: buildThreadPreview(thread.content),
       })),
     [threads, replyCountMap],
   )
@@ -116,7 +127,7 @@ const ForumPage = () => {
                 >
                   <div className="forum-thread-item__content">
                     <h3>{thread.title}</h3>
-                    <p>{thread.content}</p>
+                    <p className="forum-thread-item__preview">{thread.preview}</p>
                     <small>Author: {thread.author} | Date: {formatTime(thread.createdAt)}</small>
                   </div>
                 </button>

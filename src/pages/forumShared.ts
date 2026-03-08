@@ -47,6 +47,14 @@ type RequestForumAiContentParams = {
   userPrompt?: string
 }
 
+type RequestForumAiNewThreadParams = Omit<RequestForumAiContentParams, 'task'> & { task: 'new-thread' }
+type RequestForumAiReplyParams = Omit<RequestForumAiContentParams, 'task'> & { task: 'reply' }
+
+export type ForumAiNewThreadDraft = {
+  title: string
+  body: string
+}
+
 export type ForumGlobalAiConfig = {
   defaultModelId: string
   enabledModelIds: string[]
@@ -74,7 +82,9 @@ export const loadForumGlobalAiConfig = async (): Promise<ForumGlobalAiConfig> =>
   }
 }
 
-export const requestForumAiContent = async ({
+export async function requestForumAiContent(params: RequestForumAiNewThreadParams): Promise<ForumAiNewThreadDraft>
+export async function requestForumAiContent(params: RequestForumAiReplyParams): Promise<string>
+export async function requestForumAiContent({
   profile,
   thread,
   replies,
@@ -83,7 +93,7 @@ export const requestForumAiContent = async ({
   task,
   replyTargetLabel,
   userPrompt,
-}: RequestForumAiContentParams) => {
+}: RequestForumAiContentParams) {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
@@ -112,7 +122,7 @@ export const requestForumAiContent = async ({
   const messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
   messagesPayload.push({
     role: 'system',
-    content: `Forum 模式指令层。你的身份是 slot_${profile.slotIndex}（${profile.displayName}）。仅输出帖子/回复正文，不要包含解释。`,
+    content: `Forum 模式指令层。你的身份是 slot_${profile.slotIndex}（${profile.displayName}）。严格遵循输出格式要求，不要包含额外解释。`,
   })
   if (profile.systemPrompt.trim()) {
     messagesPayload.push({ role: 'system', content: profile.systemPrompt.trim() })
@@ -128,7 +138,12 @@ export const requestForumAiContent = async ({
   if (task === 'new-thread') {
     messagesPayload.push({
       role: 'user',
-      content: `请生成一篇新的论坛主题正文，不要引用任何历史线程内容。拟定标题：${thread.title || '（未提供）'}。${userPrompt ? `用户补充：${userPrompt}` : ''}`,
+      content:
+        '请生成新的论坛主题，必须返回 JSON：{"title":"...","body":"..."}。title 为主题标题，body 为主题正文。禁止输出 JSON 之外的任何文字。',
+    })
+    messagesPayload.push({
+      role: 'user',
+      content: `写作方向（可选）：${userPrompt?.trim() || '（未提供）'}。不要引用任何历史线程内容。`,
     })
   } else {
     messagesPayload.push({
@@ -183,5 +198,43 @@ export const requestForumAiContent = async ({
   const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<string, unknown>
   const content =
     typeof message.content === 'string' ? message.content : typeof choice?.text === 'string' ? choice.text : ''
-  return content.trim() || '（空回复）'
+  const normalizedContent = content.trim()
+
+  if (task === 'new-thread') {
+    const fallbackBody = normalizedContent || '（空主题）'
+    const parseStructuredDraft = (rawText: string): ForumAiNewThreadDraft | null => {
+      if (!rawText.trim()) {
+        return null
+      }
+      const normalized = rawText.trim()
+      const fencedMatch = normalized.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+      const candidate = (fencedMatch?.[1] ?? normalized).trim()
+      try {
+        const parsed = JSON.parse(candidate) as Record<string, unknown>
+        const parsedTitle = typeof parsed.title === 'string' ? parsed.title.trim() : ''
+        const parsedBody = typeof parsed.body === 'string' ? parsed.body.trim() : ''
+        if (!parsedTitle || !parsedBody) {
+          return null
+        }
+        return {
+          title: parsedTitle,
+          body: parsedBody,
+        }
+      } catch {
+        return null
+      }
+    }
+
+    const structuredDraft = parseStructuredDraft(normalizedContent)
+    if (structuredDraft) {
+      return structuredDraft
+    }
+
+    return {
+      title: thread.title.trim() || `AI 主题 ${new Date().toLocaleString('zh-CN')}`,
+      body: fallbackBody,
+    }
+  }
+
+  return normalizedContent || '（空回复）'
 }
