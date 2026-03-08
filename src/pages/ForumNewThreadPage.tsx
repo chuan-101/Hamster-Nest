@@ -7,6 +7,15 @@ import './ForumPage.css'
 
 type AuthorDraft = 'user' | 'ai-1' | 'ai-2' | 'ai-3'
 
+const resolveAuthorSlot = (draft: AuthorDraft): number | null => {
+  if (draft === 'user') {
+    return null
+  }
+  const [, slotText] = draft.split('-')
+  const slot = Number(slotText)
+  return Number.isInteger(slot) && FORUM_AI_SLOTS.includes(slot as (typeof FORUM_AI_SLOTS)[number]) ? slot : null
+}
+
 const ForumNewThreadPage = () => {
   const navigate = useNavigate()
   const [profiles, setProfiles] = useState<ForumAiProfile[]>([])
@@ -19,8 +28,8 @@ const ForumNewThreadPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [globalAiConfig, setGlobalAiConfig] = useState<ForumGlobalAiConfig | null>(null)
 
-  const authorIsAi = authorDraft !== 'user'
-  const selectedSlot = authorIsAi ? Number(authorDraft.split('-')[1]) : null
+  const selectedSlot = resolveAuthorSlot(authorDraft)
+  const authorIsAi = selectedSlot !== null
 
   useEffect(() => {
     const loadProfiles = async () => {
@@ -93,7 +102,16 @@ const ForumNewThreadPage = () => {
   }
 
   const handleGenerateAiThread = async () => {
-    if (!authorIsAi || !selectedSlot || !title.trim() || !globalAiConfig) {
+    if (!authorIsAi || !selectedSlot) {
+      setError('请先选择 AI 作者（AI Slot 1/2/3）后再生成。')
+      return
+    }
+    if (!title.trim()) {
+      setError('请先填写主题标题，再生成 AI 主题。')
+      return
+    }
+    if (!globalAiConfig) {
+      setError('AI 模型配置尚未就绪，请稍后重试或前往设置页检查。')
       return
     }
     const profile = selectedAiProfile
@@ -133,9 +151,6 @@ const ForumNewThreadPage = () => {
       setGenerating(false)
     }
   }
-
-  const aiConfigReady = Boolean(globalAiConfig)
-  const canGenerateAi = Boolean(authorIsAi && selectedAiProfile?.enabled && title.trim() && aiConfigReady)
 
   return (
     <div className="forum-page app-shell__content">
@@ -194,7 +209,7 @@ const ForumNewThreadPage = () => {
           <button
             type="button"
             className="btn-secondary"
-            disabled={!canGenerateAi || submitting || generating}
+            disabled={submitting || generating}
             onClick={handleGenerateAiThread}
           >
             {generating ? 'AI 生成中…' : '生成 AI 主题'}
