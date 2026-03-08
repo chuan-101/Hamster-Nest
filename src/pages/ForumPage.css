@@ -305,6 +305,9 @@
 .forum-settings-list__header {
   align-items: center;
   flex-wrap: wrap;
+  padding: 0.7rem 0;
+  border-bottom: 2px dashed #c7a8b8;
+  margin-bottom: 0.2rem;
 }
 
 .forum-settings-summary {
@@ -314,24 +317,56 @@
 }
 
 .forum-settings-summary-card {
-  align-items: center;
-  border: 2px solid #a1919a;
+  position: relative;
+  align-items: flex-start;
+  border: 2px solid #cdb7c4;
+  border-top-color: #fff4fa;
+  border-left-color: #fff4fa;
+  border-right-color: #8f7484;
+  border-bottom-color: #8f7484;
   border-radius: 0;
-  padding: 0.68rem;
+  min-height: 0;
+  height: auto;
+  padding: 1rem;
   background: #fffdf8;
-  box-shadow: 2px 2px 0 0 #ffe7f1;
+  box-shadow: 2px 2px 0 0 #edd0de;
 }
 
 .forum-settings-summary-card__name {
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.1;
   color: #5f505e;
+  font-family: 'VT323', 'DotGothic16', monospace;
 }
 
 .forum-settings-summary-card__meta {
-  margin-top: 0.2rem;
+  margin-top: 0.15rem;
   color: #7a7078;
-  font-size: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.15;
   font-family: 'VT323', 'DotGothic16', monospace;
+}
+
+.forum-settings-summary-card__dot {
+  width: 10px;
+  height: 10px;
+  background: #27b148;
+  border: 1px solid #1a7d32;
+  box-shadow: inset 1px 1px 0 0 #9af0ac;
+}
+
+.forum-settings-summary-card__action {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+}
+
+.forum-settings-summary-card__info {
+  padding-right: 4.1rem;
 }
 
 .forum-settings-editor__grid {
@@ -365,12 +400,23 @@
 }
 
 .forum-settings-header {
-  grid-template-columns: auto 1fr auto;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 68px;
+  height: 68px;
+  padding: 0.4rem 0.9rem;
+  border-bottom: 2px solid #b886a1;
 }
 
-.forum-settings-header > div {
-  width: 1px;
-  height: 1px;
+.forum-settings-header .forum-pixel-btn {
+  position: absolute;
+  left: 0.9rem;
+}
+
+.forum-settings-header .ui-title {
+  justify-self: auto;
 }
 
 .forum-settings-list,
@@ -379,6 +425,11 @@
   background: #fffefb;
   box-shadow: 2px 2px 0 0 #ffe0ec;
   padding: 0.85rem;
+}
+
+.forum-settings-list__cards {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
 }
 
 .forum-settings-editor .ui-title {
