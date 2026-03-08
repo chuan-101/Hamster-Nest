@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useEnabledModels } from '../hooks/useEnabledModels'
 import type { ForumAiProfile } from '../types'
 import { fetchForumAiProfiles, upsertForumAiProfile } from '../storage/supabaseSync'
-import { FORUM_AI_SLOTS, defaultForumProfile } from './forumShared'
+import { FORUM_AI_SLOTS, clampForumContextTokenLimit, defaultForumProfile } from './forumShared'
 import './ForumPage.css'
 
 type ForumSettingsPageProps = {
@@ -98,6 +98,7 @@ const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
         model: draft.model,
         temperature: draft.temperature,
         topP: draft.topP,
+        contextTokenLimit: clampForumContextTokenLimit(draft.contextTokenLimit),
         apiBaseUrl: '',
       })
       setProfiles((current) => {
@@ -164,6 +165,7 @@ const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
                       <p className="forum-settings-summary-card__meta">AI 卡 {card.slotIndex}</p>
                       <p className="forum-settings-summary-card__meta">模型：{modelLabel}</p>
                       <p className="forum-settings-summary-card__meta">状态：{card.enabled ? '已启用' : '未启用'}</p>
+                      <p className="forum-settings-summary-card__meta">上下文约束：{card.contextTokenLimit}</p>
                     </article>
                   )
                 })}
@@ -235,6 +237,33 @@ const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
                       setDraft((current) => (current ? { ...current, topP: Number(event.target.value) } : current))
                     }
                   />
+                </label>
+
+                <label>
+                  <span>上下文约束</span>
+                  <input
+                    className="input-glass"
+                    type="number"
+                    min={8000}
+                    max={128000}
+                    step={1}
+                    value={draft.contextTokenLimit}
+                    onChange={(event) => {
+                      const raw = Number(event.target.value)
+                      setDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              contextTokenLimit:
+                                Number.isFinite(raw) && raw >= 8000 && raw <= 128000
+                                  ? Math.round(raw)
+                                  : 32000,
+                            }
+                          : current,
+                      )
+                    }}
+                  />
+                  <small>范围 8000 - 128000，默认 32000</small>
                 </label>
               </div>
               <label className="forum-settings-toggle">

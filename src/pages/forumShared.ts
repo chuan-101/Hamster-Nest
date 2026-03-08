@@ -14,6 +14,7 @@ export const defaultForumProfile = (slotIndex: number): Omit<ForumAiProfile, 'id
   model: 'openrouter/auto',
   temperature: 0.8,
   topP: 0.9,
+  contextTokenLimit: 32000,
   apiBaseUrl: '',
 })
 
@@ -63,7 +64,9 @@ export type ForumGlobalAiConfig = {
 const DEFAULT_MODEL = 'openrouter/auto'
 const FORUM_REPLY_MAX_TOKENS = 1600
 const FORUM_NEW_THREAD_MAX_TOKENS = 1200
-const FORUM_REPLY_CONTEXT_MAX_REPLIES = 12
+const FORUM_CONTEXT_TOKEN_LIMIT_MIN = 8000
+const FORUM_CONTEXT_TOKEN_LIMIT_MAX = 128000
+const FORUM_CONTEXT_TOKEN_LIMIT_DEFAULT = 32000
 const FORUM_REPLY_CONTEXT_REPLY_MAX_CHARS = 280
 const FORUM_AI_DEBUG = import.meta.env.DEV
 
@@ -256,8 +259,8 @@ const normalizeForumAiNewThreadDraft = (
   return { draft: null, failureReasons }
 }
 
-const buildCompactReplyContext = (thread: ForumThread, replies: ForumReply[]) => {
-  const trimmedReplies = replies.slice(-FORUM_REPLY_CONTEXT_MAX_REPLIES).map((reply, index) => {
+const buildCompactReplyContext = (thread: ForumThread, replies: ForumReply[], omittedReplyCount = 0) => {
+  const compactReplies = replies.map((reply, index) => {
     const content = normalizeForumThreadBody(reply.content)
     const compactContent =
       content.length > FORUM_REPLY_CONTEXT_REPLY_MAX_CHARS
@@ -266,16 +269,66 @@ const buildCompactReplyContext = (thread: ForumThread, replies: ForumReply[]) =>
     return `${index + 1}. [${reply.authorType === 'user' ? 'user' : `ai_${reply.authorSlot ?? 1}`}] ${compactContent}`
   })
 
-  const omittedReplyCount = Math.max(0, replies.length - trimmedReplies.length)
-
   return [
     `主题标题：${thread.title}`,
     `主题正文：${thread.content}`,
     omittedReplyCount > 0 ? `（已省略较早 ${omittedReplyCount} 条回复，仅保留最近上下文）` : '',
-    ...trimmedReplies,
+    ...compactReplies,
   ]
     .filter(Boolean)
     .join('\n')
+}
+
+export const clampForumContextTokenLimit = (value: number | null | undefined) => {
+  if (!Number.isFinite(value)) {
+    return FORUM_CONTEXT_TOKEN_LIMIT_DEFAULT
+  }
+  const rounded = Math.round(value as number)
+  if (rounded < FORUM_CONTEXT_TOKEN_LIMIT_MIN || rounded > FORUM_CONTEXT_TOKEN_LIMIT_MAX) {
+    return FORUM_CONTEXT_TOKEN_LIMIT_DEFAULT
+  }
+  return rounded
+}
+
+const estimateForumContextTokens = (value: string) => Math.ceil(value.length / 4)
+
+const cropForumThreadContextToTokenLimit = (thread: ForumThread, replies: ForumReply[], contextTokenLimit: number) => {
+  const effectiveLimit = clampForumContextTokenLimit(contextTokenLimit)
+  let visibleReplies = replies
+  let omittedReplyCount = 0
+
+  while (visibleReplies.length >= 0) {
+    const candidate = buildCompactReplyContext(thread, visibleReplies, omittedReplyCount)
+    if (estimateForumContextTokens(candidate) <= effectiveLimit) {
+      return candidate
+    }
+    if (visibleReplies.length === 0) {
+      break
+    }
+    visibleReplies = visibleReplies.slice(1)
+    omittedReplyCount += 1
+  }
+
+  const threadBody = normalizeForumThreadBody(thread.content)
+  const threadBodyMaxChars = Math.max(1200, Math.floor(effectiveLimit * 2.2))
+  const compactThread = {
+    ...thread,
+    content: threadBody.length > threadBodyMaxChars ? `${threadBody.slice(0, threadBodyMaxChars)}…` : threadBody,
+  }
+  return buildCompactReplyContext(compactThread, [], replies.length)
+}
+
+
+const cropTextToTokenLimit = (value: string, tokenLimit: number) => {
+  if (!value.trim()) {
+    return value
+  }
+  const safeLimit = Math.max(1, tokenLimit)
+  const approxMaxChars = safeLimit * 4
+  if (value.length <= approxMaxChars) {
+    return value
+  }
+  return `${value.slice(0, approxMaxChars)}…`
 }
 
 const isLikelyTruncatedCompletion = (payload: Record<string, unknown>) => {
@@ -438,13 +491,15 @@ export async function requestForumAiContent({
     throw new Error('登录状态异常或环境变量未配置')
   }
 
-  const threadContext = buildCompactReplyContext(thread, replies)
+  const contextTokenLimit = clampForumContextTokenLimit(profile.contextTokenLimit)
+  const threadContext = cropForumThreadContextToTokenLimit(thread, replies, contextTokenLimit)
 
-  const memoryBlock = memoryEntries.length
+  const memoryBlockRaw = memoryEntries.length
     ? memoryEntries
         .map((entry, index) => `${index + 1}. (${entry.status}) ${entry.content}`)
         .join('\n')
     : '无'
+  const memoryBlock = cropTextToTokenLimit(memoryBlockRaw, Math.max(2000, Math.floor(contextTokenLimit * 0.45)))
 
   const messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
   messagesPayload.push({
@@ -461,6 +516,10 @@ export async function requestForumAiContent({
   messagesPayload.push({
     role: 'system',
     content: `memory_entries 全量注入：\n${memoryBlock}`,
+  })
+  messagesPayload.push({
+    role: 'system',
+    content: `forum_thread_context_token_limit：${contextTokenLimit}`,
   })
   if (task === 'new-thread') {
     messagesPayload.push({
@@ -503,6 +562,7 @@ export async function requestForumAiContent({
       scope: 'thread-only',
       enabledModelIds: globalModelConfig.enabledModelIds,
       defaultModelId: globalModelConfig.defaultModelId,
+      contextTokenLimit,
     },
   }
 
