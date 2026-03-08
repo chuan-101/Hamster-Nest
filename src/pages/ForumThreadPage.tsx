@@ -23,8 +23,9 @@ const ForumThreadPage = () => {
   const [thread, setThread] = useState<ForumThread | null>(null)
   const [replies, setReplies] = useState<ForumReply[]>([])
   const [profiles, setProfiles] = useState<ForumAiProfile[]>([])
-  const [replyContent, setReplyContent] = useState('')
-  const [targetReplyId, setTargetReplyId] = useState<string>('thread-root')
+  const [rootReplyContent, setRootReplyContent] = useState('')
+  const [activeInlineReplyId, setActiveInlineReplyId] = useState<string | null>(null)
+  const [inlineReplyContent, setInlineReplyContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [generatingSlot, setGeneratingSlot] = useState<number | null>(null)
@@ -96,7 +97,7 @@ const ForumThreadPage = () => {
     try {
       await deleteForumReply(pendingDeleteReplyId, thread.id)
       setReplies((current) => current.filter((item) => item.id !== pendingDeleteReplyId))
-      setTargetReplyId((current) => (current === pendingDeleteReplyId ? 'thread-root' : current))
+      setActiveInlineReplyId((current) => (current === pendingDeleteReplyId ? null : current))
       setSuccessMessage('回复已删除。')
       setPendingDeleteReplyId(null)
     } catch (deleteError) {
@@ -113,19 +114,33 @@ const ForumThreadPage = () => {
     return map
   }, [profiles])
 
-  const targetLabel = useMemo(() => {
-    if (targetReplyId === 'thread-root') {
-      return '主题帖'
-    }
-    const target = replies.find((reply) => reply.id === targetReplyId)
-    if (!target) {
-      return '主题帖'
-    }
-    return `${getForumAuthorLabel(target.authorType, target.authorSlot, profiles, target.authorName)} 的回复`
-  }, [profiles, replies, targetReplyId])
+  const getReplyTargetLabel = useCallback(
+    (targetReplyId: string | null) => {
+      if (!targetReplyId) {
+        return '主题帖'
+      }
+      const target = replies.find((reply) => reply.id === targetReplyId)
+      if (!target) {
+        return '主题帖'
+      }
+      return `${getForumAuthorLabel(target.authorType, target.authorSlot, profiles, target.authorName)} 的回复`
+    },
+    [profiles, replies],
+  )
 
-  const handleSubmitReply = async () => {
-    if (!thread || !replyContent.trim()) {
+  const rootTargetLabel = useMemo(() => {
+    if (!thread) {
+      return '主题帖'
+    }
+    return `${getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles, thread.authorName)} 的主题帖`
+  }, [profiles, thread])
+
+  const handleSubmitReply = async (params: {
+    content: string
+    targetReplyId: string | null
+    onSuccess: () => void
+  }) => {
+    if (!thread || !params.content.trim()) {
       return
     }
     setSubmitting(true)
@@ -133,14 +148,13 @@ const ForumThreadPage = () => {
     try {
       const created = await createForumReply({
         threadId: thread.id,
-        content: replyContent.trim(),
+        content: params.content.trim(),
         authorType: 'user',
-        replyToType: targetReplyId === 'thread-root' ? 'thread' : 'reply',
-        replyToReplyId: targetReplyId === 'thread-root' ? null : targetReplyId,
+        replyToType: params.targetReplyId ? 'reply' : 'thread',
+        replyToReplyId: params.targetReplyId,
       })
       setReplies((current) => [...current, created])
-      setReplyContent('')
-      setTargetReplyId('thread-root')
+      params.onSuccess()
     } catch (submitError) {
       console.warn('发送回复失败', submitError)
       setError('发送失败，请稍后重试。')
@@ -149,16 +163,21 @@ const ForumThreadPage = () => {
     }
   }
 
-  const handleGenerateAiReply = async (slot: number) => {
+  const handleGenerateAiReply = async (params: {
+    slot: number
+    content: string
+    targetReplyId: string | null
+    onSuccess: () => void
+  }) => {
     if (!thread || generatingSlot || !globalAiConfig) {
       return
     }
-    const profile = profileMap.get(slot)
+    const profile = profileMap.get(params.slot)
     if (!profile?.enabled) {
       setError('该 AI 档案未启用，请先到设置页开启。')
       return
     }
-    setGeneratingSlot(slot)
+    setGeneratingSlot(params.slot)
     setError(null)
     try {
       const memoryEntries = await fetchAllMemoryEntries()
@@ -169,19 +188,19 @@ const ForumThreadPage = () => {
         memoryEntries,
         globalModelConfig: globalAiConfig,
         task: 'reply',
-        replyTargetLabel: targetLabel,
-        userPrompt: replyContent.trim() || undefined,
+        replyTargetLabel: getReplyTargetLabel(params.targetReplyId),
+        userPrompt: params.content.trim() || undefined,
       })
       const created = await createForumReply({
         threadId: thread.id,
         content: generated,
         authorType: 'ai',
-        authorSlot: slot,
-        replyToType: targetReplyId === 'thread-root' ? 'thread' : 'reply',
-        replyToReplyId: targetReplyId === 'thread-root' ? null : targetReplyId,
+        authorSlot: params.slot,
+        replyToType: params.targetReplyId ? 'reply' : 'thread',
+        replyToReplyId: params.targetReplyId,
       })
       setReplies((current) => [...current, created])
-      setReplyContent('')
+      params.onSuccess()
     } catch (generateError) {
       console.warn('AI 回复失败', generateError)
       setError('AI 生成失败，请检查配置后重试。')
@@ -251,12 +270,90 @@ const ForumThreadPage = () => {
                   <button
                     type="button"
                     className="btn-secondary"
+                    onClick={() => {
+                      setError(null)
+                      setSuccessMessage(null)
+                      setInlineReplyContent('')
+                      setActiveInlineReplyId((current) => (current === reply.id ? null : reply.id))
+                    }}
+                  >
+                    {activeInlineReplyId === reply.id ? '收起回复' : '回复'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
                     onClick={() => setPendingDeleteReplyId(reply.id)}
                     disabled={deletingReplyId === reply.id}
                   >
                     {deletingReplyId === reply.id ? '删除中…' : '删除'}
                   </button>
                 </footer>
+                {activeInlineReplyId === reply.id ? (
+                  <div className="forum-inline-editor">
+                    <p className="forum-inline-editor__target">
+                      回复给：{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}
+                    </p>
+                    <label>
+                      内容 / AI 指令
+                      <textarea
+                        className="textarea-glass"
+                        rows={4}
+                        value={inlineReplyContent}
+                        onChange={(event) => setInlineReplyContent(event.target.value)}
+                        placeholder="输入对该回复的内容；也可填写给 AI 的指令后点击下方按钮。"
+                      />
+                    </label>
+                    <div className="forum-editor__actions">
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        disabled={submitting}
+                        onClick={() =>
+                          void handleSubmitReply({
+                            content: inlineReplyContent,
+                            targetReplyId: reply.id,
+                            onSuccess: () => {
+                              setInlineReplyContent('')
+                              setActiveInlineReplyId(null)
+                            },
+                          })
+                        }
+                      >
+                        发布用户回复
+                      </button>
+                      {FORUM_AI_SLOTS.map((slot) => {
+                        const profile = profileMap.get(slot) ?? {
+                          ...defaultForumProfile(slot),
+                          id: `slot-${slot}`,
+                          userId: '',
+                          createdAt: '',
+                          updatedAt: '',
+                        }
+                        return (
+                          <button
+                            key={`${reply.id}-${slot}`}
+                            type="button"
+                            className="btn-secondary"
+                            disabled={Boolean(generatingSlot) || !profile.enabled || !globalAiConfig}
+                            onClick={() =>
+                              void handleGenerateAiReply({
+                                slot,
+                                content: inlineReplyContent,
+                                targetReplyId: reply.id,
+                                onSuccess: () => {
+                                  setInlineReplyContent('')
+                                  setActiveInlineReplyId(null)
+                                },
+                              })
+                            }
+                          >
+                            {generatingSlot === slot ? '生成中…' : `${profile.displayName} 生成回复`}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </article>
             )
           })}
@@ -264,36 +361,33 @@ const ForumThreadPage = () => {
       </section>
 
       <section className="glass-card forum-editor">
-        <h3 className="ui-title">手动回复</h3>
-        <label>
-          回复目标
-          <select
-            className="input-glass"
-            value={targetReplyId}
-            onChange={(event) => setTargetReplyId(event.target.value)}
-          >
-            <option value="thread-root">主题帖</option>
-            {replies.map((reply, index) => (
-              <option key={reply.id} value={reply.id}>
-                回复 #{index + 1}（{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}）
-              </option>
-            ))}
-          </select>
-        </label>
+        <h3 className="ui-title">回复主题帖</h3>
+        <p className="forum-editor__target">目标：{rootTargetLabel}</p>
         <label>
           内容 / AI 指令
           <textarea
             className="textarea-glass"
             rows={5}
-            value={replyContent}
-            onChange={(event) => setReplyContent(event.target.value)}
-            placeholder="输入手动回复；也可填写给 AI 的指令后点击下方按钮。"
+            value={rootReplyContent}
+            onChange={(event) => setRootReplyContent(event.target.value)}
+            placeholder="输入对主题帖的回复；也可填写给 AI 的指令后点击下方按钮。"
           />
         </label>
         {error ? <p className="forum-error">{error}</p> : null}
         {successMessage ? <p className="forum-success">{successMessage}</p> : null}
         <div className="forum-editor__actions">
-          <button type="button" className="btn-primary" disabled={submitting} onClick={handleSubmitReply}>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={submitting}
+            onClick={() =>
+              void handleSubmitReply({
+                content: rootReplyContent,
+                targetReplyId: null,
+                onSuccess: () => setRootReplyContent(''),
+              })
+            }
+          >
             发布用户回复
           </button>
           {FORUM_AI_SLOTS.map((slot) => {
@@ -310,7 +404,14 @@ const ForumThreadPage = () => {
                 type="button"
                 className="btn-secondary"
                 disabled={Boolean(generatingSlot) || !profile.enabled || !globalAiConfig}
-                onClick={() => void handleGenerateAiReply(slot)}
+                onClick={() =>
+                  void handleGenerateAiReply({
+                    slot,
+                    content: rootReplyContent,
+                    targetReplyId: null,
+                    onSuccess: () => setRootReplyContent(''),
+                  })
+                }
               >
                 {generatingSlot === slot ? '生成中…' : `${profile.displayName} 生成回复`}
               </button>
