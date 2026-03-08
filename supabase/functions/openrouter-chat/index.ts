@@ -20,6 +20,7 @@ type OpenRouterPayload = {
   module?: 'snack-feed' | 'syzygy-feed' | 'rp-room' | string
   rpKeepRecentMessages?: number
   debug?: boolean
+  extra?: Record<string, unknown>
 }
 
 type StoredMessageRow = {
@@ -127,6 +128,45 @@ const resolveReasoningPayload = (reasoning: OpenRouterPayload['reasoning']) => {
     return reasoning
   }
   return null
+}
+
+const flattenOpenRouterTextParts = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (!Array.isArray(value)) {
+    return ''
+  }
+  return value
+    .map((part) => {
+      if (typeof part === 'string') {
+        return part
+      }
+      if (!part || typeof part !== 'object') {
+        return ''
+      }
+      const candidate = part as Record<string, unknown>
+      if (typeof candidate.text === 'string') {
+        return candidate.text
+      }
+      if (typeof candidate.content === 'string') {
+        return candidate.content
+      }
+      return ''
+    })
+    .filter(Boolean)
+    .join('')
+}
+
+const extractOpenRouterContent = (payload: Record<string, unknown>): string => {
+  const choice = (payload?.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined
+  const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<string, unknown>
+  const messageContent = flattenOpenRouterTextParts(message.content)
+  const choiceText = typeof choice?.text === 'string' ? choice.text : ''
+  const outputText = flattenOpenRouterTextParts(payload.output_text)
+  const outputParts = flattenOpenRouterTextParts(payload.output)
+  const candidate = [messageContent, choiceText, outputText, outputParts].find((item) => item.trim())
+  return (candidate ?? '').trim()
 }
 
 const shouldInjectSyzygyFeedMemory = (payload: OpenRouterPayload) => payload.module === 'syzygy-feed'
@@ -905,6 +945,19 @@ serve(async (req) => {
 
   const { temperature, top_p, max_tokens, reasoning } = payload
   const stream = payload.stream ?? true
+  const isForumModule = payload.module === 'forum'
+  if (isForumModule) {
+    console.info('[openrouter-chat][forum] incoming payload', {
+      module: payload.module,
+      model: payload.model,
+      modelId: payload.modelId,
+      stream,
+      messageCount: Array.isArray(payload.messages) ? payload.messages.length : 0,
+      hasExtra: Boolean(payload.extra),
+      extraScope: typeof payload.extra?.scope === 'string' ? payload.extra.scope : null,
+      identitySlot: typeof payload.extra?.identitySlot === 'number' ? payload.extra.identitySlot : null,
+    })
+  }
   const resolvedModelId = await resolveRequestModelId(payload, req.url, authHeader, apiKeyHeader, userId)
   let messages = payload.messages
   let compressionCacheWriteFailed = false
@@ -973,6 +1026,12 @@ serve(async (req) => {
 
     if (!upstream.ok) {
       const errorText = await upstream.text()
+      if (isForumModule) {
+        console.error('[openrouter-chat][forum] upstream error', {
+          status: upstream.status,
+          bodyPreview: errorText.slice(0, 1000),
+        })
+      }
       return new Response(JSON.stringify({ error: errorText || '上游服务错误' }), {
         status: upstream.status,
         headers: {
@@ -1006,10 +1065,62 @@ serve(async (req) => {
     }
 
     const payloadText = await upstream.text()
+    if (isForumModule) {
+      console.info('[openrouter-chat][forum] upstream non-stream payload length', payloadText.length)
+    }
+    if (!payloadText.trim()) {
+      if (isForumModule) {
+        console.error('[openrouter-chat][forum] empty upstream body with HTTP 200')
+      }
+      return new Response(JSON.stringify({ error: '上游返回空响应', code: 'EMPTY_UPSTREAM_BODY' }), {
+        status: 502,
+        headers: {
+          ...buildCorsHeaders(origin),
+          ...buildRpCompressionDebugHeaders(),
+          'Content-Type': 'application/json',
+        },
+      })
+    }
+
+    let parsedUpstreamPayload: Record<string, unknown> | null = null
+    try {
+      parsedUpstreamPayload = JSON.parse(payloadText) as Record<string, unknown>
+    } catch {
+      parsedUpstreamPayload = null
+    }
+
+    if (isForumModule) {
+      const extractedContent = parsedUpstreamPayload ? extractOpenRouterContent(parsedUpstreamPayload) : ''
+      console.info('[openrouter-chat][forum] non-stream parse summary', {
+        hasJsonPayload: Boolean(parsedUpstreamPayload),
+        extractedContentLength: extractedContent.length,
+      })
+      if (!extractedContent) {
+        console.error('[openrouter-chat][forum] missing generated text content in provider payload', {
+          payloadPreview: payloadText.slice(0, 1000),
+        })
+        return new Response(
+          JSON.stringify({
+            error: '模型未返回可用内容',
+            code: 'EMPTY_MODEL_CONTENT',
+            providerPayload: parsedUpstreamPayload ?? payloadText,
+          }),
+          {
+            status: 502,
+            headers: {
+              ...buildCorsHeaders(origin),
+              ...buildRpCompressionDebugHeaders(),
+              'Content-Type': 'application/json',
+            },
+          },
+        )
+      }
+    }
+
     const isDev = Deno.env.get('ENV') === 'development' || Deno.env.get('DENO_ENV') === 'development'
     if (isDev && compressionCacheWriteFailed) {
       try {
-        const upstreamPayload = JSON.parse(payloadText) as Record<string, unknown>
+        const upstreamPayload = (parsedUpstreamPayload ?? JSON.parse(payloadText)) as Record<string, unknown>
         upstreamPayload.debug = {
           ...(typeof upstreamPayload.debug === 'object' && upstreamPayload.debug !== null
             ? (upstreamPayload.debug as Record<string, unknown>)
@@ -1030,6 +1141,10 @@ serve(async (req) => {
       }
     }
 
+    if (isForumModule) {
+      console.info('[openrouter-chat][forum] forwarding upstream payload to client')
+    }
+
     return new Response(payloadText, {
       status: 200,
       headers: {
@@ -1038,7 +1153,10 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
     })
-  } catch {
+  } catch (error) {
+    if (isForumModule) {
+      console.error('[openrouter-chat][forum] request failed', error)
+    }
     return new Response(JSON.stringify({ error: '请求失败' }), {
       status: 500,
       headers: {
