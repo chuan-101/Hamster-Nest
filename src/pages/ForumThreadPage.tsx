@@ -225,7 +225,7 @@ const ForumThreadPage = () => {
   }
 
   return (
-    <div className="forum-page app-shell__content">
+    <div className="forum-page forum-thread-page app-shell__content">
       <header className="forum-header glass-card">
         <button type="button" className="btn-secondary" onClick={() => navigate('/forum')}>
           返回列表
@@ -233,12 +233,17 @@ const ForumThreadPage = () => {
         <h1 className="ui-title">主题详情</h1>
       </header>
 
-      <article className="glass-card forum-root-post">
-        <h2>{thread.title}</h2>
-        <p>{thread.content}</p>
-        <footer>
+      <article className="glass-card forum-root-post forum-bbs-card">
+        <header className="forum-bbs-card__author">
           <strong>{getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles, thread.authorName)}</strong>
           <small>{formatTime(thread.createdAt)}</small>
+          <span className="forum-floor-tag">#1</span>
+        </header>
+        <div className="forum-bbs-card__content">
+          <h2>{thread.title}</h2>
+          <p>{thread.content}</p>
+        </div>
+        <footer>
           <button type="button" className="btn-secondary" onClick={() => setPendingDeleteThread(true)}>
             删除主题
           </button>
@@ -259,13 +264,15 @@ const ForumThreadPage = () => {
                   : '未知目标'
             return (
               <article className="forum-reply-item" key={reply.id}>
-                <header>
+                <header className="forum-bbs-card__author">
                   <strong>{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}</strong>
                   <small>{formatTime(reply.createdAt)}</small>
+                  <span className="forum-floor-tag">#{index + 2}</span>
                 </header>
-                <p>{reply.content}</p>
-                <footer>
-                  <span>#{index + 1}</span>
+                <div className="forum-bbs-card__content">
+                  <p>{reply.content}</p>
+                </div>
+                <footer className="forum-reply-item__footer">
                   <span>回复给：{targetName}</span>
                   <button
                     type="button"
@@ -295,13 +302,15 @@ const ForumThreadPage = () => {
                     </p>
                     <label>
                       内容 / AI 指令
-                      <textarea
-                        className="textarea-glass"
-                        rows={4}
-                        value={inlineReplyContent}
-                        onChange={(event) => setInlineReplyContent(event.target.value)}
-                        placeholder="输入对该回复的内容；也可填写给 AI 的指令后点击下方按钮。"
-                      />
+                      <div className="forum-terminal-field">
+                        <textarea
+                          className="textarea-glass"
+                          rows={4}
+                          value={inlineReplyContent}
+                          onChange={(event) => setInlineReplyContent(event.target.value)}
+                          placeholder="输入对该回复的内容；也可填写给 AI 的指令后点击下方按钮。"
+                        />
+                      </div>
                     </label>
                     <div className="forum-editor__actions">
                       <button
@@ -365,13 +374,15 @@ const ForumThreadPage = () => {
         <p className="forum-editor__target">目标：{rootTargetLabel}</p>
         <label>
           内容 / AI 指令
-          <textarea
-            className="textarea-glass"
-            rows={5}
-            value={rootReplyContent}
-            onChange={(event) => setRootReplyContent(event.target.value)}
-            placeholder="输入对主题帖的回复；也可填写给 AI 的指令后点击下方按钮。"
-          />
+          <div className="forum-terminal-field">
+            <textarea
+              className="textarea-glass"
+              rows={5}
+              value={rootReplyContent}
+              onChange={(event) => setRootReplyContent(event.target.value)}
+              placeholder="输入对主题帖的回复；也可填写给 AI 的指令后点击下方按钮。"
+            />
+          </div>
         </label>
         {error ? <p className="forum-error">{error}</p> : null}
         {successMessage ? <p className="forum-success">{successMessage}</p> : null}
