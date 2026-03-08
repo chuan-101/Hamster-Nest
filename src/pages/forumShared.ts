@@ -63,12 +63,35 @@ export type ForumGlobalAiConfig = {
 }
 
 const DEFAULT_MODEL = 'openrouter/auto'
-const FORUM_REPLY_MAX_TOKENS = 1600
-const FORUM_NEW_THREAD_MAX_TOKENS = 1200
+const FORUM_REPLY_COMPLETION_MIN_CHARS = 24
+const FORUM_NEW_THREAD_BODY_MIN_CHARS = 24
+const FORUM_OUTPUT_TOKEN_FLOOR = 1024
+const FORUM_GEMINI_REASONING_OUTPUT_TOKEN_FLOOR = 8000
 const FORUM_CONTEXT_TOKEN_LIMIT_MIN = 8000
 const FORUM_CONTEXT_TOKEN_LIMIT_MAX = 128000
 const FORUM_CONTEXT_TOKEN_LIMIT_DEFAULT = 32000
 const FORUM_AI_DEBUG = import.meta.env.DEV
+
+const isGeminiReasoningModel = (modelId: string) => {
+  const normalized = modelId.trim().toLowerCase()
+  if (!normalized.includes('gemini')) {
+    return false
+  }
+  return (
+    normalized.includes('2.5') ||
+    normalized.includes('thinking') ||
+    normalized.includes('reasoning') ||
+    normalized.includes('pro')
+  )
+}
+
+const resolveForumMaxOutputTokens = (selectedLimit: number, modelId: string) => {
+  const rounded = Number.isFinite(selectedLimit) ? Math.round(selectedLimit) : FORUM_OUTPUT_TOKEN_FLOOR
+  const safeFloor = isGeminiReasoningModel(modelId)
+    ? FORUM_GEMINI_REASONING_OUTPUT_TOKEN_FLOOR
+    : FORUM_OUTPUT_TOKEN_FLOOR
+  return Math.max(rounded, safeFloor)
+}
 
 const unwrapCodeFence = (value: string) => {
   let next = value.trim()
@@ -337,6 +360,52 @@ const isLikelyTruncatedCompletion = (payload: Record<string, unknown>) => {
   return finishReason.toLowerCase() === 'length' || nativeFinishReason.toUpperCase() === 'MAX_TOKENS'
 }
 
+const getFinishReason = (payload: Record<string, unknown>) => {
+  const choice = (payload?.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined
+  const finishReason = typeof choice?.finish_reason === 'string' ? choice.finish_reason : ''
+  const nativeFinishReason =
+    typeof choice?.native_finish_reason === 'string'
+      ? choice.native_finish_reason
+      : typeof payload?.native_finish_reason === 'string'
+        ? payload.native_finish_reason
+        : ''
+  return {
+    finishReason,
+    nativeFinishReason,
+  }
+}
+
+const endsLikeCompleteText = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return false
+  }
+  if (/[[(（{「『【“"'、，,：:]$/.test(trimmed)) {
+    return false
+  }
+  return true
+}
+
+const isCompleteEnoughReply = (value: string) => {
+  const trimmed = value.trim()
+  if (trimmed.length < FORUM_REPLY_COMPLETION_MIN_CHARS) {
+    return false
+  }
+  return endsLikeCompleteText(trimmed)
+}
+
+const isCompleteEnoughThreadDraft = (draft: ForumAiNewThreadDraft) => {
+  const title = normalizeForumTitle(draft.title)
+  const body = normalizeForumThreadBody(draft.body)
+  if (!title || !body) {
+    return false
+  }
+  if (body.length < FORUM_NEW_THREAD_BODY_MIN_CHARS) {
+    return false
+  }
+  return endsLikeCompleteText(body)
+}
+
 const flattenTextParts = (value: unknown): string => {
   if (typeof value === 'string') {
     return value
@@ -546,7 +615,7 @@ export async function requestForumAiContent({
     messagesPayload.push({
       role: 'user',
       content:
-        '请生成新的论坛主题，必须返回 JSON：{"title":"...","body":"..."}。title 为主题标题，body 为主题正文。禁止输出 JSON 之外的任何文字。',
+        '请生成新的论坛主题，必须返回 JSON：{"title":"...","body":"..."}。title 为主题标题，body 为主题正文。内容应完整自然，但不要写得不必要地冗长。禁止输出 JSON 之外的任何文字。',
     })
     messagesPayload.push({
       role: 'user',
@@ -586,6 +655,15 @@ export async function requestForumAiContent({
     selectedModel && globalModelConfig.enabledModelIds.includes(selectedModel)
       ? selectedModel
       : globalModelConfig.defaultModelId
+  const forumOutputLimitSetting = clampForumContextTokenLimit(profile.contextTokenLimit)
+  const maxOutputTokens = resolveForumMaxOutputTokens(forumOutputLimitSetting, resolvedModel)
+
+  console.info('[Forum AI] resolved output token budget', {
+    task,
+    model: resolvedModel,
+    selectedOutputLimit: forumOutputLimitSetting,
+    maxTokensSent: maxOutputTokens,
+  })
 
   const requestBody: Record<string, unknown> = {
     model: resolvedModel,
@@ -594,7 +672,7 @@ export async function requestForumAiContent({
     messages: messagesPayload,
     temperature: profile.temperature,
     top_p: profile.topP,
-    max_tokens: task === 'reply' ? FORUM_REPLY_MAX_TOKENS : FORUM_NEW_THREAD_MAX_TOKENS,
+    max_tokens: maxOutputTokens,
     stream: false,
     extra: {
       identitySlot: profile.slotIndex,
@@ -624,8 +702,24 @@ export async function requestForumAiContent({
     console.info('[Forum AI] openrouter-chat payload', payload)
   }
   const normalizedContent = extractOpenRouterContent(payload)
+  const { finishReason, nativeFinishReason } = getFinishReason(payload)
+  const truncatedByProvider = isLikelyTruncatedCompletion(payload)
+
+  console.info('[Forum AI] completion diagnostics', {
+    task,
+    model: resolvedModel,
+    selectedOutputLimit: forumOutputLimitSetting,
+    maxTokensSent: maxOutputTokens,
+    finishReason,
+    nativeFinishReason,
+    truncatedByProvider,
+    contentLength: normalizedContent.length,
+  })
 
   if (task === 'new-thread') {
+    if (truncatedByProvider) {
+      throw new Error('内容因长度限制被截断，请提高最大输出长度后重试。')
+    }
     console.info('[Forum AI][new-thread] raw content', {
       length: normalizedContent.length,
       preview: normalizedContent.slice(0, 1000),
@@ -643,19 +737,35 @@ export async function requestForumAiContent({
       })
       throw new Error(`AI 主题格式解析失败（${failureReasons.join(', ') || 'unknown_reason'}）`)
     }
+    const completeEnough = isCompleteEnoughThreadDraft(draft)
+    console.info('[Forum AI][new-thread] completion check', {
+      completeEnough,
+      truncatedByProvider,
+    })
+    if (!completeEnough) {
+      throw new Error('内容因长度限制被截断，请提高最大输出长度后重试。')
+    }
     return draft
   }
 
-  if (isLikelyTruncatedCompletion(payload)) {
+  if (truncatedByProvider) {
     console.warn('[Forum AI][reply] model completion likely truncated by token limit', {
       payloadPreview: JSON.stringify(payload).slice(0, 1200),
     })
-    throw new Error('AI 回复疑似因长度限制被截断，请重试。')
+    throw new Error('内容因长度限制被截断，请提高最大输出长度后重试。')
   }
 
   const replyBody = normalizeForumAiReplyBody(normalizedContent)
   if (!replyBody) {
     throw new Error('AI 回复格式解析失败')
+  }
+  const completeEnough = isCompleteEnoughReply(replyBody)
+  console.info('[Forum AI][reply] completion check', {
+    completeEnough,
+    truncatedByProvider,
+  })
+  if (!completeEnough) {
+    throw new Error('内容因长度限制被截断，请提高最大输出长度后重试。')
   }
   return replyBody
 }
