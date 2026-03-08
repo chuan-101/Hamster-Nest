@@ -299,7 +299,7 @@
 .forum-settings-summary-card {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .forum-settings-list__header {
@@ -308,29 +308,34 @@
 }
 
 .forum-settings-summary {
-  color: #334155;
+  color: #7a7078;
+  font-family: 'VT323', 'DotGothic16', monospace;
+  font-size: 1.25rem;
 }
 
 .forum-settings-summary-card {
   align-items: center;
-  border: 1px solid rgba(148, 163, 184, 0.36);
-  border-radius: 14px;
-  padding: 0.8rem;
-  background: rgba(255, 255, 255, 0.62);
+  border: 2px solid #a1919a;
+  border-radius: 0;
+  padding: 0.68rem;
+  background: #fffdf8;
+  box-shadow: 2px 2px 0 0 #ffe7f1;
 }
 
 .forum-settings-summary-card__name {
   font-weight: 600;
+  color: #5f505e;
 }
 
 .forum-settings-summary-card__meta {
-  margin-top: 0.3rem;
-  color: #475569;
-  font-size: 0.92rem;
+  margin-top: 0.2rem;
+  color: #7a7078;
+  font-size: 1rem;
+  font-family: 'VT323', 'DotGothic16', monospace;
 }
 
 .forum-settings-editor__grid {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .forum-settings-toggle {
@@ -342,6 +347,75 @@
 .forum-model-warning {
   margin: 0;
   color: #b45309;
+}
+
+.forum-settings-page {
+  display: flex;
+  justify-content: center;
+}
+
+.forum-settings-shell {
+  width: min(100%, 680px);
+}
+
+.forum-settings-content {
+  display: grid;
+  gap: 0.8rem;
+  padding-top: 0.75rem;
+}
+
+.forum-settings-header {
+  grid-template-columns: auto 1fr auto;
+}
+
+.forum-settings-header > div {
+  width: 1px;
+  height: 1px;
+}
+
+.forum-settings-list,
+.forum-settings-editor {
+  border: 2px solid #a1919a;
+  background: #fffefb;
+  box-shadow: 2px 2px 0 0 #ffe0ec;
+  padding: 0.85rem;
+}
+
+.forum-settings-editor .ui-title {
+  margin: 0;
+  color: #7a7078;
+  font-size: 1.7rem;
+}
+
+.forum-settings-editor label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.forum-settings-editor label span {
+  color: #6e5f6e;
+  font-size: 0.9rem;
+}
+
+.forum-settings-editor .input-glass,
+.forum-settings-editor .textarea-glass {
+  width: 100%;
+  min-height: 2.55rem;
+  border-radius: 12px;
+}
+
+.forum-settings-editor .textarea-glass {
+  min-height: 7rem;
+  border-radius: 14px;
+  resize: vertical;
+}
+
+.forum-settings-actions {
+  justify-content: flex-end;
+}
+
+.forum-settings-actions .forum-pixel-btn {
+  min-width: 92px;
 }
 
 .forum-thread-page .glass-card,
@@ -611,5 +685,14 @@
   .forum-settings-summary-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .forum-settings-editor__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .forum-settings-page {
+    padding-left: 0.72rem;
+    padding-right: 0.72rem;
   }
 }
