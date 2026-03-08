@@ -11,6 +11,7 @@ import {
   fetchForumThreadById,
 } from '../storage/supabaseSync'
 import ConfirmDialog from '../components/ConfirmDialog'
+import MarkdownRenderer from '../components/MarkdownRenderer'
 import { FORUM_AI_SLOTS, defaultForumProfile, getForumAuthorLabel, loadForumGlobalAiConfig, requestForumAiContent, type ForumGlobalAiConfig } from './forumShared'
 import './ForumPage.css'
 
@@ -243,7 +244,9 @@ const ForumThreadPage = () => {
         </header>
         <div className="forum-bbs-card__content forum-bbs-card__content--op">
           <h2>{thread.title}</h2>
-          <p>{thread.content}</p>
+          <div className="assistant-markdown">
+            <MarkdownRenderer content={thread.content} />
+          </div>
         </div>
         <footer>
           <button type="button" className="btn-secondary" onClick={() => setPendingDeleteThread(true)}>
@@ -271,7 +274,9 @@ const ForumThreadPage = () => {
                   <small>{formatTime(reply.createdAt)}</small>
                 </header>
                 <div className="forum-bbs-card__content forum-bbs-card__content--reply">
-                  <p>{reply.content}</p>
+                  <div className="assistant-markdown">
+                    <MarkdownRenderer content={reply.content} />
+                  </div>
                 </div>
                 <footer className="forum-reply-item__footer">
                   <span>回复给：{targetName}</span>

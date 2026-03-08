@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import type { ForumThread } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { deleteForumThread, fetchForumReplyCountMap, fetchForumThreads } from '../storage/supabaseSync'
-import { getForumAuthorLabel } from './forumShared'
+import { getForumAuthorLabel, toForumPreviewText } from './forumShared'
 import './ForumPage.css'
 
 const formatTime = (value: string) =>
@@ -11,13 +11,7 @@ const formatTime = (value: string) =>
 
 const THREAD_PREVIEW_MAX_LENGTH = 160
 
-const buildThreadPreview = (content: string) => {
-  const normalized = content.trim().replace(/\s+/g, ' ')
-  if (normalized.length <= THREAD_PREVIEW_MAX_LENGTH) {
-    return normalized
-  }
-  return `${normalized.slice(0, THREAD_PREVIEW_MAX_LENGTH)}…`
-}
+const buildThreadPreview = (content: string) => toForumPreviewText(content, THREAD_PREVIEW_MAX_LENGTH)
 
 const ForumPage = () => {
   const navigate = useNavigate()

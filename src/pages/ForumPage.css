@@ -621,6 +621,39 @@
   color: #334155;
 }
 
+
+.forum-bbs-card__content .assistant-markdown > :first-child {
+  margin-top: 0;
+}
+
+.forum-bbs-card__content .assistant-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.forum-bbs-card__content .assistant-markdown p,
+.forum-bbs-card__content .assistant-markdown h1,
+.forum-bbs-card__content .assistant-markdown h2,
+.forum-bbs-card__content .assistant-markdown h3,
+.forum-bbs-card__content .assistant-markdown h4,
+.forum-bbs-card__content .assistant-markdown li,
+.forum-bbs-card__content .assistant-markdown blockquote {
+  font-family: var(--font-sans);
+  color: #334155;
+}
+
+.forum-bbs-card__content .assistant-markdown ul,
+.forum-bbs-card__content .assistant-markdown ol {
+  margin: 0.35rem 0;
+  padding-left: 1.35rem;
+}
+
+.forum-bbs-card__content .assistant-markdown pre {
+  overflow-x: auto;
+  background: rgba(148, 163, 184, 0.14);
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.7rem;
+}
+
 .forum-thread-page .forum-reply-item__footer,
 .forum-thread-page .forum-root-post footer {
   display: flex;
