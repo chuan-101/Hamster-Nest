@@ -129,6 +129,7 @@ const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
             返回论坛
           </button>
           <h1 className="ui-title">论坛 AI 设置</h1>
+          <span className="forum-settings-header__spacer" aria-hidden="true" />
         </header>
 
         <section className="forum-thread-list forum-settings-content">
