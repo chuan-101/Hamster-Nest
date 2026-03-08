@@ -138,8 +138,8 @@ const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
 
           {mode.type === 'list' ? (
             <section className="forum-settings-list">
-              <div className="forum-settings-list__header">
-                <p className="forum-settings-summary">已启用 {enabledCount}/{FORUM_AI_SLOTS.length} 张 AI 卡片</p>
+              <div className="forum-settings-strip">
+                <p className="forum-settings-summary">已启用 {enabledCount}/{FORUM_AI_SLOTS.length} 张 AI 卡</p>
                 <button type="button" className="forum-pixel-btn forum-pixel-btn--primary" onClick={startAdd} disabled={nextAvailableSlot === null}>
                   新增 AI 卡片
                 </button>
@@ -152,18 +152,18 @@ const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
                   const modelLabel = card.model.trim() ? card.model.trim() : '默认模型（跟随全局）'
                   return (
                     <article key={card.slotIndex} className="forum-settings-summary-card">
-                      <button type="button" className="forum-pixel-btn forum-pixel-btn--subtle forum-settings-summary-card__action" onClick={() => startEdit(card.slotIndex)}>
-                        编辑
-                      </button>
-                      <div className="forum-settings-summary-card__info">
+                      <div className="forum-settings-summary-card__row">
                         <p className="forum-settings-summary-card__name">
                           {card.enabled ? <span className="forum-settings-summary-card__dot" aria-hidden="true" /> : null}
                           <span>{card.displayName || `AI 卡 ${card.slotIndex}`}</span>
                         </p>
-                        <p className="forum-settings-summary-card__meta">AI 卡 {card.slotIndex}</p>
-                        <p className="forum-settings-summary-card__meta">模型：{modelLabel}</p>
-                        <p className="forum-settings-summary-card__meta">状态：{card.enabled ? '已启用' : '已禁用'}</p>
+                        <button type="button" className="forum-pixel-btn forum-pixel-btn--subtle" onClick={() => startEdit(card.slotIndex)}>
+                          编辑
+                        </button>
                       </div>
+                      <p className="forum-settings-summary-card__meta">AI 卡 {card.slotIndex}</p>
+                      <p className="forum-settings-summary-card__meta">模型：{modelLabel}</p>
+                      <p className="forum-settings-summary-card__meta">状态：{card.enabled ? '已启用' : '未启用'}</p>
                     </article>
                   )
                 })}
