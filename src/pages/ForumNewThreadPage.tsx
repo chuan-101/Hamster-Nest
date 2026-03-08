@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ForumAiProfile } from '../types'
 import { createForumThread, fetchAllMemoryEntries, fetchForumAiProfiles } from '../storage/supabaseSync'
-import { FORUM_AI_SLOTS, defaultForumProfile, loadForumGlobalAiConfig, requestForumAiContent, type ForumGlobalAiConfig } from './forumShared'
+import {
+  FORUM_AI_SLOTS,
+  defaultForumProfile,
+  loadForumGlobalAiConfig,
+  requestForumAiContent,
+  type ForumGlobalAiConfig,
+} from './forumShared'
 import './ForumPage.css'
 
 type AuthorDraft = 'user' | 'ai-1' | 'ai-2' | 'ai-3'
@@ -106,10 +112,6 @@ const ForumNewThreadPage = () => {
       setError('请先选择 AI 作者（AI Slot 1/2/3）后再生成。')
       return
     }
-    if (!title.trim()) {
-      setError('请先填写主题标题，再生成 AI 主题。')
-      return
-    }
     if (!globalAiConfig) {
       setError('AI 模型配置尚未就绪，请稍后重试或前往设置页检查。')
       return
@@ -131,7 +133,7 @@ const ForumNewThreadPage = () => {
         thread: {
           id: 'draft-thread',
           userId: profile.userId,
-          title: title.trim(),
+          title: '（由 AI 自拟）',
           content: content.trim() || '（空草稿）',
           authorType: 'user',
           authorSlot: null,
@@ -142,12 +144,22 @@ const ForumNewThreadPage = () => {
         replies: [],
         userPrompt: content.trim() || undefined,
       })
-      setContent(generated)
-      await createDirectThread(generated)
+      setTitle(generated.title)
+      setContent(generated.body)
+      setSubmitting(true)
+      const created = await createForumThread({
+        title: generated.title,
+        content: generated.body,
+        authorType: 'ai',
+        authorSlot: selectedSlot,
+        authorName: profile.displayName,
+      })
+      navigate(`/forum/thread/${created.id}`)
     } catch (generateError) {
       console.warn('生成 AI 主题失败', generateError)
       setError('生成失败，请检查模型配置后重试。')
     } finally {
+      setSubmitting(false)
       setGenerating(false)
     }
   }
@@ -163,10 +175,14 @@ const ForumNewThreadPage = () => {
 
       <section className="glass-card forum-editor">
         {loading ? <p>加载 AI 档案中…</p> : null}
-        <label>
-          标题
-          <input className="input-glass" value={title} onChange={(event) => setTitle(event.target.value)} />
-        </label>
+        {authorIsAi ? (
+          <p className="forum-settings-summary">标题将由 AI 自动生成</p>
+        ) : (
+          <label>
+            标题
+            <input className="input-glass" value={title} onChange={(event) => setTitle(event.target.value)} />
+          </label>
+        )}
         <label>
           作者
           <select
@@ -192,7 +208,7 @@ const ForumNewThreadPage = () => {
           </select>
         </label>
         <label>
-          正文
+          {authorIsAi ? '写作方向（可选）' : '正文'}
           <textarea
             className="textarea-glass"
             rows={8}
