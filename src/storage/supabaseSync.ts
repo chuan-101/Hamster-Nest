@@ -1576,6 +1576,28 @@ export const fetchForumThreadById = async (threadId: string): Promise<ForumThrea
   return data ? mapForumThreadRow(data as ForumThreadRow) : null
 }
 
+export const fetchForumReplyCountMap = async (threadIds: string[]): Promise<Record<string, number>> => {
+  if (!supabase || threadIds.length === 0) {
+    return {}
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('forum_replies')
+    .select('thread_id')
+    .eq('user_id', userId)
+    .in('thread_id', threadIds)
+
+  if (error) {
+    throw error
+  }
+
+  return (data ?? []).reduce<Record<string, number>>((acc, row) => {
+    const threadId = String((row as { thread_id: string }).thread_id)
+    acc[threadId] = (acc[threadId] ?? 0) + 1
+    return acc
+  }, {})
+}
+
 export const createForumThread = async (params: {
   title: string
   content: string

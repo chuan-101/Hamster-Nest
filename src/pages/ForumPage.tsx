@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ForumThread } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { deleteForumThread, fetchForumThreads } from '../storage/supabaseSync'
+import { deleteForumThread, fetchForumReplyCountMap, fetchForumThreads } from '../storage/supabaseSync'
 import { getForumAuthorLabel } from './forumShared'
 import './ForumPage.css'
 
@@ -13,6 +13,7 @@ const ForumPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const [threads, setThreads] = useState<ForumThread[]>([])
+  const [replyCountMap, setReplyCountMap] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -25,6 +26,9 @@ const ForumPage = () => {
     try {
       const threadList = await fetchForumThreads()
       setThreads(threadList)
+      const threadIds = threadList.map((thread) => thread.id)
+      const counts = await fetchForumReplyCountMap(threadIds)
+      setReplyCountMap(counts)
     } catch {
       setError('论坛加载失败，请稍后重试。')
     } finally {
@@ -41,7 +45,6 @@ const ForumPage = () => {
     void refresh()
   }, [location.pathname, location.state, navigate, refresh])
 
-
   const handleOpenDeleteDialog = (threadId: string) => {
     setPendingDeleteThreadId(threadId)
   }
@@ -55,6 +58,11 @@ const ForumPage = () => {
     try {
       await deleteForumThread(pendingDeleteThreadId)
       setThreads((current) => current.filter((thread) => thread.id !== pendingDeleteThreadId))
+      setReplyCountMap((current) => {
+        const next = { ...current }
+        delete next[pendingDeleteThreadId]
+        return next
+      })
       setSuccessMessage('主题已删除。')
       setPendingDeleteThreadId(null)
     } catch (deleteError) {
@@ -65,60 +73,87 @@ const ForumPage = () => {
     }
   }
 
+  const threadCards = useMemo(
+    () =>
+      threads.map((thread, index) => ({
+        ...thread,
+        order: index + 1,
+        author: thread.authorName ?? getForumAuthorLabel(thread.authorType, thread.authorSlot, []),
+        replies: replyCountMap[thread.id] ?? 0,
+        isHot: (replyCountMap[thread.id] ?? 0) >= 5,
+      })),
+    [threads, replyCountMap],
+  )
+
   return (
     <div className="forum-page app-shell__content">
-      <header className="forum-header glass-card">
-        <button type="button" className="btn-secondary" onClick={() => navigate('/')}>
-          返回主页
-        </button>
-        <h1 className="ui-title">Forum</h1>
-        <div className="forum-header__actions">
-          <button type="button" className="btn-secondary" onClick={() => navigate('/forum/settings')}>
-            Forum 设置
+      <div className="forum-page__wrapper">
+        <header className="forum-header forum-header--index">
+          <button type="button" className="forum-pixel-btn" onClick={() => navigate('/')}>
+            返回主页
           </button>
-          <button type="button" className="btn-primary" onClick={() => navigate('/forum/new')}>
-            新建主题
-          </button>
-        </div>
-      </header>
+          <h1 className="ui-title">🎀 小窝论坛 🎀</h1>
+          <div className="forum-header__actions">
+            <button type="button" className="forum-pixel-btn" onClick={() => navigate('/forum/settings')}>
+              Forum 设置
+            </button>
+            <button type="button" className="forum-pixel-btn forum-pixel-btn--primary" onClick={() => navigate('/forum/new')}>
+              新建主题
+            </button>
+          </div>
+        </header>
 
-      <section className="forum-thread-list glass-card">
-        <h2 className="ui-title">主题列表</h2>
-        {loading ? <p>加载中…</p> : null}
-        {error ? <p className="forum-error">{error}</p> : null}
-        {successMessage ? <p className="forum-success">{successMessage}</p> : null}
-        {!loading && !error && threads.length === 0 ? <p>还没有主题，先创建第一条吧。</p> : null}
-        <div className="forum-thread-list__items">
-          {threads.map((thread) => (
-            <article key={thread.id} className="forum-thread-item">
-              <button
-                type="button"
-                className="forum-thread-item__main"
-                onClick={() => navigate(`/forum/thread/${thread.id}`)}
-              >
-                <div>
-                  <h3>{thread.title}</h3>
-                  <p>{thread.content}</p>
-                </div>
-                <aside>
-                  <strong>{thread.authorName ?? getForumAuthorLabel(thread.authorType, thread.authorSlot, [])}</strong>
-                  <small>{formatTime(thread.createdAt)}</small>
-                </aside>
-              </button>
-              <div className="forum-thread-item__actions">
+        <section className="forum-thread-list">
+          <h2 className="ui-title forum-thread-list__title">主题列表</h2>
+          {loading ? <p>加载中…</p> : null}
+          {error ? <p className="forum-error">{error}</p> : null}
+          {successMessage ? <p className="forum-success">{successMessage}</p> : null}
+          {!loading && !error && threadCards.length === 0 ? <p>还没有主题，先创建第一条吧。</p> : null}
+          <div className="forum-thread-list__items">
+            {threadCards.map((thread) => (
+              <article key={thread.id} className="forum-thread-item">
                 <button
                   type="button"
-                  className="btn-secondary"
-                  onClick={() => handleOpenDeleteDialog(thread.id)}
-                  disabled={deletingThreadId === thread.id}
+                  className="forum-thread-item__main"
+                  onClick={() => navigate(`/forum/thread/${thread.id}`)}
                 >
-                  {deletingThreadId === thread.id ? '删除中…' : '删除'}
+                  <div className="forum-thread-item__left">
+                    <span className="forum-thread-stamp">#{thread.order}</span>
+                    <span className="forum-thread-type" aria-label={thread.isHot ? '热门主题' : '讨论主题'}>
+                      {thread.isHot ? '🔥' : '💬'}
+                    </span>
+                  </div>
+
+                  <div className="forum-thread-item__content">
+                    <h3>{thread.title}</h3>
+                    <p>{thread.content}</p>
+                    <small>Author: {thread.author} | Date: {formatTime(thread.createdAt)}</small>
+                  </div>
+
+                  <aside className="forum-thread-item__stats">
+                    <div className="forum-thread-replies">💖 x{thread.replies}</div>
+                    <div className="forum-thread-status" aria-label="主题状态：开放">
+                      <span className="forum-status-icon forum-status-icon--open">◼◻◼</span>
+                      <span>Open</span>
+                    </div>
+                  </aside>
                 </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+
+                <div className="forum-thread-item__actions">
+                  <button
+                    type="button"
+                    className="forum-pixel-btn"
+                    onClick={() => handleOpenDeleteDialog(thread.id)}
+                    disabled={deletingThreadId === thread.id}
+                  >
+                    {deletingThreadId === thread.id ? '删除中…' : '删除'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
 
       <ConfirmDialog
         open={pendingDeleteThreadId !== null}
