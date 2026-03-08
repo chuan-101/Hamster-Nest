@@ -226,20 +226,23 @@ const ForumThreadPage = () => {
 
   return (
     <div className="forum-page forum-thread-page app-shell__content">
-      <header className="forum-header glass-card">
-        <button type="button" className="btn-secondary" onClick={() => navigate('/forum')}>
+      <header className="forum-header forum-header--thread glass-card">
+        <button type="button" className="btn-secondary forum-header__back-btn" onClick={() => navigate('/forum')}>
           返回列表
         </button>
         <h1 className="ui-title">主题详情</h1>
       </header>
 
       <article className="glass-card forum-root-post forum-bbs-card">
-        <header className="forum-bbs-card__author">
-          <strong>{getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles, thread.authorName)}</strong>
+        <header className="forum-bbs-card__author forum-bbs-card__author--op">
+          <strong>
+            {getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles, thread.authorName)}
+            <span className="forum-op-badge">楼主 / OP</span>
+          </strong>
           <small>{formatTime(thread.createdAt)}</small>
           <span className="forum-floor-tag">#1</span>
         </header>
-        <div className="forum-bbs-card__content">
+        <div className="forum-bbs-card__content forum-bbs-card__content--op">
           <h2>{thread.title}</h2>
           <p>{thread.content}</p>
         </div>
@@ -264,12 +267,12 @@ const ForumThreadPage = () => {
                   : '未知目标'
             return (
               <article className="forum-reply-item" key={reply.id}>
-                <header className="forum-bbs-card__author">
+                <header className="forum-bbs-card__author forum-bbs-card__author--reply">
                   <strong>{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}</strong>
                   <small>{formatTime(reply.createdAt)}</small>
                   <span className="forum-floor-tag">#{index + 2}</span>
                 </header>
-                <div className="forum-bbs-card__content">
+                <div className="forum-bbs-card__content forum-bbs-card__content--reply">
                   <p>{reply.content}</p>
                 </div>
                 <footer className="forum-reply-item__footer">
