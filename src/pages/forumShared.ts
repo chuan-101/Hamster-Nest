@@ -125,17 +125,21 @@ export const requestForumAiContent = async ({
     role: 'system',
     content: `memory_entries 全量注入：\n${memoryBlock}`,
   })
-  messagesPayload.push({
-    role: 'user',
-    content: `当前线程上下文（严格线程内）：\n${threadContext}`,
-  })
-  messagesPayload.push({
-    role: 'user',
-    content:
-      task === 'new-thread'
-        ? `请以论坛新帖形式发言。${userPrompt ? `用户补充：${userPrompt}` : ''}`
-        : `请生成一条论坛回复。回复目标：${replyTargetLabel ?? '主题帖'}。${userPrompt ? `用户补充：${userPrompt}` : ''}`,
-  })
+  if (task === 'new-thread') {
+    messagesPayload.push({
+      role: 'user',
+      content: `请生成一篇新的论坛主题正文，不要引用任何历史线程内容。拟定标题：${thread.title || '（未提供）'}。${userPrompt ? `用户补充：${userPrompt}` : ''}`,
+    })
+  } else {
+    messagesPayload.push({
+      role: 'user',
+      content: `当前线程上下文（严格线程内）：\n${threadContext}`,
+    })
+    messagesPayload.push({
+      role: 'user',
+      content: `请生成一条论坛回复。回复目标：${replyTargetLabel ?? '主题帖'}。${userPrompt ? `用户补充：${userPrompt}` : ''}`,
+    })
+  }
 
   const selectedModel = profile.model.trim()
   const resolvedModel =
