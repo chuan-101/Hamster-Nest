@@ -61,6 +61,10 @@ export type ForumGlobalAiConfig = {
 }
 
 const DEFAULT_MODEL = 'openrouter/auto'
+const FORUM_REPLY_MAX_TOKENS = 1600
+const FORUM_NEW_THREAD_MAX_TOKENS = 1200
+const FORUM_REPLY_CONTEXT_MAX_REPLIES = 12
+const FORUM_REPLY_CONTEXT_REPLY_MAX_CHARS = 280
 const FORUM_AI_DEBUG = import.meta.env.DEV
 
 const unwrapCodeFence = (value: string) => {
@@ -90,6 +94,37 @@ const normalizeForumTitle = (value: string) =>
     .replace(/^\s*(?:title|标题|主题)\s*[:：]\s*/i, '')
     .replace(/^#+\s*/, '')
     .trim()
+
+const deriveFallbackTitleFromBody = (body: string) => {
+  const cleanedBody = normalizeForumThreadBody(body)
+  if (!cleanedBody) {
+    return ''
+  }
+  const firstLine = cleanedBody
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean)
+  const base = (firstLine ?? cleanedBody).replace(/[。！？!?].*$/, '').trim()
+  if (!base) {
+    return ''
+  }
+  return normalizeForumTitle(base.slice(0, 60))
+}
+
+const parseThreadFromLooseJsonFields = (rawText: string): ForumAiNewThreadDraft | null => {
+  const cleaned = cleanupGeneratedText(rawText)
+  const titleMatch = cleaned.match(/"title"\s*:\s*"([\s\S]*?)"\s*(?:,|\n|\})/i)
+  const bodyMatch = cleaned.match(/"body"\s*:\s*"([\s\S]*?)"\s*(?:,|\n|\})/i)
+  const parsedTitle = normalizeForumTitle(titleMatch?.[1]?.replace(/\\n/g, '\n') ?? '')
+  const parsedBody = normalizeForumThreadBody(bodyMatch?.[1]?.replace(/\\n/g, '\n') ?? '')
+  if (!parsedBody) {
+    return null
+  }
+  return {
+    title: parsedTitle || deriveFallbackTitleFromBody(parsedBody),
+    body: parsedBody,
+  }
+}
 
 const parseJsonObjectCandidates = (text: string) => {
   const candidates = new Set<string>()
@@ -180,24 +215,79 @@ const parseThreadFromPlainText = (rawText: string): ForumAiNewThreadDraft | null
   return { title: parsedTitle, body: parsedBody }
 }
 
-const normalizeForumAiNewThreadDraft = (rawText: string): ForumAiNewThreadDraft | null => {
+const normalizeForumAiNewThreadDraft = (
+  rawText: string,
+): { draft: ForumAiNewThreadDraft | null; failureReasons: string[] } => {
+  const failureReasons: string[] = []
   if (!rawText.trim()) {
-    return null
-  }
-  const parsed =
-    parseThreadFromJson(rawText) ??
-    parseThreadFromLabeledText(rawText) ??
-    parseThreadFromHeading(rawText) ??
-    parseThreadFromPlainText(rawText)
-
-  if (!parsed?.title || !parsed.body) {
-    return null
+    return { draft: null, failureReasons: ['empty_response'] }
   }
 
-  return {
-    title: parsed.title,
-    body: parsed.body,
+  const parseSteps: Array<{ name: string; parser: (text: string) => ForumAiNewThreadDraft | null }> = [
+    { name: 'json', parser: parseThreadFromJson },
+    { name: 'labeled_text', parser: parseThreadFromLabeledText },
+    { name: 'markdown_heading', parser: parseThreadFromHeading },
+    { name: 'plain_text', parser: parseThreadFromPlainText },
+    { name: 'loose_json_fields', parser: parseThreadFromLooseJsonFields },
+  ]
+
+  for (const step of parseSteps) {
+    const parsed = step.parser(rawText)
+    if (!parsed?.body) {
+      failureReasons.push(`${step.name}:missing_body`)
+      continue
+    }
+
+    const fallbackTitle = parsed.title || deriveFallbackTitleFromBody(parsed.body)
+    if (!fallbackTitle) {
+      failureReasons.push(`${step.name}:missing_title`)
+      continue
+    }
+
+    return {
+      draft: {
+        title: normalizeForumTitle(fallbackTitle),
+        body: normalizeForumThreadBody(parsed.body),
+      },
+      failureReasons,
+    }
   }
+
+  return { draft: null, failureReasons }
+}
+
+const buildCompactReplyContext = (thread: ForumThread, replies: ForumReply[]) => {
+  const trimmedReplies = replies.slice(-FORUM_REPLY_CONTEXT_MAX_REPLIES).map((reply, index) => {
+    const content = normalizeForumThreadBody(reply.content)
+    const compactContent =
+      content.length > FORUM_REPLY_CONTEXT_REPLY_MAX_CHARS
+        ? `${content.slice(0, FORUM_REPLY_CONTEXT_REPLY_MAX_CHARS)}…`
+        : content
+    return `${index + 1}. [${reply.authorType === 'user' ? 'user' : `ai_${reply.authorSlot ?? 1}`}] ${compactContent}`
+  })
+
+  const omittedReplyCount = Math.max(0, replies.length - trimmedReplies.length)
+
+  return [
+    `主题标题：${thread.title}`,
+    `主题正文：${thread.content}`,
+    omittedReplyCount > 0 ? `（已省略较早 ${omittedReplyCount} 条回复，仅保留最近上下文）` : '',
+    ...trimmedReplies,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+const isLikelyTruncatedCompletion = (payload: Record<string, unknown>) => {
+  const choice = (payload?.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined
+  const finishReason = typeof choice?.finish_reason === 'string' ? choice.finish_reason : ''
+  const nativeFinishReason =
+    typeof choice?.native_finish_reason === 'string'
+      ? choice.native_finish_reason
+      : typeof payload?.native_finish_reason === 'string'
+        ? payload.native_finish_reason
+        : ''
+  return finishReason.toLowerCase() === 'length' || nativeFinishReason.toUpperCase() === 'MAX_TOKENS'
 }
 
 const flattenTextParts = (value: unknown): string => {
@@ -348,14 +438,7 @@ export async function requestForumAiContent({
     throw new Error('登录状态异常或环境变量未配置')
   }
 
-  const threadContext = [
-    `主题标题：${thread.title}`,
-    `主题正文：${thread.content}`,
-    ...replies.map(
-      (reply, index) =>
-        `${index + 1}. [${reply.authorType === 'user' ? 'user' : `ai_${reply.authorSlot ?? 1}`}] ${reply.content}`,
-    ),
-  ].join('\n')
+  const threadContext = buildCompactReplyContext(thread, replies)
 
   const memoryBlock = memoryEntries.length
     ? memoryEntries
@@ -396,7 +479,7 @@ export async function requestForumAiContent({
     })
     messagesPayload.push({
       role: 'user',
-      content: `请生成一条论坛回复。回复目标：${replyTargetLabel ?? '主题帖'}。${userPrompt ? `用户补充：${userPrompt}` : ''}`,
+      content: `请生成一条论坛回复。回复目标：${replyTargetLabel ?? '主题帖'}。回复长度要求：保持中等篇幅，优先 120~280 字，内容完整自然，不要写成超长文章。${userPrompt ? `用户补充：${userPrompt}` : ''}`,
     })
   }
 
@@ -413,7 +496,7 @@ export async function requestForumAiContent({
     messages: messagesPayload,
     temperature: profile.temperature,
     top_p: profile.topP,
-    max_tokens: 800,
+    max_tokens: task === 'reply' ? FORUM_REPLY_MAX_TOKENS : FORUM_NEW_THREAD_MAX_TOKENS,
     stream: false,
     extra: {
       identitySlot: profile.slotIndex,
@@ -444,11 +527,31 @@ export async function requestForumAiContent({
   const normalizedContent = extractOpenRouterContent(payload)
 
   if (task === 'new-thread') {
-    const draft = normalizeForumAiNewThreadDraft(normalizedContent)
+    console.info('[Forum AI][new-thread] raw content', {
+      length: normalizedContent.length,
+      preview: normalizedContent.slice(0, 1000),
+    })
+    const { draft, failureReasons } = normalizeForumAiNewThreadDraft(normalizedContent)
+    console.info('[Forum AI][new-thread] parsed draft before insert', {
+      parsedTitleLength: draft?.title.length ?? 0,
+      parsedBodyLength: draft?.body.length ?? 0,
+      failureReasons,
+    })
     if (!draft) {
-      throw new Error('AI 主题格式解析失败')
+      console.error('[Forum AI][new-thread] parsing rejected output', {
+        failureReasons,
+        preview: normalizedContent.slice(0, 1200),
+      })
+      throw new Error(`AI 主题格式解析失败（${failureReasons.join(', ') || 'unknown_reason'}）`)
     }
     return draft
+  }
+
+  if (isLikelyTruncatedCompletion(payload)) {
+    console.warn('[Forum AI][reply] model completion likely truncated by token limit', {
+      payloadPreview: JSON.stringify(payload).slice(0, 1200),
+    })
+    throw new Error('AI 回复疑似因长度限制被截断，请重试。')
   }
 
   const replyBody = normalizeForumAiReplyBody(normalizedContent)
