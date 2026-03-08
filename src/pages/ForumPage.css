@@ -372,25 +372,38 @@
 .forum-settings-content {
   display: grid;
   gap: 0.6rem;
-  padding-top: 0.15rem;
+  padding-top: 0;
 }
 
 .forum-settings-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.3rem 0.75rem;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
   border-bottom: 2px solid #b886a1;
 }
 
 .forum-settings-header .ui-title {
-  flex: 1;
+  justify-self: center;
   text-align: center;
   margin: 0;
+  font-size: 1.7rem;
+  line-height: 1;
 }
 
 .forum-settings-header .forum-pixel-btn {
-  flex-shrink: 0;
+  justify-self: start;
+  width: fit-content;
+  min-width: 6.6rem;
+  padding-inline: 0.75rem;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.forum-settings-header__spacer {
+  width: 1px;
+  height: 1px;
 }
 
 .forum-settings-list,
