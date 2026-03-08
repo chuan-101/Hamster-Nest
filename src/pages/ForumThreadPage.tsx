@@ -190,6 +190,7 @@ const ForumThreadPage = () => {
         globalModelConfig: globalAiConfig,
         task: 'reply',
         replyTargetLabel: getReplyTargetLabel(params.targetReplyId),
+        replyTargetReplyId: params.targetReplyId,
         userPrompt: params.content.trim() || undefined,
       })
       const created = await createForumReply({
