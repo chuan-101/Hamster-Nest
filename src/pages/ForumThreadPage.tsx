@@ -11,7 +11,7 @@ import {
   fetchForumThreadById,
 } from '../storage/supabaseSync'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { FORUM_AI_SLOTS, defaultForumProfile, getForumAuthorLabel, requestForumAiContent } from './forumShared'
+import { FORUM_AI_SLOTS, defaultForumProfile, getForumAuthorLabel, loadForumGlobalAiConfig, requestForumAiContent, type ForumGlobalAiConfig } from './forumShared'
 import './ForumPage.css'
 
 const formatTime = (value: string) =>
@@ -34,6 +34,7 @@ const ForumThreadPage = () => {
   const [pendingDeleteReplyId, setPendingDeleteReplyId] = useState<string | null>(null)
   const [deletingThread, setDeletingThread] = useState(false)
   const [deletingReplyId, setDeletingReplyId] = useState<string | null>(null)
+  const [globalAiConfig, setGlobalAiConfig] = useState<ForumGlobalAiConfig | null>(null)
 
   const refresh = useCallback(async () => {
     if (!id) {
@@ -43,14 +44,16 @@ const ForumThreadPage = () => {
     setError(null)
     setSuccessMessage(null)
     try {
-      const [threadData, replyData, profileData] = await Promise.all([
+      const [threadData, replyData, profileData, globalConfig] = await Promise.all([
         fetchForumThreadById(id),
         fetchForumRepliesByThread(id),
         fetchForumAiProfiles(),
+        loadForumGlobalAiConfig(),
       ])
       setThread(threadData)
       setReplies(replyData)
       setProfiles(profileData)
+      setGlobalAiConfig(globalConfig)
     } catch (loadError) {
       console.warn('加载论坛主题失败', loadError)
       setError('加载失败，请刷新重试。')
@@ -147,7 +150,7 @@ const ForumThreadPage = () => {
   }
 
   const handleGenerateAiReply = async (slot: number) => {
-    if (!thread || generatingSlot) {
+    if (!thread || generatingSlot || !globalAiConfig) {
       return
     }
     const profile = profileMap.get(slot)
@@ -164,6 +167,7 @@ const ForumThreadPage = () => {
         thread,
         replies,
         memoryEntries,
+        globalModelConfig: globalAiConfig,
         task: 'reply',
         replyTargetLabel: targetLabel,
         userPrompt: replyContent.trim() || undefined,
@@ -305,7 +309,7 @@ const ForumThreadPage = () => {
                 key={slot}
                 type="button"
                 className="btn-secondary"
-                disabled={Boolean(generatingSlot) || !profile.enabled}
+                disabled={Boolean(generatingSlot) || !profile.enabled || !globalAiConfig}
                 onClick={() => void handleGenerateAiReply(slot)}
               >
                 {generatingSlot === slot ? '生成中…' : `${profile.displayName} 生成回复`}

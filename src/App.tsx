@@ -1436,7 +1436,7 @@ const App = () => {
           path="/forum/settings"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <ForumSettingsPage />
+              <ForumSettingsPage user={user} />
             </RequireAuth>
           }
         />
