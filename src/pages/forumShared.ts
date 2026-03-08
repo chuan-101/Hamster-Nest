@@ -63,42 +63,65 @@ export type ForumGlobalAiConfig = {
 const DEFAULT_MODEL = 'openrouter/auto'
 
 const unwrapCodeFence = (value: string) => {
-  const trimmed = value.trim()
-  const fencedMatch = trimmed.match(/^```[\w-]*\s*([\s\S]*?)\s*```$/)
-  return fencedMatch ? fencedMatch[1].trim() : trimmed
+  let next = value.trim()
+  let previous = ''
+  while (next !== previous) {
+    previous = next
+    const fencedMatch = next.match(/^```[\w-]*\s*([\s\S]*?)\s*```$/)
+    next = fencedMatch ? fencedMatch[1].trim() : next
+  }
+  return next
 }
 
-const normalizeForumThreadBody = (value: string) => {
-  const withoutFence = unwrapCodeFence(value)
-  const cleaned = withoutFence
-    .replace(/^\s*(?:title|标题|主题)\s*[:：]\s*.*$/gim, '')
-    .replace(/^\s*(?:body|正文|内容)\s*[:：]\s*$/gim, '')
-    .replace(/^\s*[-*]\s*(?:title|body|标题|正文|内容)\s*[:：]\s*$/gim, '')
-    .replace(/^\s*```(?:json|markdown|md)?\s*$/gim, '')
+const cleanupGeneratedText = (value: string) =>
+  unwrapCodeFence(value)
+    .replace(/^\s*```(?:json|markdown|md|text)?\s*$/gim, '')
     .replace(/^\s*```\s*$/gim, '')
     .trim()
-  return cleaned || '（空主题）'
+
+const normalizeForumThreadBody = (value: string) =>
+  cleanupGeneratedText(value)
+    .replace(/^\s*(?:body|正文|内容|回复|回覆|answer|response|reply)\s*[:：]\s*/i, '')
+    .trim()
+
+const normalizeForumTitle = (value: string) =>
+  cleanupGeneratedText(value)
+    .replace(/^\s*(?:title|标题|主题)\s*[:：]\s*/i, '')
+    .replace(/^#+\s*/, '')
+    .trim()
+
+const parseJsonObjectCandidates = (text: string) => {
+  const candidates = new Set<string>()
+  const cleaned = cleanupGeneratedText(text)
+  if (cleaned) {
+    candidates.add(cleaned)
+  }
+
+  const stack: number[] = []
+  for (let index = 0; index < cleaned.length; index += 1) {
+    const char = cleaned[index]
+    if (char === '{') {
+      stack.push(index)
+    } else if (char === '}') {
+      const start = stack.pop()
+      if (start !== undefined && stack.length === 0) {
+        candidates.add(cleaned.slice(start, index + 1).trim())
+      }
+    }
+  }
+
+  return [...candidates]
 }
 
-const parseJsonDraft = (rawText: string): ForumAiNewThreadDraft | null => {
-  const candidates = [rawText.trim(), unwrapCodeFence(rawText)]
-  const jsonBlock = rawText.match(/\{[\s\S]*\}/)
-  if (jsonBlock) {
-    candidates.push(jsonBlock[0].trim())
-  }
+const parseThreadFromJson = (rawText: string): ForumAiNewThreadDraft | null => {
+  const candidates = parseJsonObjectCandidates(rawText)
   for (const candidate of candidates) {
-    if (!candidate) {
-      continue
-    }
     try {
       const parsed = JSON.parse(candidate) as Record<string, unknown>
-      const parsedTitle = typeof parsed.title === 'string' ? parsed.title.trim() : ''
-      const parsedBody = typeof parsed.body === 'string' ? parsed.body.trim() : ''
+      const parsedTitle = normalizeForumTitle(typeof parsed.title === 'string' ? parsed.title : '')
+      const parsedBody = normalizeForumThreadBody(typeof parsed.body === 'string' ? parsed.body : '')
       if (parsedTitle && parsedBody) {
-        return {
-          title: parsedTitle,
-          body: normalizeForumThreadBody(parsedBody),
-        }
+        return { title: parsedTitle, body: parsedBody }
       }
     } catch {
       continue
@@ -107,63 +130,129 @@ const parseJsonDraft = (rawText: string): ForumAiNewThreadDraft | null => {
   return null
 }
 
-const parseLabeledDraft = (rawText: string): ForumAiNewThreadDraft | null => {
-  const cleaned = unwrapCodeFence(rawText)
-  const titleMatch = cleaned.match(/(?:^|\n)\s*(?:#+\s*)?(?:title|标题|主题)\s*[:：]\s*(.+)(?:\n|$)/i)
-  const bodyMatch = cleaned.match(/(?:^|\n)\s*(?:#+\s*)?(?:body|正文|内容)\s*[:：]\s*([\s\S]*)$/i)
-  if (!titleMatch || !bodyMatch) {
-    return null
-  }
-  const parsedTitle = titleMatch[1]?.trim()
-  const parsedBody = bodyMatch[1]?.trim()
-  if (!parsedTitle || !parsedBody) {
-    return null
-  }
+const parseLabeledSections = (rawText: string) => {
+  const cleaned = cleanupGeneratedText(rawText)
+  const titleRegex = /(?:^|\n)\s*(?:#+\s*)?(?:title|标题|主题)\s*[:：]\s*(.+?)(?=\n|$)/i
+  const bodyRegex = /(?:^|\n)\s*(?:#+\s*)?(?:body|正文|内容|reply|回复|回覆)\s*[:：]\s*([\s\S]*)$/i
+  const titleMatch = cleaned.match(titleRegex)
+  const bodyMatch = cleaned.match(bodyRegex)
   return {
-    title: parsedTitle,
-    body: normalizeForumThreadBody(parsedBody),
+    title: normalizeForumTitle(titleMatch?.[1] ?? ''),
+    body: normalizeForumThreadBody(bodyMatch?.[1] ?? ''),
   }
 }
 
-const parseHeadingDraft = (rawText: string): ForumAiNewThreadDraft | null => {
-  const cleaned = unwrapCodeFence(rawText)
-  const headingMatch = cleaned.match(/^#+\s*(.+)$/m)
+const parseThreadFromLabeledText = (rawText: string): ForumAiNewThreadDraft | null => {
+  const section = parseLabeledSections(rawText)
+  if (section.title && section.body) {
+    return section
+  }
+  return null
+}
+
+const parseThreadFromHeading = (rawText: string): ForumAiNewThreadDraft | null => {
+  const cleaned = cleanupGeneratedText(rawText)
+  const headingMatch = cleaned.match(/^#+\s*(.+?)\s*$/m)
   if (!headingMatch) {
     return null
   }
-  const parsedTitle = headingMatch[1].trim()
-  const body = cleaned.replace(headingMatch[0], '').trim()
-  if (!parsedTitle || !body) {
+  const parsedTitle = normalizeForumTitle(headingMatch[1])
+  const parsedBody = normalizeForumThreadBody(cleaned.replace(headingMatch[0], ''))
+  if (!parsedTitle || !parsedBody) {
     return null
   }
-  return {
-    title: parsedTitle,
-    body: normalizeForumThreadBody(body),
-  }
+  return { title: parsedTitle, body: parsedBody }
 }
 
-
-const deriveFallbackTitle = (rawText: string) => {
-  const cleaned = unwrapCodeFence(rawText)
-    .replace(/^\s*(?:title|标题|主题|body|正文|内容)\s*[:：]\s*/gim, '')
-    .replace(/^#+\s*/gm, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (!cleaned) {
-    return ''
+const parseThreadFromPlainText = (rawText: string): ForumAiNewThreadDraft | null => {
+  const cleaned = cleanupGeneratedText(rawText)
+  const lines = cleaned.split(/\r?\n/).map((line) => line.trimEnd())
+  const nonEmptyLines = lines.filter((line) => line.trim())
+  if (nonEmptyLines.length < 2) {
+    return null
   }
-  return cleaned.slice(0, 40)
+  const parsedTitle = normalizeForumTitle(nonEmptyLines[0])
+  const parsedBody = normalizeForumThreadBody(nonEmptyLines.slice(1).join('\n'))
+  if (!parsedTitle || !parsedBody) {
+    return null
+  }
+  return { title: parsedTitle, body: parsedBody }
 }
 
-const parseForumAiNewThreadDraft = (rawText: string): ForumAiNewThreadDraft | null => {
+const normalizeForumAiNewThreadDraft = (rawText: string): ForumAiNewThreadDraft | null => {
   if (!rawText.trim()) {
     return null
   }
-  return parseJsonDraft(rawText) ?? parseLabeledDraft(rawText) ?? parseHeadingDraft(rawText)
+  const parsed =
+    parseThreadFromJson(rawText) ??
+    parseThreadFromLabeledText(rawText) ??
+    parseThreadFromHeading(rawText) ??
+    parseThreadFromPlainText(rawText)
+
+  if (!parsed?.title || !parsed.body) {
+    return null
+  }
+
+  return {
+    title: parsed.title,
+    body: parsed.body,
+  }
+}
+
+const parseReplyFromJson = (rawText: string) => {
+  const candidates = parseJsonObjectCandidates(rawText)
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as Record<string, unknown>
+      for (const key of ['reply', 'body', 'content', 'message', 'text']) {
+        const value = parsed[key]
+        if (typeof value === 'string') {
+          const normalized = normalizeForumThreadBody(value)
+          if (normalized) {
+            return normalized
+          }
+        }
+      }
+    } catch {
+      continue
+    }
+  }
+  return ''
+}
+
+const normalizeForumAiReplyBody = (rawText: string): string | null => {
+  if (!rawText.trim()) {
+    return null
+  }
+
+  const fromJson = parseReplyFromJson(rawText)
+  if (fromJson) {
+    return fromJson
+  }
+
+  const sections = parseLabeledSections(rawText)
+  if (sections.body) {
+    return sections.body
+  }
+
+  const cleaned = normalizeForumThreadBody(rawText)
+  if (!cleaned) {
+    return null
+  }
+
+  const looksLikeRawWrapper =
+    /^\s*\{[\s\S]*\}\s*$/m.test(cleaned) ||
+    /(?:^|\n)\s*(?:title|标题|主题)\s*[:：]/i.test(cleaned) ||
+    /(?:^|\n)\s*(?:body|正文|内容)\s*[:：]\s*$/i.test(cleaned)
+  if (looksLikeRawWrapper) {
+    return null
+  }
+
+  return cleaned
 }
 
 export const toForumPreviewText = (markdownContent: string, maxLength: number) => {
-  const plainText = normalizeForumThreadBody(markdownContent)
+  const plainText = cleanupGeneratedText(markdownContent)
     .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
     .replace(/\[([^\]]+)]\([^)]*\)/g, '$1')
     .replace(/`{1,3}/g, '')
@@ -316,22 +405,16 @@ export async function requestForumAiContent({
   const normalizedContent = content.trim()
 
   if (task === 'new-thread') {
-    const structuredDraft = parseForumAiNewThreadDraft(normalizedContent)
-    if (structuredDraft) {
-      return structuredDraft
+    const draft = normalizeForumAiNewThreadDraft(normalizedContent)
+    if (!draft) {
+      throw new Error('AI 主题格式解析失败')
     }
-
-    const threadTitle = thread.title.trim()
-    const fallbackTitle =
-      threadTitle && !/由\s*AI\s*自拟|ai\s*自拟|^（.*自拟.*）$/i.test(threadTitle)
-        ? threadTitle
-        : deriveFallbackTitle(normalizedContent)
-
-    return {
-      title: fallbackTitle || `AI 主题 ${new Date().toLocaleString('zh-CN')}`,
-      body: normalizeForumThreadBody(normalizedContent),
-    }
+    return draft
   }
 
-  return normalizedContent || '（空回复）'
+  const replyBody = normalizeForumAiReplyBody(normalizedContent)
+  if (!replyBody) {
+    throw new Error('AI 回复格式解析失败')
+  }
+  return replyBody
 }
