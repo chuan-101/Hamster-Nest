@@ -62,6 +62,121 @@ export type ForumGlobalAiConfig = {
 
 const DEFAULT_MODEL = 'openrouter/auto'
 
+const unwrapCodeFence = (value: string) => {
+  const trimmed = value.trim()
+  const fencedMatch = trimmed.match(/^```[\w-]*\s*([\s\S]*?)\s*```$/)
+  return fencedMatch ? fencedMatch[1].trim() : trimmed
+}
+
+const normalizeForumThreadBody = (value: string) => {
+  const withoutFence = unwrapCodeFence(value)
+  const cleaned = withoutFence
+    .replace(/^\s*(?:title|标题|主题)\s*[:：]\s*.*$/gim, '')
+    .replace(/^\s*(?:body|正文|内容)\s*[:：]\s*$/gim, '')
+    .replace(/^\s*[-*]\s*(?:title|body|标题|正文|内容)\s*[:：]\s*$/gim, '')
+    .replace(/^\s*```(?:json|markdown|md)?\s*$/gim, '')
+    .replace(/^\s*```\s*$/gim, '')
+    .trim()
+  return cleaned || '（空主题）'
+}
+
+const parseJsonDraft = (rawText: string): ForumAiNewThreadDraft | null => {
+  const candidates = [rawText.trim(), unwrapCodeFence(rawText)]
+  const jsonBlock = rawText.match(/\{[\s\S]*\}/)
+  if (jsonBlock) {
+    candidates.push(jsonBlock[0].trim())
+  }
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue
+    }
+    try {
+      const parsed = JSON.parse(candidate) as Record<string, unknown>
+      const parsedTitle = typeof parsed.title === 'string' ? parsed.title.trim() : ''
+      const parsedBody = typeof parsed.body === 'string' ? parsed.body.trim() : ''
+      if (parsedTitle && parsedBody) {
+        return {
+          title: parsedTitle,
+          body: normalizeForumThreadBody(parsedBody),
+        }
+      }
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+const parseLabeledDraft = (rawText: string): ForumAiNewThreadDraft | null => {
+  const cleaned = unwrapCodeFence(rawText)
+  const titleMatch = cleaned.match(/(?:^|\n)\s*(?:#+\s*)?(?:title|标题|主题)\s*[:：]\s*(.+)(?:\n|$)/i)
+  const bodyMatch = cleaned.match(/(?:^|\n)\s*(?:#+\s*)?(?:body|正文|内容)\s*[:：]\s*([\s\S]*)$/i)
+  if (!titleMatch || !bodyMatch) {
+    return null
+  }
+  const parsedTitle = titleMatch[1]?.trim()
+  const parsedBody = bodyMatch[1]?.trim()
+  if (!parsedTitle || !parsedBody) {
+    return null
+  }
+  return {
+    title: parsedTitle,
+    body: normalizeForumThreadBody(parsedBody),
+  }
+}
+
+const parseHeadingDraft = (rawText: string): ForumAiNewThreadDraft | null => {
+  const cleaned = unwrapCodeFence(rawText)
+  const headingMatch = cleaned.match(/^#+\s*(.+)$/m)
+  if (!headingMatch) {
+    return null
+  }
+  const parsedTitle = headingMatch[1].trim()
+  const body = cleaned.replace(headingMatch[0], '').trim()
+  if (!parsedTitle || !body) {
+    return null
+  }
+  return {
+    title: parsedTitle,
+    body: normalizeForumThreadBody(body),
+  }
+}
+
+
+const deriveFallbackTitle = (rawText: string) => {
+  const cleaned = unwrapCodeFence(rawText)
+    .replace(/^\s*(?:title|标题|主题|body|正文|内容)\s*[:：]\s*/gim, '')
+    .replace(/^#+\s*/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned) {
+    return ''
+  }
+  return cleaned.slice(0, 40)
+}
+
+const parseForumAiNewThreadDraft = (rawText: string): ForumAiNewThreadDraft | null => {
+  if (!rawText.trim()) {
+    return null
+  }
+  return parseJsonDraft(rawText) ?? parseLabeledDraft(rawText) ?? parseHeadingDraft(rawText)
+}
+
+export const toForumPreviewText = (markdownContent: string, maxLength: number) => {
+  const plainText = normalizeForumThreadBody(markdownContent)
+    .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)]\([^)]*\)/g, '$1')
+    .replace(/`{1,3}/g, '')
+    .replace(/^[>#\-+*]+\s*/gm, '')
+    .replace(/\*\*|__|~~|\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (plainText.length <= maxLength) {
+    return plainText
+  }
+  return `${plainText.slice(0, maxLength)}…`
+}
+
 export const loadForumGlobalAiConfig = async (): Promise<ForumGlobalAiConfig> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
@@ -201,38 +316,20 @@ export async function requestForumAiContent({
   const normalizedContent = content.trim()
 
   if (task === 'new-thread') {
-    const fallbackBody = normalizedContent || '（空主题）'
-    const parseStructuredDraft = (rawText: string): ForumAiNewThreadDraft | null => {
-      if (!rawText.trim()) {
-        return null
-      }
-      const normalized = rawText.trim()
-      const fencedMatch = normalized.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
-      const candidate = (fencedMatch?.[1] ?? normalized).trim()
-      try {
-        const parsed = JSON.parse(candidate) as Record<string, unknown>
-        const parsedTitle = typeof parsed.title === 'string' ? parsed.title.trim() : ''
-        const parsedBody = typeof parsed.body === 'string' ? parsed.body.trim() : ''
-        if (!parsedTitle || !parsedBody) {
-          return null
-        }
-        return {
-          title: parsedTitle,
-          body: parsedBody,
-        }
-      } catch {
-        return null
-      }
-    }
-
-    const structuredDraft = parseStructuredDraft(normalizedContent)
+    const structuredDraft = parseForumAiNewThreadDraft(normalizedContent)
     if (structuredDraft) {
       return structuredDraft
     }
 
+    const threadTitle = thread.title.trim()
+    const fallbackTitle =
+      threadTitle && !/由\s*AI\s*自拟|ai\s*自拟|^（.*自拟.*）$/i.test(threadTitle)
+        ? threadTitle
+        : deriveFallbackTitle(normalizedContent)
+
     return {
-      title: thread.title.trim() || `AI 主题 ${new Date().toLocaleString('zh-CN')}`,
-      body: fallbackBody,
+      title: fallbackTitle || `AI 主题 ${new Date().toLocaleString('zh-CN')}`,
+      body: normalizeForumThreadBody(normalizedContent),
     }
   }
 
