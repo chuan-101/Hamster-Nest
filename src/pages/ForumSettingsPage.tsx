@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useEnabledModels } from '../hooks/useEnabledModels'
 import type { ForumAiProfile } from '../types'
 import { fetchForumAiProfiles, upsertForumAiProfile } from '../storage/supabaseSync'
-import { FORUM_AI_SLOTS, clampForumContextTokenLimit, clampForumMaxOutputTokens, defaultForumProfile } from './forumShared'
+import { FORUM_AI_SLOTS, clampForumContextTokenLimit, defaultForumProfile } from './forumShared'
 import './ForumPage.css'
 
 type ForumSettingsPageProps = {
@@ -99,7 +99,6 @@ const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
         temperature: draft.temperature,
         topP: draft.topP,
         contextTokenLimit: clampForumContextTokenLimit(draft.contextTokenLimit),
-        maxOutputTokens: clampForumMaxOutputTokens(draft.maxOutputTokens),
         apiBaseUrl: '',
       })
       setProfiles((current) => {
@@ -167,7 +166,6 @@ const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
                       <p className="forum-settings-summary-card__meta">模型：{modelLabel}</p>
                       <p className="forum-settings-summary-card__meta">状态：{card.enabled ? '已启用' : '未启用'}</p>
                       <p className="forum-settings-summary-card__meta">上下文约束：{card.contextTokenLimit}</p>
-                      <p className="forum-settings-summary-card__meta">最大输出 tokens：{card.maxOutputTokens}</p>
                     </article>
                   )
                 })}
@@ -266,33 +264,6 @@ const ForumSettingsPage = ({ user }: ForumSettingsPageProps) => {
                     }}
                   />
                   <small>范围 8000 - 128000，默认 32000</small>
-                </label>
-
-                <label>
-                  <span>最大输出 tokens</span>
-                  <input
-                    className="input-glass"
-                    type="number"
-                    min={128}
-                    max={4000}
-                    step={1}
-                    value={draft.maxOutputTokens}
-                    onChange={(event) => {
-                      const raw = Number(event.target.value)
-                      setDraft((current) =>
-                        current
-                          ? {
-                              ...current,
-                              maxOutputTokens:
-                                Number.isFinite(raw) && raw >= 128 && raw <= 4000
-                                  ? Math.round(raw)
-                                  : 1600,
-                            }
-                          : current,
-                      )
-                    }}
-                  />
-                  <small>范围 128 - 4000，默认 1600（用于论坛回复生成）</small>
                 </label>
               </div>
               <label className="forum-settings-toggle">
