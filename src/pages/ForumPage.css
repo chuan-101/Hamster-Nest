@@ -362,7 +362,9 @@
 
 .forum-settings-page {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-self: start;
 }
 
 .forum-settings-shell {
