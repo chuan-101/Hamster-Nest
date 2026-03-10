@@ -182,59 +182,65 @@ const ForumNewThreadPage = () => {
   }
 
   return (
-    <div className="forum-page app-shell__content">
-      <header className="forum-header glass-card">
-        <button type="button" className="btn-secondary" onClick={() => navigate('/forum')}>
+    <div className="forum-page forum-thread-page forum-new-thread-page app-shell__content">
+      <header className="forum-header forum-header--thread glass-card">
+        <button type="button" className="btn-secondary forum-header__back-btn" onClick={() => navigate('/forum')}>
           返回列表
         </button>
         <h1 className="ui-title">新建主题</h1>
       </header>
 
-      <section className="glass-card forum-editor">
-        {loading ? <p>加载 AI 档案中…</p> : null}
+      <section className="glass-card forum-editor forum-new-thread-card">
+        {loading ? <p className="forum-new-thread-status">加载 AI 档案中…</p> : null}
         {authorIsAi ? (
-          <p className="forum-settings-summary">标题将由 AI 自动生成</p>
+          <p className="forum-settings-summary forum-new-thread-helper">标题将由 AI 自动生成</p>
         ) : (
           <label>
             标题
-            <input className="input-glass" value={title} onChange={(event) => setTitle(event.target.value)} />
+            <div className="forum-terminal-field">
+              <input className="input-glass" value={title} onChange={(event) => setTitle(event.target.value)} />
+            </div>
           </label>
         )}
         <label>
           作者
-          <select
-            className="input-glass"
-            value={authorDraft}
-            onChange={(event) => setAuthorDraft(event.target.value as AuthorDraft)}
-          >
-            <option value="user">我（直接发布）</option>
-            {FORUM_AI_SLOTS.map((slot) => {
-              const profile = profileLookup.get(slot) ?? {
-                ...defaultForumProfile(slot),
-                id: `slot-${slot}`,
-                userId: '',
-                createdAt: '',
-                updatedAt: '',
-              }
-              return (
-                <option key={slot} value={`ai-${slot}`}>
-                  {profile.displayName}（AI Slot {slot}）
-                </option>
-              )
-            })}
-          </select>
+          <div className="forum-terminal-field forum-terminal-field--select">
+            <select
+              className="input-glass"
+              value={authorDraft}
+              onChange={(event) => setAuthorDraft(event.target.value as AuthorDraft)}
+            >
+              <option value="user">我（直接发布）</option>
+              {FORUM_AI_SLOTS.map((slot) => {
+                const profile = profileLookup.get(slot) ?? {
+                  ...defaultForumProfile(slot),
+                  id: `slot-${slot}`,
+                  userId: '',
+                  createdAt: '',
+                  updatedAt: '',
+                }
+                return (
+                  <option key={slot} value={`ai-${slot}`}>
+                    {profile.displayName}（AI Slot {slot}）
+                  </option>
+                )
+              })}
+            </select>
+          </div>
         </label>
         <label>
           {authorIsAi ? '写作方向（可选）' : '正文'}
-          <textarea
-            className="textarea-glass"
-            rows={8}
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            placeholder={authorIsAi ? '可填写 AI 写作方向。' : '输入你要发的主题内容。'}
-          />
+          <div className="forum-terminal-field">
+            <textarea
+              className="textarea-glass"
+              rows={8}
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              placeholder={authorIsAi ? '可填写 AI 写作方向。' : '输入你要发的主题内容。'}
+            />
+          </div>
         </label>
-        {error ? <p className="forum-error">{error}</p> : null}
+        {error ? <p className="forum-error forum-new-thread-error">{error}</p> : null}
         <div className="forum-editor__actions">
           <button type="button" className="btn-primary" disabled={submitting || generating} onClick={handleCreate}>
             直接发布（用户）
