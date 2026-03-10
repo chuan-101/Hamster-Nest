@@ -8,6 +8,7 @@ import './LettersPage.css'
 
 const PREVIEW_LIMIT = 30
 const LETTER_MEMORY_LIMIT = 20
+const LETTER_HELPER_INSTRUCTION = 'Write a warm check-in letter in Chinese. Keep it concise, sincere, and personal.'
 
 const LETTER_MODEL_OPTIONS: Array<{ value: LetterModel; label: string; modelId: string }> = [
   { value: 'claude', label: 'Claude', modelId: 'anthropic/claude-3.5-sonnet' },
@@ -130,6 +131,7 @@ const LettersPage = () => {
         buildMemoryContext(),
       ])
       const appSystemPrompt = settings.systemPrompt.trim()
+      const letterReplyPrompt = settings.letterReplySystemPrompt.trim()
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
         method: 'POST',
@@ -149,12 +151,14 @@ const LettersPage = () => {
               : []),
             {
               role: 'system',
-              content:
-                'You are Syzygy writing a warm and concise letter to the user. Keep it personal, kind, and under 180 Chinese characters.',
+              content: `Memory context (latest user memory entries):\n${memoryContext}`,
             },
+            ...(letterReplyPrompt
+              ? [{ role: 'system' as const, content: letterReplyPrompt }]
+              : []),
             {
               role: 'system',
-              content: `Memory context (latest user memory entries):\n${memoryContext}`,
+              content: LETTER_HELPER_INSTRUCTION,
             },
             {
               role: 'user',
