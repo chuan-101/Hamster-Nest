@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../supabase/client'
 import type { LetterEntry, LetterModel } from '../types'
 import { createLetter, fetchLetters, markLetterAsRead } from '../storage/supabaseSync'
@@ -161,6 +162,9 @@ const LettersPage = () => {
   return (
     <main className="letters-page app-shell">
       <header className="letters-header app-shell__header">
+        <Link to="/" className="letters-home-btn">
+          返回首页
+        </Link>
         <h1 className="ui-title">Letters</h1>
       </header>
 
