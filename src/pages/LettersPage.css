@@ -230,9 +230,31 @@
 
 .letter-sheet-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 10px;
+}
+
+.letter-sheet-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.letter-delete {
+  border: 1px solid rgba(240, 154, 185, 0.95);
+  background: rgba(255, 235, 243, 0.9);
+  color: #a43f68;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.letter-delete:disabled,
+.letter-close:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .letter-sheet-title {

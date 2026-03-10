@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase/client'
 import type { LetterEntry, LetterModel } from '../types'
-import { createLetter, fetchLetters, markLetterAsRead } from '../storage/supabaseSync'
+import { createLetter, deleteLetter, fetchLetters, markLetterAsRead } from '../storage/supabaseSync'
 import './LettersPage.css'
 
 const PREVIEW_LIMIT = 30
@@ -48,6 +48,8 @@ const LettersPage = () => {
   const [manualPrompt, setManualPrompt] = useState('')
   const [manualGenerating, setManualGenerating] = useState(false)
   const [manualError, setManualError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletingLetterId, setDeletingLetterId] = useState<string | null>(null)
 
   const activeLetter = useMemo(
     () => letters.find((letter) => letter.id === activeLetterId) ?? null,
@@ -159,6 +161,29 @@ const LettersPage = () => {
     }
   }
 
+  const handleDeleteActiveLetter = async () => {
+    if (!activeLetter || deletingLetterId) {
+      return
+    }
+    const confirmed = window.confirm('确定删除这封来信吗？')
+    if (!confirmed) {
+      return
+    }
+
+    setDeleteError(null)
+    setDeletingLetterId(activeLetter.id)
+    try {
+      await deleteLetter(activeLetter.id)
+      setLetters((current) => current.filter((letter) => letter.id !== activeLetter.id))
+      setActiveLetterId(null)
+    } catch (deleteActionError) {
+      console.warn('删除来信失败', deleteActionError)
+      setDeleteError('删除失败，请稍后重试。')
+    } finally {
+      setDeletingLetterId(null)
+    }
+  }
+
   return (
     <main className="letters-page app-shell">
       <header className="letters-header app-shell__header">
@@ -245,11 +270,27 @@ const LettersPage = () => {
                 <p className="letter-sheet-title ui-title">Syzygy</p>
                 <p className="letter-sheet-meta">{formatTimestamp(activeLetter.createdAt)}</p>
               </div>
-              <button type="button" className="letter-close" onClick={() => setActiveLetterId(null)}>
-                关闭
-              </button>
+              <div className="letter-sheet-actions">
+                <button
+                  type="button"
+                  className="letter-delete"
+                  onClick={() => void handleDeleteActiveLetter()}
+                  disabled={deletingLetterId === activeLetter.id}
+                >
+                  {deletingLetterId === activeLetter.id ? '删除中…' : '删除'}
+                </button>
+                <button
+                  type="button"
+                  className="letter-close"
+                  onClick={() => setActiveLetterId(null)}
+                  disabled={deletingLetterId === activeLetter.id}
+                >
+                  关闭
+                </button>
+              </div>
             </header>
             <p className="letter-sheet-content">{activeLetter.content}</p>
+            {deleteError ? <p className="letters-manual-error">{deleteError}</p> : null}
           </article>
         </div>
       ) : null}
