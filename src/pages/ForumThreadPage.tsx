@@ -99,7 +99,8 @@ const ForumThreadPage = () => {
     setSuccessMessage(null)
     try {
       await deleteForumReply(pendingDeleteReplyId, thread.id)
-      setReplies((current) => current.filter((item) => item.id !== pendingDeleteReplyId))
+      const refreshedReplies = await fetchForumReplyTreeByThread(thread.id)
+      setReplies(refreshedReplies)
       setActiveInlineReplyId((current) => (current === pendingDeleteReplyId ? null : current))
       setSuccessMessage('回复已删除。')
       setPendingDeleteReplyId(null)
@@ -161,6 +162,7 @@ const ForumThreadPage = () => {
         threadId: thread.id,
         content: params.content.trim(),
         authorType: 'user',
+        parentId: params.targetReplyId,
         replyToType: params.targetReplyId ? 'reply' : 'thread',
         replyToReplyId: params.targetReplyId,
       })
@@ -208,6 +210,7 @@ const ForumThreadPage = () => {
         content: generated,
         authorType: 'ai',
         authorSlot: params.slot,
+        parentId: params.targetReplyId,
         replyToType: params.targetReplyId ? 'reply' : 'thread',
         replyToReplyId: params.targetReplyId,
       })
@@ -350,7 +353,7 @@ const ForumThreadPage = () => {
       </article>
 
       <section className="glass-card forum-thread-list">
-        <h3 className="ui-title">回复（嵌套树）</h3>
+        <h3 className="ui-title">回复</h3>
         {replyTree.length ? (
           <ForumReplyTree
             nodes={replyTree}
