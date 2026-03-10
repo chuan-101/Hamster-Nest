@@ -193,6 +193,9 @@ export type ForumReply = {
   authorType: ForumAuthorType
   authorSlot: number | null
   authorName: string | null
+  parentId: string | null
+  depth?: number
+  sortPath?: string
   replyToType: 'thread' | 'reply' | null
   replyToReplyId: string | null
   replyToAuthorName: string | null
