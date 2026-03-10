@@ -1699,6 +1699,7 @@ export const createForumReply = async (params: {
   content: string
   authorType: ForumAuthorType
   authorSlot?: number | null
+  parentId?: string | null
   replyToType?: 'thread' | 'reply' | null
   replyToReplyId?: string | null
 }): Promise<ForumReply> => {
@@ -1706,7 +1707,9 @@ export const createForumReply = async (params: {
     throw new Error('Supabase 客户端未配置')
   }
   const userId = await requireAuthenticatedUserId()
-  const normalizedParentId = params.replyToType === 'thread' ? null : params.replyToReplyId ?? null
+  const normalizedParentId = params.replyToType === 'thread'
+    ? null
+    : params.parentId ?? params.replyToReplyId ?? null
   const authorPayload = await resolveForumAuthorPayload(userId, params.authorType, params.authorSlot)
   const replyToAuthorName = await resolveReplyTargetAuthorName(userId, params.threadId, normalizedParentId)
   const { data, error } = await supabase
