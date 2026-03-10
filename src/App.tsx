@@ -24,6 +24,7 @@ import {
   saveMemoryExtractModel,
   saveSyzygyPostSystemPrompt,
   saveSyzygyReplySystemPrompt,
+  saveLetterReplySystemPrompt,
   updateUserSettings,
 } from './storage/userSettings'
 import { invokeMemoryExtraction } from './storage/memoryExtraction'
@@ -62,6 +63,7 @@ import {
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
   resolveSyzygyReplyPrompt,
+  resolveLetterReplyPrompt,
 } from './constants/aiOverlays'
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
 
@@ -218,6 +220,7 @@ const App = () => {
     snackSystemOverlay: resolveSnackSystemOverlay(activeSettings.snackSystemOverlay),
     syzygyPostSystemPrompt: resolveSyzygyPostPrompt(activeSettings.syzygyPostSystemPrompt),
     syzygyReplySystemPrompt: resolveSyzygyReplyPrompt(activeSettings.syzygyReplySystemPrompt),
+    letterReplySystemPrompt: resolveLetterReplyPrompt(activeSettings.letterReplySystemPrompt),
   }), [activeSettings, latestSession])
   const snackAiConfig = useMemo(() => ({
     ...feedAiConfigBase,
@@ -1270,6 +1273,23 @@ const App = () => {
     setUserSettings(nextSettings)
   }, [user])
 
+
+  const handleSaveLetterReplySystemPrompt = useCallback(async (nextPrompt: string) => {
+    if (!user) {
+      return
+    }
+    const nextSettings = {
+      ...(settingsRef.current ?? createDefaultSettings(user.id)),
+      userId: user.id,
+      letterReplySystemPrompt: nextPrompt,
+      updatedAt: new Date().toISOString(),
+    }
+    if (supabase) {
+      await saveLetterReplySystemPrompt(user.id, nextPrompt)
+    }
+    setUserSettings(nextSettings)
+  }, [user])
+
   const handleToggleMemoryAutoExtract = useCallback(async (enabled: boolean) => {
     if (!user) {
       return
@@ -1533,6 +1553,7 @@ const App = () => {
                 onSaveSnackSystemPrompt={handleSaveSnackSystemPrompt}
                 onSaveSyzygyPostPrompt={handleSaveSyzygyPostSystemPrompt}
                 onSaveSyzygyReplyPrompt={handleSaveSyzygyReplySystemPrompt}
+                onSaveLetterReplyPrompt={handleSaveLetterReplySystemPrompt}
               />
             </RequireAuth>
           }

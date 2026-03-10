@@ -8,9 +8,11 @@ import {
   DEFAULT_SNACK_SYSTEM_OVERLAY,
   DEFAULT_SYZYGY_POST_PROMPT,
   DEFAULT_SYZYGY_REPLY_PROMPT,
+  DEFAULT_LETTER_REPLY_PROMPT,
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
   resolveSyzygyReplyPrompt,
+  resolveLetterReplyPrompt,
 } from '../constants/aiOverlays'
 import './SettingsPage.css'
 
@@ -29,6 +31,7 @@ type SettingsPageProps = {
   onSaveSnackSystemPrompt: (value: string) => Promise<void>
   onSaveSyzygyPostPrompt: (value: string) => Promise<void>
   onSaveSyzygyReplyPrompt: (value: string) => Promise<void>
+  onSaveLetterReplyPrompt: (value: string) => Promise<void>
 }
 
 const defaultModelId = 'openrouter/auto'
@@ -42,6 +45,7 @@ const SettingsPage = ({
   onSaveSnackSystemPrompt,
   onSaveSyzygyPostPrompt,
   onSaveSyzygyReplyPrompt,
+  onSaveLetterReplyPrompt,
 }: SettingsPageProps) => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
@@ -83,6 +87,8 @@ const SettingsPage = ({
   const [draftSyzygyReplyPrompt, setDraftSyzygyReplyPrompt] = useState(DEFAULT_SYZYGY_REPLY_PROMPT)
   const [syzygyPostStatus, setSyzygyPostStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [syzygyReplyStatus, setSyzygyReplyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [draftLetterReplyPrompt, setDraftLetterReplyPrompt] = useState(DEFAULT_LETTER_REPLY_PROMPT)
+  const [letterReplyStatus, setLetterReplyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [showUnsavedPromptDialog, setShowUnsavedPromptDialog] = useState(false)
   const [snackSectionExpanded, setSnackSectionExpanded] = useState(false)
   const [syzygySectionExpanded, setSyzygySectionExpanded] = useState(false)
@@ -158,6 +164,7 @@ const SettingsPage = ({
     const timer = window.setTimeout(() => {
       setDraftSyzygyPostPrompt(resolveSyzygyPostPrompt(settings.syzygyPostSystemPrompt))
       setDraftSyzygyReplyPrompt(resolveSyzygyReplyPrompt(settings.syzygyReplySystemPrompt))
+      setDraftLetterReplyPrompt(resolveLetterReplyPrompt(settings.letterReplySystemPrompt))
     }, 0)
     return () => {
       window.clearTimeout(timer)
@@ -174,7 +181,7 @@ const SettingsPage = ({
       try {
         const { data, error } = await client
           .from('user_settings')
-          .select('syzygy_post_system_prompt,syzygy_reply_system_prompt')
+          .select('syzygy_post_system_prompt,syzygy_reply_system_prompt,letter_reply_system_prompt')
           .eq('user_id', user.id)
           .maybeSingle()
         if (!active || error) {
@@ -182,6 +189,7 @@ const SettingsPage = ({
         }
         setDraftSyzygyPostPrompt(resolveSyzygyPostPrompt(data?.syzygy_post_system_prompt))
         setDraftSyzygyReplyPrompt(resolveSyzygyReplyPrompt(data?.syzygy_reply_system_prompt))
+        setDraftLetterReplyPrompt(resolveLetterReplyPrompt(data?.letter_reply_system_prompt))
       } catch {
         // ignore and keep local fallback
       }
@@ -303,6 +311,9 @@ const SettingsPage = ({
   const hasUnsavedSyzygyReplyPrompt = settings
     ? draftSyzygyReplyPrompt !== resolveSyzygyReplyPrompt(settings.syzygyReplySystemPrompt)
     : false
+  const hasUnsavedLetterReplyPrompt = settings
+    ? draftLetterReplyPrompt !== resolveLetterReplyPrompt(settings.letterReplySystemPrompt)
+    : false
   const hasUnsavedExtractModel =
     (settings?.memoryExtractModel ?? '') !== (draftMemoryExtractModel ?? '')
   const hasUnsavedPrompt =
@@ -310,6 +321,7 @@ const SettingsPage = ({
     hasUnsavedSnackOverlay ||
     hasUnsavedSyzygyPostPrompt ||
     hasUnsavedSyzygyReplyPrompt ||
+    hasUnsavedLetterReplyPrompt ||
     hasUnsavedExtractModel ||
     hasUnsavedModelSettings ||
     hasUnsavedGeneration
@@ -649,6 +661,34 @@ const SettingsPage = ({
     setSyzygyReplyStatus('idle')
   }
 
+  const handleLetterReplyPromptChange = (value: string) => {
+    setDraftLetterReplyPrompt(value)
+    if (letterReplyStatus !== 'idle') {
+      setLetterReplyStatus('idle')
+    }
+  }
+
+  const handleSaveLetterReplyPrompt = async () => {
+    if (!settings || !hasUnsavedLetterReplyPrompt) {
+      return
+    }
+    const nextPrompt = resolveLetterReplyPrompt(draftLetterReplyPrompt)
+    setDraftLetterReplyPrompt(nextPrompt)
+    setLetterReplyStatus('saving')
+    try {
+      await onSaveLetterReplyPrompt(nextPrompt)
+      setLetterReplyStatus('saved')
+    } catch (error) {
+      console.warn('保存来信回复提示词失败', error)
+      setLetterReplyStatus('error')
+    }
+  }
+
+  const handleResetLetterReplyPrompt = () => {
+    setDraftLetterReplyPrompt(DEFAULT_LETTER_REPLY_PROMPT)
+    setLetterReplyStatus('idle')
+  }
+
   const requestNavigation = (action: () => void) => {
     if (!hasUnsavedPrompt) {
       action()
@@ -685,8 +725,10 @@ const SettingsPage = ({
       setSnackOverlayStatus('idle')
       setDraftSyzygyPostPrompt(resolveSyzygyPostPrompt(settings.syzygyPostSystemPrompt))
       setDraftSyzygyReplyPrompt(resolveSyzygyReplyPrompt(settings.syzygyReplySystemPrompt))
+      setDraftLetterReplyPrompt(resolveLetterReplyPrompt(settings.letterReplySystemPrompt))
       setSyzygyPostStatus('idle')
       setSyzygyReplyStatus('idle')
+      setLetterReplyStatus('idle')
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
@@ -715,6 +757,9 @@ const SettingsPage = ({
     }
     if (hasUnsavedSyzygyReplyPrompt) {
       void handleSaveSyzygyReplyPrompt()
+    }
+    if (hasUnsavedLetterReplyPrompt) {
+      void handleSaveLetterReplyPrompt()
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
@@ -1310,6 +1355,31 @@ const SettingsPage = ({
                 恢复默认
               </button>
               {syzygyReplyStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+            </div>
+
+
+            <div className="section-title nested-prompt-title">
+              <h2 className="ui-title">来信回复风格（Letter Reply Prompt）</h2>
+              <p>控制来信模块回复时的语气与长度。</p>
+            </div>
+            <textarea
+              className="system-prompt"
+              value={draftLetterReplyPrompt}
+              onChange={(event) => handleLetterReplyPromptChange(event.target.value)}
+            />
+            <div className="system-prompt-actions">
+              <button
+                type="button"
+                className="primary"
+                disabled={!hasUnsavedLetterReplyPrompt}
+                onClick={() => void handleSaveLetterReplyPrompt()}
+              >
+                保存
+              </button>
+              <button type="button" className="ghost" onClick={handleResetLetterReplyPrompt}>
+                恢复默认
+              </button>
+              {letterReplyStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
             </div>
           </div>
         ) : null}

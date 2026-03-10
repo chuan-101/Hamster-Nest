@@ -51,6 +51,7 @@ export type UserSettings = {
   snackSystemOverlay: string
   syzygyPostSystemPrompt: string
   syzygyReplySystemPrompt: string
+  letterReplySystemPrompt: string
   chatReasoningEnabled: boolean
   rpReasoningEnabled: boolean
   chatHighThinkingEnabled: boolean
