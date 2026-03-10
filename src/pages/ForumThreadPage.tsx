@@ -12,8 +12,10 @@ import {
 } from '../storage/supabaseSync'
 import ConfirmDialog from '../components/ConfirmDialog'
 import MarkdownRenderer from '../components/MarkdownRenderer'
+import ForumReplyTree from '../components/forum/ForumReplyTree'
 import { FORUM_AI_SLOTS, defaultForumProfile, getForumAuthorLabel, loadForumGlobalAiConfig, requestForumAiContent, type ForumGlobalAiConfig } from './forumShared'
 import './ForumPage.css'
+import { buildForumReplyTree } from '../utils/forumReplyTree'
 
 const formatTime = (value: string) =>
   new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -115,18 +117,26 @@ const ForumThreadPage = () => {
     return map
   }, [profiles])
 
+  const replyMap = useMemo(() => {
+    const map = new Map<string, ForumReply>()
+    replies.forEach((reply) => map.set(reply.id, reply))
+    return map
+  }, [replies])
+
+  const replyTree = useMemo(() => buildForumReplyTree(replies), [replies])
+
   const getReplyTargetLabel = useCallback(
     (targetReplyId: string | null) => {
       if (!targetReplyId) {
         return '主题帖'
       }
-      const target = replies.find((reply) => reply.id === targetReplyId)
+      const target = replyMap.get(targetReplyId)
       if (!target) {
         return '主题帖'
       }
       return `${getForumAuthorLabel(target.authorType, target.authorSlot, profiles, target.authorName)} 的回复`
     },
-    [profiles, replies],
+    [profiles, replyMap],
   )
 
   const rootTargetLabel = useMemo(() => {
@@ -211,6 +221,89 @@ const ForumThreadPage = () => {
     }
   }
 
+  const getReplyTargetNameForReply = useCallback((reply: ForumReply) => {
+    if (!thread) {
+      return '主题帖'
+    }
+    if (!reply.parentId) {
+      return getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles, thread.authorName)
+    }
+    const target = replyMap.get(reply.parentId)
+    if (!target) {
+      return '未知目标'
+    }
+    return getForumAuthorLabel(target.authorType, target.authorSlot, profiles, target.authorName)
+  }, [profiles, replyMap, thread])
+
+  const renderInlineEditor = (reply: ForumReply) => (
+    <div className="forum-inline-editor">
+      <p className="forum-inline-editor__target">
+        回复给：{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}
+      </p>
+      <label>
+        内容 / AI 指令
+        <div className="forum-terminal-field">
+          <textarea
+            className="textarea-glass"
+            rows={4}
+            value={inlineReplyContent}
+            onChange={(event) => setInlineReplyContent(event.target.value)}
+            placeholder="输入对该回复的内容；也可填写给 AI 的指令后点击下方按钮。"
+          />
+        </div>
+      </label>
+      <div className="forum-editor__actions">
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={submitting}
+          onClick={() =>
+            void handleSubmitReply({
+              content: inlineReplyContent,
+              targetReplyId: reply.id,
+              onSuccess: () => {
+                setInlineReplyContent('')
+                setActiveInlineReplyId(null)
+              },
+            })
+          }
+        >
+          发布用户回复
+        </button>
+        {FORUM_AI_SLOTS.map((slot) => {
+          const profile = profileMap.get(slot) ?? {
+            ...defaultForumProfile(slot),
+            id: `slot-${slot}`,
+            userId: '',
+            createdAt: '',
+            updatedAt: '',
+          }
+          return (
+            <button
+              key={`${reply.id}-${slot}`}
+              type="button"
+              className="btn-secondary"
+              disabled={Boolean(generatingSlot) || !profile.enabled || !globalAiConfig}
+              onClick={() =>
+                void handleGenerateAiReply({
+                  slot,
+                  content: inlineReplyContent,
+                  targetReplyId: reply.id,
+                  onSuccess: () => {
+                    setInlineReplyContent('')
+                    setActiveInlineReplyId(null)
+                  },
+                })
+              }
+            >
+              {generatingSlot === slot ? '生成中…' : `${profile.displayName} 生成回复`}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+
   if (loading) {
     return <div className="forum-page app-shell__content forum-loading">加载中…</div>
   }
@@ -257,123 +350,27 @@ const ForumThreadPage = () => {
       </article>
 
       <section className="glass-card forum-thread-list">
-        <h3 className="ui-title">回复（按时间顺序）</h3>
-        <div className="forum-thread-list__items">
-          {replies.map((reply) => {
-            const target =
-              reply.replyToType === 'reply' ? replies.find((item) => item.id === reply.replyToReplyId) : null
-            const targetName =
-              reply.replyToType === 'thread'
-                ? getForumAuthorLabel(thread.authorType, thread.authorSlot, profiles, thread.authorName)
-                : target
-                  ? getForumAuthorLabel(target.authorType, target.authorSlot, profiles, target.authorName)
-                  : '未知目标'
-            return (
-              <article className="forum-reply-item" key={reply.id}>
-                <header className="forum-bbs-card__author forum-bbs-card__author--reply">
-                  <strong>{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}</strong>
-                  <small>{formatTime(reply.createdAt)}</small>
-                </header>
-                <div className="forum-bbs-card__content forum-bbs-card__content--reply">
-                  <div className="assistant-markdown">
-                    <MarkdownRenderer content={reply.content} />
-                  </div>
-                </div>
-                <footer className="forum-reply-item__footer">
-                  <span>回复给：{targetName}</span>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => {
-                      setError(null)
-                      setSuccessMessage(null)
-                      setInlineReplyContent('')
-                      setActiveInlineReplyId((current) => (current === reply.id ? null : reply.id))
-                    }}
-                  >
-                    {activeInlineReplyId === reply.id ? '收起回复' : '回复'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => setPendingDeleteReplyId(reply.id)}
-                    disabled={deletingReplyId === reply.id}
-                  >
-                    {deletingReplyId === reply.id ? '删除中…' : '删除'}
-                  </button>
-                </footer>
-                {activeInlineReplyId === reply.id ? (
-                  <div className="forum-inline-editor">
-                    <p className="forum-inline-editor__target">
-                      回复给：{getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}
-                    </p>
-                    <label>
-                      内容 / AI 指令
-                      <div className="forum-terminal-field">
-                        <textarea
-                          className="textarea-glass"
-                          rows={4}
-                          value={inlineReplyContent}
-                          onChange={(event) => setInlineReplyContent(event.target.value)}
-                          placeholder="输入对该回复的内容；也可填写给 AI 的指令后点击下方按钮。"
-                        />
-                      </div>
-                    </label>
-                    <div className="forum-editor__actions">
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        disabled={submitting}
-                        onClick={() =>
-                          void handleSubmitReply({
-                            content: inlineReplyContent,
-                            targetReplyId: reply.id,
-                            onSuccess: () => {
-                              setInlineReplyContent('')
-                              setActiveInlineReplyId(null)
-                            },
-                          })
-                        }
-                      >
-                        发布用户回复
-                      </button>
-                      {FORUM_AI_SLOTS.map((slot) => {
-                        const profile = profileMap.get(slot) ?? {
-                          ...defaultForumProfile(slot),
-                          id: `slot-${slot}`,
-                          userId: '',
-                          createdAt: '',
-                          updatedAt: '',
-                        }
-                        return (
-                          <button
-                            key={`${reply.id}-${slot}`}
-                            type="button"
-                            className="btn-secondary"
-                            disabled={Boolean(generatingSlot) || !profile.enabled || !globalAiConfig}
-                            onClick={() =>
-                              void handleGenerateAiReply({
-                                slot,
-                                content: inlineReplyContent,
-                                targetReplyId: reply.id,
-                                onSuccess: () => {
-                                  setInlineReplyContent('')
-                                  setActiveInlineReplyId(null)
-                                },
-                              })
-                            }
-                          >
-                            {generatingSlot === slot ? '生成中…' : `${profile.displayName} 生成回复`}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </article>
-            )
-          })}
-        </div>
+        <h3 className="ui-title">回复（嵌套树）</h3>
+        {replyTree.length ? (
+          <ForumReplyTree
+            nodes={replyTree}
+            activeInlineReplyId={activeInlineReplyId}
+            deletingReplyId={deletingReplyId}
+            getAuthorLabel={(reply) => getForumAuthorLabel(reply.authorType, reply.authorSlot, profiles, reply.authorName)}
+            getReplyTargetLabel={getReplyTargetNameForReply}
+            formatTime={formatTime}
+            onToggleInlineReply={(replyId) => {
+              setError(null)
+              setSuccessMessage(null)
+              setInlineReplyContent('')
+              setActiveInlineReplyId((current) => (current === replyId ? null : replyId))
+            }}
+            onDeleteReply={(replyId) => setPendingDeleteReplyId(replyId)}
+            renderInlineEditor={renderInlineEditor}
+          />
+        ) : (
+          <p className="forum-thread-list__empty">还没有回复，来抢沙发吧。</p>
+        )}
       </section>
 
       <section className="glass-card forum-editor">
