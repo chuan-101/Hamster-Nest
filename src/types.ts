@@ -217,3 +217,21 @@ export type ForumAiProfile = {
   createdAt: string
   updatedAt: string
 }
+
+export type LetterModel = 'claude' | 'gpt' | 'gemini'
+
+export type LetterTriggerType = 'manual' | 'scheduled' | 'event'
+
+export type LetterEntry = {
+  id: string
+  userId: string
+  model: LetterModel
+  content: string
+  triggerType: LetterTriggerType
+  triggerReason: string | null
+  createdAt: string
+  isRead: boolean
+  conversationId: string | null
+  module: string | null
+  metadata: Record<string, unknown> | null
+}
