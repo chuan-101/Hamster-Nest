@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase/client'
 import type { LetterEntry, LetterModel } from '../types'
-import { createLetter, deleteLetter, fetchLetters, markLetterAsRead } from '../storage/supabaseSync'
+import { createLetter, deleteLetter, fetchAllMemoryEntries, fetchLetters, markLetterAsRead } from '../storage/supabaseSync'
+import { ensureUserSettings } from '../storage/userSettings'
 import './LettersPage.css'
 
 const PREVIEW_LIMIT = 30
+const LETTER_MEMORY_LIMIT = 20
 
 const LETTER_MODEL_OPTIONS: Array<{ value: LetterModel; label: string; modelId: string }> = [
   { value: 'claude', label: 'Claude', modelId: 'anthropic/claude-3.5-sonnet' },
@@ -37,6 +39,21 @@ const getMetaLabel = (letter: LetterEntry) => {
     return letter.triggerReason
   }
   return letter.triggerType
+}
+
+const buildMemoryContext = async () => {
+  const memoryEntries = await fetchAllMemoryEntries()
+  const usableEntries = memoryEntries
+    .filter((entry) => !entry.isDeleted && entry.content.trim())
+    .slice(-LETTER_MEMORY_LIMIT)
+
+  if (usableEntries.length === 0) {
+    return '无'
+  }
+
+  return usableEntries
+    .map((entry, index) => `${index + 1}. (${entry.status}) ${entry.content.trim()}`)
+    .join('\n')
 }
 
 const LettersPage = () => {
@@ -96,13 +113,23 @@ const LettersPage = () => {
     setManualGenerating(true)
     setManualError(null)
     try {
-      const { data } = await supabase.auth.getSession()
+      const [{ data }, { data: userData, error: userError }] = await Promise.all([
+        supabase.auth.getSession(),
+        supabase.auth.getUser(),
+      ])
       const accessToken = data.session?.access_token
+      const user = userData.user
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
       const modelConfig = LETTER_MODEL_OPTIONS.find((item) => item.value === selectedModel)
-      if (!accessToken || !anonKey || !modelConfig) {
+      if (!accessToken || !anonKey || !modelConfig || userError || !user) {
         throw new Error('登录状态异常或模型配置缺失')
       }
+
+      const [settings, memoryContext] = await Promise.all([
+        ensureUserSettings(user.id),
+        buildMemoryContext(),
+      ])
+      const appSystemPrompt = settings.systemPrompt.trim()
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
         method: 'POST',
@@ -117,10 +144,17 @@ const LettersPage = () => {
           module: 'letter',
           stream: false,
           messages: [
+            ...(appSystemPrompt
+              ? [{ role: 'system' as const, content: appSystemPrompt }]
+              : []),
             {
               role: 'system',
               content:
-                'You are Syzygy writing a warm short letter to the user. Keep it personal, kind, and under 180 Chinese characters.',
+                'You are Syzygy writing a warm and concise letter to the user. Keep it personal, kind, and under 180 Chinese characters.',
+            },
+            {
+              role: 'system',
+              content: `Memory context (latest user memory entries):\n${memoryContext}`,
             },
             {
               role: 'user',
