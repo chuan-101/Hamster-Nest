@@ -6,6 +6,9 @@ import type {
   ForumReply,
   ForumThread,
   ForumAuthorType,
+  LetterEntry,
+  LetterModel,
+  LetterTriggerType,
   MemoryEntry,
   MemoryStatus,
   RpNpcCard,
@@ -190,6 +193,21 @@ type ForumAiProfileRow = {
   created_at: string
   updated_at: string
 }
+
+type LetterRow = {
+  id: string
+  user_id: string
+  model: LetterModel
+  content: string
+  trigger_type: LetterTriggerType
+  trigger_reason: string | null
+  created_at: string
+  is_read: boolean | null
+  conversation_id: string | null
+  module: string | null
+  metadata: Record<string, unknown> | null
+}
+
 
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
@@ -379,6 +397,20 @@ const mapSessionRow = (row: SessionRow): ChatSession => ({
   archivedAt: row.archived_at ?? null,
 })
 
+const mapLetterRow = (row: LetterRow): LetterEntry => ({
+  id: row.id,
+  userId: row.user_id,
+  model: row.model,
+  content: row.content,
+  triggerType: row.trigger_type,
+  triggerReason: row.trigger_reason,
+  createdAt: row.created_at,
+  isRead: row.is_read ?? false,
+  conversationId: row.conversation_id,
+  module: row.module,
+  metadata: row.metadata,
+})
+
 const mapMessageRow = (row: MessageRow): ChatMessage => ({
   id: row.id,
   sessionId: row.session_id,
@@ -406,6 +438,95 @@ const requireAuthenticatedUserId = async (): Promise<string> => {
     throw new Error('登录状态异常，请重新登录')
   }
   return user.id
+}
+
+export const fetchLetters = async (): Promise<LetterEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('letters')
+    .select(
+      'id,user_id,model,content,trigger_type,trigger_reason,created_at,is_read,conversation_id,module,metadata',
+    )
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapLetterRow(row as LetterRow))
+}
+
+export const createLetter = async (
+  input: {
+    model: LetterModel
+    content: string
+    triggerType?: LetterTriggerType
+    triggerReason?: string | null
+    conversationId?: string | null
+    module?: string | null
+    metadata?: Record<string, unknown> | null
+    createdAt?: string
+    isRead?: boolean
+  },
+): Promise<LetterEntry> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('letters')
+    .insert({
+      user_id: userId,
+      model: input.model,
+      content: input.content,
+      trigger_type: input.triggerType ?? 'manual',
+      trigger_reason: input.triggerReason ?? null,
+      created_at: input.createdAt ?? new Date().toISOString(),
+      is_read: input.isRead ?? false,
+      conversation_id: input.conversationId ?? null,
+      module: input.module ?? null,
+      metadata: input.metadata ?? null,
+    })
+    .select(
+      'id,user_id,model,content,trigger_type,trigger_reason,created_at,is_read,conversation_id,module,metadata',
+    )
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('创建信件失败')
+  }
+  return mapLetterRow(data as LetterRow)
+}
+
+export const markLetterAsRead = async (letterId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('letters')
+    .update({ is_read: true })
+    .eq('id', letterId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const deleteLetter = async (letterId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('letters')
+    .delete()
+    .eq('id', letterId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
 }
 
 export const fetchRemoteSessions = async (userId: string): Promise<ChatSession[]> => {
