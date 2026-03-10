@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { LetterEntry } from '../types'
-import { fetchLetters, markLetterAsRead } from '../storage/supabaseSync'
+import { supabase } from '../supabase/client'
+import type { LetterEntry, LetterModel } from '../types'
+import { createLetter, fetchLetters, markLetterAsRead } from '../storage/supabaseSync'
 import './LettersPage.css'
 
 const PREVIEW_LIMIT = 30
+
+const LETTER_MODEL_OPTIONS: Array<{ value: LetterModel; label: string; modelId: string }> = [
+  { value: 'claude', label: 'Claude', modelId: 'anthropic/claude-3.5-sonnet' },
+  { value: 'gpt', label: 'GPT', modelId: 'openai/gpt-4o-mini' },
+  { value: 'gemini', label: 'Gemini', modelId: 'google/gemini-2.0-flash-001' },
+]
 
 const formatTimestamp = (value: string) =>
   new Date(value).toLocaleString('zh-CN', {
@@ -36,6 +43,10 @@ const LettersPage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeLetterId, setActiveLetterId] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState<LetterModel>('claude')
+  const [manualPrompt, setManualPrompt] = useState('')
+  const [manualGenerating, setManualGenerating] = useState(false)
+  const [manualError, setManualError] = useState<string | null>(null)
 
   const activeLetter = useMemo(
     () => letters.find((letter) => letter.id === activeLetterId) ?? null,
@@ -75,6 +86,78 @@ const LettersPage = () => {
     }
   }
 
+  const handleManualGenerate = async () => {
+    if (manualGenerating || !supabase) {
+      return
+    }
+    setManualGenerating(true)
+    setManualError(null)
+    try {
+      const { data } = await supabase.auth.getSession()
+      const accessToken = data.session?.access_token
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+      const modelConfig = LETTER_MODEL_OPTIONS.find((item) => item.value === selectedModel)
+      if (!accessToken || !anonKey || !modelConfig) {
+        throw new Error('登录状态异常或模型配置缺失')
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: modelConfig.modelId,
+          modelId: modelConfig.modelId,
+          module: 'letter',
+          stream: false,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are Syzygy writing a warm short letter to the user. Keep it personal, kind, and under 180 Chinese characters.',
+            },
+            {
+              role: 'user',
+              content: manualPrompt.trim() || 'Write a check-in style letter for today.',
+            },
+          ],
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(await response.text())
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      const choice = (payload.choices as Record<string, unknown>[] | undefined)?.[0]
+      const message = (choice?.message as Record<string, unknown> | undefined) ?? choice
+      const content =
+        typeof message?.content === 'string'
+          ? message.content
+          : typeof choice?.text === 'string'
+            ? choice.text
+            : ''
+      const finalContent = content.trim() || '（空回复）'
+
+      const created = await createLetter({
+        model: selectedModel,
+        content: finalContent,
+        triggerType: 'manual',
+        triggerReason: null,
+        module: 'letter',
+      })
+      setLetters((current) => [created, ...current])
+      setActiveLetterId(created.id)
+    } catch (generateError) {
+      console.warn('手动生成来信失败', generateError)
+      setManualError('生成失败，请稍后重试。')
+    } finally {
+      setManualGenerating(false)
+    }
+  }
+
   return (
     <main className="letters-page app-shell">
       <header className="letters-header app-shell__header">
@@ -82,6 +165,35 @@ const LettersPage = () => {
       </header>
 
       <section className="letters-content app-shell__content" aria-label="letters list">
+        <div className="letters-manual-panel glass-card" aria-label="manual letter trigger">
+          <div className="letters-manual-row">
+            <label htmlFor="letters-model">手动生成（验证用）</label>
+            <select
+              id="letters-model"
+              value={selectedModel}
+              onChange={(event) => setSelectedModel(event.target.value as LetterModel)}
+              disabled={manualGenerating}
+            >
+              {LETTER_MODEL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button type="button" onClick={() => void handleManualGenerate()} disabled={manualGenerating}>
+              {manualGenerating ? '生成中…' : 'Generate Letter'}
+            </button>
+          </div>
+          <textarea
+            value={manualPrompt}
+            onChange={(event) => setManualPrompt(event.target.value)}
+            placeholder="可选：补充一条生成指令（用于手动验证）"
+            rows={2}
+            disabled={manualGenerating}
+          />
+          {manualError ? <p className="letters-manual-error">{manualError}</p> : null}
+        </div>
+
         <div className="letters-list glass-card">
           {loading ? <p className="letters-state">加载中…</p> : null}
           {!loading && error ? <p className="letters-state">{error}</p> : null}

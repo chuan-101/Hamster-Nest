@@ -29,6 +29,65 @@
   padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
 }
 
+
+.letters-manual-panel {
+  margin: 0 auto 10px;
+  width: min(620px, 100%);
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 236, 244, 0.9);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.letters-manual-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.letters-manual-row label {
+  color: #8a6f7d;
+  font-size: 0.84rem;
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.letters-manual-row select,
+.letters-manual-row button,
+.letters-manual-panel textarea {
+  border: 1px solid rgba(255, 220, 235, 0.9);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #6a5561;
+  font: inherit;
+}
+
+.letters-manual-row select,
+.letters-manual-row button {
+  height: 34px;
+  padding: 0 10px;
+}
+
+.letters-manual-row button {
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.letters-manual-panel textarea {
+  margin-top: 8px;
+  width: 100%;
+  resize: vertical;
+  min-height: 50px;
+  padding: 8px 10px;
+  font-size: 0.84rem;
+}
+
+.letters-manual-error {
+  margin: 8px 2px 0;
+  color: #b04576;
+  font-size: 0.82rem;
+}
+
 .letters-list {
   margin: 0 auto;
   width: min(620px, 100%);
