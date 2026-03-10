@@ -573,7 +573,7 @@
 
 .forum-bbs-card__author strong,
 .forum-bbs-card__author small,
-.forum-reply-item__footer span,
+.forum-reply-item__meta,
 .forum-thread-page .forum-editor__target,
 .forum-thread-page .forum-inline-editor__target,
 .forum-thread-page .btn-primary,
@@ -656,14 +656,38 @@
 
 .forum-thread-page .forum-reply-item__footer,
 .forum-thread-page .forum-root-post footer {
-  display: flex;
   width: 100%;
+  padding: 0.5rem 0.65rem;
+  border-top: 2px solid #5c5c5c;
+}
+
+.forum-thread-page .forum-root-post footer {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-start;
   gap: 0.35rem;
-  padding: 0.5rem 0.65rem;
-  border-top: 2px solid #5c5c5c;
+}
+
+.forum-thread-page .forum-reply-item__footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+}
+
+.forum-reply-item__meta {
+  min-width: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.forum-reply-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
 }
 
 .forum-thread-page .forum-root-post footer {
@@ -727,6 +751,19 @@
   background: #ffd6e7;
   box-shadow: 3px 3px 0 0 #5c5c5c;
   color: #5c5c5c;
+}
+
+.forum-thread-page .forum-reply-item__actions .forum-btn--compact {
+  padding: 0.12rem 0.46rem;
+  font-size: 0.9rem;
+  line-height: 1.15;
+  box-shadow: 2px 2px 0 0 #5c5c5c;
+  white-space: nowrap;
+}
+
+.forum-thread-page .forum-reply-item__actions .forum-btn--compact:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 0 #5c5c5c;
 }
 
 .forum-thread-page .btn-primary:active,
@@ -838,6 +875,10 @@
   padding-inline: 0.58rem;
 }
 
+.forum-thread-page .forum-reply-item__actions .forum-reply-item__toggle {
+  padding-inline: 0.42rem;
+}
+
 .forum-reply-node__children {
   position: relative;
   margin-top: 0.5rem;
@@ -880,11 +921,14 @@
   }
 
   .forum-reply-node .forum-reply-item__footer {
+    gap: 0.28rem;
+  }
+
+  .forum-reply-node .forum-reply-item__actions {
     gap: 0.25rem;
   }
 
-  .forum-reply-node .forum-reply-item__footer .btn-secondary {
-    max-width: 100%;
+  .forum-thread-page .forum-reply-item__actions .forum-btn--compact {
     white-space: normal;
   }
 }
