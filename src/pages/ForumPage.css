@@ -791,30 +791,100 @@
 }
 
 .forum-reply-tree {
+  --forum-reply-indent: 1rem;
+  --forum-reply-indent-mobile: 0.6rem;
   display: grid;
-  gap: 0.6rem;
+  gap: 0.7rem;
+  min-width: 0;
 }
 
 .forum-reply-node {
-  margin-left: calc(var(--forum-reply-depth, 0) * 1rem);
+  position: relative;
+  min-width: 0;
+  margin-left: calc(var(--forum-reply-depth, 0) * var(--forum-reply-indent));
+  padding-left: 0.5rem;
+}
+
+.forum-reply-node::before {
+  content: '';
+  position: absolute;
+  top: 0.8rem;
+  left: 0;
+  width: 0.35rem;
+  border-top: 2px solid #cdb3bf;
+}
+
+.forum-reply-node .forum-reply-item {
+  overflow: hidden;
+}
+
+.forum-reply-node .forum-bbs-card__content,
+.forum-reply-node .forum-reply-item__footer {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.forum-reply-node .forum-bbs-card__content .assistant-markdown {
+  overflow-x: auto;
+}
+
+.forum-reply-node .forum-inline-editor {
+  margin-top: 0;
+  border-top: 2px dashed #5c5c5c;
+  background: #fff6fb;
+}
+
+.forum-reply-item__toggle {
+  padding-inline: 0.58rem;
 }
 
 .forum-reply-node__children {
-  margin-top: 0.55rem;
-  margin-left: 0.45rem;
-  padding-left: 0.65rem;
-  border-left: 2px dashed #c8adb9;
+  position: relative;
+  margin-top: 0.5rem;
+  margin-left: 0.3rem;
+  padding-left: 0.8rem;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.65rem;
+  border-left: 2px dashed #cdb3bf;
+}
+
+.forum-reply-node__children::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -2px;
+  width: 2px;
+  height: 0.45rem;
+  background: #fff;
 }
 
 @media (max-width: 640px) {
+  .forum-reply-tree {
+    gap: 0.55rem;
+  }
+
   .forum-reply-node {
-    margin-left: calc(var(--forum-reply-depth, 0) * 0.55rem);
+    margin-left: calc(var(--forum-reply-depth, 0) * var(--forum-reply-indent-mobile));
+    padding-left: 0.35rem;
+  }
+
+  .forum-reply-node::before {
+    top: 0.72rem;
+    width: 0.24rem;
   }
 
   .forum-reply-node__children {
-    margin-left: 0.2rem;
-    padding-left: 0.45rem;
+    margin-left: 0.18rem;
+    padding-left: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .forum-reply-node .forum-reply-item__footer {
+    gap: 0.25rem;
+  }
+
+  .forum-reply-node .forum-reply-item__footer .btn-secondary {
+    max-width: 100%;
+    white-space: normal;
   }
 }
