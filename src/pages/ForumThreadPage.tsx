@@ -7,7 +7,7 @@ import {
   deleteForumThread,
   fetchAllMemoryEntries,
   fetchForumAiProfiles,
-  fetchForumRepliesByThread,
+  fetchForumReplyTreeByThread,
   fetchForumThreadById,
 } from '../storage/supabaseSync'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -48,7 +48,7 @@ const ForumThreadPage = () => {
     try {
       const [threadData, replyData, profileData, globalConfig] = await Promise.all([
         fetchForumThreadById(id),
-        fetchForumRepliesByThread(id),
+        fetchForumReplyTreeByThread(id),
         fetchForumAiProfiles(),
         loadForumGlobalAiConfig(),
       ])
