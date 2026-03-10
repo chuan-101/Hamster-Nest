@@ -92,6 +92,7 @@ const SettingsPage = ({
   const [showUnsavedPromptDialog, setShowUnsavedPromptDialog] = useState(false)
   const [snackSectionExpanded, setSnackSectionExpanded] = useState(false)
   const [syzygySectionExpanded, setSyzygySectionExpanded] = useState(false)
+  const [letterSectionExpanded, setLetterSectionExpanded] = useState(false)
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string; compressionRatio?: string; compressionKeepRecent?: string }>(
     {},
   )
@@ -1356,12 +1357,26 @@ const SettingsPage = ({
               </button>
               {syzygyReplyStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
             </div>
+          </div>
+        ) : null}
+      </section>
 
-
-            <div className="section-title nested-prompt-title">
-              <h2 className="ui-title">来信回复风格（Letter Reply Prompt）</h2>
-              <p>控制来信模块回复时的语气与长度。</p>
-            </div>
+      <section className="settings-section" role="listitem">
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setLetterSectionExpanded((current) => !current)}
+          aria-expanded={letterSectionExpanded}
+        >
+          <span className="section-title">
+            <span className="section-icon" aria-hidden="true">💌</span>
+            <h2 className="ui-title">来信</h2>
+            <p>控制来信生成时的语气、长度与表达方式。</p>
+          </span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
+        </button>
+        {letterSectionExpanded ? (
+          <div className="accordion-content">
             <textarea
               className="system-prompt"
               value={draftLetterReplyPrompt}
@@ -1379,6 +1394,7 @@ const SettingsPage = ({
               <button type="button" className="ghost" onClick={handleResetLetterReplyPrompt}>
                 恢复默认
               </button>
+              {hasUnsavedLetterReplyPrompt ? <span className="system-prompt-status">有未保存修改</span> : null}
               {letterReplyStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
             </div>
           </div>
