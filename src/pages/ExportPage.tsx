@@ -11,6 +11,7 @@ type ExportModules = {
   syzygy: boolean
   memory: boolean
   checkins: boolean
+  forum: boolean
 }
 
 type SessionRow = {
@@ -78,6 +79,27 @@ type CheckinRow = {
   created_at: string
 }
 
+type ForumThreadRow = {
+  id: string
+  title: string
+  body: string
+  author_type: string
+  author_name: string
+  created_at: string
+  updated_at: string
+}
+
+type ForumReplyRow = {
+  id: string
+  thread_id: string
+  body: string
+  author_type: string
+  author_name: string
+  created_at: string
+  parent_id: string | null
+  reply_to_reply_id: string | null
+}
+
 type ExportDataBundle = {
   sessions: SessionRow[]
   messages: MessageRow[]
@@ -87,6 +109,8 @@ type ExportDataBundle = {
   syzygyReplies: SyzygyReplyRow[]
   memoryEntries: MemoryEntryRow[]
   checkins: CheckinRow[]
+  forumThreads: ForumThreadRow[]
+  forumReplies: ForumReplyRow[]
 }
 
 const formatOptions: Array<{ value: ExportFormat; label: string }> = [
@@ -101,6 +125,7 @@ const defaultModules: ExportModules = {
   syzygy: true,
   memory: true,
   checkins: true,
+  forum: true,
 }
 
 const MESSAGE_BATCH_SIZE = 1000
@@ -137,6 +162,23 @@ const computeStreak = (checkins: CheckinRow[]) => {
 }
 
 const safeMarkdownText = (value: string) => value.replaceAll('```', '\\`\\`\\`')
+
+const renderForumReplies = (replies: ForumReplyRow[], lines: string[], parentId: string | null = null, depth = 0) => {
+  const nested = replies
+    .filter((reply) => {
+      const linkId = reply.parent_id ?? reply.reply_to_reply_id
+      return parentId === null ? !linkId : linkId === parentId
+    })
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+  nested.forEach((reply) => {
+    const indent = '  '.repeat(depth)
+    lines.push(
+      `${indent}- ↳ [${reply.created_at}] (${reply.author_type}/${reply.author_name}) #${reply.id}: ${safeMarkdownText(reply.body)}`,
+    )
+    renderForumReplies(replies, lines, reply.id, depth + 1)
+  })
+}
 
 const formatDownloadStamp = (value: Date) => {
   const year = value.getFullYear()
@@ -268,6 +310,36 @@ const renderMarkdown = (
     lines.push('')
   }
 
+  if (modules.forum) {
+    lines.push('## 论坛区')
+    const sortedThreads = [...data.forumThreads].sort((a, b) => a.created_at.localeCompare(b.created_at))
+    const repliesByThread = new Map<string, ForumReplyRow[]>()
+    data.forumReplies.forEach((reply) => {
+      const list = repliesByThread.get(reply.thread_id) ?? []
+      list.push(reply)
+      repliesByThread.set(reply.thread_id, list)
+    })
+
+    sortedThreads.forEach((thread) => {
+      lines.push(`### 帖子: ${safeMarkdownText(thread.title)} (${thread.id})`)
+      lines.push(`- 作者: ${thread.author_type}/${thread.author_name}`)
+      lines.push(`- 创建: ${thread.created_at}  更新: ${thread.updated_at}`)
+      lines.push(`- 正文: ${safeMarkdownText(thread.body)}`)
+      lines.push('- 回复:')
+      const threadReplies = repliesByThread.get(thread.id) ?? []
+      const renderedLinesStart = lines.length
+      renderForumReplies(threadReplies, lines)
+      if (lines.length === renderedLinesStart) {
+        lines.push('  - (无回复)')
+      }
+      lines.push('')
+    })
+
+    if (sortedThreads.length === 0) {
+      lines.push('暂无论坛记录', '')
+    }
+  }
+
   return lines.join('\n')
 }
 
@@ -337,6 +409,8 @@ const ExportPage = ({ user }: { user: User | null }) => {
         syzygyReplies: [],
         memoryEntries: [],
         checkins: [],
+        forumThreads: [],
+        forumReplies: [],
       }
 
       if (modules.chat) {
@@ -419,6 +493,26 @@ const ExportPage = ({ user }: { user: User | null }) => {
           throw checkinError
         }
         baseData.checkins = (checkinRows ?? []) as CheckinRow[]
+      }
+
+      if (modules.forum) {
+        const [{ data: forumThreads, error: forumThreadError }, { data: forumReplies, error: forumReplyError }] = await Promise.all([
+          supabase
+            .from('forum_threads')
+            .select('id,title,body,author_type,author_name,created_at,updated_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true }),
+          supabase
+            .from('forum_replies')
+            .select('id,thread_id,body,author_type,author_name,created_at,parent_id,reply_to_reply_id')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true }),
+        ])
+        if (forumThreadError || forumReplyError) {
+          throw forumThreadError ?? forumReplyError
+        }
+        baseData.forumThreads = (forumThreads ?? []) as ForumThreadRow[]
+        baseData.forumReplies = (forumReplies ?? []) as ForumReplyRow[]
       }
 
       let fileContent = ''
@@ -517,6 +611,10 @@ const ExportPage = ({ user }: { user: User | null }) => {
           <label>
             <input type="checkbox" checked={modules.checkins} onChange={() => toggleModule('checkins')} />
             打卡（checkins）
+          </label>
+          <label>
+            <input type="checkbox" checked={modules.forum} onChange={() => toggleModule('forum')} />
+            论坛区（forum_threads + forum_replies）
           </label>
         </div>
 
