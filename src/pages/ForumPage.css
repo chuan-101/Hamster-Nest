@@ -783,3 +783,38 @@
     padding-right: 0.72rem;
   }
 }
+
+.forum-thread-list__empty {
+  margin: 0;
+  color: #5c5c5c;
+  font-family: var(--font-sans);
+}
+
+.forum-reply-tree {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.forum-reply-node {
+  margin-left: calc(var(--forum-reply-depth, 0) * 1rem);
+}
+
+.forum-reply-node__children {
+  margin-top: 0.55rem;
+  margin-left: 0.45rem;
+  padding-left: 0.65rem;
+  border-left: 2px dashed #c8adb9;
+  display: grid;
+  gap: 0.55rem;
+}
+
+@media (max-width: 640px) {
+  .forum-reply-node {
+    margin-left: calc(var(--forum-reply-depth, 0) * 0.55rem);
+  }
+
+  .forum-reply-node__children {
+    margin-left: 0.2rem;
+    padding-left: 0.45rem;
+  }
+}

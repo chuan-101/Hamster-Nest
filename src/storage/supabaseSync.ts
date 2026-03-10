@@ -167,8 +167,11 @@ type ForumReplyRow = {
   author_type: ForumAuthorType
   author_slot: number | null
   author_name: string | null
+  parent_id: string | null
   reply_to_reply_id: string | null
   reply_to_author_name: string | null
+  depth?: number | null
+  sort_path?: string | null
   created_at: string
 }
 
@@ -320,19 +323,26 @@ const mapForumThreadRow = (row: ForumThreadRow): ForumThread => ({
   updatedAt: row.updated_at,
 })
 
-const mapForumReplyRow = (row: ForumReplyRow): ForumReply => ({
-  id: row.id,
-  threadId: row.thread_id,
-  userId: row.user_id,
-  content: row.body,
-  authorType: row.author_type,
-  authorSlot: row.author_slot,
-  authorName: row.author_name,
-  replyToType: row.reply_to_reply_id ? 'reply' : 'thread',
-  replyToReplyId: row.reply_to_reply_id,
-  replyToAuthorName: row.reply_to_author_name,
-  createdAt: row.created_at,
-})
+const mapForumReplyRow = (row: ForumReplyRow): ForumReply => {
+  const canonicalParentId = row.parent_id ?? row.reply_to_reply_id
+
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    userId: row.user_id,
+    content: row.body,
+    authorType: row.author_type,
+    authorSlot: row.author_slot,
+    authorName: row.author_name,
+    parentId: canonicalParentId,
+    depth: row.depth ?? undefined,
+    sortPath: row.sort_path ?? undefined,
+    replyToType: canonicalParentId ? 'reply' : 'thread',
+    replyToReplyId: row.reply_to_reply_id ?? canonicalParentId,
+    replyToAuthorName: row.reply_to_author_name,
+    createdAt: row.created_at,
+  }
+}
 
 const normalizeForumContextTokenLimit = (value: number | null | undefined) => {
   if (!Number.isFinite(value)) {
@@ -1658,7 +1668,7 @@ export const fetchForumRepliesByThread = async (threadId: string): Promise<Forum
   const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('forum_replies')
-    .select('id,thread_id,user_id,body,author_type,author_slot,author_name,reply_to_reply_id,reply_to_author_name,created_at')
+    .select('id,thread_id,user_id,body,author_type,author_slot,author_name,parent_id,reply_to_reply_id,reply_to_author_name,created_at')
     .eq('thread_id', threadId)
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
@@ -1667,6 +1677,21 @@ export const fetchForumRepliesByThread = async (threadId: string): Promise<Forum
     throw error
   }
   return (data ?? []).map((row) => mapForumReplyRow(row as ForumReplyRow))
+}
+
+export const fetchForumReplyTreeByThread = async (threadId: string): Promise<ForumReply[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase.rpc('get_forum_thread_replies_tree', { p_thread_id: threadId })
+
+  if (error) {
+    throw error
+  }
+
+  const rows = (data ?? []) as ForumReplyRow[]
+  return rows.filter((row) => row.user_id === userId).map((row) => mapForumReplyRow(row))
 }
 
 export const createForumReply = async (params: {
@@ -1681,9 +1706,9 @@ export const createForumReply = async (params: {
     throw new Error('Supabase 客户端未配置')
   }
   const userId = await requireAuthenticatedUserId()
-  const normalizedReplyToReplyId = params.replyToType === 'thread' ? null : params.replyToReplyId ?? null
+  const normalizedParentId = params.replyToType === 'thread' ? null : params.replyToReplyId ?? null
   const authorPayload = await resolveForumAuthorPayload(userId, params.authorType, params.authorSlot)
-  const replyToAuthorName = await resolveReplyTargetAuthorName(userId, params.threadId, normalizedReplyToReplyId)
+  const replyToAuthorName = await resolveReplyTargetAuthorName(userId, params.threadId, normalizedParentId)
   const { data, error } = await supabase
     .from('forum_replies')
     .insert({
@@ -1693,10 +1718,11 @@ export const createForumReply = async (params: {
       author_type: params.authorType,
       author_slot: authorPayload.authorSlot,
       author_name: authorPayload.authorName,
-      reply_to_reply_id: normalizedReplyToReplyId,
+      parent_id: normalizedParentId,
+      reply_to_reply_id: normalizedParentId,
       reply_to_author_name: replyToAuthorName,
     })
-    .select('id,thread_id,user_id,body,author_type,author_slot,author_name,reply_to_reply_id,reply_to_author_name,created_at')
+    .select('id,thread_id,user_id,body,author_type,author_slot,author_name,parent_id,reply_to_reply_id,reply_to_author_name,created_at')
     .single()
 
   if (error || !data) {
