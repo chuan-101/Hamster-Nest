@@ -182,79 +182,83 @@ const ForumNewThreadPage = () => {
   }
 
   return (
-    <div className="forum-page forum-thread-page forum-new-thread-page app-shell__content">
-      <header className="forum-header forum-header--thread glass-card">
-        <button type="button" className="btn-secondary forum-header__back-btn" onClick={() => navigate('/forum')}>
-          返回列表
-        </button>
-        <h1 className="ui-title">新建主题</h1>
-      </header>
+    <div className="forum-page forum-new-thread-page app-shell__content">
+      <div className="forum-page__wrapper forum-new-thread-shell">
+        <header className="forum-header forum-header--index forum-settings-header forum-new-thread-header">
+          <button type="button" className="forum-pixel-btn" onClick={() => navigate('/forum')}>
+            返回论坛
+          </button>
+          <h1 className="ui-title">新建主题</h1>
+          <span className="forum-settings-header__spacer" aria-hidden="true" />
+        </header>
 
-      <section className="glass-card forum-editor forum-new-thread-card">
-        {loading ? <p className="forum-new-thread-status">加载 AI 档案中…</p> : null}
-        {authorIsAi ? (
-          <p className="forum-settings-summary forum-new-thread-helper">标题将由 AI 自动生成</p>
-        ) : (
-          <label>
-            标题
-            <div className="forum-terminal-field">
-              <input className="input-glass" value={title} onChange={(event) => setTitle(event.target.value)} />
+        <section className="forum-thread-list forum-settings-content forum-new-thread-content">
+          <section className="forum-settings-editor forum-new-thread-panel">
+            {loading ? <p className="forum-new-thread-status">加载 AI 档案中…</p> : null}
+            {authorIsAi ? (
+              <p className="forum-settings-summary forum-new-thread-helper">标题将由 AI 自动生成</p>
+            ) : (
+              <label>
+                <span>标题</span>
+                <input className="input-glass" value={title} onChange={(event) => setTitle(event.target.value)} />
+              </label>
+            )}
+            <label>
+              <span>作者</span>
+              <select
+                className="input-glass"
+                value={authorDraft}
+                onChange={(event) => setAuthorDraft(event.target.value as AuthorDraft)}
+              >
+                <option value="user">我（直接发布）</option>
+                {FORUM_AI_SLOTS.map((slot) => {
+                  const profile = profileLookup.get(slot) ?? {
+                    ...defaultForumProfile(slot),
+                    id: `slot-${slot}`,
+                    userId: '',
+                    createdAt: '',
+                    updatedAt: '',
+                  }
+                  return (
+                    <option key={slot} value={`ai-${slot}`}>
+                      {profile.displayName}（AI Slot {slot}）
+                    </option>
+                  )
+                })}
+              </select>
+            </label>
+            <label>
+              <span>{authorIsAi ? '写作方向（可选）' : '正文'}</span>
+              <textarea
+                className="textarea-glass"
+                rows={8}
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                placeholder={authorIsAi ? '可填写 AI 写作方向。' : '输入你要发的主题内容。'}
+              />
+            </label>
+            {error ? <p className="forum-error forum-new-thread-error">{error}</p> : null}
+            <div className="forum-editor__actions forum-new-thread-actions">
+              <button
+                type="button"
+                className="forum-pixel-btn forum-pixel-btn--primary"
+                disabled={submitting || generating}
+                onClick={handleCreate}
+              >
+                直接发布（用户）
+              </button>
+              <button
+                type="button"
+                className="forum-pixel-btn"
+                disabled={submitting || generating}
+                onClick={handleGenerateAiThread}
+              >
+                {generating ? 'AI 生成中…' : '生成 AI 主题'}
+              </button>
             </div>
-          </label>
-        )}
-        <label>
-          作者
-          <div className="forum-terminal-field forum-terminal-field--select">
-            <select
-              className="input-glass"
-              value={authorDraft}
-              onChange={(event) => setAuthorDraft(event.target.value as AuthorDraft)}
-            >
-              <option value="user">我（直接发布）</option>
-              {FORUM_AI_SLOTS.map((slot) => {
-                const profile = profileLookup.get(slot) ?? {
-                  ...defaultForumProfile(slot),
-                  id: `slot-${slot}`,
-                  userId: '',
-                  createdAt: '',
-                  updatedAt: '',
-                }
-                return (
-                  <option key={slot} value={`ai-${slot}`}>
-                    {profile.displayName}（AI Slot {slot}）
-                  </option>
-                )
-              })}
-            </select>
-          </div>
-        </label>
-        <label>
-          {authorIsAi ? '写作方向（可选）' : '正文'}
-          <div className="forum-terminal-field">
-            <textarea
-              className="textarea-glass"
-              rows={8}
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              placeholder={authorIsAi ? '可填写 AI 写作方向。' : '输入你要发的主题内容。'}
-            />
-          </div>
-        </label>
-        {error ? <p className="forum-error forum-new-thread-error">{error}</p> : null}
-        <div className="forum-editor__actions">
-          <button type="button" className="btn-primary" disabled={submitting || generating} onClick={handleCreate}>
-            直接发布（用户）
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={submitting || generating}
-            onClick={handleGenerateAiThread}
-          >
-            {generating ? 'AI 生成中…' : '生成 AI 主题'}
-          </button>
-        </div>
-      </section>
+          </section>
+        </section>
+      </div>
     </div>
   )
 }
