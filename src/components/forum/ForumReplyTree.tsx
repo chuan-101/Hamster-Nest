@@ -61,8 +61,8 @@ const ForumReplyTree = ({
           <footer className="forum-reply-item__footer">
             <span>回复给：{getReplyTargetLabel(reply)}</span>
             {hasChildren ? (
-              <button type="button" className="btn-secondary" onClick={() => toggleNode(reply.id)}>
-                {collapsed ? `展开 ${children.length} 条子回复` : `收起 ${children.length} 条子回复`}
+              <button type="button" className="btn-secondary forum-reply-item__toggle" onClick={() => toggleNode(reply.id)}>
+                {collapsed ? `展开 ${children.length} 条回复` : `收起 ${children.length} 条回复`}
               </button>
             ) : null}
             <button type="button" className="btn-secondary" onClick={() => onToggleInlineReply(reply.id)}>
