@@ -59,23 +59,25 @@ const ForumReplyTree = ({
             </div>
           </div>
           <footer className="forum-reply-item__footer">
-            <span>回复给：{getReplyTargetLabel(reply)}</span>
-            {hasChildren ? (
-              <button type="button" className="btn-secondary forum-reply-item__toggle" onClick={() => toggleNode(reply.id)}>
-                {collapsed ? `展开 ${children.length} 条回复` : `收起 ${children.length} 条回复`}
+            <div className="forum-reply-item__meta">回复给：{getReplyTargetLabel(reply)}</div>
+            <div className="forum-reply-item__actions">
+              {hasChildren ? (
+                <button type="button" className="btn-secondary forum-btn--compact forum-reply-item__toggle" onClick={() => toggleNode(reply.id)}>
+                  {collapsed ? `展开 ${children.length} 条回复` : `收起 ${children.length} 条回复`}
+                </button>
+              ) : null}
+              <button type="button" className="btn-secondary forum-btn--compact" onClick={() => onToggleInlineReply(reply.id)}>
+                {activeInlineReplyId === reply.id ? '收起回复' : '回复'}
               </button>
-            ) : null}
-            <button type="button" className="btn-secondary" onClick={() => onToggleInlineReply(reply.id)}>
-              {activeInlineReplyId === reply.id ? '收起回复' : '回复'}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => onDeleteReply(reply.id)}
-              disabled={deletingReplyId === reply.id}
-            >
-              {deletingReplyId === reply.id ? '删除中…' : '删除'}
-            </button>
+              <button
+                type="button"
+                className="btn-secondary forum-btn--compact"
+                onClick={() => onDeleteReply(reply.id)}
+                disabled={deletingReplyId === reply.id}
+              >
+                {deletingReplyId === reply.id ? '删除中…' : '删除'}
+              </button>
+            </div>
           </footer>
           {activeInlineReplyId === reply.id ? renderInlineEditor(reply) : null}
         </article>
