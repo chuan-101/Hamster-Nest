@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase/client'
-import type { LetterEntry } from '../types'
-import { createLetter, deleteLetter, fetchAllMemoryEntries, fetchLetters, markLetterAsRead } from '../storage/supabaseSync'
+import type { ChatSession, LetterEntry } from '../types'
+import {
+  createLetter,
+  deleteLetter,
+  fetchAllMemoryEntries,
+  fetchLetters,
+  linkLetterToConversation,
+  markLetterAsRead,
+} from '../storage/supabaseSync'
 import { ensureUserSettings } from '../storage/userSettings'
 import './LettersPage.css'
 
@@ -51,7 +58,15 @@ const buildMemoryContext = async () => {
     .join('\n')
 }
 
-const LettersPage = () => {
+const LettersPage = ({
+  sessions,
+  onCreateSession,
+}: {
+  sessions: ChatSession[]
+  onCreateSession: (title?: string) => Promise<ChatSession>
+}) => {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [letters, setLetters] = useState<LetterEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -62,6 +77,21 @@ const LettersPage = () => {
   const [manualError, setManualError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletingLetterId, setDeletingLetterId] = useState<string | null>(null)
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false)
+  const [linking, setLinking] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
+
+  const routeOpenLetterId = useMemo(() => {
+    const stateOpenLetterId =
+      typeof (location.state as { openLetterId?: unknown } | null)?.openLetterId === 'string'
+        ? ((location.state as { openLetterId?: string } | null)?.openLetterId ?? null)
+        : null
+    if (stateOpenLetterId) {
+      return stateOpenLetterId
+    }
+    const searchParams = new URLSearchParams(location.search)
+    return searchParams.get('open')
+  }, [location.search, location.state])
 
   const activeLetter = useMemo(
     () => letters.find((letter) => letter.id === activeLetterId) ?? null,
@@ -85,6 +115,17 @@ const LettersPage = () => {
   useEffect(() => {
     void loadLetters()
   }, [loadLetters])
+
+  useEffect(() => {
+    if (loading || !routeOpenLetterId) {
+      return
+    }
+    const target = letters.find((letter) => letter.id === routeOpenLetterId)
+    if (!target) {
+      return
+    }
+    void handleOpenLetter(target)
+  }, [letters, loading, routeOpenLetterId])
 
   useEffect(() => {
     let active = true
@@ -118,7 +159,7 @@ const LettersPage = () => {
     }
   }, [])
 
-  const handleOpenLetter = async (letter: LetterEntry) => {
+  async function handleOpenLetter(letter: LetterEntry) {
     setActiveLetterId(letter.id)
     if (letter.isRead) {
       return
@@ -132,6 +173,11 @@ const LettersPage = () => {
       console.warn('标记已读失败', markError)
     }
   }
+
+  useEffect(() => {
+    setLinkPickerOpen(false)
+    setLinkError(null)
+  }, [activeLetterId])
 
   const handleManualGenerate = async () => {
     if (manualGenerating || !supabase) {
@@ -249,6 +295,70 @@ const LettersPage = () => {
     }
   }
 
+  const openChatSession = useCallback(
+    (sessionId: string) => {
+      navigate(`/chat/${sessionId}`)
+      window.setTimeout(() => {
+        if (window.location.pathname !== `/chat/${sessionId}`) {
+          window.location.assign(`/chat/${sessionId}`)
+        }
+      }, 0)
+    },
+    [navigate],
+  )
+
+  const handleLinkToSession = useCallback(
+    async (sessionId: string) => {
+      if (!activeLetter || linking) {
+        return
+      }
+      setLinkError(null)
+      setLinking(true)
+      try {
+        await linkLetterToConversation(activeLetter.id, sessionId)
+        setLetters((current) =>
+          current.map((letter) =>
+            letter.id === activeLetter.id ? { ...letter, conversationId: sessionId } : letter,
+          ),
+        )
+        setLinkPickerOpen(false)
+        setActiveLetterId(null)
+        openChatSession(sessionId)
+      } catch (linkActionError) {
+        console.warn('关联对话失败', linkActionError)
+        setLinkError('关联失败，请稍后重试。')
+      } finally {
+        setLinking(false)
+      }
+    },
+    [activeLetter, linking, openChatSession],
+  )
+
+  const handleCreateAndLinkSession = useCallback(async () => {
+    if (!activeLetter || linking) {
+      return
+    }
+    setLinkError(null)
+    setLinking(true)
+    try {
+      const createdSession = await onCreateSession('来自来信')
+      await linkLetterToConversation(activeLetter.id, createdSession.id)
+      setLetters((current) =>
+        current.map((letter) =>
+          letter.id === activeLetter.id ? { ...letter, conversationId: createdSession.id } : letter,
+        ),
+      )
+      setLinkPickerOpen(false)
+      setActiveLetterId(null)
+      openChatSession(createdSession.id)
+    } catch (createError) {
+      console.warn('创建并关联对话失败', createError)
+      setLinkError('转入对话失败，请稍后重试。')
+    } finally {
+      setLinking(false)
+    }
+  }, [activeLetter, linking, onCreateSession, openChatSession])
+
   return (
     <main className="letters-page app-shell">
       <header className="letters-header app-shell__header">
@@ -327,6 +437,17 @@ const LettersPage = () => {
               <div className="letter-sheet-actions">
                 <button
                   type="button"
+                  className="letter-link"
+                  onClick={() => {
+                    setLinkError(null)
+                    setLinkPickerOpen(true)
+                  }}
+                  disabled={deletingLetterId === activeLetter.id || linking}
+                >
+                  转入对话
+                </button>
+                <button
+                  type="button"
                   className="letter-delete"
                   onClick={() => void handleDeleteActiveLetter()}
                   disabled={deletingLetterId === activeLetter.id}
@@ -345,6 +466,38 @@ const LettersPage = () => {
             </header>
             <p className="letter-sheet-content">{activeLetter.content}</p>
             {deleteError ? <p className="letters-manual-error">{deleteError}</p> : null}
+            {linkError ? <p className="letters-manual-error">{linkError}</p> : null}
+
+            {linkPickerOpen ? (
+              <section className="letter-link-picker" aria-label="target conversation picker">
+                <p className="letter-link-picker-title">选择目标对话</p>
+                <button
+                  type="button"
+                  className="letter-link-picker-item"
+                  onClick={() => void handleCreateAndLinkSession()}
+                  disabled={linking}
+                >
+                  {linking ? '处理中…' : '新建对话'}
+                </button>
+                {sessions.length > 0 ? (
+                  <div className="letter-link-picker-list">
+                    {sessions.map((session) => (
+                      <button
+                        key={session.id}
+                        type="button"
+                        className="letter-link-picker-item"
+                        onClick={() => void handleLinkToSession(session.id)}
+                        disabled={linking}
+                      >
+                        {session.title}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="letter-link-picker-empty">暂无已有会话，可直接新建。</p>
+                )}
+              </section>
+            ) : null}
           </article>
         </div>
       ) : null}

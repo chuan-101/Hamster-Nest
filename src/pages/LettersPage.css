@@ -251,6 +251,16 @@
   font-weight: 700;
 }
 
+.letter-link {
+  border: 1px solid rgba(154, 196, 240, 0.95);
+  background: rgba(232, 245, 255, 0.9);
+  color: #35628c;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .letter-delete:disabled,
 .letter-close:disabled {
   opacity: 0.7;
@@ -286,6 +296,42 @@
   line-height: 1.8;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.letter-link-picker {
+  margin-top: 14px;
+  border-top: 1px solid rgba(255, 224, 237, 0.9);
+  padding-top: 12px;
+}
+
+.letter-link-picker-title {
+  margin: 0 0 8px;
+  color: #826c78;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.letter-link-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.letter-link-picker-item {
+  width: 100%;
+  border: 1px solid rgba(255, 220, 235, 0.9);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #6a5561;
+  font: inherit;
+  text-align: left;
+  padding: 8px 10px;
+}
+
+.letter-link-picker-empty {
+  margin: 8px 0 0;
+  color: #ab8f9d;
+  font-size: 0.82rem;
 }
 
 @media (max-width: 640px) {
