@@ -417,7 +417,11 @@ const ChatPage = ({
                   <button
                     type="button"
                     className="timeline-letter-card__action"
-                    onClick={() => navigate('/letters')}
+                    onClick={() =>
+                      navigate('/letters', {
+                        state: { openLetterId: item.letter.id },
+                      })
+                    }
                   >
                     查看来信
                   </button>
