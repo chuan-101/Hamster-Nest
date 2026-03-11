@@ -207,6 +207,11 @@ type LetterRow = {
   metadata: Record<string, unknown> | null
 }
 
+type LetterConversationRow = {
+  letter_id: string
+  conversation_id: string
+}
+
 
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
@@ -462,14 +467,33 @@ export const fetchLettersByConversation = async (sessionId: string): Promise<Let
     return []
   }
   const userId = await requireAuthenticatedUserId()
-  const { data, error } = await supabase
+  const { data: links, error: linkError } = await supabase
+    .from('letter_conversations')
+    .select('letter_id,conversation_id')
+    .eq('conversation_id', sessionId)
+  if (linkError) {
+    throw linkError
+  }
+
+  const linkedLetterIds = Array.from(
+    new Set((links ?? []).map((row) => (row as LetterConversationRow).letter_id).filter(Boolean)),
+  )
+
+  let query = supabase
     .from('letters')
     .select(
       'id,user_id,model,content,trigger_type,trigger_reason,created_at,is_read,conversation_id,module,metadata',
     )
     .eq('user_id', userId)
-    .eq('conversation_id', sessionId)
     .order('created_at', { ascending: true })
+
+  if (linkedLetterIds.length > 0) {
+    query = query.in('id', linkedLetterIds)
+  } else {
+    query = query.eq('conversation_id', sessionId)
+  }
+
+  const { data, error } = await query
   if (error) {
     throw error
   }
@@ -537,13 +561,30 @@ export const linkLetterToConversation = async (letterId: string, conversationId:
     throw new Error('Supabase 客户端未配置')
   }
   const userId = await requireAuthenticatedUserId()
-  const { error } = await supabase
+  const { error: linkError } = await supabase
+    .from('letter_conversations')
+    .upsert(
+      {
+        letter_id: letterId,
+        conversation_id: conversationId,
+      },
+      {
+        onConflict: 'letter_id,conversation_id',
+        ignoreDuplicates: true,
+      },
+    )
+  if (linkError) {
+    throw linkError
+  }
+
+  const { error: legacyError } = await supabase
     .from('letters')
     .update({ conversation_id: conversationId })
     .eq('id', letterId)
     .eq('user_id', userId)
-  if (error) {
-    throw error
+    .is('conversation_id', null)
+  if (legacyError) {
+    throw legacyError
   }
 }
 
