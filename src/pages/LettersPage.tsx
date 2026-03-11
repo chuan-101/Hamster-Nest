@@ -11,19 +11,19 @@ import {
   markLetterAsRead,
 } from '../storage/supabaseSync'
 import { ensureUserSettings } from '../storage/userSettings'
+import { formatLocalTimestamp } from '../utils/time'
 import './LettersPage.css'
 
 const PREVIEW_LIMIT = 30
 const LETTER_MEMORY_LIMIT = 20
 const LETTER_HELPER_INSTRUCTION = 'Write a warm check-in letter in Chinese. Keep it concise, sincere, and personal.'
 
-const formatTimestamp = (value: string) =>
-  new Date(value).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+const ISO_TIMESTAMP_PATTERN = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g
+
+const formatTimestamp = (value: string) => formatLocalTimestamp(value)
+
+const formatInlineTimestamps = (value: string) =>
+  value.replaceAll(ISO_TIMESTAMP_PATTERN, (match) => formatTimestamp(match))
 
 const getPreview = (content: string) => {
   const compact = content.replace(/\s+/g, ' ').trim()
@@ -38,7 +38,7 @@ const getMetaLabel = (letter: LetterEntry) => {
     return letter.module
   }
   if (letter.triggerReason) {
-    return letter.triggerReason
+    return formatInlineTimestamps(letter.triggerReason)
   }
   return letter.triggerType
 }
