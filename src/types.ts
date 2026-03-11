@@ -234,3 +234,19 @@ export type LetterEntry = {
   module: string | null
   metadata: Record<string, unknown> | null
 }
+
+export type ChatTimelineMessageItem = {
+  type: 'message'
+  id: string
+  sortTime: string
+  message: ChatMessage
+}
+
+export type ChatTimelineLetterItem = {
+  type: 'letter'
+  id: string
+  sortTime: string
+  letter: LetterEntry
+}
+
+export type ChatTimelineItem = ChatTimelineMessageItem | ChatTimelineLetterItem
