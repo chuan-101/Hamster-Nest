@@ -7,7 +7,6 @@ import type {
   ForumThread,
   ForumAuthorType,
   LetterEntry,
-  LetterModel,
   LetterTriggerType,
   MemoryEntry,
   MemoryStatus,
@@ -197,7 +196,7 @@ type ForumAiProfileRow = {
 type LetterRow = {
   id: string
   user_id: string
-  model: LetterModel
+  model: string
   content: string
   trigger_type: LetterTriggerType
   trigger_reason: string | null
@@ -460,7 +459,7 @@ export const fetchLetters = async (): Promise<LetterEntry[]> => {
 
 export const createLetter = async (
   input: {
-    model: LetterModel
+    model: string
     content: string
     triggerType?: LetterTriggerType
     triggerReason?: string | null

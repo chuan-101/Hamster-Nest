@@ -219,14 +219,12 @@ export type ForumAiProfile = {
   updatedAt: string
 }
 
-export type LetterModel = 'claude' | 'gpt' | 'gemini'
-
 export type LetterTriggerType = 'manual' | 'scheduled' | 'event'
 
 export type LetterEntry = {
   id: string
   userId: string
-  model: LetterModel
+  model: string
   content: string
   triggerType: LetterTriggerType
   triggerReason: string | null
