@@ -457,6 +457,25 @@ export const fetchLetters = async (): Promise<LetterEntry[]> => {
   return (data ?? []).map((row) => mapLetterRow(row as LetterRow))
 }
 
+export const fetchLettersByConversation = async (sessionId: string): Promise<LetterEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('letters')
+    .select(
+      'id,user_id,model,content,trigger_type,trigger_reason,created_at,is_read,conversation_id,module,metadata',
+    )
+    .eq('user_id', userId)
+    .eq('conversation_id', sessionId)
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapLetterRow(row as LetterRow))
+}
+
 export const createLetter = async (
   input: {
     model: string
@@ -506,6 +525,21 @@ export const markLetterAsRead = async (letterId: string): Promise<void> => {
   const { error } = await supabase
     .from('letters')
     .update({ is_read: true })
+    .eq('id', letterId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const linkLetterToConversation = async (letterId: string, conversationId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('letters')
+    .update({ conversation_id: conversationId })
     .eq('id', letterId)
     .eq('user_id', userId)
   if (error) {
