@@ -4,7 +4,7 @@ import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-do
 import ChatPage from './pages/ChatPage'
 import AuthPage from './pages/AuthPage'
 import SessionsDrawer from './components/SessionsDrawer'
-import type { ChatMessage, ChatSession, ExtractMessageInput, UserSettings } from './types'
+import type { ChatMessage, ChatSession, ExtractMessageInput, LetterEntry, UserSettings } from './types'
 import {
   createSession,
   deleteMessage,
@@ -33,6 +33,7 @@ import {
   createRemoteSession,
   deleteRemoteMessage,
   deleteRemoteSession,
+  fetchLettersByConversation,
   fetchRemoteMessages,
   fetchRemoteSessions,
   fetchPendingMemoryCount,
@@ -143,8 +144,10 @@ const buildOpenAiMessages = (
   sessionId: string,
   messages: ChatMessage[],
   systemPrompt?: string,
+  linkedLetters: LetterEntry[] = [],
 ) => {
   const trimmedPrompt = systemPrompt?.trim()
+  const compactLetterEvents = buildCompactLetterEvents(linkedLetters)
   const history = messages
     .filter(
       (message) =>
@@ -153,10 +156,36 @@ const buildOpenAiMessages = (
         !message.meta?.streaming,
     )
     .map((message) => ({ role: message.role, content: message.content }))
+  const systemLayers: Array<{ role: 'system'; content: string }> = []
   if (trimmedPrompt) {
-    return [{ role: 'system', content: trimmedPrompt }, ...history]
+    systemLayers.push({ role: 'system', content: trimmedPrompt })
   }
-  return history
+  if (compactLetterEvents) {
+    systemLayers.push({ role: 'system', content: compactLetterEvents })
+  }
+  return [...systemLayers, ...history]
+}
+
+const LETTER_PREVIEW_LIMIT = 80
+
+const buildLetterPreview = (content: string) => {
+  const compact = content.replace(/\s+/g, ' ').trim()
+  if (compact.length <= LETTER_PREVIEW_LIMIT) {
+    return compact
+  }
+  return `${compact.slice(0, LETTER_PREVIEW_LIMIT)}…`
+}
+
+const buildCompactLetterEvents = (letters: LetterEntry[]) => {
+  if (letters.length === 0) {
+    return ''
+  }
+  const lines = letters.map((letter) => {
+    const model = letter.model?.trim() || 'unknown'
+    const preview = buildLetterPreview(letter.content)
+    return `[来信 from ${model} @ ${letter.createdAt}] ${preview}`
+  })
+  return `Linked letter events in this conversation (compact summaries):\n${lines.join('\n')}`
 }
 
 const buildRecentExtractionMessages = (
@@ -848,10 +877,17 @@ const App = () => {
             window.alert('Supabase 环境变量未配置')
             return
           }
+          let linkedLetters: LetterEntry[] = []
+          try {
+            linkedLetters = await fetchLettersByConversation(sessionId)
+          } catch (error) {
+            console.warn('无法加载会话关联来信上下文', error)
+          }
           const messagesPayload = buildOpenAiMessages(
             sessionId,
             messagesRef.current,
             systemPrompt,
+            linkedLetters,
           )
           const isClaudeModel = (model: string) => /claude|anthropic/i.test(model)
           const requestBody: Record<string, unknown> = {
