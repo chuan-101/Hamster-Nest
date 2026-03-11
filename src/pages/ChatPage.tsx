@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom'
 import type { FormEvent } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
-import type { ChatMessage, ChatSession } from '../types'
+import type { ChatMessage, ChatSession, ChatTimelineItem, LetterEntry } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import ReasoningPanel from '../components/ReasoningPanel'
+import { fetchLettersByConversation } from '../storage/supabaseSync'
 import './ChatPage.css'
 
 export type ChatPageProps = {
@@ -30,6 +31,16 @@ const formatTime = (timestamp: string) =>
     hour: '2-digit',
     minute: '2-digit',
   })
+
+const normalizeMessageSortTime = (message: ChatMessage) => message.clientCreatedAt ?? message.createdAt
+
+const buildLetterPreview = (content: string) => {
+  const compact = content.replace(/\s+/g, ' ').trim()
+  if (compact.length <= 50) {
+    return compact
+  }
+  return `${compact.slice(0, 50)}…`
+}
 
 const MESSAGE_ACTIONS_MENU_WIDTH = 140
 const MESSAGE_ACTIONS_MENU_HEIGHT = 84
@@ -56,6 +67,7 @@ const ChatPage = ({
   const [openHeaderMenu, setOpenHeaderMenu] = useState(false)
   const [headerMenuPosition, setHeaderMenuPosition] = useState({ top: 0, right: 0 })
   const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null)
+  const [letters, setLetters] = useState<LetterEntry[]>([])
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const actionsMenuRef = useRef<HTMLDivElement | null>(null)
   const actionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
@@ -120,9 +132,60 @@ const ChatPage = ({
     return Array.from(unique)
   }, [defaultModel, enabledModels, sessionOverride])
 
+
+  useEffect(() => {
+    let active = true
+    const loadLetters = async () => {
+      try {
+        const linkedLetters = await fetchLettersByConversation(session.id)
+        if (!active) {
+          return
+        }
+        setLetters(linkedLetters)
+      } catch (error) {
+        console.warn('无法加载关联来信', error)
+        if (active) {
+          setLetters([])
+        }
+      }
+    }
+    void loadLetters()
+    return () => {
+      active = false
+    }
+  }, [session.id])
+
+  const timelineItems = useMemo<ChatTimelineItem[]>(() => {
+    const messageItems: ChatTimelineItem[] = messages.map((message) => ({
+      type: 'message',
+      id: message.id,
+      sortTime: normalizeMessageSortTime(message),
+      message,
+    }))
+    const letterItems: ChatTimelineItem[] = letters.map((letter) => ({
+      type: 'letter',
+      id: letter.id,
+      sortTime: letter.createdAt,
+      letter,
+    }))
+    return [...messageItems, ...letterItems].sort((a, b) => {
+      const primary = new Date(a.sortTime).getTime() - new Date(b.sortTime).getTime()
+      if (primary !== 0) {
+        return primary
+      }
+      if (a.type === 'message' && b.type === 'message') {
+        return new Date(a.message.createdAt).getTime() - new Date(b.message.createdAt).getTime()
+      }
+      if (a.type === 'letter' && b.type === 'letter') {
+        return new Date(a.letter.createdAt).getTime() - new Date(b.letter.createdAt).getTime()
+      }
+      return a.type === 'message' ? -1 : 1
+    })
+  }, [letters, messages])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length])
+  }, [timelineItems.length])
 
   useEffect(() => {
     document.body.classList.add('chat-page-active')
@@ -332,60 +395,87 @@ const ChatPage = ({
         </div>
       </header>
       <main className="chat-messages glass-panel">
-        {messages.length === 0 ? (
+        {timelineItems.length === 0 ? (
           <div className="empty-state">
             <p>暂无消息，开始聊点什么吧。</p>
           </div>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`message ${message.role === 'user' ? 'out' : 'in'}`}
-            >
-              <div className="bubble">
-                {(() => {
-                  const reasoningText =
-                    message.meta?.reasoning_text?.trim() ?? message.meta?.reasoning?.trim()
-                  return reasoningText ? <ReasoningPanel reasoning={reasoningText} /> : null
-                })()}
-                {message.role === 'assistant' ? (
-                  <div className="assistant-markdown">
-                    <MarkdownRenderer content={message.content} />
-                  </div>
-                ) : (
-                  <p>{message.content}</p>
-                )}
-                {message.role === 'assistant' && message.meta?.model ? (
-                  <div className="message-footer">
-                    <span className="model-tag">
-                      {message.meta.model === 'mock-model' ? '模拟模型' : message.meta.model}
+          timelineItems.map((item) => {
+            if (item.type === 'letter') {
+              return (
+                <div key={`letter-${item.id}`} className="timeline-letter-card">
+                  <div className="timeline-letter-card__header">
+                    <span className="timeline-letter-card__avatar" aria-hidden="true">
+                      💌
                     </span>
+                    <div className="timeline-letter-card__meta">
+                      <span className="timeline-letter-card__model">{item.letter.model}</span>
+                      <span className="timeline-letter-card__time">{formatTime(item.letter.createdAt)}</span>
+                    </div>
                   </div>
-                ) : null}
-              </div>
-              <div className="bubble-meta">
-                <span className="timestamp">{formatTime(message.createdAt)}</span>
-                <div className="message-actions">
+                  <p className="timeline-letter-card__preview">{buildLetterPreview(item.letter.content)}</p>
                   <button
-                    ref={(node) => {
-                      actionTriggerRefs.current[message.id] = node
-                    }}
                     type="button"
-                    className="ghost action-trigger"
-                    aria-expanded={openActionsId === message.id}
-                    aria-label={actionsLabel}
-                    onClick={() =>
-                      setOpenActionsId((current) =>
-                        current === message.id ? null : message.id,
-                      )
-                    }
+                    className="timeline-letter-card__action"
+                    onClick={() => navigate('/letters')}
                   >
-                    •••
+                    查看来信
                   </button>
                 </div>
+              )
+            }
+
+            const message = item.message
+            return (
+              <div
+                key={message.id}
+                className={`message ${message.role === 'user' ? 'out' : 'in'}`}
+              >
+                <div className="bubble">
+                  {(() => {
+                    const reasoningText =
+                      message.meta?.reasoning_text?.trim() ?? message.meta?.reasoning?.trim()
+                    return reasoningText ? <ReasoningPanel reasoning={reasoningText} /> : null
+                  })()}
+                  {message.role === 'assistant' ? (
+                    <div className="assistant-markdown">
+                      <MarkdownRenderer content={message.content} />
+                    </div>
+                  ) : (
+                    <p>{message.content}</p>
+                  )}
+                  {message.role === 'assistant' && message.meta?.model ? (
+                    <div className="message-footer">
+                      <span className="model-tag">
+                        {message.meta.model === 'mock-model' ? '模拟模型' : message.meta.model}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="bubble-meta">
+                  <span className="timestamp">{formatTime(message.createdAt)}</span>
+                  <div className="message-actions">
+                    <button
+                      ref={(node) => {
+                        actionTriggerRefs.current[message.id] = node
+                      }}
+                      type="button"
+                      className="ghost action-trigger"
+                      aria-expanded={openActionsId === message.id}
+                      aria-label={actionsLabel}
+                      onClick={() =>
+                        setOpenActionsId((current) =>
+                          current === message.id ? null : message.id,
+                        )
+                      }
+                    >
+                      •••
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
         <div ref={bottomRef} />
       </main>
