@@ -166,14 +166,14 @@ const buildOpenAiMessages = (
   return [...systemLayers, ...history]
 }
 
-const LETTER_PREVIEW_LIMIT = 80
+const LETTER_MODEL_CONTEXT_LIMIT = 400
 
-const buildLetterPreview = (content: string) => {
+const buildLetterModelContext = (content: string) => {
   const compact = content.replace(/\s+/g, ' ').trim()
-  if (compact.length <= LETTER_PREVIEW_LIMIT) {
+  if (compact.length <= LETTER_MODEL_CONTEXT_LIMIT) {
     return compact
   }
-  return `${compact.slice(0, LETTER_PREVIEW_LIMIT)}…`
+  return `${compact.slice(0, LETTER_MODEL_CONTEXT_LIMIT)}…`
 }
 
 const buildCompactLetterEvents = (letters: LetterEntry[]) => {
@@ -182,8 +182,8 @@ const buildCompactLetterEvents = (letters: LetterEntry[]) => {
   }
   const lines = letters.map((letter) => {
     const model = letter.model?.trim() || 'unknown'
-    const preview = buildLetterPreview(letter.content)
-    return `[来信 from ${model} @ ${letter.createdAt}] ${preview}`
+    const content = buildLetterModelContext(letter.content)
+    return `[来信 from ${model} @ ${letter.createdAt}] ${content}`
   })
   return `Linked letter events in this conversation (compact summaries):\n${lines.join('\n')}`
 }

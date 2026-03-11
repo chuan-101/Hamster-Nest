@@ -298,11 +298,6 @@ const LettersPage = ({
   const openChatSession = useCallback(
     (sessionId: string) => {
       navigate(`/chat/${sessionId}`)
-      window.setTimeout(() => {
-        if (window.location.pathname !== `/chat/${sessionId}`) {
-          window.location.assign(`/chat/${sessionId}`)
-        }
-      }, 0)
     },
     [navigate],
   )
