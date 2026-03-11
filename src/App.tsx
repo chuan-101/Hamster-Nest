@@ -27,6 +27,7 @@ import {
   saveLetterReplySystemPrompt,
   updateUserSettings,
 } from './storage/userSettings'
+import { formatLocalTimestamp } from './utils/time'
 import { invokeMemoryExtraction } from './storage/memoryExtraction'
 import {
   addRemoteMessage,
@@ -183,7 +184,7 @@ const buildCompactLetterEvents = (letters: LetterEntry[]) => {
   const lines = letters.map((letter) => {
     const model = letter.model?.trim() || 'unknown'
     const content = buildLetterModelContext(letter.content)
-    return `[来信 from ${model} @ ${letter.createdAt}] ${content}`
+    return `[来信 from ${model} @ ${formatLocalTimestamp(letter.createdAt)}] ${content}`
   })
   return `Linked letter events in this conversation (compact summaries):\n${lines.join('\n')}`
 }
