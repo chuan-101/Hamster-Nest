@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase/client'
-import type { LetterEntry, LetterModel } from '../types'
+import type { LetterEntry } from '../types'
 import { createLetter, deleteLetter, fetchAllMemoryEntries, fetchLetters, markLetterAsRead } from '../storage/supabaseSync'
 import { ensureUserSettings } from '../storage/userSettings'
 import './LettersPage.css'
@@ -9,12 +9,6 @@ import './LettersPage.css'
 const PREVIEW_LIMIT = 30
 const LETTER_MEMORY_LIMIT = 20
 const LETTER_HELPER_INSTRUCTION = 'Write a warm check-in letter in Chinese. Keep it concise, sincere, and personal.'
-
-const LETTER_MODEL_OPTIONS: Array<{ value: LetterModel; label: string; modelId: string }> = [
-  { value: 'claude', label: 'Claude', modelId: 'anthropic/claude-3.5-sonnet' },
-  { value: 'gpt', label: 'GPT', modelId: 'openai/gpt-4o-mini' },
-  { value: 'gemini', label: 'Gemini', modelId: 'google/gemini-2.0-flash-001' },
-]
 
 const formatTimestamp = (value: string) =>
   new Date(value).toLocaleString('zh-CN', {
@@ -62,7 +56,7 @@ const LettersPage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeLetterId, setActiveLetterId] = useState<string | null>(null)
-  const [selectedModel, setSelectedModel] = useState<LetterModel>('claude')
+  const [defaultModelId, setDefaultModelId] = useState('openrouter/auto')
   const [manualPrompt, setManualPrompt] = useState('')
   const [manualGenerating, setManualGenerating] = useState(false)
   const [manualError, setManualError] = useState<string | null>(null)
@@ -91,6 +85,38 @@ const LettersPage = () => {
   useEffect(() => {
     void loadLetters()
   }, [loadLetters])
+
+  useEffect(() => {
+    let active = true
+    const client = supabase
+    if (!client) {
+      return () => {
+        active = false
+      }
+    }
+
+    const loadDefaultModel = async () => {
+      try {
+        const { data, error } = await client.auth.getUser()
+        if (error || !data.user) {
+          return
+        }
+        const settings = await ensureUserSettings(data.user.id)
+        if (!active) {
+          return
+        }
+        setDefaultModelId(settings.defaultModel.trim() || 'openrouter/auto')
+      } catch (settingsError) {
+        console.warn('加载默认模型失败', settingsError)
+      }
+    }
+
+    void loadDefaultModel()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const handleOpenLetter = async (letter: LetterEntry) => {
     setActiveLetterId(letter.id)
@@ -121,9 +147,8 @@ const LettersPage = () => {
       const accessToken = data.session?.access_token
       const user = userData.user
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-      const modelConfig = LETTER_MODEL_OPTIONS.find((item) => item.value === selectedModel)
-      if (!accessToken || !anonKey || !modelConfig || userError || !user) {
-        throw new Error('登录状态异常或模型配置缺失')
+      if (!accessToken || !anonKey || userError || !user) {
+        throw new Error('登录状态异常')
       }
 
       const [settings, memoryContext] = await Promise.all([
@@ -132,6 +157,8 @@ const LettersPage = () => {
       ])
       const appSystemPrompt = settings.systemPrompt.trim()
       const letterReplyPrompt = settings.letterReplySystemPrompt.trim()
+      const modelId = settings.defaultModel.trim() || 'openrouter/auto'
+      setDefaultModelId(modelId)
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
         method: 'POST',
@@ -141,8 +168,8 @@ const LettersPage = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: modelConfig.modelId,
-          modelId: modelConfig.modelId,
+          model: modelId,
+          modelId: modelId,
           module: 'letter',
           stream: false,
           messages: [
@@ -183,7 +210,7 @@ const LettersPage = () => {
       const finalContent = content.trim() || '（空回复）'
 
       const created = await createLetter({
-        model: selectedModel,
+        model: modelId,
         content: finalContent,
         triggerType: 'manual',
         triggerReason: null,
@@ -234,23 +261,12 @@ const LettersPage = () => {
       <section className="letters-content app-shell__content" aria-label="letters list">
         <div className="letters-manual-panel glass-card" aria-label="manual letter trigger">
           <div className="letters-manual-row">
-            <label htmlFor="letters-model">手动生成（验证用）</label>
-            <select
-              id="letters-model"
-              value={selectedModel}
-              onChange={(event) => setSelectedModel(event.target.value as LetterModel)}
-              disabled={manualGenerating}
-            >
-              {LETTER_MODEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <label>手动生成（验证用）</label>
             <button type="button" onClick={() => void handleManualGenerate()} disabled={manualGenerating}>
               {manualGenerating ? '生成中…' : 'Generate Letter'}
             </button>
           </div>
+          <p className="letters-manual-hint">当前默认模型：{defaultModelId}</p>
           <textarea
             value={manualPrompt}
             onChange={(event) => setManualPrompt(event.target.value)}
