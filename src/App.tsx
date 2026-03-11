@@ -1464,7 +1464,7 @@ const App = () => {
           path="/letters"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <LettersPage />
+              <LettersPage sessions={sessions} onCreateSession={createSessionEntry} />
             </RequireAuth>
           }
         />
