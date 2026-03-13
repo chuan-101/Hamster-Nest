@@ -32,6 +32,8 @@ type SettingsPageProps = {
   onSaveSyzygyPostPrompt: (value: string) => Promise<void>
   onSaveSyzygyReplyPrompt: (value: string) => Promise<void>
   onSaveLetterReplyPrompt: (value: string) => Promise<void>
+  displayMode: 'phone' | 'game'
+  onDisplayModeChange: (mode: 'phone' | 'game') => void
 }
 
 const defaultModelId = 'openrouter/auto'
@@ -46,6 +48,8 @@ const SettingsPage = ({
   onSaveSyzygyPostPrompt,
   onSaveSyzygyReplyPrompt,
   onSaveLetterReplyPrompt,
+  displayMode,
+  onDisplayModeChange,
 }: SettingsPageProps) => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
@@ -821,6 +825,35 @@ const SettingsPage = ({
           <span className="settings-ribbon-line" />
         </div>
         <div className="settings-group" role="list">
+      <section className="settings-section" role="listitem">
+        <div className="section-title">
+          <span className="section-icon" aria-hidden="true">📱</span>
+          <h2 className="ui-title">显示模式</h2>
+          <p>Phone Mode 会保留当前完整功能；Game Mode 目前仅提供占位骨架。</p>
+        </div>
+        <div className="display-mode-switch" role="radiogroup" aria-label="Display mode">
+          <label className="display-mode-option">
+            <input
+              type="radio"
+              name="displayMode"
+              value="phone"
+              checked={displayMode === 'phone'}
+              onChange={() => onDisplayModeChange('phone')}
+            />
+            <span>Phone Mode</span>
+          </label>
+          <label className="display-mode-option">
+            <input
+              type="radio"
+              name="displayMode"
+              value="game"
+              checked={displayMode === 'game'}
+              onChange={() => onDisplayModeChange('game')}
+            />
+            <span>Game Mode</span>
+          </label>
+        </div>
+      </section>
       <section className="settings-section" role="listitem">
         <button
           type="button"
