@@ -106,13 +106,14 @@
 
 .section-title {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   grid-template-areas:
     'icon title'
     'icon subtitle';
   column-gap: 10px;
   row-gap: 2px;
   align-items: center;
+  min-width: 0;
 }
 
 .section-icon {
@@ -141,6 +142,13 @@
   margin: 0;
   color: #8c8c8c;
   font-size: 13px;
+}
+
+.display-mode-subtitle {
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .settings-page .collapse-header {
@@ -180,6 +188,35 @@
 
 .settings-page .collapse-header .section-title {
   flex: 1;
+}
+
+.settings-page .display-mode-collapse-header {
+  min-height: 52px;
+  padding-block: 10px;
+}
+
+.settings-page .display-mode-collapse-header .section-title {
+  min-width: 0;
+  row-gap: 1px;
+}
+
+.settings-page .display-mode-collapse-header .section-icon {
+  align-self: center;
+}
+
+.settings-page .display-mode-collapse-header .collapse-header-aside {
+  flex-shrink: 0;
+  min-width: fit-content;
+  gap: 6px;
+}
+
+.settings-page .display-mode-collapse-header .collapse-summary {
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.settings-page .display-mode-collapse-header .collapse-indicator {
+  font-size: 21px;
 }
 
 .collapse-header-aside {
