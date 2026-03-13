@@ -119,6 +119,8 @@ const createClientId = () =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 const defaultOpenRouterModel = 'openrouter/auto'
+const APP_DISPLAY_MODE_STORAGE_KEY = 'hamster-app-display-mode'
+type AppDisplayMode = 'phone' | 'game'
 const AUTO_EXTRACT_USER_TURN_INTERVAL = 12
 const AUTO_EXTRACT_COOLDOWN_MS = 10 * 60 * 1000
 const MEMORY_EXTRACT_RECENT_MESSAGES = 24
@@ -140,6 +142,14 @@ const updateMessage = (messages: ChatMessage[], next: ChatMessage) =>
   )
 
 const initialSnapshot = loadSnapshot()
+
+const loadInitialDisplayMode = (): AppDisplayMode => {
+  if (typeof window === 'undefined') {
+    return 'phone'
+  }
+  const storedMode = window.localStorage.getItem(APP_DISPLAY_MODE_STORAGE_KEY)
+  return storedMode === 'game' ? 'game' : 'phone'
+}
 
 const buildOpenAiMessages = (
   sessionId: string,
@@ -219,6 +229,7 @@ const App = () => {
   const [settingsReady, setSettingsReady] = useState(false)
   const [sessionsReady, setSessionsReady] = useState(false)
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null)
+  const [displayMode, setDisplayMode] = useState<AppDisplayMode>(loadInitialDisplayMode)
   const sessionsRef = useRef(sessions)
   const messagesRef = useRef(messages)
   const streamingControllerRef = useRef<AbortController | null>(null)
@@ -260,6 +271,10 @@ const App = () => {
     ...feedAiConfigBase,
     model: resolveModelId('syzygy', { defaultModelId }),
   }), [defaultModelId, feedAiConfigBase])
+
+  useEffect(() => {
+    window.localStorage.setItem(APP_DISPLAY_MODE_STORAGE_KEY, displayMode)
+  }, [displayMode])
 
 
   useEffect(() => {
@@ -1402,6 +1417,14 @@ const App = () => {
   }, [activeSettings.memoryAutoExtractEnabled, activeSettings.memoryMergeEnabled, isStreaming, messages, user])
 
 
+  if (displayMode === 'game') {
+    return (
+      <GameModePlaceholder
+        onSwitchToPhoneMode={() => setDisplayMode('phone')}
+      />
+    )
+  }
+
   return (
     <div
       className="app-shell"
@@ -1591,6 +1614,8 @@ const App = () => {
                 onSaveSyzygyPostPrompt={handleSaveSyzygyPostSystemPrompt}
                 onSaveSyzygyReplyPrompt={handleSaveSyzygyReplySystemPrompt}
                 onSaveLetterReplyPrompt={handleSaveLetterReplySystemPrompt}
+                displayMode={displayMode}
+                onDisplayModeChange={setDisplayMode}
               />
             </RequireAuth>
           }
@@ -1630,6 +1655,24 @@ const App = () => {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+    </div>
+  )
+}
+
+const GameModePlaceholder = ({
+  onSwitchToPhoneMode,
+}: {
+  onSwitchToPhoneMode: () => void
+}) => {
+  return (
+    <div className="app-shell game-mode-shell">
+      <div className="game-mode-placeholder">
+        <h1>Game mode placeholder</h1>
+        <p>Phase 0 skeleton only</p>
+        <button type="button" className="primary" onClick={onSwitchToPhoneMode}>
+          Back to Phone Mode
+        </button>
+      </div>
     </div>
   )
 }
