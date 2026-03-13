@@ -64,6 +64,7 @@ const SettingsPage = ({
   const [compressionRatioInput, setCompressionRatioInput] = useState('0.65')
   const [compressionKeepRecentInput, setCompressionKeepRecentInput] = useState('20')
   const [draftSummarizerModel, setDraftSummarizerModel] = useState<string | null>(null)
+  const [displayModeSectionExpanded, setDisplayModeSectionExpanded] = useState(false)
   const [modelSectionExpanded, setModelSectionExpanded] = useState(false)
   const [generationSectionExpanded, setGenerationSectionExpanded] = useState(false)
   const [reasoningSectionExpanded, setReasoningSectionExpanded] = useState(false)
@@ -778,6 +779,8 @@ const SettingsPage = ({
       ? defaultModelId
       : draftEnabledModels[0] ?? draftDefaultModel ?? defaultModelId
 
+  const displayModeLabel = displayMode === 'phone' ? 'Phone Mode' : 'Game Mode'
+
   if (!ready || !settings) {
     return (
       <div className="settings-shell app-shell">
@@ -825,35 +828,50 @@ const SettingsPage = ({
           <span className="settings-ribbon-line" />
         </div>
         <div className="settings-group" role="list">
-      <section className="settings-section" role="listitem">
-        <div className="section-title">
-          <span className="section-icon" aria-hidden="true">📱</span>
-          <h2 className="ui-title">显示模式</h2>
-          <p>Phone Mode 会保留当前完整功能；Game Mode 目前仅提供占位骨架。</p>
-        </div>
-        <div className="display-mode-switch" role="radiogroup" aria-label="Display mode">
-          <label className="display-mode-option">
-            <input
-              type="radio"
-              name="displayMode"
-              value="phone"
-              checked={displayMode === 'phone'}
-              onChange={() => onDisplayModeChange('phone')}
-            />
-            <span>Phone Mode</span>
-          </label>
-          <label className="display-mode-option">
-            <input
-              type="radio"
-              name="displayMode"
-              value="game"
-              checked={displayMode === 'game'}
-              onChange={() => onDisplayModeChange('game')}
-            />
-            <span>Game Mode</span>
-          </label>
-        </div>
-      </section>
+          <section className="settings-section" role="listitem">
+            <button
+              type="button"
+              className="collapse-header"
+              onClick={() => setDisplayModeSectionExpanded((current) => !current)}
+              aria-expanded={displayModeSectionExpanded}
+            >
+              <span className="section-title">
+                <span className="section-icon" aria-hidden="true">📱</span>
+                <h2 className="ui-title">显示模式</h2>
+                <p>{displayModeLabel} · Phone Mode 保留完整功能，Game Mode 为骨架预览。</p>
+              </span>
+              <span className="collapse-header-aside">
+                <span className="collapse-summary">{displayModeLabel}</span>
+                <span className="collapse-indicator" aria-hidden="true">›</span>
+              </span>
+            </button>
+            {displayModeSectionExpanded ? (
+              <div className="accordion-content">
+                <div className="display-mode-switch" role="radiogroup" aria-label="Display mode">
+                  <label className="display-mode-option">
+                    <input
+                      type="radio"
+                      name="displayMode"
+                      value="phone"
+                      checked={displayMode === 'phone'}
+                      onChange={() => onDisplayModeChange('phone')}
+                    />
+                    <span>Phone Mode</span>
+                  </label>
+                  <label className="display-mode-option">
+                    <input
+                      type="radio"
+                      name="displayMode"
+                      value="game"
+                      checked={displayMode === 'game'}
+                      onChange={() => onDisplayModeChange('game')}
+                    />
+                    <span>Game Mode</span>
+                  </label>
+                </div>
+              </div>
+            ) : null}
+          </section>
       <section className="settings-section" role="listitem">
         <button
           type="button"

@@ -182,6 +182,18 @@
   flex: 1;
 }
 
+.collapse-header-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collapse-summary {
+  font-size: 13px;
+  color: #8c8c8c;
+  font-weight: 600;
+}
+
 .collapse-indicator {
   color: rgba(17, 24, 39, 0.35);
   font-size: 24px;
@@ -436,7 +448,6 @@
 }
 
 .display-mode-switch {
-  margin-top: 12px;
   display: grid;
   gap: 8px;
 }
