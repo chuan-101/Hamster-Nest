@@ -479,11 +479,6 @@
 }
 
 
-.settings-page .settings-section:first-child {
-  padding: 14px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-
 .display-mode-switch {
   display: grid;
   gap: 8px;
