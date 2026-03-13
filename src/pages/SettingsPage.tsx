@@ -831,14 +831,14 @@ const SettingsPage = ({
           <section className="settings-section" role="listitem">
             <button
               type="button"
-              className="collapse-header"
+              className="collapse-header display-mode-collapse-header"
               onClick={() => setDisplayModeSectionExpanded((current) => !current)}
               aria-expanded={displayModeSectionExpanded}
             >
               <span className="section-title">
                 <span className="section-icon" aria-hidden="true">📱</span>
                 <h2 className="ui-title">显示模式</h2>
-                <p>{displayModeLabel} · Phone Mode 保留完整功能，Game Mode 为骨架预览。</p>
+                <p className="display-mode-subtitle">Phone Mode 保留完整功能，Game Mode 为像素模式。</p>
               </span>
               <span className="collapse-header-aside">
                 <span className="collapse-summary">{displayModeLabel}</span>
