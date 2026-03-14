@@ -13,6 +13,7 @@ import './ChatPage.css'
 export type ChatPageProps = {
   session: ChatSession
   messages: ChatMessage[]
+  theme?: 'ios' | 'pixel'
   onOpenDrawer: () => void
   onSendMessage: (text: string) => Promise<void>
   onDeleteMessage: (messageId: string) => void | Promise<void>
@@ -51,6 +52,7 @@ const POPOVER_GAP = 6
 const ChatPage = ({
   session,
   messages,
+  theme = 'ios',
   onOpenDrawer,
   onSendMessage,
   onDeleteMessage,
@@ -299,7 +301,10 @@ const ChatPage = ({
   }, [openHeaderMenu])
 
   return (
-    <div className="chat-page chat-polka-dots">
+    <div
+      className={`chat-page chat-page--${theme}${theme === 'ios' ? ' chat-polka-dots' : ''}`}
+      data-theme={theme}
+    >
       <header className="chat-header top-nav app-shell__header">
         <button type="button" className="ghost" onClick={onOpenDrawer}>
           会话
@@ -310,7 +315,7 @@ const ChatPage = ({
         </div>
         <div className="header-actions" ref={headerMenuRef}>
           {onReturnToGame ? (
-            <button type="button" className="ghost" onClick={onReturnToGame}>
+            <button type="button" className="ghost return-to-game-button" onClick={onReturnToGame}>
               Return to Game
             </button>
           ) : null}
