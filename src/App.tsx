@@ -1592,6 +1592,7 @@ const App = () => {
                 onActiveSessionChange={setActiveChatSessionId}
                 user={user}
                 onReturnToGame={isChatOpenedFromGameMode ? handleReturnToGameFromChat : undefined}
+                chatTheme={isChatOpenedFromGameMode ? 'pixel' : 'ios'}
               />
             </RequireAuth>
           }
@@ -1784,6 +1785,7 @@ const ChatRoute = ({
   onActiveSessionChange,
   user,
   onReturnToGame,
+  chatTheme,
 }: {
   sessions: ChatSession[]
   messages: ChatMessage[]
@@ -1809,6 +1811,7 @@ const ChatRoute = ({
   onActiveSessionChange: (sessionId: string) => void
   user: User | null
   onReturnToGame?: () => void
+  chatTheme: 'ios' | 'pixel'
 }) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
@@ -1916,6 +1919,7 @@ const ChatRoute = ({
         }
         user={user}
         onReturnToGame={onReturnToGame}
+        theme={chatTheme}
       />
       <SessionsDrawer
         open={drawerOpen}
