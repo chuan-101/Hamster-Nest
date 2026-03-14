@@ -1,10 +1,13 @@
 import Phaser from 'phaser'
+import { EventBus, GAME_EVENTS } from '../EventBus'
 
 const FLOOR_KEY = 'floor_tile'
 const CHUAN_KEY = 'chuan1'
 const SYZYGY_KEY = 'syzygy1'
 
 export class HomeScene extends Phaser.Scene {
+  private syzygySprite?: Phaser.GameObjects.Image
+
   constructor() {
     super('HomeScene')
   }
@@ -33,9 +36,20 @@ export class HomeScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setScale(2)
 
-    this.add
+    this.syzygySprite = this.add
       .image(centerX + spacing, baseY, SYZYGY_KEY)
       .setOrigin(0.5, 1)
       .setScale(2)
+
+    this.syzygySprite.setInteractive({ useHandCursor: true })
+    this.syzygySprite.on('pointerover', () => {
+      this.syzygySprite?.setTint(0xdbeafe)
+    })
+    this.syzygySprite.on('pointerout', () => {
+      this.syzygySprite?.clearTint()
+    })
+    this.syzygySprite.on('pointerdown', () => {
+      EventBus.emit(GAME_EVENTS.OPEN_CHAT_WITH_SYZYGY)
+    })
   }
 }
