@@ -33,6 +33,12 @@
   z-index: 1;
 }
 
+
+.chat-page--ios {
+  background: var(--page-bg);
+  color: var(--text-main);
+}
+
 .chat-header {
   display: flex;
   align-items: center;
@@ -44,13 +50,13 @@
   z-index: 20;
 }
 
-.chat-page .app-shell__header {
+.chat-page--ios .app-shell__header {
   background: var(--accent) !important;
   background-image: none !important;
 }
 
-.chat-page .app-shell__header::before,
-.chat-page .app-shell__header::after {
+.chat-page--ios .app-shell__header::before,
+.chat-page--ios .app-shell__header::after {
   background: none !important;
 }
 
