@@ -502,6 +502,20 @@ const App = () => {
     [applySnapshot, user],
   )
 
+  const openChatFromGameMode = useCallback(() => {
+    const latest = selectMostRecentSession(sessionsRef.current)
+    if (latest) {
+      navigate(`/chat/${latest.id}`)
+      setDisplayMode('phone')
+      return
+    }
+
+    void createSessionEntry().then((session) => {
+      navigate(`/chat/${session.id}`)
+      setDisplayMode('phone')
+    })
+  }, [createSessionEntry, navigate])
+
   const renameSessionEntry = useCallback(
     async (sessionId: string, title: string) => {
       if (user && supabase) {
@@ -1428,7 +1442,10 @@ const App = () => {
           </div>
         }
       >
-        <GameModeShell onSwitchToPhoneMode={() => setDisplayMode('phone')} />
+        <GameModeShell
+          onSwitchToPhoneMode={() => setDisplayMode('phone')}
+          onOpenChat={openChatFromGameMode}
+        />
       </Suspense>
     )
   }
