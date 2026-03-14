@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import ChatPage from './pages/ChatPage'
 import AuthPage from './pages/AuthPage'
 import SessionsDrawer from './components/SessionsDrawer'
@@ -219,6 +219,7 @@ const buildRecentExtractionMessages = (
 
 const App = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [appBackgroundImage, setAppBackgroundImage] = useState<string | null>(null)
   const [sessions, setSessions] = useState<ChatSession[]>(initialSnapshot.sessions)
   const [messages, setMessages] = useState<ChatMessage[]>(initialSnapshot.messages)
@@ -504,6 +505,7 @@ const App = () => {
   )
 
   const openChatFromGameMode = useCallback((_npcId: 'syzygy') => {
+    void _npcId
     setIsChatOpenedFromGameMode(true)
     const latest = selectMostRecentSession(sessionsRef.current)
     if (latest) {
@@ -522,6 +524,20 @@ const App = () => {
     setIsChatOpenedFromGameMode(false)
     setDisplayMode('game')
   }, [])
+
+  const openChatFromPhoneMode = useCallback(
+    (sessionId: string) => {
+      setIsChatOpenedFromGameMode(false)
+      navigate(`/chat/${sessionId}`)
+    },
+    [navigate],
+  )
+
+  useEffect(() => {
+    if (!location.pathname.startsWith('/chat/')) {
+      setIsChatOpenedFromGameMode(false)
+    }
+  }, [location.pathname])
 
   const renameSessionEntry = useCallback(
     async (sessionId: string, title: string) => {
@@ -1476,11 +1492,11 @@ const App = () => {
                 onOpenChat={() => {
                   const latest = selectMostRecentSession(sessions)
                   if (latest) {
-                    navigate(`/chat/${latest.id}`)
+                    openChatFromPhoneMode(latest.id)
                     return
                   }
                   void createSessionEntry().then((session) => {
-                    navigate(`/chat/${session.id}`)
+                    openChatFromPhoneMode(session.id)
                   })
                 }}
               />
@@ -1500,11 +1516,11 @@ const App = () => {
                 onOpenChat={() => {
                   const latest = selectMostRecentSession(sessions)
                   if (latest) {
-                    navigate(`/chat/${latest.id}`)
+                    openChatFromPhoneMode(latest.id)
                     return
                   }
                   void createSessionEntry().then((session) => {
-                    navigate(`/chat/${session.id}`)
+                    openChatFromPhoneMode(session.id)
                   })
                 }}
               />
