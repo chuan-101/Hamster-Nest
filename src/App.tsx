@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import ChatPage from './pages/ChatPage'
@@ -125,6 +125,8 @@ const AUTO_EXTRACT_USER_TURN_INTERVAL = 12
 const AUTO_EXTRACT_COOLDOWN_MS = 10 * 60 * 1000
 const MEMORY_EXTRACT_RECENT_MESSAGES = 24
 const AUTO_EXTRACT_PENDING_LIMIT = 50
+
+const GameModeShell = lazy(() => import('./game/GameModeShell'))
 
 const updateMessage = (messages: ChatMessage[], next: ChatMessage) =>
   sortMessages(
@@ -1419,9 +1421,15 @@ const App = () => {
 
   if (displayMode === 'game') {
     return (
-      <GameModePlaceholder
-        onSwitchToPhoneMode={() => setDisplayMode('phone')}
-      />
+      <Suspense
+        fallback={
+          <div className="app-shell game-mode-shell">
+            <div className="game-mode-loading">Loading game mode...</div>
+          </div>
+        }
+      >
+        <GameModeShell onSwitchToPhoneMode={() => setDisplayMode('phone')} />
+      </Suspense>
     )
   }
 
@@ -1655,24 +1663,6 @@ const App = () => {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </div>
-  )
-}
-
-const GameModePlaceholder = ({
-  onSwitchToPhoneMode,
-}: {
-  onSwitchToPhoneMode: () => void
-}) => {
-  return (
-    <div className="app-shell game-mode-shell">
-      <div className="game-mode-placeholder">
-        <h1>Game mode placeholder</h1>
-        <p>Phase 0 skeleton only</p>
-        <button type="button" className="primary" onClick={onSwitchToPhoneMode}>
-          Back to Phone Mode
-        </button>
-      </div>
     </div>
   )
 }
