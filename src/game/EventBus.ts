@@ -1,8 +1,11 @@
 import Phaser from 'phaser'
 
 export const GAME_EVENTS = {
-  OPEN_CHAT_WITH_SYZYGY: 'open-chat-with-syzygy',
+  OPEN_NPC_ACTIONS: 'open-npc-actions',
 } as const
 
-export const EventBus = new Phaser.Events.EventEmitter()
+export type OpenNpcActionsPayload = {
+  npcId: 'syzygy'
+}
 
+export const EventBus = new Phaser.Events.EventEmitter()

@@ -232,6 +232,7 @@ const App = () => {
   const [sessionsReady, setSessionsReady] = useState(false)
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null)
   const [displayMode, setDisplayMode] = useState<AppDisplayMode>(loadInitialDisplayMode)
+  const [isChatOpenedFromGameMode, setIsChatOpenedFromGameMode] = useState(false)
   const sessionsRef = useRef(sessions)
   const messagesRef = useRef(messages)
   const streamingControllerRef = useRef<AbortController | null>(null)
@@ -502,7 +503,8 @@ const App = () => {
     [applySnapshot, user],
   )
 
-  const openChatFromGameMode = useCallback(() => {
+  const openChatFromGameMode = useCallback((_npcId: 'syzygy') => {
+    setIsChatOpenedFromGameMode(true)
     const latest = selectMostRecentSession(sessionsRef.current)
     if (latest) {
       navigate(`/chat/${latest.id}`)
@@ -515,6 +517,11 @@ const App = () => {
       setDisplayMode('phone')
     })
   }, [createSessionEntry, navigate])
+
+  const handleReturnToGameFromChat = useCallback(() => {
+    setIsChatOpenedFromGameMode(false)
+    setDisplayMode('game')
+  }, [])
 
   const renameSessionEntry = useCallback(
     async (sessionId: string, title: string) => {
@@ -1443,7 +1450,10 @@ const App = () => {
         }
       >
         <GameModeShell
-          onSwitchToPhoneMode={() => setDisplayMode('phone')}
+          onSwitchToPhoneMode={() => {
+            setIsChatOpenedFromGameMode(false)
+            setDisplayMode('phone')
+          }}
           onOpenChat={openChatFromGameMode}
         />
       </Suspense>
@@ -1581,6 +1591,7 @@ const App = () => {
                 onArchiveSession={handleSessionArchiveStateChange}
                 onActiveSessionChange={setActiveChatSessionId}
                 user={user}
+                onReturnToGame={isChatOpenedFromGameMode ? handleReturnToGameFromChat : undefined}
               />
             </RequireAuth>
           }
@@ -1772,6 +1783,7 @@ const ChatRoute = ({
   onArchiveSession,
   onActiveSessionChange,
   user,
+  onReturnToGame,
 }: {
   sessions: ChatSession[]
   messages: ChatMessage[]
@@ -1796,6 +1808,7 @@ const ChatRoute = ({
   onArchiveSession: (sessionId: string, isArchived: boolean) => Promise<void>
   onActiveSessionChange: (sessionId: string) => void
   user: User | null
+  onReturnToGame?: () => void
 }) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
@@ -1902,6 +1915,7 @@ const ChatRoute = ({
           onSelectReasoning(activeSession.id, reasoning)
         }
         user={user}
+        onReturnToGame={onReturnToGame}
       />
       <SessionsDrawer
         open={drawerOpen}

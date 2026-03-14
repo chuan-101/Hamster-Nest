@@ -24,6 +24,7 @@ export type ChatPageProps = {
   defaultReasoning: boolean
   onSelectReasoning: (reasoning: boolean | null) => void
   user: User | null
+  onReturnToGame?: () => void
 }
 
 const formatTime = (timestamp: string) =>
@@ -60,6 +61,7 @@ const ChatPage = ({
   onSelectModel,
   defaultReasoning,
   onSelectReasoning,
+  onReturnToGame,
 }: ChatPageProps) => {
   const [draft, setDraft] = useState('')
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
@@ -307,6 +309,11 @@ const ChatPage = ({
           <span className="subtitle">单聊</span>
         </div>
         <div className="header-actions" ref={headerMenuRef}>
+          {onReturnToGame ? (
+            <button type="button" className="ghost" onClick={onReturnToGame}>
+              Return to Game
+            </button>
+          ) : null}
           <button
             ref={headerMenuButtonRef}
             type="button"

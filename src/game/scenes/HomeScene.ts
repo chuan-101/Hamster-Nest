@@ -49,7 +49,7 @@ export class HomeScene extends Phaser.Scene {
       this.syzygySprite?.clearTint()
     })
     this.syzygySprite.on('pointerdown', () => {
-      EventBus.emit(GAME_EVENTS.OPEN_CHAT_WITH_SYZYGY)
+      EventBus.emit(GAME_EVENTS.OPEN_NPC_ACTIONS, { npcId: 'syzygy' })
     })
   }
 }
