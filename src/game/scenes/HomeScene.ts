@@ -10,9 +10,13 @@ export class HomeScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image(FLOOR_KEY, '/assets/game/floor_tile.png')
-    this.load.image(CHUAN_KEY, '/assets/game/chuan1.png')
-    this.load.image(SYZYGY_KEY, '/assets/game/syzygy1.png')
+    const baseUrl = import.meta.env.BASE_URL
+    const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+    const assetBase = `${normalizedBaseUrl}assets/game/`
+
+    this.load.image(FLOOR_KEY, `${assetBase}floor_tile.png`)
+    this.load.image(CHUAN_KEY, `${assetBase}chuan1.png`)
+    this.load.image(SYZYGY_KEY, `${assetBase}syzygy1.png`)
   }
 
   create() {
