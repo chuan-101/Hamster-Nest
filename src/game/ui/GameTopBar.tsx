@@ -4,7 +4,6 @@ type GameTopBarProps = {
   stamina: number
   maxStamina: number
   level: number
-  coins: number
 }
 
 const formatClock = (value: Date) =>
@@ -13,7 +12,7 @@ const formatClock = (value: Date) =>
     minute: '2-digit',
   }).format(value)
 
-const GameTopBar = ({ stamina, maxStamina, level, coins }: GameTopBarProps) => {
+const GameTopBar = ({ stamina, maxStamina, level }: GameTopBarProps) => {
   const [time, setTime] = useState(() => new Date())
 
   useEffect(() => {
@@ -21,11 +20,11 @@ const GameTopBar = ({ stamina, maxStamina, level, coins }: GameTopBarProps) => {
     return () => window.clearInterval(timer)
   }, [])
 
-  const staminaPercent = useMemo(() => {
+  const filledSegments = useMemo(() => {
     if (maxStamina <= 0) {
       return 0
     }
-    return Math.max(0, Math.min(100, Math.round((stamina / maxStamina) * 100)))
+    return Math.max(0, Math.min(10, Math.round((stamina / maxStamina) * 10)))
   }, [stamina, maxStamina])
 
   return (
@@ -40,22 +39,30 @@ const GameTopBar = ({ stamina, maxStamina, level, coins }: GameTopBarProps) => {
         </div>
       </div>
 
-      <div className="game-stat-block" aria-label="体力">
+      <div className="game-stat-block" aria-label="经验值">
         <div className="game-stat-block__label-row">
-          <span>体力</span>
-          <span>
-            {stamina}/{maxStamina}
-          </span>
+          <span>EXP</span>
+          <span>80/100</span>
         </div>
-        <div className="game-progress-track" role="presentation">
-          <div className="game-progress-track__fill" style={{ width: `${staminaPercent}%` }} />
+        <div className="game-progress-track" role="presentation" aria-hidden="true">
+          {Array.from({ length: 10 }).map((_, index) => (
+            <span
+              key={`exp-segment-${index}`}
+              className={`game-progress-track__segment ${index < filledSegments ? 'is-filled' : ''}`}
+            />
+          ))}
         </div>
       </div>
 
       <div className="game-meta-stats">
-        <p className="game-chip" aria-label="金币">🪙 {coins}</p>
+        <p className="game-chip game-chip--coin" aria-label="金币">
+          <span className="game-chip__coin" aria-hidden="true">
+            ●
+          </span>
+          12345
+        </p>
         <p className="game-chip game-clock" aria-live="polite" aria-label="当前时间">
-          🕒 {formatClock(time)}
+          {formatClock(time)}
         </p>
       </div>
     </header>
