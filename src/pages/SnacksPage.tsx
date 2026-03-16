@@ -28,6 +28,7 @@ import './SnacksPage.css'
 
 type SnacksPageProps = {
   user: User | null
+  entryMode?: 'phone' | 'game'
   snackAiConfig: {
     model: string
     reasoning: boolean
@@ -61,7 +62,7 @@ const getReplyPreview = (reply: SnackReply | undefined) => {
   return reply.content.length > 30 ? `${reply.content.slice(0, 30)}…` : reply.content
 }
 
-const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
+const SnacksPage = ({ user, snackAiConfig, entryMode = 'phone' }: SnacksPageProps) => {
   const navigate = useNavigate()
   const [draft, setDraft] = useState('')
   const [posts, setPosts] = useState<SnackPost[]>([])
@@ -572,11 +573,15 @@ const SnacksPage = ({ user, snackAiConfig }: SnacksPageProps) => {
   }
 
   return (
-    <div className="snacks-page app-shell__content">
+    <div className={`snacks-page app-shell__content ${entryMode === 'game' ? 'game-feature-page' : ''}`}>
       <header className="snacks-header">
-        <button type="button" className="ghost" onClick={() => navigate('/')}>
-          返回聊天
-        </button>
+        {entryMode === 'phone' ? (
+          <button type="button" className="ghost" onClick={() => navigate('/')}>
+            返回聊天
+          </button>
+        ) : (
+          <span className="snacks-header-spacer" aria-hidden="true" />
+        )}
         <h1 className="ui-title">{showTrash ? '零食回收站' : '零食罐罐区'}</h1>
         <button
           type="button"

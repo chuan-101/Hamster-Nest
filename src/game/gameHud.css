@@ -363,3 +363,67 @@
     width: min(300px, calc(100% - 18px));
   }
 }
+
+.game-feature-shell-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 26;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 12px;
+  pointer-events: auto;
+}
+
+.game-feature-shell {
+  width: min(980px, 100%);
+  height: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.97), rgba(15, 23, 42, 0.97));
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.6);
+}
+
+.game-feature-shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.game-feature-shell__titles {
+  text-align: center;
+}
+
+.game-feature-shell__titles h2 {
+  margin: 0;
+}
+
+.game-feature-shell__titles p {
+  margin: 2px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.game-feature-shell__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.game-feature-page {
+  background: transparent;
+}
+
+.game-feature-page .snacks-header-spacer {
+  width: 76px;
+  display: inline-block;
+}

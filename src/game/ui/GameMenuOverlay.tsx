@@ -1,11 +1,14 @@
+export type GameFeatureId = 'snacks' | 'syzygy' | 'checkin' | 'export'
+
 type MenuEntry = {
-  id: string
+  id: GameFeatureId
   title: string
   description: string
 }
 
 type GameMenuOverlayProps = {
   onClose: () => void
+  onOpenFeature: (featureId: GameFeatureId) => void
 }
 
 const GAME_MENU_ENTRIES: MenuEntry[] = [
@@ -15,7 +18,7 @@ const GAME_MENU_ENTRIES: MenuEntry[] = [
   { id: 'export', title: '数据导出', description: '以游戏模式外壳进入数据导出功能。' },
 ]
 
-const GameMenuOverlay = ({ onClose }: GameMenuOverlayProps) => {
+const GameMenuOverlay = ({ onClose, onOpenFeature }: GameMenuOverlayProps) => {
   return (
     <div className="game-overlay-backdrop" role="presentation" onClick={onClose}>
       <section
@@ -37,8 +40,8 @@ const GameMenuOverlay = ({ onClose }: GameMenuOverlayProps) => {
             <article key={entry.id} className="game-overlay-card">
               <h3>{entry.title}</h3>
               <p>{entry.description}</p>
-              <button type="button" className="game-overlay-card__button" disabled aria-disabled="true">
-                打开（占位）
+              <button type="button" className="game-overlay-card__button" onClick={() => onOpenFeature(entry.id)}>
+                打开
               </button>
             </article>
           ))}

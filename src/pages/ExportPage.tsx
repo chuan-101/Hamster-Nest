@@ -343,7 +343,7 @@ const renderMarkdown = (
   return lines.join('\n')
 }
 
-const ExportPage = ({ user }: { user: User | null }) => {
+const ExportPage = ({ user, entryMode = 'phone' }: { user: User | null; entryMode?: 'phone' | 'game' }) => {
   const navigate = useNavigate()
   const [format, setFormat] = useState<ExportFormat>('markdown')
   const [modules, setModules] = useState<ExportModules>(defaultModules)
@@ -553,16 +553,18 @@ const ExportPage = ({ user }: { user: User | null }) => {
   }
 
   return (
-    <div className="export-page">
-      <header className="export-header">
-        <button type="button" className="ghost" onClick={() => navigate(-1)}>
-          返回
-        </button>
+    <div className={`export-page ${entryMode === 'game' ? 'game-feature-page' : ''}`}>
+      {entryMode === 'phone' ? (
+        <header className="export-header">
+          <button type="button" className="ghost" onClick={() => navigate(-1)}>
+            返回
+          </button>
         <h1 className="ui-title">数据导出</h1>
-        <button type="button" className="ghost" onClick={() => navigate('/')}>
-          聊天
-        </button>
-      </header>
+          <button type="button" className="ghost" onClick={() => navigate('/')}>
+            聊天
+          </button>
+        </header>
+      ) : null}
 
       <section className="export-card export-package-card">
         <span className="export-washi-tape" aria-hidden="true" />

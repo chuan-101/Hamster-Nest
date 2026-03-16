@@ -30,6 +30,7 @@ import './SnacksPage.css'
 
 type SyzygyFeedPageProps = {
   user: User | null
+  entryMode?: 'phone' | 'game'
   snackAiConfig: {
     model: string
     reasoning: boolean
@@ -67,7 +68,7 @@ const getReplyPreview = (reply: SyzygyReply | undefined) => {
   return reply.content.length > 30 ? `${reply.content.slice(0, 30)}…` : reply.content
 }
 
-const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
+const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeedPageProps) => {
   const navigate = useNavigate()
   const [draft, setDraft] = useState('')
   const [posts, setPosts] = useState<SyzygyPost[]>([])
@@ -605,11 +606,15 @@ const SyzygyFeedPage = ({ user, snackAiConfig }: SyzygyFeedPageProps) => {
   }
 
   return (
-    <div className="snacks-page app-shell__content">
+    <div className={`snacks-page app-shell__content ${entryMode === 'game' ? 'game-feature-page' : ''}`}>
       <header className="snacks-header">
-        <button type="button" className="ghost" onClick={() => navigate('/')}>
-          返回聊天
-        </button>
+        {entryMode === 'phone' ? (
+          <button type="button" className="ghost" onClick={() => navigate('/')}>
+            返回聊天
+          </button>
+        ) : (
+          <span className="snacks-header-spacer" aria-hidden="true" />
+        )}
         <h1 className="ui-title">{showTrash ? '观察日志回收站' : '仓鼠观察日志'}</h1>
         <button
           type="button"
