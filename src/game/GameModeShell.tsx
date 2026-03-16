@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import GameContainer from './GameContainer'
 import { EventBus, GAME_EVENTS, type OpenNpcActionsPayload } from './EventBus'
+import GameHud from './ui/GameHud'
+import GameMenuOverlay from './ui/GameMenuOverlay'
+import GameSettingsOverlay from './ui/GameSettingsOverlay'
+import './gameHud.css'
 
 type GameModeShellProps = {
   onSwitchToPhoneMode: () => void
@@ -9,6 +13,9 @@ type GameModeShellProps = {
 
 const GameModeShell = ({ onSwitchToPhoneMode, onOpenChat }: GameModeShellProps) => {
   const [activeNpcId, setActiveNpcId] = useState<OpenNpcActionsPayload['npcId'] | null>(null)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [actionHint, setActionHint] = useState<string | null>(null)
 
   const handleOpenNpcActions = useCallback((payload: OpenNpcActionsPayload) => {
     setActiveNpcId(payload.npcId)
@@ -26,6 +33,13 @@ const GameModeShell = ({ onSwitchToPhoneMode, onOpenChat }: GameModeShellProps) 
     setActiveNpcId(null)
   }, [activeNpcId, onOpenChat])
 
+  const handleActionClick = useCallback(() => {
+    setActionHint('Action system is coming in a future phase.')
+    window.setTimeout(() => {
+      setActionHint(null)
+    }, 1600)
+  }, [])
+
   useEffect(() => {
     EventBus.on(GAME_EVENTS.OPEN_NPC_ACTIONS, handleOpenNpcActions)
 
@@ -37,17 +51,19 @@ const GameModeShell = ({ onSwitchToPhoneMode, onOpenChat }: GameModeShellProps) 
   return (
     <div className="app-shell game-mode-shell">
       <div className="game-mode-container">
-        <div className="game-mode-toolbar">
-          <h1>Game Mode</h1>
-          <button type="button" className="primary" onClick={onSwitchToPhoneMode}>
-            Back to Phone Mode
-          </button>
-        </div>
         <GameContainer />
+        <GameHud
+          onOpenMenu={() => setIsMenuOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onAction={handleActionClick}
+        />
+
+        {actionHint ? <p className="game-action-hint">{actionHint}</p> : null}
+
         {activeNpcId ? (
-          <div className="npc-actions-overlay" role="presentation" onClick={handleCloseNpcActions}>
+          <div className="game-overlay-backdrop" role="presentation" onClick={handleCloseNpcActions}>
             <div
-              className="npc-actions-panel glass-panel"
+              className="npc-actions-panel game-overlay-panel game-overlay-panel--narrow"
               role="dialog"
               aria-label="Syzygy interaction menu"
               onClick={(event) => event.stopPropagation()}
@@ -67,6 +83,11 @@ const GameModeShell = ({ onSwitchToPhoneMode, onOpenChat }: GameModeShellProps) 
               </button>
             </div>
           </div>
+        ) : null}
+
+        {isMenuOpen ? <GameMenuOverlay onClose={() => setIsMenuOpen(false)} /> : null}
+        {isSettingsOpen ? (
+          <GameSettingsOverlay onClose={() => setIsSettingsOpen(false)} onSwitchToPhoneMode={onSwitchToPhoneMode} />
         ) : null}
       </div>
     </div>

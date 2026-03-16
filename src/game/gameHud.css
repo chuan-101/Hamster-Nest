@@ -1,0 +1,347 @@
+.game-mode-shell {
+  background: radial-gradient(circle at top, #172554 0%, #020617 58%);
+}
+
+.game-mode-container {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.game-hud-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  gap: 12px;
+}
+
+.game-top-bar,
+.game-bottom-bar {
+  pointer-events: auto;
+}
+
+.game-top-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 1.25fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  color: #e2e8f0;
+  background: rgba(2, 6, 23, 0.76);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  backdrop-filter: blur(3px);
+}
+
+.game-avatar-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.game-avatar-chip__emoji {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.35);
+  border: 1px solid rgba(191, 219, 254, 0.7);
+}
+
+.game-avatar-chip__name,
+.game-avatar-chip__sub {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.game-avatar-chip__name {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.game-avatar-chip__sub {
+  font-size: 12px;
+  color: #bfdbfe;
+}
+
+.game-stat-block {
+  display: grid;
+  gap: 4px;
+}
+
+.game-stat-block__label-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.game-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.game-progress-track__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee, #60a5fa);
+}
+
+.game-meta-stats {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.game-chip {
+  margin: 0;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.game-bottom-bar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.game-direction-pad {
+  width: 118px;
+  height: 118px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(2, 6, 23, 0.8);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  padding: 6px;
+  gap: 4px;
+}
+
+.game-dpad-button {
+  border: 0;
+  border-radius: 10px;
+  color: #e2e8f0;
+  background: rgba(51, 65, 85, 0.8);
+  font-size: 16px;
+}
+
+.game-dpad-button[disabled] {
+  opacity: 0.92;
+}
+
+.game-dpad-button--up {
+  grid-area: 1 / 2;
+}
+
+.game-dpad-button--left {
+  grid-area: 2 / 1;
+}
+
+.game-dpad-button--right {
+  grid-area: 2 / 3;
+}
+
+.game-dpad-button--down {
+  grid-area: 3 / 2;
+}
+
+.game-control-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.game-control-button {
+  min-height: 46px;
+  min-width: 84px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(2, 6, 23, 0.82);
+  color: #e2e8f0;
+  font-weight: 600;
+  padding: 0 14px;
+}
+
+.game-control-button--action {
+  background: rgba(30, 58, 138, 0.84);
+  border-color: rgba(147, 197, 253, 0.7);
+}
+
+.game-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 16px;
+  background: rgba(2, 6, 23, 0.62);
+}
+
+.game-overlay-panel {
+  width: min(540px, 100%);
+  max-height: min(78vh, 700px);
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(147, 197, 253, 0.45);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.95));
+  color: #e2e8f0;
+  padding: 14px;
+}
+
+.game-overlay-panel--narrow {
+  width: min(380px, 100%);
+}
+
+.game-overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-overlay-subtitle {
+  margin: 6px 0 12px;
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.game-overlay-list {
+  display: grid;
+  gap: 10px;
+}
+
+.game-overlay-card {
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.game-overlay-card h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.game-overlay-card p {
+  margin: 5px 0 10px;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.game-overlay-card__button {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px dashed rgba(148, 163, 184, 0.65);
+  color: #94a3b8;
+  background: transparent;
+}
+
+.game-settings-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.npc-actions-title,
+.npc-actions-subtitle {
+  color: inherit;
+}
+
+.npc-actions-subtitle {
+  margin-top: 4px;
+}
+
+.npc-actions-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.npc-actions-close {
+  margin-top: 10px;
+  width: 100%;
+}
+
+.game-action-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 146px;
+  transform: translateX(-50%);
+  margin: 0;
+  z-index: 22;
+  pointer-events: none;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .game-hud-layer {
+    padding: 8px;
+  }
+
+  .game-top-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'avatar chips'
+      'stamina stamina';
+  }
+
+  .game-avatar-chip {
+    grid-area: avatar;
+  }
+
+  .game-stat-block {
+    grid-area: stamina;
+  }
+
+  .game-meta-stats {
+    grid-area: chips;
+  }
+
+  .game-bottom-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .game-direction-pad {
+    align-self: flex-start;
+    width: 108px;
+    height: 108px;
+  }
+
+  .game-control-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .game-control-button {
+    min-width: 0;
+  }
+
+  .game-action-hint {
+    bottom: 170px;
+    text-align: center;
+    width: min(300px, calc(100% - 18px));
+  }
+}
