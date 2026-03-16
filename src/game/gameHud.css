@@ -1,16 +1,25 @@
 .game-mode-shell {
-  background: radial-gradient(circle at top, #172554 0%, #020617 58%);
+  background:
+    radial-gradient(circle at 18% 4%, #ffd8f2 0%, #f8a8d3 38%, #cf71b2 78%, #8d4f89 100%),
+    #f3a6cc;
 }
 
 :root {
-  --game-bg-cream: #fff5e6;
-  --game-border-pink: #d4a0a0;
-  --game-text-pink: #c8687a;
-  --game-text-brown: #8b6955;
-  --game-accent-light: #ffe4e8;
-  --game-health-track: #f5d5d8;
-  --game-health-fill: #e8788a;
-  --game-pill-bg: #fff0e8;
+  --console-shell: #f8bfdc;
+  --console-shell-deep: #d779b3;
+  --console-shell-shadow: #8c3f79;
+  --console-screen-bezel: #9a4e8a;
+  --console-screen-frame: #6a2b66;
+  --console-screen-bg: #22172d;
+  --console-hud-cream: #fff5df;
+  --console-hud-pink: #ffcae9;
+  --console-ink: #5f2855;
+  --console-ink-soft: #904882;
+  --console-btn: #f4a8cc;
+  --console-btn-deep: #cf5f9a;
+  --console-btn-shadow: #7d2e67;
+  --console-dpad: #703360;
+  --console-dpad-edge: #4c1d46;
 }
 
 .game-mode-container {
@@ -18,6 +27,43 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  padding: 14px;
+  border: 4px solid var(--console-shell-shadow);
+  box-shadow:
+    inset 0 0 0 4px #ffd8ef,
+    inset 0 -8px 0 0 var(--console-shell-deep),
+    0 12px 0 rgba(70, 19, 61, 0.45);
+  background:
+    linear-gradient(180deg, #ffc3e8 0%, #f9add9 38%, #ea8ec6 100%);
+}
+
+.game-canvas-container {
+  position: absolute;
+  inset: 82px 18px 160px;
+  z-index: 2;
+  overflow: hidden;
+  border: 8px solid var(--console-screen-frame);
+  box-shadow:
+    inset 0 0 0 6px var(--console-screen-bezel),
+    inset 0 0 0 10px #c77cb0,
+    inset 0 0 24px rgba(10, 8, 20, 0.9),
+    0 8px 0 rgba(80, 26, 70, 0.4);
+  background: var(--console-screen-bg);
+}
+
+.game-canvas-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 220, 238, 0.8) 0,
+    rgba(255, 220, 238, 0.8) 2px,
+    transparent 2px,
+    transparent 4px
+  );
 }
 
 .game-hud-layer {
@@ -28,7 +74,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 8px;
+  padding: 18px;
   gap: 12px;
   font-family: 'Press Start 2P', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
 }
@@ -36,18 +82,21 @@
 .game-top-bar,
 .game-bottom-bar {
   pointer-events: auto;
+  border: 4px solid var(--console-shell-shadow);
+  box-shadow:
+    inset 0 0 0 3px #ffe1f2,
+    inset 0 -5px 0 rgba(176, 76, 140, 0.45),
+    0 4px 0 rgba(85, 31, 75, 0.5);
 }
 
 .game-top-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(130px, 1.35fr) auto;
+  grid-template-columns: minmax(0, 1.1fr) minmax(160px, 1.5fr) auto;
   align-items: center;
-  gap: 8px 10px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  color: var(--game-text-brown);
-  background: var(--game-bg-cream);
-  border: 3px solid var(--game-border-pink);
+  gap: 10px;
+  padding: 11px 12px;
+  color: var(--console-ink);
+  background: linear-gradient(180deg, var(--console-hud-cream), var(--console-hud-pink));
 }
 
 .game-avatar-chip {
@@ -55,19 +104,18 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
-  grid-row: 1;
 }
 
 .game-avatar-chip__emoji {
   display: inline-flex;
   width: 42px;
   height: 42px;
-  border-radius: 8px;
   align-items: center;
   justify-content: center;
-  background: var(--game-accent-light);
-  border: 2px solid var(--game-border-pink);
-  font-size: 20px;
+  font-size: 19px;
+  border: 3px solid var(--console-shell-shadow);
+  background: #ffd6ee;
+  box-shadow: inset -3px -3px 0 #e384be;
 }
 
 .game-avatar-chip__name,
@@ -77,125 +125,162 @@
 }
 
 .game-avatar-chip__name {
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--game-text-pink);
+  font-size: 12px;
+  color: var(--console-ink);
 }
 
 .game-avatar-chip__sub {
-  font-size: 11px;
-  color: var(--game-text-brown);
-  border: 1px solid var(--game-border-pink);
-  border-radius: 999px;
-  background: var(--game-pill-bg);
-  padding: 2px 8px;
+  margin-top: 6px;
   display: inline-block;
-  margin-top: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  border: 2px solid #a3508f;
+  background: #ffe9f7;
+  color: var(--console-ink-soft);
 }
 
 .game-stat-block {
   display: grid;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
 }
 
 .game-stat-block__label-row {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: var(--game-text-pink);
-  font-weight: 600;
+  font-size: 10px;
+  color: var(--console-ink-soft);
 }
 
 .game-progress-track {
-  position: relative;
-  height: 15px;
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--game-health-track);
-  border: 1px solid var(--game-border-pink);
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border: 2px solid #8b3f7a;
+  background: #f4c4e0;
 }
 
-.game-progress-track__fill {
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #f5a0b0, var(--game-health-fill));
+.game-progress-track__segment {
+  height: 12px;
+  background: #fce4f2;
+  border: 1px solid #cf90b6;
 }
 
+.game-progress-track__segment.is-filled {
+  background: linear-gradient(180deg, #ffdf74, #ff9f3f);
+  border-color: #ae4f4b;
+}
 
 .game-meta-stats {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   justify-items: end;
-  grid-row: 1;
 }
 
 .game-chip {
   margin: 0;
-  font-size: 12px;
-  border-radius: 999px;
-  padding: 3px 8px;
-  background: var(--game-pill-bg);
-  color: var(--game-text-brown);
-  border: 1px solid var(--game-border-pink);
+  padding: 5px 8px;
+  font-size: 10px;
+  border: 2px solid #8b3f7a;
+  background: #ffeaf5;
+  color: var(--console-ink);
 }
 
-.game-clock {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #9f6b6b;
+.game-chip--coin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.game-clock::before {
-  content: '⏰ ';
+.game-chip__coin {
+  width: 14px;
+  height: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--game-border-pink);
-  border-radius: 50%;
-  background: var(--game-accent-light);
-  margin-right: 6px;
+  font-size: 9px;
+  color: #ffe59d;
+  border: 2px solid #9d602e;
+  background: radial-gradient(circle at 35% 35%, #ffec8b 0%, #e6a940 70%);
 }
 
+.game-clock {
+  background: #1f1327;
+  color: #88f6b4;
+  border-color: #5d3d73;
+  text-shadow: 0 0 3px rgba(136, 246, 180, 0.6);
+}
 
 .game-bottom-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: var(--game-bg-cream);
-  border: 3px solid var(--game-border-pink);
-  border-radius: 12px;
-  padding: 8px;
+  background:
+    linear-gradient(180deg, #f8b7dc 0%, #ea90c4 100%),
+    repeating-linear-gradient(45deg, transparent 0 7px, rgba(255, 235, 246, 0.12) 7px 10px);
+  padding: 12px;
 }
 
 .game-bottom-bar > .game-control-actions {
   flex: 1;
 }
 
+.game-control-actions {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.game-control-button {
+  min-height: 44px;
+  min-width: 92px;
+  border-radius: 20px;
+  border: 3px solid var(--console-btn-shadow);
+  background: linear-gradient(180deg, #ffd9ea 0%, var(--console-btn) 100%);
+  color: #5f2652;
+  font-size: 10px;
+  padding: 0 16px;
+  box-shadow: 0 5px 0 var(--console-btn-shadow);
+}
+
+.game-control-button--action {
+  background: linear-gradient(180deg, #ffd8e4 0%, var(--console-btn-deep) 100%);
+  color: #fff0f8;
+}
+
+.game-control-button:hover {
+  filter: brightness(1.05);
+}
+
+.game-control-button:active,
+.game-dpad-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(58, 18, 49, 0.9);
+}
+
 .game-direction-pad {
-  width: 110px;
-  height: 110px;
-  border-radius: 50%;
-  border: 2px solid #71424f;
-  background: #8b5a6a;
+  width: 128px;
+  height: 128px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  padding: 8px;
-  gap: 4px;
+  padding: 6px;
+  gap: 0;
+  border: 4px solid var(--console-dpad-edge);
+  background: #a76293;
+  box-shadow: inset 0 -4px 0 #844d76;
 }
 
 .game-dpad-button {
-  border: 1px solid #9f6a79;
-  border-radius: 6px;
-  color: #fff2e7;
-  background: #d4a0a8;
+  border: 2px solid var(--console-dpad-edge);
+  color: #fbe3f3;
+  background: linear-gradient(180deg, #925284 0%, var(--console-dpad) 100%);
   font-size: 16px;
   line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 229, 244, 0.25);
 }
 
 .game-dpad-button[disabled] {
@@ -210,63 +295,17 @@
   grid-area: 2 / 1;
 }
 
+.game-dpad-button--center {
+  grid-area: 2 / 2;
+  background: linear-gradient(180deg, #5f2652 0%, #4f1d43 100%);
+}
+
 .game-dpad-button--right {
   grid-area: 2 / 3;
 }
 
 .game-dpad-button--down {
   grid-area: 3 / 2;
-}
-
-.game-control-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-}
-
-.game-control-button {
-  min-height: 46px;
-  min-width: 84px;
-  border-radius: 8px;
-  border: 2px solid var(--game-border-pink);
-  background: #ffe0e4;
-  color: #8b5a5a;
-  font-weight: 600;
-  font-size: 13px;
-  padding: 0 14px;
-}
-
-.game-control-button--action {
-  background: #ffd4dd;
-  border-color: #c8878f;
-}
-
-.game-control-button:active,
-.game-dpad-button:active {
-  background: #f5c8d0;
-  transform: translateY(1px);
-}
-
-@media (max-width: 560px) {
-  .game-top-bar {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
-  }
-
-  .game-avatar-chip,
-  .game-stat-block,
-  .game-meta-stats {
-    grid-row: auto;
-  }
-
-  .game-meta-stats {
-    justify-items: start;
-  }
-
-  .game-bottom-bar {
-    align-items: flex-end;
-  }
 }
 
 .game-overlay-backdrop {
@@ -381,7 +420,7 @@
 .game-action-hint {
   position: absolute;
   left: 50%;
-  bottom: 146px;
+  bottom: 162px;
   transform: translateX(-50%);
   margin: 0;
   z-index: 22;
@@ -395,8 +434,16 @@
 }
 
 @media (max-width: 760px) {
+  .game-mode-container {
+    padding: 10px;
+  }
+
+  .game-canvas-container {
+    inset: 128px 12px 188px;
+  }
+
   .game-hud-layer {
-    padding: 8px;
+    padding: 12px;
   }
 
   .game-top-bar {
@@ -425,8 +472,8 @@
 
   .game-direction-pad {
     align-self: flex-end;
-    width: 108px;
-    height: 108px;
+    width: 112px;
+    height: 112px;
   }
 
   .game-control-actions {
@@ -440,7 +487,7 @@
   }
 
   .game-action-hint {
-    bottom: 170px;
+    bottom: 195px;
     text-align: center;
     width: min(300px, calc(100% - 18px));
   }

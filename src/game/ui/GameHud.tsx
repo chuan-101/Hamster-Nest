@@ -10,7 +10,7 @@ type GameHudProps = {
 const GameHud = ({ onOpenMenu, onOpenSettings, onAction }: GameHudProps) => {
   return (
     <div className="game-hud-layer">
-      <GameTopBar stamina={72} maxStamina={100} level={8} coins={1280} />
+      <GameTopBar stamina={80} maxStamina={100} level={8} />
       <GameBottomBar onOpenMenu={onOpenMenu} onOpenSettings={onOpenSettings} onAction={onAction} />
     </div>
   )

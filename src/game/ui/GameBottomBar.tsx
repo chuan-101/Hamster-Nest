@@ -26,6 +26,9 @@ const GameBottomBar = ({ onOpenMenu, onOpenSettings, onAction }: GameBottomBarPr
         <button type="button" className="game-dpad-button game-dpad-button--left" aria-label="向左移动" disabled>
           ◀
         </button>
+        <button type="button" className="game-dpad-button game-dpad-button--center" aria-label="方向键中心" disabled>
+          ◆
+        </button>
         <button type="button" className="game-dpad-button game-dpad-button--right" aria-label="向右移动" disabled>
           ▶
         </button>
