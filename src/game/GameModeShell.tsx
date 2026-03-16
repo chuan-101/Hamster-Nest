@@ -8,10 +8,11 @@ import './gameHud.css'
 
 type GameModeShellProps = {
   onSwitchToPhoneMode: () => void
+  onOpenSharedSettings: () => void
   onOpenChat: (npcId: OpenNpcActionsPayload['npcId']) => void
 }
 
-const GameModeShell = ({ onSwitchToPhoneMode, onOpenChat }: GameModeShellProps) => {
+const GameModeShell = ({ onSwitchToPhoneMode, onOpenSharedSettings, onOpenChat }: GameModeShellProps) => {
   const [activeNpcId, setActiveNpcId] = useState<OpenNpcActionsPayload['npcId'] | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -34,7 +35,7 @@ const GameModeShell = ({ onSwitchToPhoneMode, onOpenChat }: GameModeShellProps) 
   }, [activeNpcId, onOpenChat])
 
   const handleActionClick = useCallback(() => {
-    setActionHint('Action system is coming in a future phase.')
+    setActionHint('动作系统将在后续阶段开放。')
     window.setTimeout(() => {
       setActionHint(null)
     }, 1600)
@@ -65,21 +66,21 @@ const GameModeShell = ({ onSwitchToPhoneMode, onOpenChat }: GameModeShellProps) 
             <div
               className="npc-actions-panel game-overlay-panel game-overlay-panel--narrow"
               role="dialog"
-              aria-label="Syzygy interaction menu"
+              aria-label="仓鼠互动菜单"
               onClick={(event) => event.stopPropagation()}
             >
-              <h2 className="ui-title npc-actions-title">Syzygy</h2>
-              <p className="npc-actions-subtitle">Choose an interaction</p>
+              <h2 className="ui-title npc-actions-title">仓鼠互动</h2>
+              <p className="npc-actions-subtitle">请选择互动方式</p>
               <div className="npc-actions-list">
                 <button type="button" className="primary" onClick={handleOpenChat}>
-                  Chat
+                  聊天
                 </button>
                 <button type="button" className="ghost" disabled aria-disabled="true">
-                  Action · Coming soon
+                  动作 · 即将开放
                 </button>
               </div>
               <button type="button" className="ghost npc-actions-close" onClick={handleCloseNpcActions}>
-                Close
+                关闭
               </button>
             </div>
           </div>
@@ -87,7 +88,11 @@ const GameModeShell = ({ onSwitchToPhoneMode, onOpenChat }: GameModeShellProps) 
 
         {isMenuOpen ? <GameMenuOverlay onClose={() => setIsMenuOpen(false)} /> : null}
         {isSettingsOpen ? (
-          <GameSettingsOverlay onClose={() => setIsSettingsOpen(false)} onSwitchToPhoneMode={onSwitchToPhoneMode} />
+          <GameSettingsOverlay
+            onClose={() => setIsSettingsOpen(false)}
+            onSwitchToPhoneMode={onSwitchToPhoneMode}
+            onOpenSharedSettings={onOpenSharedSettings}
+          />
         ) : null}
       </div>
     </div>

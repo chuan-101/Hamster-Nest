@@ -9,10 +9,10 @@ type GameMenuOverlayProps = {
 }
 
 const GAME_MENU_ENTRIES: MenuEntry[] = [
-  { id: 'snacks', title: 'Snacks', description: 'Manage food and feeding actions in game shell mode.' },
-  { id: 'syzygy', title: 'Syzygy Feed / Observation Log', description: 'Open your hamster observations from game mode.' },
-  { id: 'checkin', title: 'Check-in', description: 'Review daily check-ins with game-mode UI wrappers.' },
-  { id: 'export', title: 'Export', description: 'Export data from a game-mode entry point.' },
+  { id: 'snacks', title: '零食罐罐区', description: '以游戏模式外壳进入零食管理与投喂功能。' },
+  { id: 'syzygy', title: '仓鼠观察日志', description: '以游戏模式外壳查看你的仓鼠观察记录。' },
+  { id: 'checkin', title: '打卡', description: '以游戏模式外壳查看与管理每日打卡。' },
+  { id: 'export', title: '数据导出', description: '以游戏模式外壳进入数据导出功能。' },
 ]
 
 const GameMenuOverlay = ({ onClose }: GameMenuOverlayProps) => {
@@ -22,23 +22,23 @@ const GameMenuOverlay = ({ onClose }: GameMenuOverlayProps) => {
         className="game-overlay-panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Game menu"
+        aria-label="游戏菜单"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="game-overlay-header">
-          <h2 className="ui-title">Game Menu</h2>
+          <h2 className="ui-title">游戏菜单</h2>
           <button type="button" className="ghost" onClick={onClose}>
-            Close
+            关闭
           </button>
         </header>
-        <p className="game-overlay-subtitle">Feature entry points that stay in game-mode styling.</p>
+        <p className="game-overlay-subtitle">以下入口延续“共享能力 + 游戏模式外壳”的体验。</p>
         <div className="game-overlay-list">
           {GAME_MENU_ENTRIES.map((entry) => (
             <article key={entry.id} className="game-overlay-card">
               <h3>{entry.title}</h3>
               <p>{entry.description}</p>
               <button type="button" className="game-overlay-card__button" disabled aria-disabled="true">
-                Open (placeholder)
+                打开（占位）
               </button>
             </article>
           ))}

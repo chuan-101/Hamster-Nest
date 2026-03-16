@@ -1461,7 +1461,7 @@ const App = () => {
       <Suspense
         fallback={
           <div className="app-shell game-mode-shell">
-            <div className="game-mode-loading">Loading game mode...</div>
+            <div className="game-mode-loading">游戏模式加载中...</div>
           </div>
         }
       >
@@ -1469,6 +1469,11 @@ const App = () => {
           onSwitchToPhoneMode={() => {
             setIsChatOpenedFromGameMode(false)
             setDisplayMode('phone')
+          }}
+          onOpenSharedSettings={() => {
+            setIsChatOpenedFromGameMode(false)
+            setDisplayMode('phone')
+            navigate('/settings')
           }}
           onOpenChat={openChatFromGameMode}
         />

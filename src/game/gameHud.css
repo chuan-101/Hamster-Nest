@@ -119,6 +119,10 @@
   gap: 12px;
 }
 
+.game-bottom-bar > .game-control-actions {
+  flex: 1;
+}
+
 .game-direction-pad {
   width: 118px;
   height: 118px;
@@ -259,6 +263,19 @@
   gap: 10px;
 }
 
+.game-shared-settings-entry {
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.game-shared-settings-entry p {
+  margin: 0 0 8px;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
 .npc-actions-title,
 .npc-actions-subtitle {
   color: inherit;
@@ -320,19 +337,20 @@
   }
 
   .game-bottom-bar {
-    flex-direction: column;
+    flex-direction: row;
     align-items: stretch;
   }
 
   .game-direction-pad {
-    align-self: flex-start;
+    align-self: flex-end;
     width: 108px;
     height: 108px;
   }
 
   .game-control-actions {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: end;
   }
 
   .game-control-button {

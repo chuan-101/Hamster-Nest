@@ -8,7 +8,7 @@ type GameTopBarProps = {
 }
 
 const formatClock = (value: Date) =>
-  new Intl.DateTimeFormat(undefined, {
+  new Intl.DateTimeFormat('zh-CN', {
     hour: '2-digit',
     minute: '2-digit',
   }).format(value)
@@ -29,20 +29,20 @@ const GameTopBar = ({ stamina, maxStamina, level, coins }: GameTopBarProps) => {
   }, [stamina, maxStamina])
 
   return (
-    <header className="game-top-bar" aria-label="Game HUD status bar">
-      <div className="game-avatar-chip" aria-label="Player avatar placeholder">
+    <header className="game-top-bar" aria-label="游戏 HUD 状态栏">
+      <div className="game-avatar-chip" aria-label="玩家头像占位">
         <span className="game-avatar-chip__emoji" aria-hidden="true">
           🐹
         </span>
         <div>
-          <p className="game-avatar-chip__name">Chuan</p>
-          <p className="game-avatar-chip__sub">Lv.{level}</p>
+          <p className="game-avatar-chip__name">川川</p>
+          <p className="game-avatar-chip__sub">等级 {level}</p>
         </div>
       </div>
 
-      <div className="game-stat-block" aria-label="Stamina">
+      <div className="game-stat-block" aria-label="体力">
         <div className="game-stat-block__label-row">
-          <span>Stamina</span>
+          <span>体力</span>
           <span>
             {stamina}/{maxStamina}
           </span>
@@ -53,8 +53,8 @@ const GameTopBar = ({ stamina, maxStamina, level, coins }: GameTopBarProps) => {
       </div>
 
       <div className="game-meta-stats">
-        <p className="game-chip">🪙 {coins}</p>
-        <p className="game-chip game-clock" aria-live="polite">
+        <p className="game-chip" aria-label="金币">🪙 {coins}</p>
+        <p className="game-chip game-clock" aria-live="polite" aria-label="当前时间">
           🕒 {formatClock(time)}
         </p>
       </div>
