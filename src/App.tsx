@@ -1476,6 +1476,9 @@ const App = () => {
             navigate('/settings')
           }}
           onOpenChat={openChatFromGameMode}
+          user={user}
+          snackAiConfig={snackAiConfig}
+          syzygyAiConfig={syzygyAiConfig}
         />
       </Suspense>
     )

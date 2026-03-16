@@ -35,7 +35,7 @@ const GameTopBar = ({ stamina, maxStamina, level, coins }: GameTopBarProps) => {
           🐹
         </span>
         <div>
-          <p className="game-avatar-chip__name">川川</p>
+          <p className="game-avatar-chip__name">串串</p>
           <p className="game-avatar-chip__sub">等级 {level}</p>
         </div>
       </div>

@@ -7,6 +7,7 @@ import './CheckinPage.css'
 
 export type CheckinPageProps = {
   user: User | null
+  entryMode?: 'phone' | 'game'
 }
 
 const formatDateKey = (date: Date) => {
@@ -66,7 +67,7 @@ const getMonthCalendarCells = (monthDate: Date) => {
   return cells
 }
 
-const CheckinPage = ({ user }: CheckinPageProps) => {
+const CheckinPage = ({ user, entryMode = 'phone' }: CheckinPageProps) => {
   const [recentCheckins, setRecentCheckins] = useState<CheckinEntry[]>([])
   const [checkinTotal, setCheckinTotal] = useState(0)
   const [checkinLoading, setCheckinLoading] = useState(false)
@@ -138,10 +139,11 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
   }
 
   return (
-    <div className="checkin-page">
-      <header className="checkin-page-header">
-        <div className="checkin-nav-actions">
-          {navTabs.map((tab) => {
+    <div className={`checkin-page ${entryMode === 'game' ? 'game-feature-page' : ''}`}>
+      {entryMode === 'phone' ? (
+        <header className="checkin-page-header">
+          <div className="checkin-nav-actions">
+            {navTabs.map((tab) => {
             const isActive = tab.path === '/checkin'
             return (
               <button
@@ -154,9 +156,10 @@ const CheckinPage = ({ user }: CheckinPageProps) => {
                 {tab.label}
               </button>
             )
-          })}
-        </div>
-      </header>
+            })}
+          </div>
+        </header>
+      ) : null}
 
       <section className="checkin-card standalone">
         <div className="checkin-header">
