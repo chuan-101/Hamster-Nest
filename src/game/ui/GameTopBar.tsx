@@ -4,6 +4,8 @@ type GameTopBarProps = {
   stamina: number
   maxStamina: number
   level: number
+  exp: number
+  maxExp: number
 }
 
 const formatClock = (value: Date) =>
@@ -19,7 +21,7 @@ const formatDate = (value: Date) =>
     weekday: 'short',
   }).format(value)
 
-const GameTopBar = ({ stamina, maxStamina, level }: GameTopBarProps) => {
+const GameTopBar = ({ stamina, maxStamina, level, exp, maxExp }: GameTopBarProps) => {
   const [time, setTime] = useState(() => new Date())
 
   useEffect(() => {
@@ -27,12 +29,19 @@ const GameTopBar = ({ stamina, maxStamina, level }: GameTopBarProps) => {
     return () => window.clearInterval(timer)
   }, [])
 
-  const filledSegments = useMemo(() => {
+  const staminaRatio = useMemo(() => {
     if (maxStamina <= 0) {
       return 0
     }
-    return Math.max(0, Math.min(10, Math.round((stamina / maxStamina) * 10)))
+    return Math.max(0, Math.min(100, (stamina / maxStamina) * 100))
   }, [stamina, maxStamina])
+
+  const expRatio = useMemo(() => {
+    if (maxExp <= 0) {
+      return 0
+    }
+    return Math.max(0, Math.min(100, (exp / maxExp) * 100))
+  }, [exp, maxExp])
 
   return (
     <header className="game-top-bar" aria-label="游戏 HUD 状态栏">
@@ -48,12 +57,21 @@ const GameTopBar = ({ stamina, maxStamina, level }: GameTopBarProps) => {
             <p className="game-avatar-chip__name">串串</p>
             <p className="game-avatar-chip__level">Lv.{String(level).padStart(2, '0')}</p>
           </div>
-          <p className="game-chip game-chip--coin" aria-label="金币">
-            金币：123456
-          </p>
+          <div className="game-mini-status" aria-label="经验值">
+            <p className="game-mini-status__label">EXP</p>
+            <div className="game-mini-status__track">
+              <div className="game-mini-status__fill" style={{ width: `${expRatio}%` }} />
+              <span className="game-mini-status__value">
+                {exp}/{String(maxExp).padStart(2, '0')}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="game-clock-panel" aria-label="时间信息">
+        <div className="game-clock-stack" aria-label="时间与资源信息">
+          <p className="game-chip game-chip--coin" aria-label="金币">
+            💰 123456
+          </p>
           <p className="game-chip game-clock" aria-live="polite" aria-label="当前时间">
             {formatClock(time)}
           </p>
@@ -64,9 +82,9 @@ const GameTopBar = ({ stamina, maxStamina, level }: GameTopBarProps) => {
       </div>
 
       <div className="game-top-bar__status-row">
-        <p className="game-status-label">体力</p>
+        <p className="game-status-label">Stamina</p>
         <div className="game-progress-track" aria-label="体力值">
-          <div className="game-progress-track__fill" style={{ width: `${(filledSegments / 10) * 100}%` }} />
+          <div className="game-progress-track__fill" style={{ width: `${staminaRatio}%` }} />
           <span className="game-progress-track__label">
             {stamina}/{String(maxStamina).padStart(2, '0')}
           </span>
