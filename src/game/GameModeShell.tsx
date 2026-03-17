@@ -3,7 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import GameContainer from './GameContainer'
 import { EventBus, GAME_EVENTS, type OpenNpcActionsPayload } from './EventBus'
 import GameHud from './ui/GameHud'
-import GameMenuOverlay, { type GameFeatureId } from './ui/GameMenuOverlay'
+import type { GameFeatureId } from './ui/GameMenuOverlay'
 import GameSettingsOverlay from './ui/GameSettingsOverlay'
 import GameFeatureShell from './ui/GameFeatureShell'
 import SnacksPage from '../pages/SnacksPage'
@@ -49,7 +49,7 @@ const GameModeShell = ({
   syzygyAiConfig,
 }: GameModeShellProps) => {
   const [activeNpcId, setActiveNpcId] = useState<OpenNpcActionsPayload['npcId'] | null>(null)
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isPawMenuOpen, setIsPawMenuOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [activeFeature, setActiveFeature] = useState<GameFeatureId | null>(null)
   const [actionHint, setActionHint] = useState<string | null>(null)
@@ -71,14 +71,15 @@ const GameModeShell = ({
   }, [activeNpcId, onOpenChat])
 
   const handleActionClick = useCallback(() => {
-    setActionHint('动作系统将在后续阶段开放。')
+    setIsPawMenuOpen(false)
+    setActionHint('Coming soon')
     window.setTimeout(() => {
       setActionHint(null)
     }, 1600)
   }, [])
 
   const handleOpenFeature = useCallback((featureId: GameFeatureId) => {
-    setIsMenuOpen(false)
+    setIsPawMenuOpen(false)
     setActiveFeature(featureId)
   }, [])
 
@@ -96,11 +97,7 @@ const GameModeShell = ({
     <div className="app-shell game-mode-shell">
       <div className="game-mode-container">
         <GameContainer />
-        <GameHud
-          onOpenMenu={() => setIsMenuOpen(true)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onAction={handleActionClick}
-        />
+        <GameHud onOpenPawMenu={() => setIsPawMenuOpen((open) => !open)} onOpenSettings={() => setIsSettingsOpen(true)} />
 
         {actionHint ? <p className="game-action-hint">{actionHint}</p> : null}
 
@@ -129,7 +126,34 @@ const GameModeShell = ({
           </div>
         ) : null}
 
-        {isMenuOpen ? <GameMenuOverlay onClose={() => setIsMenuOpen(false)} onOpenFeature={handleOpenFeature} /> : null}
+        {isPawMenuOpen ? (
+          <div className="game-paw-menu-backdrop" role="presentation" onClick={() => setIsPawMenuOpen(false)}>
+            <section
+              className="game-paw-menu-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-label="互动菜单"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button type="button" className="game-paw-menu-item" onClick={handleActionClick}>
+                动作
+              </button>
+              <button type="button" className="game-paw-menu-item" onClick={() => handleOpenFeature('snacks')}>
+                零食罐罐区
+              </button>
+              <button type="button" className="game-paw-menu-item" onClick={() => handleOpenFeature('syzygy')}>
+                仓鼠观察日志
+              </button>
+              <button type="button" className="game-paw-menu-item" onClick={() => handleOpenFeature('checkin')}>
+                打卡
+              </button>
+              <button type="button" className="game-paw-menu-item" onClick={() => handleOpenFeature('export')}>
+                数据导出
+              </button>
+            </section>
+          </div>
+        ) : null}
+
         {isSettingsOpen ? (
           <GameSettingsOverlay
             onClose={() => setIsSettingsOpen(false)}
