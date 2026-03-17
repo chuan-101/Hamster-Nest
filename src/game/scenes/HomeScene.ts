@@ -48,8 +48,14 @@ export class HomeScene extends Phaser.Scene {
     this.syzygySprite.on('pointerout', () => {
       this.syzygySprite?.clearTint()
     })
-    this.syzygySprite.on('pointerdown', () => {
-      EventBus.emit(GAME_EVENTS.OPEN_NPC_ACTIONS, { npcId: 'syzygy' })
+    this.syzygySprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      EventBus.emit(GAME_EVENTS.OPEN_NPC_ACTIONS, {
+        npcId: 'syzygy',
+        anchor: {
+          x: pointer.x,
+          y: pointer.y,
+        },
+      })
     })
   }
 }
