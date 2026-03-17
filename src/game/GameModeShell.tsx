@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { EventBus, GAME_EVENTS, type OpenNpcActionsPayload } from './EventBus'
 import GameHud from './ui/GameHud'
@@ -32,12 +32,19 @@ type GameModeShellProps = {
   syzygyAiConfig: SharedSnackAiConfig
 }
 
+type ActiveNpcMenu = {
+  npcId: OpenNpcActionsPayload['npcId']
+  anchor: OpenNpcActionsPayload['anchor']
+}
+
 const GAME_FEATURE_META: Record<GameFeatureId, { title: string; subtitle: string }> = {
   snacks: { title: '零食罐罐区', subtitle: '游戏模式面板 · 零食管理与投喂' },
   syzygy: { title: '仓鼠观察日志', subtitle: '游戏模式面板 · 观察记录' },
   checkin: { title: '打卡', subtitle: '游戏模式面板 · 每日陪伴打卡' },
   export: { title: '数据导出', subtitle: '游戏模式面板 · 导出数据包' },
 }
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
 const GameModeShell = ({
   onSwitchToPhoneMode,
@@ -47,35 +54,27 @@ const GameModeShell = ({
   snackAiConfig,
   syzygyAiConfig,
 }: GameModeShellProps) => {
-  const [activeNpcId, setActiveNpcId] = useState<OpenNpcActionsPayload['npcId'] | null>(null)
+  const [activeNpcMenu, setActiveNpcMenu] = useState<ActiveNpcMenu | null>(null)
   const [isPawMenuOpen, setIsPawMenuOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [activeFeature, setActiveFeature] = useState<GameFeatureId | null>(null)
-  const [actionHint, setActionHint] = useState<string | null>(null)
+  const npcMenuRef = useRef<HTMLDivElement | null>(null)
 
   const handleOpenNpcActions = useCallback((payload: OpenNpcActionsPayload) => {
-    setActiveNpcId(payload.npcId)
+    setActiveNpcMenu({ npcId: payload.npcId, anchor: payload.anchor })
   }, [])
 
   const handleCloseNpcActions = useCallback(() => {
-    setActiveNpcId(null)
+    setActiveNpcMenu(null)
   }, [])
 
   const handleOpenChat = useCallback(() => {
-    if (!activeNpcId) {
+    if (!activeNpcMenu) {
       return
     }
-    onOpenChat(activeNpcId)
-    setActiveNpcId(null)
-  }, [activeNpcId, onOpenChat])
-
-  const handleActionClick = useCallback(() => {
-    setIsPawMenuOpen(false)
-    setActionHint('Coming soon')
-    window.setTimeout(() => {
-      setActionHint(null)
-    }, 1600)
-  }, [])
+    onOpenChat(activeNpcMenu.npcId)
+    setActiveNpcMenu(null)
+  }, [activeNpcMenu, onOpenChat])
 
   const handleOpenFeature = useCallback((featureId: GameFeatureId) => {
     setIsPawMenuOpen(false)
@@ -90,6 +89,49 @@ const GameModeShell = ({
     }
   }, [handleOpenNpcActions])
 
+  useEffect(() => {
+    if (!activeNpcMenu) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const menuElement = npcMenuRef.current
+      if (!menuElement) {
+        return
+      }
+      if (event.target instanceof Node && menuElement.contains(event.target)) {
+        return
+      }
+      setActiveNpcMenu(null)
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [activeNpcMenu])
+
+  const npcMenuPosition = useMemo(() => {
+    if (!activeNpcMenu) {
+      return null
+    }
+
+    const radius = 96
+    const edgePadding = 14
+    const menuDiameter = 132
+    const centerX = clamp(activeNpcMenu.anchor.x, edgePadding + menuDiameter / 2, window.innerWidth - edgePadding - menuDiameter / 2)
+    const centerY = clamp(
+      activeNpcMenu.anchor.y - radius,
+      edgePadding + menuDiameter / 2,
+      window.innerHeight - edgePadding - menuDiameter / 2,
+    )
+
+    return {
+      left: `${centerX}px`,
+      top: `${centerY}px`,
+    }
+  }, [activeNpcMenu])
+
   const featureMeta = activeFeature ? GAME_FEATURE_META[activeFeature] : null
 
   return (
@@ -97,29 +139,24 @@ const GameModeShell = ({
       <div className="game-mode-container">
         <GameHud onOpenPawMenu={() => setIsPawMenuOpen((open) => !open)} onOpenSettings={() => setIsSettingsOpen(true)} />
 
-        {actionHint ? <p className="game-action-hint">{actionHint}</p> : null}
-
-        {activeNpcId ? (
-          <div className="game-overlay-backdrop" role="presentation" onClick={handleCloseNpcActions}>
+        {activeNpcMenu && npcMenuPosition ? (
+          <div className="npc-actions-layer" role="presentation" aria-hidden="true">
             <div
-              className="npc-actions-panel game-overlay-panel game-overlay-panel--narrow"
+              ref={npcMenuRef}
+              className="npc-actions-radial"
               role="dialog"
               aria-label="仓鼠互动菜单"
-              onClick={(event) => event.stopPropagation()}
+              style={npcMenuPosition}
             >
-              <h2 className="ui-title npc-actions-title">仓鼠互动</h2>
-              <p className="npc-actions-subtitle">请选择互动方式</p>
-              <div className="npc-actions-list">
-                <button type="button" className="primary" onClick={handleOpenChat}>
-                  聊天
-                </button>
-                <button type="button" className="ghost" disabled aria-disabled="true">
-                  动作 · 即将开放
-                </button>
-              </div>
-              <button type="button" className="ghost npc-actions-close" onClick={handleCloseNpcActions}>
+              <button type="button" className="npc-actions-radial__button npc-actions-radial__button--chat" onClick={handleOpenChat}>
+                聊天
+              </button>
+              <button type="button" className="npc-actions-radial__button npc-actions-radial__button--close" onClick={handleCloseNpcActions}>
                 关闭
               </button>
+              <span className="npc-actions-radial__core" aria-hidden="true">
+                互动
+              </span>
             </div>
           </div>
         ) : null}
@@ -133,9 +170,6 @@ const GameModeShell = ({
               aria-label="互动菜单"
               onClick={(event) => event.stopPropagation()}
             >
-              <button type="button" className="game-paw-menu-item" onClick={handleActionClick}>
-                动作
-              </button>
               <button type="button" className="game-paw-menu-item" onClick={() => handleOpenFeature('snacks')}>
                 零食罐罐区
               </button>

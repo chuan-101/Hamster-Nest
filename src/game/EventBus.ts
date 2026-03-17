@@ -6,6 +6,10 @@ export const GAME_EVENTS = {
 
 export type OpenNpcActionsPayload = {
   npcId: 'syzygy'
+  anchor: {
+    x: number
+    y: number
+  }
 }
 
 export const EventBus = new Phaser.Events.EventEmitter()
