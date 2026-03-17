@@ -22,13 +22,15 @@ const GameBottomBar = ({ onOpenPawMenu, onOpenSettings }: GameBottomBarProps) =>
         </button>
       </div>
 
-      <button type="button" className="game-control-button game-control-button--icon" onClick={onOpenSettings} aria-label="打开游戏设置">
-        ⚙
-      </button>
+      <div className="game-bottom-controls" aria-label="功能控制区">
+        <button type="button" className="game-control-button game-control-button--icon" onClick={onOpenSettings} aria-label="打开游戏设置">
+          ⚙
+        </button>
 
-      <button type="button" className="game-control-button game-control-button--icon" onClick={onOpenPawMenu} aria-label="打开互动菜单">
-        🐾
-      </button>
+        <button type="button" className="game-control-button game-control-button--paw" onClick={onOpenPawMenu} aria-label="打开互动菜单">
+          🐾
+        </button>
+      </div>
     </footer>
   )
 }

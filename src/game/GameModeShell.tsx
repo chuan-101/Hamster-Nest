@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import GameContainer from './GameContainer'
 import { EventBus, GAME_EVENTS, type OpenNpcActionsPayload } from './EventBus'
 import GameHud from './ui/GameHud'
 import type { GameFeatureId } from './ui/GameMenuOverlay'
@@ -96,7 +95,6 @@ const GameModeShell = ({
   return (
     <div className="app-shell game-mode-shell">
       <div className="game-mode-container">
-        <GameContainer />
         <GameHud onOpenPawMenu={() => setIsPawMenuOpen((open) => !open)} onOpenSettings={() => setIsSettingsOpen(true)} />
 
         {actionHint ? <p className="game-action-hint">{actionHint}</p> : null}

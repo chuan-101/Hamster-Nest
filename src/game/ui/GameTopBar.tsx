@@ -12,6 +12,13 @@ const formatClock = (value: Date) =>
     minute: '2-digit',
   }).format(value)
 
+const formatDate = (value: Date) =>
+  new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+  }).format(value)
+
 const GameTopBar = ({ stamina, maxStamina, level }: GameTopBarProps) => {
   const [time, setTime] = useState(() => new Date())
 
@@ -29,15 +36,15 @@ const GameTopBar = ({ stamina, maxStamina, level }: GameTopBarProps) => {
 
   return (
     <header className="game-top-bar" aria-label="游戏 HUD 状态栏">
-      <div className="game-top-bar__row game-top-bar__row--main">
+      <div className="game-top-bar__main-grid">
         <div className="game-avatar-chip" aria-label="玩家头像占位">
           <span className="game-avatar-chip__emoji" aria-hidden="true">
             🐹
           </span>
         </div>
 
-        <div className="game-stat-block" aria-label="玩家信息">
-          <div className="game-stat-block__label-row">
+        <div className="game-player-panel" aria-label="玩家信息">
+          <div className="game-player-panel__label-row">
             <p className="game-avatar-chip__name">串串</p>
             <p className="game-avatar-chip__level">Lv.{String(level).padStart(2, '0')}</p>
           </div>
@@ -46,21 +53,24 @@ const GameTopBar = ({ stamina, maxStamina, level }: GameTopBarProps) => {
           </p>
         </div>
 
-        <p className="game-chip game-clock" aria-live="polite" aria-label="当前时间">
-          {formatClock(time)}
-        </p>
+        <div className="game-clock-panel" aria-label="时间信息">
+          <p className="game-chip game-clock" aria-live="polite" aria-label="当前时间">
+            {formatClock(time)}
+          </p>
+          <p className="game-chip game-chip--date" aria-label="日期">
+            {formatDate(time)}
+          </p>
+        </div>
       </div>
 
-      <div className="game-top-bar__row game-top-bar__row--status">
+      <div className="game-top-bar__status-row">
+        <p className="game-status-label">体力</p>
         <div className="game-progress-track" aria-label="体力值">
           <div className="game-progress-track__fill" style={{ width: `${(filledSegments / 10) * 100}%` }} />
           <span className="game-progress-track__label">
             {stamina}/{String(maxStamina).padStart(2, '0')}
           </span>
         </div>
-        <p className="game-chip game-chip--time" aria-label="游戏内时间">
-          12:00
-        </p>
       </div>
     </header>
   )
