@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { EventBus, GAME_EVENTS, type OpenNpcActionsPayload } from './EventBus'
 import GameHud from './ui/GameHud'
@@ -46,6 +46,13 @@ const GAME_FEATURE_META: Record<GameFeatureId, { title: string; subtitle: string
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
+const NPC_MENU_LAYOUT = {
+  width: 176,
+  estimatedHeight: 170,
+  anchorOffset: 18,
+  edgePadding: 12,
+} as const
+
 const GameModeShell = ({
   onSwitchToPhoneMode,
   onOpenSharedSettings,
@@ -59,6 +66,10 @@ const GameModeShell = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [activeFeature, setActiveFeature] = useState<GameFeatureId | null>(null)
   const npcMenuRef = useRef<HTMLDivElement | null>(null)
+  const [npcMenuSize, setNpcMenuSize] = useState<{ width: number; height: number }>({
+    width: NPC_MENU_LAYOUT.width,
+    height: NPC_MENU_LAYOUT.estimatedHeight,
+  })
 
   const handleOpenNpcActions = useCallback((payload: OpenNpcActionsPayload) => {
     setActiveNpcMenu({ npcId: payload.npcId, anchor: payload.anchor })
@@ -111,26 +122,72 @@ const GameModeShell = ({
     }
   }, [activeNpcMenu])
 
+
+  useLayoutEffect(() => {
+    if (!activeNpcMenu) {
+      return
+    }
+
+    const menuElement = npcMenuRef.current
+    if (!menuElement) {
+      return
+    }
+
+    const rect = menuElement.getBoundingClientRect()
+    if (!rect.width || !rect.height) {
+      return
+    }
+
+    setNpcMenuSize((prev) =>
+      prev.width === rect.width && prev.height === rect.height
+        ? prev
+        : { width: rect.width, height: rect.height },
+    )
+  }, [activeNpcMenu])
+
   const npcMenuPosition = useMemo(() => {
     if (!activeNpcMenu) {
       return null
     }
 
-    const radius = 96
-    const edgePadding = 14
-    const menuDiameter = 132
-    const centerX = clamp(activeNpcMenu.anchor.x, edgePadding + menuDiameter / 2, window.innerWidth - edgePadding - menuDiameter / 2)
-    const centerY = clamp(
-      activeNpcMenu.anchor.y - radius,
-      edgePadding + menuDiameter / 2,
-      window.innerHeight - edgePadding - menuDiameter / 2,
-    )
+    const { edgePadding, anchorOffset } = NPC_MENU_LAYOUT
+    const menuWidth = npcMenuSize.width
+    const menuHeight = npcMenuSize.height
+
+    const candidatePositions = [
+      { left: activeNpcMenu.anchor.x + anchorOffset, top: activeNpcMenu.anchor.y - menuHeight - anchorOffset },
+      { left: activeNpcMenu.anchor.x + anchorOffset, top: activeNpcMenu.anchor.y + anchorOffset },
+      { left: activeNpcMenu.anchor.x - menuWidth - anchorOffset, top: activeNpcMenu.anchor.y - menuHeight - anchorOffset },
+      { left: activeNpcMenu.anchor.x - menuWidth - anchorOffset, top: activeNpcMenu.anchor.y + anchorOffset },
+    ]
+
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+
+    const findBestPosition = () => {
+      for (const position of candidatePositions) {
+        const fitsHorizontally =
+          position.left >= edgePadding && position.left + menuWidth <= viewportWidth - edgePadding
+        const fitsVertically =
+          position.top >= edgePadding && position.top + menuHeight <= viewportHeight - edgePadding
+        if (fitsHorizontally && fitsVertically) {
+          return position
+        }
+      }
+
+      return {
+        left: clamp(activeNpcMenu.anchor.x + anchorOffset, edgePadding, viewportWidth - edgePadding - menuWidth),
+        top: clamp(activeNpcMenu.anchor.y - menuHeight - anchorOffset, edgePadding, viewportHeight - edgePadding - menuHeight),
+      }
+    }
+
+    const position = findBestPosition()
 
     return {
-      left: `${centerX}px`,
-      top: `${centerY}px`,
+      left: `${position.left}px`,
+      top: `${position.top}px`,
     }
-  }, [activeNpcMenu])
+  }, [activeNpcMenu, npcMenuSize.height, npcMenuSize.width])
 
   const featureMeta = activeFeature ? GAME_FEATURE_META[activeFeature] : null
 
@@ -140,23 +197,23 @@ const GameModeShell = ({
         <GameHud onOpenPawMenu={() => setIsPawMenuOpen((open) => !open)} onOpenSettings={() => setIsSettingsOpen(true)} />
 
         {activeNpcMenu && npcMenuPosition ? (
-          <div className="npc-actions-layer" role="presentation" aria-hidden="true">
+          <div className="npc-actions-layer" role="presentation">
             <div
               ref={npcMenuRef}
-              className="npc-actions-radial"
+              className="npc-actions-menu"
               role="dialog"
               aria-label="仓鼠互动菜单"
               style={npcMenuPosition}
             >
-              <button type="button" className="npc-actions-radial__button npc-actions-radial__button--chat" onClick={handleOpenChat}>
+              <button type="button" className="npc-actions-menu__button npc-actions-menu__button--chat" onClick={handleOpenChat}>
                 聊天
               </button>
-              <button type="button" className="npc-actions-radial__button npc-actions-radial__button--close" onClick={handleCloseNpcActions}>
+              <button type="button" className="npc-actions-menu__button npc-actions-menu__button--close" onClick={handleCloseNpcActions}>
                 关闭
               </button>
-              <span className="npc-actions-radial__core" aria-hidden="true">
-                互动
-              </span>
+              <button type="button" className="npc-actions-menu__button npc-actions-menu__button--disabled" disabled>
+                互动（即将开放）
+              </button>
             </div>
           </div>
         ) : null}
@@ -167,7 +224,7 @@ const GameModeShell = ({
               className="game-paw-menu-panel"
               role="dialog"
               aria-modal="true"
-              aria-label="互动菜单"
+              aria-label="系统功能菜单"
               onClick={(event) => event.stopPropagation()}
             >
               <button type="button" className="game-paw-menu-item" onClick={() => handleOpenFeature('snacks')}>
