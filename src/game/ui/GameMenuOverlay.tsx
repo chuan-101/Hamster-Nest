@@ -1,3 +1,5 @@
+import GameSystemModal from './GameSystemModal'
+
 export type GameFeatureId = 'snacks' | 'syzygy' | 'checkin' | 'export'
 
 type MenuEntry = {
@@ -20,34 +22,27 @@ const GAME_MENU_ENTRIES: MenuEntry[] = [
 
 const GameMenuOverlay = ({ onClose, onOpenFeature }: GameMenuOverlayProps) => {
   return (
-    <div className="game-overlay-backdrop" role="presentation" onClick={onClose}>
-      <section
-        className="game-overlay-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="游戏菜单"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="game-overlay-header">
-          <h2 className="ui-title">游戏菜单</h2>
-          <button type="button" className="ghost" onClick={onClose}>
-            关闭
-          </button>
-        </header>
-        <p className="game-overlay-subtitle">以下入口延续“共享能力 + 游戏模式外壳”的体验。</p>
-        <div className="game-overlay-list">
-          {GAME_MENU_ENTRIES.map((entry) => (
-            <article key={entry.id} className="game-overlay-card">
+    <GameSystemModal
+      title="游戏菜单"
+      ariaLabel="游戏菜单"
+      subtitle="以下入口延续“共享能力 + 游戏模式外壳”的体验。"
+      onClose={onClose}
+      contentClassName="game-system-modal__content--menu"
+    >
+      <div className="game-overlay-list game-overlay-list--scrollable">
+        {GAME_MENU_ENTRIES.map((entry) => (
+          <article key={entry.id} className="game-overlay-card">
+            <div className="game-overlay-card__body">
               <h3>{entry.title}</h3>
               <p>{entry.description}</p>
-              <button type="button" className="game-overlay-card__button" onClick={() => onOpenFeature(entry.id)}>
-                打开
-              </button>
-            </article>
-          ))}
-        </div>
-      </section>
-    </div>
+            </div>
+            <button type="button" className="game-overlay-card__button" onClick={() => onOpenFeature(entry.id)}>
+              打开
+            </button>
+          </article>
+        ))}
+      </div>
+    </GameSystemModal>
   )
 }
 
