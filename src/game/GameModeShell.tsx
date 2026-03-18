@@ -32,10 +32,7 @@ type GameModeShellProps = {
   syzygyAiConfig: SharedSnackAiConfig
 }
 
-type ActiveNpcMenu = {
-  npcId: OpenNpcActionsPayload['npcId']
-  anchor: OpenNpcActionsPayload['anchor']
-}
+type ActiveNpcMenu = OpenNpcActionsPayload
 
 const GAME_FEATURE_META: Record<GameFeatureId, { title: string; subtitle: string }> = {
   snacks: { title: '零食罐罐区', subtitle: '游戏模式面板 · 零食管理与投喂' },
@@ -72,7 +69,7 @@ const GameModeShell = ({
   })
 
   const handleOpenNpcActions = useCallback((payload: OpenNpcActionsPayload) => {
-    setActiveNpcMenu({ npcId: payload.npcId, anchor: payload.anchor })
+    setActiveNpcMenu(payload)
   }, [])
 
   const handleCloseNpcActions = useCallback(() => {
