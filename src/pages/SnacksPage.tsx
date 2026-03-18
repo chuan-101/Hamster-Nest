@@ -660,17 +660,26 @@ const SnacksPage = ({ user, snackAiConfig, entryMode = 'phone' }: SnacksPageProp
         </main>
       ) : (
         <>
-          <section className="profile-header-card" aria-label="串串主页头部">
-            <div className="profile-cover-banner" />
-            <div className="profile-avatar-surrogate" aria-hidden="true">
-              <span className="profile-avatar-letter">C</span>
-              <span className="profile-avatar-accent">🐾</span>
-            </div>
-            <div className="profile-meta">
-              <h2 className="profile-title">串串的零食罐罐</h2>
-              <p className="profile-bio">专属于某只小仓鼠的加餐记录</p>
-            </div>
-          </section>
+          {entryMode === 'phone' ? (
+            <section className="profile-header-card" aria-label="串串主页头部">
+              <div className="profile-cover-banner" />
+              <div className="profile-avatar-surrogate" aria-hidden="true">
+                <span className="profile-avatar-letter">C</span>
+                <span className="profile-avatar-accent">🐾</span>
+              </div>
+              <div className="profile-meta">
+                <h2 className="profile-title">串串的零食罐罐</h2>
+                <p className="profile-bio">专属于某只小仓鼠的加餐记录</p>
+              </div>
+            </section>
+          ) : (
+            <section className="profile-header-card" aria-label="零食罐罐功能说明">
+              <div className="profile-meta">
+                <h2 className="profile-title">零食管理站</h2>
+                <p className="profile-bio">在这里记录投喂、回复互动，并在需要时切换到回收站。</p>
+              </div>
+            </section>
+          )}
 
           <section className="snacks-composer">
             <textarea

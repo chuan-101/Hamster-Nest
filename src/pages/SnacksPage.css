@@ -10,6 +10,15 @@
   gap: 18px;
 }
 
+.snacks-page.game-feature-page {
+  min-height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  gap: 14px;
+  background: transparent;
+}
+
 .snacks-header {
   display: flex;
   align-items: center;
@@ -21,6 +30,14 @@
   margin: 0;
 }
 
+.snacks-page.game-feature-page .snacks-header {
+  padding: 4px 2px 0;
+}
+
+.snacks-page.game-feature-page .snacks-header h1 {
+  font-size: 1rem;
+}
+
 
 .profile-header-card {
   position: relative;
@@ -30,6 +47,17 @@
   background: #fff;
   padding: 0 16px 16px;
   box-shadow: 0 10px 24px rgba(255, 214, 231, 0.25);
+}
+
+.snacks-page.game-feature-page .profile-header-card {
+  margin-top: 0;
+  border: 2px solid #8c665e;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 244, 238, 0.92) 0%, rgba(248, 217, 206, 0.92) 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 250, 247, 0.86),
+    inset 0 -4px 0 rgba(126, 86, 78, 0.14);
 }
 
 .profile-cover-banner {
@@ -93,6 +121,17 @@
   margin-top: 6px;
 }
 
+.snacks-page.game-feature-page .snacks-composer,
+.snacks-page.game-feature-page .snacks-feed {
+  border: 2px solid #8c665e;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 248, 244, 0.96) 0%, rgba(248, 225, 216, 0.96) 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 251, 248, 0.92),
+    inset 0 -4px 0 rgba(126, 86, 78, 0.16);
+}
+
 .snacks-composer textarea {
   width: 100%;
   resize: vertical;
@@ -140,6 +179,46 @@
     radial-gradient(circle at 1px 1px, #ffd6e7 1.5px, transparent 1.5px),
     radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 1px);
   background-size: 20px 20px, 10px 10px;
+}
+
+.snacks-page.game-feature-page .snacks-feed {
+  margin-top: 0;
+  padding: 14px;
+}
+
+.snacks-page.game-feature-page .post-card {
+  border: 2px solid #8c665e;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff8f4 0%, #f8ddd2 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 251, 248, 0.88),
+    inset 0 -4px 0 rgba(126, 86, 78, 0.16);
+}
+
+.snacks-page.game-feature-page .reply-toggle,
+.snacks-page.game-feature-page .reply-composer textarea {
+  border-color: #c99a90;
+  background: rgba(255, 249, 246, 0.94);
+}
+
+.snacks-page.game-feature-page .tips,
+.snacks-page.game-feature-page .error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 2px solid #c99a90;
+  border-radius: 12px;
+  background: rgba(255, 246, 241, 0.9);
+}
+
+@media (max-width: 760px) {
+  .snacks-page.game-feature-page {
+    gap: 12px;
+  }
+
+  .snacks-page.game-feature-page .snacks-feed,
+  .snacks-page.game-feature-page .snacks-composer {
+    padding: 12px;
+  }
 }
 
 .post-card {
