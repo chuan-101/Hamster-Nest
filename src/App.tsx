@@ -1947,6 +1947,7 @@ const ChatRoute = ({
       />
       <SessionsDrawer
         open={drawerOpen}
+        theme={chatTheme}
         sessions={sessions}
         messageCounts={messageCounts}
         activeSessionId={activeSession.id}
