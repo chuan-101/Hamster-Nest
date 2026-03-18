@@ -456,10 +456,9 @@
 }
 
 .game-overlay-panel {
-  width: min(540px, 100%);
+  width: min(420px, 100%);
   max-height: min(78vh, 700px);
-  overflow: auto;
-  padding: 14px;
+  padding: 16px;
   background: linear-gradient(180deg, #ffece2 0%, #f4cfc5 100%);
   box-shadow:
     inset 0 0 0 2px #fff5ef,
@@ -467,8 +466,10 @@
     0 10px 0 rgba(89, 56, 53, 0.35);
 }
 
-.game-overlay-panel--narrow {
-  width: min(380px, 100%);
+.game-system-modal {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 10px;
 }
 
 .game-overlay-header {
@@ -484,7 +485,7 @@
 }
 
 .game-overlay-close {
-  min-height: 34px;
+  min-height: 36px;
   border: 2px solid var(--game-shell-edge);
   border-radius: 8px;
   background: linear-gradient(180deg, #f9d6d2 0%, #efb5b1 100%);
@@ -492,9 +493,27 @@
     inset 0 1px 0 #ffece8,
     inset 0 -2px 0 #c17f76;
   color: var(--game-text);
-  padding: 4px 10px;
+  padding: 4px 12px;
   font-size: 12px;
   font-weight: 700;
+}
+
+.game-system-modal__header {
+  align-items: flex-start;
+}
+
+.game-system-modal__title-stack {
+  display: grid;
+  gap: 3px;
+}
+
+.game-system-modal__eyebrow {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #7c5650;
 }
 
 .game-overlay-subtitle {
@@ -507,27 +526,114 @@
   line-height: 1.4;
 }
 
-.game-overlay-list {
-  margin-top: 10px;
+.game-system-modal__subtitle {
+  margin-top: 0;
+}
+
+.game-system-modal__content {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.game-system-modal__content--settings {
+  display: block;
+}
+
+.game-system-modal__content--menu {
+  display: block;
+}
+
+.game-system-modal__content::-webkit-scrollbar,
+.game-overlay-list--scrollable::-webkit-scrollbar {
+  width: 10px;
+}
+
+.game-system-modal__content::-webkit-scrollbar-thumb,
+.game-overlay-list--scrollable::-webkit-scrollbar-thumb {
+  border: 2px solid #f9dfd5;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #efb5b1 0%, #d78682 100%);
+}
+
+.game-system-modal__content::-webkit-scrollbar-track,
+.game-overlay-list--scrollable::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(126, 86, 78, 0.12);
+}
+
+.game-system-modal__footer {
+  border: 3px solid var(--game-shell-edge);
+  border-radius: 10px;
+  padding: 9px;
+  background: linear-gradient(180deg, #ffdacc 0%, #f0beb2 100%);
+  box-shadow: inset 0 0 0 2px #ffece3;
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.game-overlay-list {
+  display: grid;
+  gap: 10px;
+}
+
+.game-overlay-list--scrollable {
+  min-height: 0;
 }
 
 .game-overlay-card,
 .game-shared-settings-entry {
-  border: 2px solid var(--game-shell-edge);
-  border-radius: 8px;
+  border: 3px solid var(--game-shell-edge);
+  border-radius: 10px;
   padding: 10px;
-  background: var(--game-panel-light);
+  background: linear-gradient(180deg, #ffe9de 0%, #f8d4ca 100%);
+  box-shadow:
+    inset 0 0 0 2px #fff6ef,
+    inset 0 -4px 0 rgba(126, 86, 78, 0.22);
+}
+
+.game-overlay-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.game-overlay-card__body {
+  display: grid;
+  gap: 6px;
+}
+
+.game-overlay-card h3,
+.game-overlay-card p {
+  margin: 0;
+}
+
+.game-overlay-card h3 {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.game-overlay-card p {
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .game-overlay-card__button {
-  width: 100%;
+  min-width: 88px;
   min-height: 40px;
-  border-radius: 8px;
-  border: 2px solid var(--game-shell-edge);
-  background: var(--game-panel-mid);
-  color: var(--game-text);
+  border-radius: 9px;
+  border: 2px solid #6f4a44;
+  background: linear-gradient(180deg, #ffd8de 0%, #ef9fb0 100%);
+  box-shadow:
+    inset 0 1px 0 #ffe7ec,
+    inset 0 -2px 0 rgba(97, 64, 57, 0.6);
+  color: #5e3340;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 12px;
 }
 
 .game-settings-layout {
@@ -589,17 +695,6 @@
   margin: 8px 0 0;
   font-size: 12px;
   line-height: 1.45;
-}
-
-.game-settings-footer {
-  border: 3px solid var(--game-shell-edge);
-  border-radius: 10px;
-  padding: 9px;
-  background: linear-gradient(180deg, #ffdacc 0%, #f0beb2 100%);
-  box-shadow: inset 0 0 0 2px #ffece3;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
 }
 
 .game-settings-action {
