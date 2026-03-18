@@ -27,7 +27,7 @@ const GameSettingsOverlay = ({ onClose, onSwitchToPhoneMode, onOpenSharedSetting
         </>
       }
     >
-      <div className="game-settings-layout">
+      <div className="game-system-modal__content-shell game-settings-layout">
         <section className="game-settings-section" aria-label="游戏侧设置">
           <p className="game-settings-section__title">游戏侧设置（占位）</p>
           <div className="game-settings-placeholder-list">

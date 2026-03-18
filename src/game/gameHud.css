@@ -456,14 +456,19 @@
 }
 
 .game-overlay-panel {
-  width: min(420px, 100%);
+  width: min(448px, calc(100vw - 24px));
+  min-height: min(560px, calc(100vh - 32px));
   max-height: min(78vh, 700px);
   padding: 16px;
-  background: linear-gradient(180deg, #ffece2 0%, #f4cfc5 100%);
+  border: 3px solid #714842;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff1e8 0%, #f6d4ca 100%);
   box-shadow:
-    inset 0 0 0 2px #fff5ef,
-    inset 0 -6px 0 rgba(126, 86, 78, 0.42),
-    0 10px 0 rgba(89, 56, 53, 0.35);
+    inset 0 0 0 2px #fff7f2,
+    inset 0 0 0 6px rgba(255, 227, 214, 0.72),
+    inset 0 -7px 0 rgba(126, 86, 78, 0.4),
+    0 12px 0 rgba(89, 56, 53, 0.35),
+    0 16px 32px rgba(56, 33, 30, 0.18);
 }
 
 .game-system-modal {
@@ -534,14 +539,18 @@
   min-height: 0;
   overflow-y: auto;
   padding-right: 3px;
+  overscroll-behavior: contain;
 }
 
-.game-system-modal__content--settings {
-  display: block;
-}
-
+.game-system-modal__content--settings,
 .game-system-modal__content--menu {
   display: block;
+}
+
+.game-system-modal__content-shell {
+  display: grid;
+  gap: 10px;
+  padding: 2px 3px 2px 0;
 }
 
 .game-system-modal__content::-webkit-scrollbar,
@@ -600,6 +609,13 @@
   align-items: center;
 }
 
+.game-overlay-card--menu {
+  background: linear-gradient(180deg, #fff0e5 0%, #f7d1c5 100%);
+  box-shadow:
+    inset 0 0 0 2px #fff8f2,
+    inset 0 -4px 0 rgba(126, 86, 78, 0.26);
+}
+
 .game-overlay-card__body {
   display: grid;
   gap: 6px;
@@ -624,16 +640,6 @@
 .game-overlay-card__button {
   min-width: 88px;
   min-height: 40px;
-  border-radius: 9px;
-  border: 2px solid #6f4a44;
-  background: linear-gradient(180deg, #ffd8de 0%, #ef9fb0 100%);
-  box-shadow:
-    inset 0 1px 0 #ffe7ec,
-    inset 0 -2px 0 rgba(97, 64, 57, 0.6);
-  color: #5e3340;
-  font-size: 12px;
-  font-weight: 800;
-  padding: 7px 12px;
 }
 
 .game-settings-layout {
@@ -697,7 +703,8 @@
   line-height: 1.45;
 }
 
-.game-settings-action {
+.game-settings-action,
+.game-overlay-card__button {
   min-height: 40px;
   border: 2px solid #6f4a44;
   border-radius: 9px;
@@ -714,9 +721,24 @@
   background: linear-gradient(180deg, #f8ddd4 0%, #edb8af 100%);
 }
 
-.game-settings-action--primary {
+.game-settings-action--primary,
+.game-overlay-card__button {
   background: linear-gradient(180deg, #ffd7dd 0%, #f09aae 100%);
   color: #5d303c;
+}
+
+.game-menu-section__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.game-menu-section__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6e4d48;
 }
 
 .game-feature-shell-backdrop {
@@ -792,6 +814,8 @@
   }
 
   .game-overlay-panel {
+    width: min(448px, calc(100vw - 16px));
+    min-height: min(520px, calc(100vh - 16px));
     max-height: min(82vh, 700px);
     padding: 12px;
   }

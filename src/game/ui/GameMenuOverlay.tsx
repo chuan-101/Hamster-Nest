@@ -29,18 +29,25 @@ const GameMenuOverlay = ({ onClose, onOpenFeature }: GameMenuOverlayProps) => {
       onClose={onClose}
       contentClassName="game-system-modal__content--menu"
     >
-      <div className="game-overlay-list game-overlay-list--scrollable">
-        {GAME_MENU_ENTRIES.map((entry) => (
-          <article key={entry.id} className="game-overlay-card">
-            <div className="game-overlay-card__body">
-              <h3>{entry.title}</h3>
-              <p>{entry.description}</p>
-            </div>
-            <button type="button" className="game-overlay-card__button" onClick={() => onOpenFeature(entry.id)}>
-              打开
-            </button>
-          </article>
-        ))}
+      <div className="game-system-modal__content-shell">
+        <section className="game-settings-section" aria-label="游戏菜单入口">
+          <p className="game-menu-section__title">系统功能入口</p>
+          <p className="game-menu-section__hint">与游戏设置共享同一系统弹窗外壳，保留稳定尺寸，并在内容较多时于内部滚动。</p>
+        </section>
+
+        <div className="game-overlay-list game-overlay-list--scrollable">
+          {GAME_MENU_ENTRIES.map((entry) => (
+            <article key={entry.id} className="game-overlay-card game-overlay-card--menu">
+              <div className="game-overlay-card__body">
+                <h3>{entry.title}</h3>
+                <p>{entry.description}</p>
+              </div>
+              <button type="button" className="game-overlay-card__button" onClick={() => onOpenFeature(entry.id)}>
+                打开
+              </button>
+            </article>
+          ))}
+        </div>
       </div>
     </GameSystemModal>
   )
