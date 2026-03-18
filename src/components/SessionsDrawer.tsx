@@ -5,6 +5,7 @@ import './SessionsDrawer.css'
 
 export type SessionsDrawerProps = {
   open: boolean
+  theme?: 'ios' | 'pixel'
   sessions: ChatSession[]
   messageCounts: Record<string, number>
   activeSessionId?: string
@@ -121,6 +122,7 @@ const SessionsDrawer = ({
   onRenameSession,
   onDeleteSession,
   onArchiveSession,
+  theme = 'ios',
 }: SessionsDrawerProps) => {
   const [search, setSearch] = useState('')
   const [archiveView, setArchiveView] = useState<'active' | 'archived'>('active')
@@ -198,8 +200,8 @@ const SessionsDrawer = ({
 
   return (
     <>
-      <div className={`drawer-scrim ${open ? 'open' : ''}`} onClick={onClose} />
-      <aside className={`sessions-drawer ${open ? 'open' : ''}`}>
+      <div className={`drawer-scrim drawer-scrim--${theme} ${open ? 'open' : ''}`} onClick={onClose} />
+      <aside className={`sessions-drawer sessions-drawer--${theme} ${open ? 'open' : ''}`}>
         <div className="sessions-drawer-content">
           <div className="drawer-header">
             <h2 className="ui-title">会话</h2>
