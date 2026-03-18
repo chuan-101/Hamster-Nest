@@ -8,6 +8,19 @@ const SYZYGY_KEY = 'syzygy1'
 export class HomeScene extends Phaser.Scene {
   private syzygySprite?: Phaser.GameObjects.Image
 
+  private getSpriteScreenAnchor(sprite: Phaser.GameObjects.Image) {
+    const bounds = sprite.getBounds()
+    const canvas = this.game.canvas
+    const canvasRect = canvas.getBoundingClientRect()
+    const scaleX = canvasRect.width / this.scale.width
+    const scaleY = canvasRect.height / this.scale.height
+
+    return {
+      x: canvasRect.left + bounds.right * scaleX,
+      y: canvasRect.top + (bounds.top + bounds.height * 0.45) * scaleY,
+    }
+  }
+
   constructor() {
     super('HomeScene')
   }
@@ -53,13 +66,9 @@ export class HomeScene extends Phaser.Scene {
         return
       }
 
-      const bounds = this.syzygySprite.getBounds()
       EventBus.emit(GAME_EVENTS.OPEN_NPC_ACTIONS, {
         npcId: 'syzygy',
-        anchor: {
-          x: bounds.right,
-          y: bounds.top + bounds.height * 0.45,
-        },
+        anchor: this.getSpriteScreenAnchor(this.syzygySprite),
       })
     })
   }
