@@ -38,8 +38,7 @@
   padding: clamp(10px, 2vw, 18px);
   border: 4px solid var(--game-shell-edge);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, #eec9bf 0%, #d7ada4 100%);
+  background: linear-gradient(180deg, #eec9bf 0%, #d7ada4 100%);
   box-shadow:
     inset 0 0 0 3px var(--game-shell-light),
     inset 0 -6px 0 var(--game-shell-shadow),
@@ -52,7 +51,6 @@
 .game-top-bar,
 .game-bottom-bar,
 .game-viewport-shell,
-.game-paw-menu-panel,
 .game-overlay-panel,
 .game-feature-shell {
   border: 3px solid var(--game-shell-edge);
@@ -85,7 +83,9 @@
   place-items: center;
 }
 
-.game-avatar-chip__emoji { font-size: clamp(26px, 4vw, 34px); }
+.game-avatar-chip__emoji {
+  font-size: clamp(26px, 4vw, 34px);
+}
 
 .game-player-panel {
   border: 3px solid var(--game-shell-edge);
@@ -288,25 +288,55 @@
   border: 2px solid #68433d;
   border-radius: 6px;
   background: linear-gradient(180deg, #f6cec8 0%, #e7a9a6 100%);
-  box-shadow: inset 0 2px 0 #fce5e2, inset 0 -2px 0 #bf7d76;
+  box-shadow:
+    inset 0 2px 0 #fce5e2,
+    inset 0 -2px 0 #bf7d76;
   display: grid;
   place-items: center;
   padding: 0;
 }
 
-.game-dpad-button[disabled] { opacity: 1; }
+.game-dpad-button[disabled] {
+  opacity: 1;
+}
 
-.game-dpad-button__arrow { width: 0; height: 0; border-style: solid; }
-.game-dpad-button__arrow--up { border-width: 0 7px 10px; border-color: transparent transparent #6d4c45 transparent; }
-.game-dpad-button__arrow--down { border-width: 10px 7px 0; border-color: #6d4c45 transparent transparent transparent; }
-.game-dpad-button__arrow--left { border-width: 7px 10px 7px 0; border-color: transparent #6d4c45 transparent transparent; }
-.game-dpad-button__arrow--right { border-width: 7px 0 7px 10px; border-color: transparent transparent transparent #6d4c45; }
+.game-dpad-button__arrow {
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+.game-dpad-button__arrow--up {
+  border-width: 0 7px 10px;
+  border-color: transparent transparent #6d4c45 transparent;
+}
+.game-dpad-button__arrow--down {
+  border-width: 10px 7px 0;
+  border-color: #6d4c45 transparent transparent transparent;
+}
+.game-dpad-button__arrow--left {
+  border-width: 7px 10px 7px 0;
+  border-color: transparent #6d4c45 transparent transparent;
+}
+.game-dpad-button__arrow--right {
+  border-width: 7px 0 7px 10px;
+  border-color: transparent transparent transparent #6d4c45;
+}
 
-.game-dpad-button--up { grid-area: 1 / 2; }
-.game-dpad-button--left { grid-area: 2 / 1; }
-.game-dpad-button--center { grid-area: 2 / 2; }
-.game-dpad-button--right { grid-area: 2 / 3; }
-.game-dpad-button--down { grid-area: 3 / 2; }
+.game-dpad-button--up {
+  grid-area: 1 / 2;
+}
+.game-dpad-button--left {
+  grid-area: 2 / 1;
+}
+.game-dpad-button--center {
+  grid-area: 2 / 2;
+}
+.game-dpad-button--right {
+  grid-area: 2 / 3;
+}
+.game-dpad-button--down {
+  grid-area: 3 / 2;
+}
 
 .game-bottom-controls {
   display: flex;
@@ -326,7 +356,9 @@
   border: 3px solid #724b44;
   border-radius: 14px;
   background: linear-gradient(180deg, #ffd8de 0%, #ef9fb0 100%);
-  box-shadow: inset 0 2px 0 #ffeef1, inset 0 -2px 0 #c56d81;
+  box-shadow:
+    inset 0 2px 0 #ffeef1,
+    inset 0 -2px 0 #c56d81;
   color: #6c3f4b;
   font-size: clamp(22px, 3vw, 26px);
   padding: 0;
@@ -335,7 +367,6 @@
 .game-control-button--paw {
   width: clamp(66px, 9vw, 76px);
 }
-
 
 .npc-actions-layer {
   position: fixed;
@@ -353,7 +384,10 @@
   border: 3px solid var(--game-shell-edge);
   border-radius: 12px;
   background: linear-gradient(180deg, #ffeade 0%, #f3c7b8 100%);
-  box-shadow: inset 0 0 0 2px #fff4ec, inset 0 -4px 0 rgba(117, 75, 68, 0.35), 0 6px 0 rgba(89, 56, 53, 0.25);
+  box-shadow:
+    inset 0 0 0 2px #fff4ec,
+    inset 0 -4px 0 rgba(117, 75, 68, 0.35),
+    0 6px 0 rgba(89, 56, 53, 0.25);
   pointer-events: auto;
 }
 
@@ -361,7 +395,9 @@
   min-height: 40px;
   border: 2px solid #6f4a44;
   border-radius: 10px;
-  box-shadow: inset 0 1px 0 #ffe9df, inset 0 -2px 0 rgba(97, 64, 57, 0.5);
+  box-shadow:
+    inset 0 1px 0 #ffe9df,
+    inset 0 -2px 0 rgba(97, 64, 57, 0.5);
   color: var(--game-text);
   font-size: 13px;
   font-weight: 700;
@@ -383,26 +419,15 @@
   opacity: 0.88;
 }
 
-.game-paw-menu-backdrop {
+.game-overlay-backdrop {
   position: absolute;
   inset: 0;
   z-index: 25;
-  pointer-events: none;
-}
-
-.game-paw-menu-panel {
-  position: absolute;
-  right: 10px;
-  bottom: 94px;
-  width: min(270px, calc(100% - 20px));
-  padding: 10px;
-  display: grid;
-  gap: 8px;
-  border: 3px solid var(--game-shell-edge);
-  border-radius: 12px;
-  background: linear-gradient(180deg, #ffe9dd 0%, #f3c9ba 100%);
-  box-shadow: inset 0 0 0 2px #fff4ed, inset 0 -5px 0 rgba(117, 75, 68, 0.35), 0 6px 0 rgba(89, 56, 53, 0.28);
-  pointer-events: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: clamp(12px, 2.8vw, 24px);
+  background: rgba(33, 23, 23, 0.24);
 }
 
 .game-paw-menu-item {
@@ -410,14 +435,15 @@
   border: 2px solid var(--game-shell-edge);
   border-radius: 10px;
   background: linear-gradient(180deg, #ffe0d8 0%, #f5bfb0 100%);
-  box-shadow: inset 0 1px 0 #fff0e9, inset 0 -2px 0 rgba(113, 72, 66, 0.45);
+  box-shadow:
+    inset 0 1px 0 #fff0e9,
+    inset 0 -2px 0 rgba(113, 72, 66, 0.45);
   color: var(--game-text);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
-.game-overlay-backdrop,
 .game-feature-shell-backdrop {
   position: fixed;
   inset: 0;
@@ -441,7 +467,9 @@
     0 10px 0 rgba(89, 56, 53, 0.35);
 }
 
-.game-overlay-panel--narrow { width: min(380px, 100%); }
+.game-overlay-panel--narrow {
+  width: min(380px, 100%);
+}
 
 .game-overlay-header {
   display: flex;
@@ -460,7 +488,9 @@
   border: 2px solid var(--game-shell-edge);
   border-radius: 8px;
   background: linear-gradient(180deg, #f9d6d2 0%, #efb5b1 100%);
-  box-shadow: inset 0 1px 0 #ffece8, inset 0 -2px 0 #c17f76;
+  box-shadow:
+    inset 0 1px 0 #ffece8,
+    inset 0 -2px 0 #c17f76;
   color: var(--game-text);
   padding: 4px 10px;
   font-size: 12px;
@@ -576,7 +606,9 @@
   min-height: 40px;
   border: 2px solid #6f4a44;
   border-radius: 9px;
-  box-shadow: inset 0 1px 0 #ffe7e0, inset 0 -2px 0 rgba(97, 64, 57, 0.6);
+  box-shadow:
+    inset 0 1px 0 #ffe7e0,
+    inset 0 -2px 0 rgba(97, 64, 57, 0.6);
   color: var(--game-text);
   font-size: 12px;
   font-weight: 800;
@@ -591,7 +623,6 @@
   background: linear-gradient(180deg, #ffd7dd 0%, #f09aae 100%);
   color: #5d303c;
 }
-
 
 .game-feature-shell-backdrop {
   align-items: stretch;
@@ -651,11 +682,6 @@
   .game-control-button {
     min-width: 56px;
     min-height: 46px;
-  }
-
-  .game-paw-menu-panel {
-    right: 8px;
-    bottom: 88px;
   }
 
   .npc-actions-menu {
