@@ -7,6 +7,12 @@
   gap: 16px;
 }
 
+.export-page.game-feature-page {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 .export-header {
   display: flex;
   align-items: center;
@@ -31,6 +37,23 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.export-page.game-feature-page .export-package-card {
+  border: 2px solid #8c665e;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 242, 0.96) 0%, rgba(248, 222, 213, 0.96) 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 251, 248, 0.9),
+    inset 0 -5px 0 rgba(126, 86, 78, 0.16);
+}
+
+.export-page.game-feature-page .export-subsection {
+  padding: 12px;
+  border: 2px solid #c99a90;
+  border-radius: 16px;
+  background: rgba(255, 250, 247, 0.9);
 }
 
 .export-package-card h2 {

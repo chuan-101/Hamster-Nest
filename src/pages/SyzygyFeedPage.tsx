@@ -710,17 +710,26 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
         </main>
       ) : (
         <>
-          <section className="profile-header-card" aria-label="Syzygy主页头部">
-            <div className="profile-cover-banner" />
-            <div className="profile-avatar-surrogate" aria-hidden="true">
-              <span className="profile-avatar-letter">S</span>
-              <span className="profile-avatar-accent">❤</span>
-            </div>
-            <div className="profile-meta">
-              <h2 className="profile-title">Syzygy的观察日志</h2>
-              <p className="profile-bio">专属于某只小仓鼠的饲养记录</p>
-            </div>
-          </section>
+          {entryMode === 'phone' ? (
+            <section className="profile-header-card" aria-label="Syzygy主页头部">
+              <div className="profile-cover-banner" />
+              <div className="profile-avatar-surrogate" aria-hidden="true">
+                <span className="profile-avatar-letter">S</span>
+                <span className="profile-avatar-accent">❤</span>
+              </div>
+              <div className="profile-meta">
+                <h2 className="profile-title">Syzygy的观察日志</h2>
+                <p className="profile-bio">专属于某只小仓鼠的饲养记录</p>
+              </div>
+            </section>
+          ) : (
+            <section className="profile-header-card" aria-label="仓鼠观察日志功能说明">
+              <div className="profile-meta">
+                <h2 className="profile-title">观察记录站</h2>
+                <p className="profile-bio">集中发布日志、生成动态，并在同一面板中查看全部回复。</p>
+              </div>
+            </section>
+          )}
 
           <section className="snacks-composer">
             <textarea
