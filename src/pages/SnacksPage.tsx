@@ -573,27 +573,25 @@ const SnacksPage = ({ user, snackAiConfig, entryMode = 'phone' }: SnacksPageProp
   }
 
   return (
-    <div className={`snacks-page app-shell__content ${entryMode === 'game' ? 'game-feature-page' : ''}`}>
-      <header className="snacks-header">
-        {entryMode === 'phone' ? (
+    <div className={entryMode === 'game' ? 'snacks-page game-feature-page' : 'snacks-page app-shell__content'}>
+      {entryMode === 'game' ? null : (
+        <header className="snacks-header">
           <button type="button" className="ghost" onClick={() => navigate('/')}>
             返回聊天
           </button>
-        ) : (
-          <span className="snacks-header-spacer" aria-hidden="true" />
-        )}
-        <h1 className="ui-title">{showTrash ? '零食回收站' : '零食罐罐区'}</h1>
-        <button
-          type="button"
-          className="ghost compact-action"
-          onClick={() => {
-            setShowTrash((current) => !current)
-            setNotice(null)
-          }}
-        >
-          {showTrash ? '返回列表' : '回收站'}
-        </button>
-      </header>
+          <h1 className="ui-title">{showTrash ? '零食回收站' : '零食罐罐区'}</h1>
+          <button
+            type="button"
+            className="ghost compact-action"
+            onClick={() => {
+              setShowTrash((current) => !current)
+              setNotice(null)
+            }}
+          >
+            {showTrash ? '返回列表' : '回收站'}
+          </button>
+        </header>
+      )}
 
       {error ? <p className="error">{error}</p> : null}
       {notice ? <p className="tips">{notice}</p> : null}

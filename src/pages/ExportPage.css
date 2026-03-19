@@ -8,9 +8,11 @@
 }
 
 .export-page.game-feature-page {
+  min-height: 0;
   width: 100%;
   margin: 0;
   padding: 0;
+  overflow: visible;
 }
 
 .export-header {

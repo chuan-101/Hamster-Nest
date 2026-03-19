@@ -10,10 +10,11 @@
 }
 
 .checkin-page.game-feature-page {
-  min-height: 100%;
+  min-height: 0;
   width: 100%;
   margin: 0;
   padding: 0;
+  overflow: visible;
 }
 
 .checkin-page-header {
