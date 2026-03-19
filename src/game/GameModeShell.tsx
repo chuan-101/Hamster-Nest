@@ -433,7 +433,6 @@ const GameModeShell = ({
             segments={[playerBubbleText]}
             anchorX={playerPos.x}
             anchorY={playerPos.y}
-            onDismiss={handleBubbleDismiss}
             variant="player"
           />
         ) : null}
@@ -443,7 +442,6 @@ const GameModeShell = ({
             segments={bubbleSegments}
             anchorX={syzygyPos.x}
             anchorY={syzygyPos.y}
-            onDismiss={handleBubbleDismiss}
             variant="npc"
           />
         ) : null}

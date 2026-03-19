@@ -4,7 +4,6 @@ type SpeechBubbleOverlayProps = {
   segments: string[]
   anchorX: number
   anchorY: number
-  onDismiss: () => void
   variant?: 'npc' | 'player'
 }
 
@@ -81,7 +80,6 @@ const SpeechBubbleOverlay = ({
   segments,
   anchorX,
   anchorY,
-  onDismiss,
   variant = 'npc',
 }: SpeechBubbleOverlayProps) => {
   const sequenceKey = useMemo(() => segments.join('\n'), [segments])
