@@ -18,21 +18,28 @@
     radial-gradient(circle at 12% 0%, #e7c9bf 0%, transparent 32%),
     radial-gradient(circle at 90% 12%, #f3ddd5 0%, transparent 30%),
     var(--game-shell-base);
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .game-mode-container {
   position: relative;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   padding: clamp(10px, 2.2vw, 20px);
   color: var(--game-text);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .game-hud-layout {
   position: relative;
   z-index: 12;
   height: 100%;
+  width: 100%;
   max-width: 960px;
   margin: 0 auto;
   padding: clamp(10px, 2vw, 18px);
@@ -46,6 +53,8 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: clamp(10px, 1.8vw, 16px);
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .game-top-bar,
@@ -65,12 +74,14 @@
   display: grid;
   gap: 10px;
   background: linear-gradient(180deg, #ffeade 0%, #f6d8ca 100%);
+  min-width: 0;
 }
 
 .game-top-bar__main-grid {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(88px, auto);
+  grid-template-columns: auto minmax(0, 1fr) minmax(68px, auto);
   gap: 9px;
+  min-width: 0;
 }
 
 .game-avatar-chip {
@@ -267,6 +278,7 @@
   justify-content: space-between;
   gap: 14px;
   background: linear-gradient(180deg, #f7dace 0%, #efc7bd 100%);
+  min-width: 0;
 }
 
 .game-direction-pad {
@@ -348,6 +360,7 @@
   border: 3px solid var(--game-shell-edge);
   border-radius: 12px;
   background: linear-gradient(180deg, #ffe5d9 0%, #f7c8bf 100%);
+  flex-shrink: 0;
 }
 
 .game-bubble-input-bar {
@@ -945,6 +958,11 @@
     border-radius: 20px;
     padding: 10px;
     gap: 9px;
+    border-width: 3px;
+  }
+
+  .game-top-bar {
+    padding: 8px;
   }
 
   .game-top-bar__main-grid {
@@ -959,6 +977,11 @@
   .game-status-label {
     min-width: 52px;
     font-size: 10px;
+  }
+
+  .game-top-bar__status-row {
+    gap: 6px;
+    padding: 5px 7px;
   }
 
   .game-bottom-bar {
@@ -1049,6 +1072,153 @@
 
   .game-feature-shell__body {
     padding: 9px;
+  }
+}
+
+@media (max-width: 480px) {
+  .game-mode-container {
+    padding: 5px;
+  }
+
+  .game-hud-layout {
+    border-radius: 16px;
+    padding: 7px;
+    gap: 7px;
+    border-width: 3px;
+  }
+
+  .game-top-bar {
+    padding: 6px;
+    gap: 6px;
+    border-radius: 10px;
+  }
+
+  .game-top-bar__main-grid {
+    grid-template-columns: 44px minmax(0, 1fr) 68px;
+    gap: 5px;
+  }
+
+  .game-avatar-chip {
+    width: 44px;
+    border-radius: 8px;
+  }
+
+  .game-avatar-chip__emoji {
+    font-size: 22px;
+  }
+
+  .game-player-panel {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .game-player-panel__label-row {
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .game-clock-stack {
+    gap: 3px;
+  }
+
+  .game-chip {
+    font-size: 10px;
+    min-height: 20px;
+    padding: 0 4px;
+  }
+
+  .game-clock {
+    min-height: 28px;
+    font-size: 11px;
+  }
+
+  .game-chip--date {
+    font-size: 9px;
+  }
+
+  .game-top-bar__status-row {
+    gap: 5px;
+    padding: 4px 6px;
+    border-radius: 7px;
+  }
+
+  .game-status-label {
+    min-width: 44px;
+    font-size: 9px;
+  }
+
+  .game-progress-track {
+    height: 16px;
+  }
+
+  .game-progress-track__label {
+    font-size: 9px;
+  }
+
+  .game-viewport-shell {
+    padding: clamp(5px, 1.2vw, 8px);
+    border-radius: 14px;
+  }
+
+  .game-canvas-container {
+    min-height: 160px;
+  }
+
+  .game-bottom-bar {
+    gap: 6px;
+    padding: 6px;
+    flex-wrap: wrap;
+    border-radius: 10px;
+  }
+
+  .game-direction-pad {
+    width: 82px;
+    height: 82px;
+    gap: 3px;
+    padding: 5px;
+    border-radius: 10px;
+  }
+
+  .game-bubble-input-bar {
+    gap: 4px;
+    padding: 5px;
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .game-bottom-controls {
+    gap: 5px;
+    padding: 5px;
+    border-radius: 10px;
+  }
+
+  .game-control-button {
+    width: clamp(44px, 11vw, 56px);
+    height: clamp(38px, 9vw, 46px);
+    min-width: unset;
+    min-height: unset;
+    border-radius: 10px;
+    font-size: clamp(18px, 4.5vw, 22px);
+  }
+
+  .game-control-button--paw {
+    width: clamp(50px, 12vw, 62px);
+  }
+
+  .game-overlay-panel {
+    width: calc(100vw - 12px);
+    min-height: min(480px, calc(100vh - 12px));
+    padding: 10px;
+  }
+
+  .game-feature-shell-backdrop {
+    padding: 4px;
+  }
+
+  .game-feature-shell {
+    max-width: calc(100vw - 8px);
+    max-height: calc(100vh - 8px);
+    padding: 8px;
   }
 }
 
