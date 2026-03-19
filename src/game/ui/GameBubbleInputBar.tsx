@@ -2,10 +2,11 @@ import { useState, type FormEvent, type KeyboardEvent } from 'react'
 
 type GameBubbleInputBarProps = {
   onSend: (text: string) => void
+  onOpenHistory: () => void
   disabled?: boolean
 }
 
-const GameBubbleInputBar = ({ onSend, disabled }: GameBubbleInputBarProps) => {
+const GameBubbleInputBar = ({ onSend, onOpenHistory, disabled }: GameBubbleInputBarProps) => {
   const [draft, setDraft] = useState('')
 
   const submit = () => {
@@ -42,7 +43,7 @@ const GameBubbleInputBar = ({ onSend, disabled }: GameBubbleInputBarProps) => {
         type="button"
         className="game-bubble-input-bar__history-button"
         aria-label="聊天历史记录"
-        disabled
+        onClick={onOpenHistory}
       >
         🕐
       </button>

@@ -1154,6 +1154,99 @@
   }
 }
 
+/* ── Bubble chat history modal ── */
+
+.game-system-modal__content--history {
+  display: block;
+}
+
+.bubble-history-empty {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  padding: 40px 16px;
+  text-align: center;
+}
+
+.bubble-history-empty__icon {
+  margin: 0;
+  font-size: 32px;
+}
+
+.bubble-history-empty__text {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--game-text);
+}
+
+.bubble-history-empty__hint {
+  margin: 0;
+  font-size: 12px;
+  color: #8a6860;
+  line-height: 1.4;
+}
+
+.bubble-history-list {
+  display: grid;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.bubble-history-entry {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  padding: 10px 12px;
+  border: 2px solid #9a7067;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fff0e8 0%, #f8d8ce 100%);
+  box-shadow: inset 0 0 0 1px #fff6ef;
+}
+
+.bubble-history-entry--assistant {
+  background: linear-gradient(180deg, #fde4e6 0%, #f5c8cc 100%);
+  border-color: #b07a7e;
+}
+
+.bubble-history-entry__role {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #7c5650;
+}
+
+.bubble-history-entry--assistant .bubble-history-entry__role {
+  color: #8a4e5a;
+}
+
+.bubble-history-entry__time {
+  font-size: 10px;
+  font-weight: 600;
+  color: #a08078;
+  text-align: right;
+}
+
+.bubble-history-entry__content {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--game-text);
+  word-break: break-word;
+}
+
+@media (max-width: 760px) {
+  .bubble-history-entry {
+    padding: 8px 10px;
+  }
+
+  .bubble-history-entry__content {
+    font-size: 12px;
+  }
+}
+
 @media (max-width: 760px) {
   .game-bubble-input-bar__send-button {
     width: 32px;

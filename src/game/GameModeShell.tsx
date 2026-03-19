@@ -19,6 +19,8 @@ import CheckinPage from "../pages/CheckinPage";
 import ExportPage from "../pages/ExportPage";
 import { supabase } from "../supabase/client";
 import { parseBubbleReply } from "./utils/parseBubbleReply";
+import { appendEntry } from "./utils/bubbleChatHistory";
+import BubbleChatHistoryModal from "./ui/BubbleChatHistoryModal";
 import "./gameHud.css";
 
 type SharedSnackAiConfig = {
@@ -96,6 +98,7 @@ const GameModeShell = ({
   });
 
   // Bubble chat state
+  const [isBubbleHistoryOpen, setIsBubbleHistoryOpen] = useState(false);
   const [bubbleSending, setBubbleSending] = useState(false);
   const [bubbleSegments, setBubbleSegments] = useState<string[]>([]);
   const [syzygyPos, setSyzygyPos] = useState<SyzygyPositionPayload | null>(null);
@@ -146,6 +149,7 @@ const GameModeShell = ({
         ...bubbleChatHistoryRef.current.slice(-10),
         { role: 'user' as const, content: text },
       ];
+      appendEntry('user', text);
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`,
@@ -186,6 +190,7 @@ const GameModeShell = ({
           ...bubbleChatHistoryRef.current,
           { role: 'assistant' as const, content },
         ];
+        appendEntry('assistant', content);
         const segments = parseBubbleReply(content);
         if (segments.length > 0) {
           setBubbleSegments(segments);
@@ -331,6 +336,7 @@ const GameModeShell = ({
           onOpenPawMenu={() => setIsPawMenuOpen((open) => !open)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onBubbleSend={handleBubbleSend}
+          onOpenBubbleHistory={() => setIsBubbleHistoryOpen(true)}
           bubbleSending={bubbleSending}
         />
 
@@ -389,6 +395,12 @@ const GameModeShell = ({
             onClose={() => setIsSettingsOpen(false)}
             onSwitchToPhoneMode={onSwitchToPhoneMode}
             onOpenSharedSettings={onOpenSharedSettings}
+          />
+        ) : null}
+
+        {isBubbleHistoryOpen ? (
+          <BubbleChatHistoryModal
+            onClose={() => setIsBubbleHistoryOpen(false)}
           />
         ) : null}
 
