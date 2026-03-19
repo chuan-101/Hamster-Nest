@@ -9,10 +9,12 @@ import {
   DEFAULT_SYZYGY_POST_PROMPT,
   DEFAULT_SYZYGY_REPLY_PROMPT,
   DEFAULT_LETTER_REPLY_PROMPT,
+  DEFAULT_BUBBLE_CHAT_PROMPT,
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
   resolveSyzygyReplyPrompt,
   resolveLetterReplyPrompt,
+  resolveBubbleChatPrompt,
 } from '../constants/aiOverlays'
 import './SettingsPage.css'
 
@@ -32,6 +34,12 @@ type SettingsPageProps = {
   onSaveSyzygyPostPrompt: (value: string) => Promise<void>
   onSaveSyzygyReplyPrompt: (value: string) => Promise<void>
   onSaveLetterReplyPrompt: (value: string) => Promise<void>
+  onSaveBubbleChatSettings: (values: {
+    bubbleChatModel: string | null
+    bubbleChatSystemPrompt: string
+    bubbleChatMaxTokens: number
+    bubbleChatTemperature: number
+  }) => Promise<void>
   displayMode: 'phone' | 'game'
   onDisplayModeChange: (mode: 'phone' | 'game') => void
 }
@@ -48,6 +56,7 @@ const SettingsPage = ({
   onSaveSyzygyPostPrompt,
   onSaveSyzygyReplyPrompt,
   onSaveLetterReplyPrompt,
+  onSaveBubbleChatSettings,
   displayMode,
   onDisplayModeChange,
 }: SettingsPageProps) => {
@@ -98,6 +107,12 @@ const SettingsPage = ({
   const [snackSectionExpanded, setSnackSectionExpanded] = useState(false)
   const [syzygySectionExpanded, setSyzygySectionExpanded] = useState(false)
   const [letterSectionExpanded, setLetterSectionExpanded] = useState(false)
+  const [bubbleChatSectionExpanded, setBubbleChatSectionExpanded] = useState(false)
+  const [draftBubbleChatModel, setDraftBubbleChatModel] = useState<string | null>(null)
+  const [draftBubbleChatPrompt, setDraftBubbleChatPrompt] = useState(DEFAULT_BUBBLE_CHAT_PROMPT)
+  const [draftBubbleChatMaxTokensInput, setDraftBubbleChatMaxTokensInput] = useState('200')
+  const [draftBubbleChatTemperatureInput, setDraftBubbleChatTemperatureInput] = useState('0.8')
+  const [bubbleChatStatus, setBubbleChatStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string; compressionRatio?: string; compressionKeepRecent?: string }>(
     {},
   )
@@ -171,6 +186,10 @@ const SettingsPage = ({
       setDraftSyzygyPostPrompt(resolveSyzygyPostPrompt(settings.syzygyPostSystemPrompt))
       setDraftSyzygyReplyPrompt(resolveSyzygyReplyPrompt(settings.syzygyReplySystemPrompt))
       setDraftLetterReplyPrompt(resolveLetterReplyPrompt(settings.letterReplySystemPrompt))
+      setDraftBubbleChatModel(settings.bubbleChatModel)
+      setDraftBubbleChatPrompt(resolveBubbleChatPrompt(settings.bubbleChatSystemPrompt))
+      setDraftBubbleChatMaxTokensInput(settings.bubbleChatMaxTokens.toString())
+      setDraftBubbleChatTemperatureInput(settings.bubbleChatTemperature.toString())
     }, 0)
     return () => {
       window.clearTimeout(timer)
@@ -320,6 +339,17 @@ const SettingsPage = ({
   const hasUnsavedLetterReplyPrompt = settings
     ? draftLetterReplyPrompt !== resolveLetterReplyPrompt(settings.letterReplySystemPrompt)
     : false
+  const parsedBubbleChatMaxTokens = Number.parseInt(draftBubbleChatMaxTokensInput, 10)
+  const parsedBubbleChatTemperature = Number(draftBubbleChatTemperatureInput)
+  const bubbleChatMaxTokensValid = !Number.isNaN(parsedBubbleChatMaxTokens) && parsedBubbleChatMaxTokens >= 32 && parsedBubbleChatMaxTokens <= 1000
+  const bubbleChatTemperatureValid = !Number.isNaN(parsedBubbleChatTemperature) && parsedBubbleChatTemperature >= 0 && parsedBubbleChatTemperature <= 2
+  const bubbleChatDraftValid = bubbleChatMaxTokensValid && bubbleChatTemperatureValid
+  const hasUnsavedBubbleChat = settings
+    ? (settings.bubbleChatModel ?? '') !== (draftBubbleChatModel ?? '') ||
+      resolveBubbleChatPrompt(settings.bubbleChatSystemPrompt) !== draftBubbleChatPrompt ||
+      settings.bubbleChatMaxTokens !== parsedBubbleChatMaxTokens ||
+      settings.bubbleChatTemperature !== parsedBubbleChatTemperature
+    : false
   const hasUnsavedExtractModel =
     (settings?.memoryExtractModel ?? '') !== (draftMemoryExtractModel ?? '')
   const hasUnsavedPrompt =
@@ -328,6 +358,7 @@ const SettingsPage = ({
     hasUnsavedSyzygyPostPrompt ||
     hasUnsavedSyzygyReplyPrompt ||
     hasUnsavedLetterReplyPrompt ||
+    hasUnsavedBubbleChat ||
     hasUnsavedExtractModel ||
     hasUnsavedModelSettings ||
     hasUnsavedGeneration
@@ -695,6 +726,30 @@ const SettingsPage = ({
     setLetterReplyStatus('idle')
   }
 
+  const handleSaveBubbleChatSettings = async () => {
+    if (!settings || !hasUnsavedBubbleChat || !bubbleChatDraftValid) {
+      return
+    }
+    setBubbleChatStatus('saving')
+    try {
+      await onSaveBubbleChatSettings({
+        bubbleChatModel: draftBubbleChatModel,
+        bubbleChatSystemPrompt: resolveBubbleChatPrompt(draftBubbleChatPrompt),
+        bubbleChatMaxTokens: parsedBubbleChatMaxTokens,
+        bubbleChatTemperature: parsedBubbleChatTemperature,
+      })
+      setBubbleChatStatus('saved')
+    } catch (error) {
+      console.warn('保存气泡聊天设置失败', error)
+      setBubbleChatStatus('error')
+    }
+  }
+
+  const handleResetBubbleChatPrompt = () => {
+    setDraftBubbleChatPrompt(DEFAULT_BUBBLE_CHAT_PROMPT)
+    setBubbleChatStatus('idle')
+  }
+
   const requestNavigation = (action: () => void) => {
     if (!hasUnsavedPrompt) {
       action()
@@ -735,6 +790,11 @@ const SettingsPage = ({
       setSyzygyPostStatus('idle')
       setSyzygyReplyStatus('idle')
       setLetterReplyStatus('idle')
+      setDraftBubbleChatModel(settings.bubbleChatModel)
+      setDraftBubbleChatPrompt(resolveBubbleChatPrompt(settings.bubbleChatSystemPrompt))
+      setDraftBubbleChatMaxTokensInput(settings.bubbleChatMaxTokens.toString())
+      setDraftBubbleChatTemperatureInput(settings.bubbleChatTemperature.toString())
+      setBubbleChatStatus('idle')
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
@@ -766,6 +826,9 @@ const SettingsPage = ({
     }
     if (hasUnsavedLetterReplyPrompt) {
       void handleSaveLetterReplyPrompt()
+    }
+    if (hasUnsavedBubbleChat) {
+      void handleSaveBubbleChatSettings()
     }
     setShowUnsavedPromptDialog(false)
     const pendingAction = pendingNavigationRef.current
@@ -1447,6 +1510,112 @@ const SettingsPage = ({
               </button>
               {hasUnsavedLetterReplyPrompt ? <span className="system-prompt-status">有未保存修改</span> : null}
               {letterReplyStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="settings-section" role="listitem">
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setBubbleChatSectionExpanded((current) => !current)}
+          aria-expanded={bubbleChatSectionExpanded}
+        >
+          <span className="section-title">
+            <span className="section-icon" aria-hidden="true">💬</span>
+            <h2 className="ui-title">气泡聊天（Game Mode）</h2>
+            <p>配置游戏模式中气泡聊天的模型、提示词与生成参数。</p>
+          </span>
+          <span className="collapse-indicator" aria-hidden="true">›</span>
+        </button>
+        {bubbleChatSectionExpanded ? (
+          <div className="accordion-content">
+            <div className="field-group">
+              <label htmlFor="bubbleChatModel">气泡聊天模型</label>
+              <select
+                id="bubbleChatModel"
+                value={draftBubbleChatModel ?? ''}
+                onChange={(event) => {
+                  const next = event.target.value.trim()
+                  setDraftBubbleChatModel(next.length > 0 ? next : null)
+                  setBubbleChatStatus('idle')
+                }}
+              >
+                <option value="">跟随默认模型（{draftDefaultModel}）</option>
+                {draftEnabledModels.map((modelId) => (
+                  <option key={modelId} value={modelId}>
+                    {catalogMap.get(modelId) ?? modelId}
+                  </option>
+                ))}
+              </select>
+              <p className="field-hint">未设置时使用全局默认模型。</p>
+            </div>
+
+            <div className="section-title nested-prompt-title">
+              <h2 className="ui-title">气泡聊天提示词</h2>
+              <p>控制气泡聊天中 Syzygy 的语气与风格，独立于完整聊天的系统提示词。</p>
+            </div>
+            <textarea
+              className="system-prompt"
+              value={draftBubbleChatPrompt}
+              onChange={(event) => {
+                setDraftBubbleChatPrompt(event.target.value)
+                if (bubbleChatStatus !== 'idle') {
+                  setBubbleChatStatus('idle')
+                }
+              }}
+            />
+
+            <div className="field-group">
+              <label htmlFor="bubbleChatTemperature">气泡聊天温度 (0 - 2)</label>
+              <input
+                id="bubbleChatTemperature"
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                value={draftBubbleChatTemperatureInput}
+                onChange={(event) => {
+                  setDraftBubbleChatTemperatureInput(event.target.value)
+                  setBubbleChatStatus('idle')
+                }}
+              />
+              {!bubbleChatTemperatureValid ? <span className="field-error">温度需在 0 到 2 之间</span> : null}
+            </div>
+
+            <div className="field-group">
+              <label htmlFor="bubbleChatMaxTokens">气泡聊天最大 tokens (32 - 1000)</label>
+              <input
+                id="bubbleChatMaxTokens"
+                type="number"
+                min="32"
+                max="1000"
+                step="1"
+                value={draftBubbleChatMaxTokensInput}
+                onChange={(event) => {
+                  setDraftBubbleChatMaxTokensInput(event.target.value)
+                  setBubbleChatStatus('idle')
+                }}
+              />
+              {!bubbleChatMaxTokensValid ? <span className="field-error">最大 token 需在 32 到 1000 之间</span> : null}
+            </div>
+
+            <div className="system-prompt-actions">
+              <button
+                type="button"
+                className="primary"
+                disabled={!hasUnsavedBubbleChat || !bubbleChatDraftValid || bubbleChatStatus === 'saving'}
+                onClick={() => void handleSaveBubbleChatSettings()}
+              >
+                {bubbleChatStatus === 'saving' ? '保存中…' : '保存'}
+              </button>
+              <button type="button" className="ghost" onClick={handleResetBubbleChatPrompt}>
+                恢复默认提示词
+              </button>
+              {hasUnsavedBubbleChat ? <span className="system-prompt-status">有未保存修改</span> : null}
+              {bubbleChatStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+              {bubbleChatStatus === 'error' ? <span className="field-error">保存失败，请稍后重试。</span> : null}
             </div>
           </div>
         ) : null}

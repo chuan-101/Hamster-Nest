@@ -25,6 +25,7 @@ import {
   saveSyzygyPostSystemPrompt,
   saveSyzygyReplySystemPrompt,
   saveLetterReplySystemPrompt,
+  saveBubbleChatSettings,
   updateUserSettings,
 } from './storage/userSettings'
 import { formatLocalTimestamp } from './utils/time'
@@ -66,6 +67,7 @@ import {
   resolveSyzygyPostPrompt,
   resolveSyzygyReplyPrompt,
   resolveLetterReplyPrompt,
+  resolveBubbleChatPrompt,
 } from './constants/aiOverlays'
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
 
@@ -275,6 +277,12 @@ const App = () => {
     ...feedAiConfigBase,
     model: resolveModelId('syzygy', { defaultModelId }),
   }), [defaultModelId, feedAiConfigBase])
+  const bubbleChatConfig = useMemo(() => ({
+    model: activeSettings.bubbleChatModel?.trim() || resolveModelId('snack', { defaultModelId }),
+    systemPrompt: resolveBubbleChatPrompt(activeSettings.bubbleChatSystemPrompt),
+    temperature: activeSettings.bubbleChatTemperature,
+    maxTokens: activeSettings.bubbleChatMaxTokens,
+  }), [activeSettings.bubbleChatModel, activeSettings.bubbleChatSystemPrompt, activeSettings.bubbleChatTemperature, activeSettings.bubbleChatMaxTokens, defaultModelId])
 
   useEffect(() => {
     window.localStorage.setItem(APP_DISPLAY_MODE_STORAGE_KEY, displayMode)
@@ -1381,6 +1389,30 @@ const App = () => {
     setUserSettings(nextSettings)
   }, [user])
 
+  const handleSaveBubbleChatSettings = useCallback(async (values: {
+    bubbleChatModel: string | null
+    bubbleChatSystemPrompt: string
+    bubbleChatMaxTokens: number
+    bubbleChatTemperature: number
+  }) => {
+    if (!user) {
+      return
+    }
+    const nextSettings = {
+      ...(settingsRef.current ?? createDefaultSettings(user.id)),
+      userId: user.id,
+      bubbleChatModel: values.bubbleChatModel,
+      bubbleChatSystemPrompt: values.bubbleChatSystemPrompt,
+      bubbleChatMaxTokens: values.bubbleChatMaxTokens,
+      bubbleChatTemperature: values.bubbleChatTemperature,
+      updatedAt: new Date().toISOString(),
+    }
+    if (supabase) {
+      await saveBubbleChatSettings(user.id, values)
+    }
+    setUserSettings(nextSettings)
+  }, [user])
+
   const handleToggleMemoryAutoExtract = useCallback(async (enabled: boolean) => {
     if (!user) {
       return
@@ -1479,6 +1511,7 @@ const App = () => {
           user={user}
           snackAiConfig={snackAiConfig}
           syzygyAiConfig={syzygyAiConfig}
+          bubbleChatConfig={bubbleChatConfig}
         />
       </Suspense>
     )
@@ -1675,6 +1708,7 @@ const App = () => {
                 onSaveSyzygyPostPrompt={handleSaveSyzygyPostSystemPrompt}
                 onSaveSyzygyReplyPrompt={handleSaveSyzygyReplySystemPrompt}
                 onSaveLetterReplyPrompt={handleSaveLetterReplySystemPrompt}
+                onSaveBubbleChatSettings={handleSaveBubbleChatSettings}
                 displayMode={displayMode}
                 onDisplayModeChange={setDisplayMode}
               />

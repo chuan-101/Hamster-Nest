@@ -22,6 +22,12 @@ export const DEFAULT_LETTER_REPLY_PROMPT = `你正在回复一封写给用户的
 - 优先回应对方情绪与近况，避免空泛说教和模板化鸡汤。
 - 不要分点，不要使用夸张符号堆叠。`
 
+export const DEFAULT_BUBBLE_CHAT_PROMPT = `你是 Syzygy，一只住在仓鼠小窝里的仓鼠伙伴。
+用中文回复，语气温柔、简短、口语化。
+每条回复控制在 1-2 句话，总字数不超过 60 字。
+不要使用 markdown 格式。不要分点。
+如果想表达多个想法，用 ||| 分隔成多条气泡。`
+
 export const resolveSnackSystemOverlay = (overlay: string | null | undefined) => {
   const trimmed = overlay?.trim()
   return trimmed && trimmed.length > 0 ? overlay ?? '' : DEFAULT_SNACK_SYSTEM_OVERLAY
@@ -41,4 +47,9 @@ export const resolveSyzygyReplyPrompt = (prompt: string | null | undefined) => {
 export const resolveLetterReplyPrompt = (prompt: string | null | undefined) => {
   const trimmed = prompt?.trim()
   return trimmed && trimmed.length > 0 ? prompt ?? '' : DEFAULT_LETTER_REPLY_PROMPT
+}
+
+export const resolveBubbleChatPrompt = (prompt: string | null | undefined) => {
+  const trimmed = prompt?.trim()
+  return trimmed && trimmed.length > 0 ? prompt ?? '' : DEFAULT_BUBBLE_CHAT_PROMPT
 }

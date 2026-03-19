@@ -56,6 +56,10 @@ export type UserSettings = {
   rpReasoningEnabled: boolean
   chatHighThinkingEnabled: boolean
   rpHighThinkingEnabled: boolean
+  bubbleChatModel: string | null
+  bubbleChatSystemPrompt: string
+  bubbleChatMaxTokens: number
+  bubbleChatTemperature: number
   updatedAt: string
 }
 
