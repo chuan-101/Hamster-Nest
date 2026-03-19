@@ -1089,7 +1089,20 @@
   flex-direction: column;
   align-items: center;
   max-width: min(280px, calc(100vw - 32px));
-  animation: bubble-appear 0.25s ease-out;
+}
+
+.speech-bubble-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.speech-bubble-stack__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: bubble-appear 0.25s ease-out both;
 }
 
 .speech-bubble {
@@ -1111,15 +1124,6 @@
 
 .speech-bubble__text {
   display: block;
-}
-
-.speech-bubble__counter {
-  display: block;
-  margin-top: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #9a7067;
-  letter-spacing: 0.06em;
 }
 
 .speech-bubble__tail {
@@ -1146,11 +1150,11 @@
 @keyframes bubble-appear {
   from {
     opacity: 0;
-    transform: translate(-50%, -90%);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -100%);
+    transform: translateY(0);
   }
 }
 
@@ -1256,6 +1260,10 @@
 
   .speech-bubble-overlay {
     max-width: min(220px, calc(100vw - 24px));
+  }
+
+  .speech-bubble-stack {
+    gap: 4px;
   }
 
   .speech-bubble {
