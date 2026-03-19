@@ -3,9 +3,11 @@ import GameBubbleInputBar from './GameBubbleInputBar'
 type GameBottomBarProps = {
   onOpenPawMenu: () => void
   onOpenSettings: () => void
+  onBubbleSend: (text: string) => void
+  bubbleSending: boolean
 }
 
-const GameBottomBar = ({ onOpenPawMenu, onOpenSettings }: GameBottomBarProps) => {
+const GameBottomBar = ({ onOpenPawMenu, onOpenSettings, onBubbleSend, bubbleSending }: GameBottomBarProps) => {
   return (
     <footer className="game-bottom-bar" aria-label="游戏操作栏">
       <div className="game-direction-pad" aria-label="方向控制（占位）">
@@ -24,7 +26,7 @@ const GameBottomBar = ({ onOpenPawMenu, onOpenSettings }: GameBottomBarProps) =>
         </button>
       </div>
 
-      <GameBubbleInputBar />
+      <GameBubbleInputBar onSend={onBubbleSend} disabled={bubbleSending} />
 
       <div className="game-bottom-controls" aria-label="功能控制区">
         <button type="button" className="game-control-button game-control-button--icon" onClick={onOpenSettings} aria-label="打开游戏设置">

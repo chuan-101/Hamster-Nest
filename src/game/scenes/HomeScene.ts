@@ -35,6 +35,22 @@ export class HomeScene extends Phaser.Scene {
     this.load.image(SYZYGY_KEY, `${assetBase}syzygy1.png`)
   }
 
+  private emitSyzygyPosition() {
+    if (!this.syzygySprite) {
+      return
+    }
+    const bounds = this.syzygySprite.getBounds()
+    const canvas = this.game.canvas
+    const canvasRect = canvas.getBoundingClientRect()
+    const scaleX = canvasRect.width / this.scale.width
+    const scaleY = canvasRect.height / this.scale.height
+
+    EventBus.emit(GAME_EVENTS.SYZYGY_POSITION_UPDATE, {
+      x: canvasRect.left + (bounds.x + bounds.width * 0.5) * scaleX,
+      y: canvasRect.top + bounds.top * scaleY,
+    })
+  }
+
   create() {
     const { width, height } = this.scale
 
@@ -71,5 +87,8 @@ export class HomeScene extends Phaser.Scene {
         anchor: this.getSpriteScreenAnchor(this.syzygySprite),
       })
     })
+
+    this.emitSyzygyPosition()
+    this.scale.on('resize', () => this.emitSyzygyPosition())
   }
 }

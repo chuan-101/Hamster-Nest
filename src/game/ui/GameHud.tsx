@@ -5,9 +5,11 @@ import GameTopBar from './GameTopBar'
 type GameHudProps = {
   onOpenPawMenu: () => void
   onOpenSettings: () => void
+  onBubbleSend: (text: string) => void
+  bubbleSending: boolean
 }
 
-const GameHud = ({ onOpenPawMenu, onOpenSettings }: GameHudProps) => {
+const GameHud = ({ onOpenPawMenu, onOpenSettings, onBubbleSend, bubbleSending }: GameHudProps) => {
   return (
     <div className="game-hud-layout" aria-label="游戏模式主布局">
       <GameTopBar stamina={30} maxStamina={100} level={1} exp={45} maxExp={100} />
@@ -16,7 +18,12 @@ const GameHud = ({ onOpenPawMenu, onOpenSettings }: GameHudProps) => {
           <GameContainer />
         </div>
       </section>
-      <GameBottomBar onOpenPawMenu={onOpenPawMenu} onOpenSettings={onOpenSettings} />
+      <GameBottomBar
+        onOpenPawMenu={onOpenPawMenu}
+        onOpenSettings={onOpenSettings}
+        onBubbleSend={onBubbleSend}
+        bubbleSending={bubbleSending}
+      />
     </div>
   )
 }
