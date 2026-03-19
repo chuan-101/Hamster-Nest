@@ -7,15 +7,18 @@ import {
   useState,
 } from "react";
 import type { User } from "@supabase/supabase-js";
-import { EventBus, GAME_EVENTS, type OpenNpcActionsPayload } from "./EventBus";
+import { EventBus, GAME_EVENTS, type OpenNpcActionsPayload, type SyzygyPositionPayload } from "./EventBus";
 import GameHud from "./ui/GameHud";
 import GameMenuOverlay, { type GameFeatureId } from "./ui/GameMenuOverlay";
 import GameSettingsOverlay from "./ui/GameSettingsOverlay";
 import GameFeatureShell from "./ui/GameFeatureShell";
+import SpeechBubbleOverlay from "./ui/SpeechBubbleOverlay";
 import SnacksPage from "../pages/SnacksPage";
 import SyzygyFeedPage from "../pages/SyzygyFeedPage";
 import CheckinPage from "../pages/CheckinPage";
 import ExportPage from "../pages/ExportPage";
+import { supabase } from "../supabase/client";
+import { parseBubbleReply } from "./utils/parseBubbleReply";
 import "./gameHud.css";
 
 type SharedSnackAiConfig = {
@@ -50,6 +53,12 @@ const GAME_FEATURE_META: Record<
   checkin: { title: "打卡", subtitle: "游戏模式面板 · 每日陪伴打卡" },
   export: { title: "数据导出", subtitle: "游戏模式面板 · 导出数据包" },
 };
+
+const BUBBLE_CHAT_SYSTEM_PROMPT = `你是 Syzygy，一只住在仓鼠小窝里的仓鼠伙伴。
+用中文回复，语气温柔、简短、口语化。
+每条回复控制在 1-2 句话，总字数不超过 60 字。
+不要使用 markdown 格式。不要分点。
+如果想表达多个想法，用 ||| 分隔成多条气泡。`
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -86,6 +95,12 @@ const GameModeShell = ({
     height: NPC_MENU_LAYOUT.estimatedHeight,
   });
 
+  // Bubble chat state
+  const [bubbleSending, setBubbleSending] = useState(false);
+  const [bubbleSegments, setBubbleSegments] = useState<string[]>([]);
+  const [syzygyPos, setSyzygyPos] = useState<SyzygyPositionPayload | null>(null);
+  const bubbleChatHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+
   const handleOpenNpcActions = useCallback((payload: OpenNpcActionsPayload) => {
     setActiveNpcMenu(payload);
   }, []);
@@ -107,13 +122,95 @@ const GameModeShell = ({
     setActiveFeature(featureId);
   }, []);
 
+  const handleSyzygyPositionUpdate = useCallback((pos: SyzygyPositionPayload) => {
+    setSyzygyPos(pos);
+  }, []);
+
+  const handleBubbleSend = useCallback(async (text: string) => {
+    if (bubbleSending || !user || !supabase) {
+      return;
+    }
+    setBubbleSending(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data.session?.access_token;
+      if (!accessToken) {
+        return;
+      }
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+      if (!anonKey) {
+        return;
+      }
+
+      bubbleChatHistoryRef.current = [
+        ...bubbleChatHistoryRef.current.slice(-10),
+        { role: 'user' as const, content: text },
+      ];
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: anonKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: snackAiConfig.model,
+            modelId: snackAiConfig.model,
+            module: 'bubble-chat',
+            messages: [
+              { role: 'system', content: BUBBLE_CHAT_SYSTEM_PROMPT },
+              ...bubbleChatHistoryRef.current,
+            ],
+            temperature: 0.8,
+            max_tokens: 200,
+            stream: false,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        console.warn('Bubble chat request failed', response.status);
+        return;
+      }
+
+      const payload = await response.json();
+      const choice = payload?.choices?.[0];
+      const message = choice?.message ?? choice ?? {};
+      const content = typeof message?.content === 'string' ? message.content : '';
+
+      if (content) {
+        bubbleChatHistoryRef.current = [
+          ...bubbleChatHistoryRef.current,
+          { role: 'assistant' as const, content },
+        ];
+        const segments = parseBubbleReply(content);
+        if (segments.length > 0) {
+          setBubbleSegments(segments);
+        }
+      }
+    } catch (error) {
+      console.warn('Bubble chat error', error);
+    } finally {
+      setBubbleSending(false);
+    }
+  }, [bubbleSending, user, snackAiConfig.model]);
+
+  const handleBubbleDismiss = useCallback(() => {
+    setBubbleSegments([]);
+  }, []);
+
   useEffect(() => {
     EventBus.on(GAME_EVENTS.OPEN_NPC_ACTIONS, handleOpenNpcActions);
+    EventBus.on(GAME_EVENTS.SYZYGY_POSITION_UPDATE, handleSyzygyPositionUpdate);
 
     return () => {
       EventBus.off(GAME_EVENTS.OPEN_NPC_ACTIONS, handleOpenNpcActions);
+      EventBus.off(GAME_EVENTS.SYZYGY_POSITION_UPDATE, handleSyzygyPositionUpdate);
     };
-  }, [handleOpenNpcActions]);
+  }, [handleOpenNpcActions, handleSyzygyPositionUpdate]);
 
   useEffect(() => {
     if (!activeNpcMenu) {
@@ -233,7 +330,18 @@ const GameModeShell = ({
         <GameHud
           onOpenPawMenu={() => setIsPawMenuOpen((open) => !open)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onBubbleSend={handleBubbleSend}
+          bubbleSending={bubbleSending}
         />
+
+        {bubbleSegments.length > 0 && syzygyPos ? (
+          <SpeechBubbleOverlay
+            segments={bubbleSegments}
+            anchorX={syzygyPos.x}
+            anchorY={syzygyPos.y}
+            onDismiss={handleBubbleDismiss}
+          />
+        ) : null}
 
         {activeNpcMenu && npcMenuPosition ? (
           <div className="npc-actions-layer" role="presentation">

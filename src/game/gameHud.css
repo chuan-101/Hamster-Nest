@@ -1051,3 +1051,123 @@
     padding: 9px;
   }
 }
+
+/* ── Send button in bubble input bar ── */
+
+.game-bubble-input-bar__send-button {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 2px solid #6f4a44;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffd8de 0%, #f29fb2 100%);
+  box-shadow:
+    inset 0 1px 0 #ffeae4,
+    inset 0 -2px 0 rgba(97, 64, 57, 0.5);
+  color: #5d303c;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.game-bubble-input-bar__send-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── Speech bubble overlay ── */
+
+.speech-bubble-overlay {
+  position: fixed;
+  z-index: 35;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: min(280px, calc(100vw - 32px));
+  animation: bubble-appear 0.25s ease-out;
+}
+
+.speech-bubble {
+  position: relative;
+  padding: 10px 14px;
+  border: 3px solid var(--game-shell-edge);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff5ee 0%, #f8ddd4 100%);
+  box-shadow:
+    inset 0 0 0 2px #fff9f4,
+    0 4px 8px rgba(56, 33, 30, 0.18);
+  color: var(--game-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  word-break: break-word;
+}
+
+.speech-bubble__text {
+  display: block;
+}
+
+.speech-bubble__counter {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9a7067;
+  letter-spacing: 0.06em;
+}
+
+.speech-bubble__tail {
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 10px 8px 0;
+  border-color: var(--game-shell-edge) transparent transparent transparent;
+  position: relative;
+}
+
+.speech-bubble__tail::after {
+  content: '';
+  position: absolute;
+  top: -13px;
+  left: -6px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 8px 6px 0;
+  border-color: #f8ddd4 transparent transparent transparent;
+}
+
+@keyframes bubble-appear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -90%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%);
+  }
+}
+
+@media (max-width: 760px) {
+  .game-bubble-input-bar__send-button {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .speech-bubble-overlay {
+    max-width: min(220px, calc(100vw - 24px));
+  }
+
+  .speech-bubble {
+    padding: 8px 10px;
+    font-size: 12px;
+    border-radius: 11px;
+  }
+}

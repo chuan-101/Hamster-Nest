@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 
 export const GAME_EVENTS = {
   OPEN_NPC_ACTIONS: 'open-npc-actions',
+  SYZYGY_POSITION_UPDATE: 'syzygy-position-update',
 } as const
 
 export type OpenNpcActionsPayload = {
@@ -10,6 +11,11 @@ export type OpenNpcActionsPayload = {
     x: number
     y: number
   }
+}
+
+export type SyzygyPositionPayload = {
+  x: number
+  y: number
 }
 
 export const EventBus = new Phaser.Events.EventEmitter()
