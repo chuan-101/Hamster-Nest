@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import GameSystemModal from './GameSystemModal'
-import { getTodayEntries, type BubbleChatEntry } from '../utils/bubbleChatHistory'
+import { getAllDayGroups, type BubbleDayGroup } from '../utils/bubbleChatHistory'
 
 type BubbleChatHistoryModalProps = {
   onClose: () => void
@@ -13,24 +13,25 @@ function formatTime(timestamp: number): string {
   return `${hours}:${minutes}`
 }
 
-function formatDateHeading(): string {
-  const now = new Date()
-  const month = now.getMonth() + 1
-  const day = now.getDate()
+function formatDateLabel(dateStr: string): string {
+  const [, monthStr, dayStr] = dateStr.split('-')
+  const month = Number(monthStr)
+  const day = Number(dayStr)
   return `${month}月${day}日`
 }
 
 const BubbleChatHistoryModal = ({ onClose }: BubbleChatHistoryModalProps) => {
-  const [entries, setEntries] = useState<BubbleChatEntry[]>([])
+  const [dayGroups, setDayGroups] = useState<BubbleDayGroup[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedDate, setExpandedDate] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       try {
-        const result = await getTodayEntries()
+        const result = await getAllDayGroups()
         if (!cancelled) {
-          setEntries(result)
+          setDayGroups(result)
         }
       } catch (error) {
         console.warn('[bubble-chat] Failed to load history:', error)
@@ -46,10 +47,14 @@ const BubbleChatHistoryModal = ({ onClose }: BubbleChatHistoryModalProps) => {
     }
   }, [])
 
+  const handleToggleDay = (dateStr: string) => {
+    setExpandedDate((prev) => (prev === dateStr ? null : dateStr))
+  }
+
   return (
     <GameSystemModal
-      title="今日闲聊记录"
-      subtitle={`${formatDateHeading()} · 气泡聊天记录`}
+      title="闲聊记录"
+      subtitle="气泡聊天历史记录"
       ariaLabel="气泡聊天历史记录"
       onClose={onClose}
       contentClassName="game-system-modal__content--history"
@@ -58,11 +63,11 @@ const BubbleChatHistoryModal = ({ onClose }: BubbleChatHistoryModalProps) => {
         <div className="bubble-history-empty">
           <p className="bubble-history-empty__text">加载中…</p>
         </div>
-      ) : entries.length === 0 ? (
+      ) : dayGroups.length === 0 ? (
         <div className="bubble-history-empty">
           <p className="bubble-history-empty__icon">💬</p>
           <p className="bubble-history-empty__text">
-            今天还没有聊天记录哦
+            还没有聊天记录哦
           </p>
           <p className="bubble-history-empty__hint">
             在下方输入栏跟 Syzygy 说点什么吧
@@ -70,20 +75,47 @@ const BubbleChatHistoryModal = ({ onClose }: BubbleChatHistoryModalProps) => {
         </div>
       ) : (
         <div className="bubble-history-list">
-          {entries.map((entry, index) => (
-            <div
-              key={index}
-              className={`bubble-history-entry bubble-history-entry--${entry.role}`}
-            >
-              <span className="bubble-history-entry__role">
-                {entry.role === 'user' ? '你' : 'Syzygy'}
-              </span>
-              <span className="bubble-history-entry__time">
-                {formatTime(entry.timestamp)}
-              </span>
-              <p className="bubble-history-entry__content">{entry.content}</p>
-            </div>
-          ))}
+          {dayGroups.map((group) => {
+            const isExpanded = expandedDate === group.sessionDate
+            return (
+              <div key={group.sessionDate} className="bubble-history-day">
+                <button
+                  type="button"
+                  className={`bubble-history-day__header${isExpanded ? ' bubble-history-day__header--expanded' : ''}`}
+                  onClick={() => handleToggleDay(group.sessionDate)}
+                  aria-expanded={isExpanded}
+                >
+                  <span className="bubble-history-day__label">
+                    {formatDateLabel(group.sessionDate)} · 气泡聊天记录
+                  </span>
+                  <span className="bubble-history-day__count">
+                    {group.entries.length} 条
+                  </span>
+                  <span className="bubble-history-day__chevron" aria-hidden="true">
+                    {isExpanded ? '▼' : '▶'}
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div className="bubble-history-day__body">
+                    {group.entries.map((entry, index) => (
+                      <div
+                        key={index}
+                        className={`bubble-history-entry bubble-history-entry--${entry.role}`}
+                      >
+                        <span className="bubble-history-entry__role">
+                          {entry.role === 'user' ? '你' : 'Syzygy'}
+                        </span>
+                        <span className="bubble-history-entry__time">
+                          {formatTime(entry.timestamp)}
+                        </span>
+                        <p className="bubble-history-entry__content">{entry.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </GameSystemModal>
