@@ -2335,6 +2335,23 @@ export const createBubbleMessage = async (
   return mapBubbleMessageRow(data as BubbleMessageRow)
 }
 
+export const fetchAllBubbleSessions = async (): Promise<BubbleSession[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('bubble_sessions')
+    .select('id,user_id,session_date,created_at,updated_at')
+    .eq('user_id', userId)
+    .order('session_date', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapBubbleSessionRow(row as BubbleSessionRow))
+}
+
 export const fetchBubbleMessages = async (sessionId: string): Promise<BubbleMessage[]> => {
   if (!supabase) {
     return []

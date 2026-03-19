@@ -3,12 +3,18 @@ import {
   resolveOrCreateBubbleSession,
   createBubbleMessage,
   fetchBubbleMessages,
+  fetchAllBubbleSessions,
 } from '../../storage/supabaseSync'
 
 export type BubbleChatEntry = {
   role: 'user' | 'assistant'
   content: string
   timestamp: number
+}
+
+export type BubbleDayGroup = {
+  sessionDate: string
+  entries: BubbleChatEntry[]
 }
 
 let cachedSession: BubbleSession | null = null
@@ -62,6 +68,25 @@ export async function getTodayEntries(): Promise<BubbleChatEntry[]> {
     return messages.map(toBubbleChatEntry)
   } catch (error) {
     console.error('[bubble-chat] Failed to fetch today entries:', error)
+    return []
+  }
+}
+
+export async function getAllDayGroups(): Promise<BubbleDayGroup[]> {
+  try {
+    const sessions = await fetchAllBubbleSessions()
+    const groups: BubbleDayGroup[] = []
+    for (const session of sessions) {
+      const messages = await fetchBubbleMessages(session.id)
+      if (messages.length === 0) continue
+      groups.push({
+        sessionDate: session.sessionDate,
+        entries: messages.map(toBubbleChatEntry),
+      })
+    }
+    return groups
+  } catch (error) {
+    console.error('[bubble-chat] Failed to fetch all day groups:', error)
     return []
   }
 }
