@@ -1,3 +1,5 @@
+import GameBubbleInputBar from './GameBubbleInputBar'
+
 type GameBottomBarProps = {
   onOpenPawMenu: () => void
   onOpenSettings: () => void
@@ -21,6 +23,8 @@ const GameBottomBar = ({ onOpenPawMenu, onOpenSettings }: GameBottomBarProps) =>
           <span className="game-dpad-button__arrow game-dpad-button__arrow--down" aria-hidden="true" />
         </button>
       </div>
+
+      <GameBubbleInputBar />
 
       <div className="game-bottom-controls" aria-label="功能控制区">
         <button type="button" className="game-control-button game-control-button--icon" onClick={onOpenSettings} aria-label="打开游戏设置">

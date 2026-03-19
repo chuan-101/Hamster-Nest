@@ -350,6 +350,56 @@
   background: linear-gradient(180deg, #ffe5d9 0%, #f7c8bf 100%);
 }
 
+.game-bubble-input-bar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 3px solid var(--game-shell-edge);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffe5d9 0%, #f7c8bf 100%);
+  box-shadow: inset 0 0 0 2px #fff2e9;
+}
+
+.game-bubble-input-bar__history-button {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 2px solid #6f4a44;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8d8ce 0%, #efb8ad 100%);
+  box-shadow:
+    inset 0 1px 0 #ffeae4,
+    inset 0 -2px 0 rgba(97, 64, 57, 0.5);
+  color: #5d303c;
+  font-size: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.game-bubble-input-bar__input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 2px solid var(--game-shell-edge);
+  border-radius: 8px;
+  background: #fff2e9;
+  padding: 0 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--game-text);
+  outline: none;
+}
+
+.game-bubble-input-bar__input::placeholder {
+  color: #a07a72;
+  font-size: 12px;
+}
+
 .game-control-button {
   width: clamp(60px, 8vw, 72px);
   height: clamp(48px, 6vw, 56px);
@@ -926,6 +976,26 @@
   .game-bottom-controls {
     gap: 6px;
     padding: 6px;
+  }
+
+  .game-bubble-input-bar {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .game-bubble-input-bar__history-button {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .game-bubble-input-bar__input {
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .game-bubble-input-bar__input::placeholder {
+    font-size: 11px;
   }
 
   .game-control-button {
