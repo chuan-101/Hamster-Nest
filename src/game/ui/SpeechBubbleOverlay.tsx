@@ -1,28 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 type SpeechBubbleOverlayProps = {
   segments: string[]
   anchorX: number
   anchorY: number
   onDismiss: () => void
+  variant?: 'npc' | 'player'
 }
 
-const BUBBLE_DISPLAY_MS = 4000
-const BUBBLE_PER_CHAR_MS = 80
-const MIN_DISPLAY_MS = 2500
 const MAX_VISIBLE_BUBBLES = 3
 const STAGGER_DELAY_MS = 400
-
-const computeDisplayTime = (text: string) =>
-  Math.max(MIN_DISPLAY_MS, BUBBLE_DISPLAY_MS + text.length * BUBBLE_PER_CHAR_MS)
 
 type BubbleItemProps = {
   text: string
   showTail: boolean
   staggerIndex: number
+  variant: 'npc' | 'player'
 }
 
-const BubbleItem = ({ text, showTail, staggerIndex }: BubbleItemProps) => {
+const BubbleItem = ({ text, showTail, staggerIndex, variant }: BubbleItemProps) => {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -36,9 +32,13 @@ const BubbleItem = ({ text, showTail, staggerIndex }: BubbleItemProps) => {
     return null
   }
 
+  const bubbleClass = variant === 'player'
+    ? 'speech-bubble speech-bubble--player'
+    : 'speech-bubble'
+
   return (
     <div className="speech-bubble-stack__item" style={{ animationDelay: '0ms' }}>
-      <div className="speech-bubble">
+      <div className={bubbleClass}>
         <span className="speech-bubble__text">{text}</span>
       </div>
       {showTail ? <div className="speech-bubble__tail" aria-hidden="true" /> : null}
@@ -48,39 +48,15 @@ const BubbleItem = ({ text, showTail, staggerIndex }: BubbleItemProps) => {
 
 const SpeechBubbleStack = ({
   segments,
-  onDismiss,
+  variant,
 }: {
   segments: string[]
-  onDismiss: () => void
+  variant: 'npc' | 'player'
 }) => {
-  const dismissTimerRef = useRef<number | null>(null)
-
   // Cap visible bubbles
   const visibleSegments = segments.length > MAX_VISIBLE_BUBBLES
     ? segments.slice(segments.length - MAX_VISIBLE_BUBBLES)
     : segments
-
-  useEffect(() => {
-    if (segments.length === 0) {
-      return
-    }
-
-    // Calculate total time: stagger delays + last bubble display time
-    const lastIndex = visibleSegments.length - 1
-    const staggerTotal = lastIndex * STAGGER_DELAY_MS
-    const lastBubbleTime = computeDisplayTime(visibleSegments[lastIndex])
-    const totalTime = staggerTotal + lastBubbleTime
-
-    dismissTimerRef.current = window.setTimeout(() => {
-      onDismiss()
-    }, totalTime)
-
-    return () => {
-      if (dismissTimerRef.current !== null) {
-        window.clearTimeout(dismissTimerRef.current)
-      }
-    }
-  }, [segments, visibleSegments, onDismiss])
 
   if (segments.length === 0) {
     return null
@@ -94,6 +70,7 @@ const SpeechBubbleStack = ({
           text={text}
           showTail={index === visibleSegments.length - 1}
           staggerIndex={index}
+          variant={variant}
         />
       ))}
     </div>
@@ -105,12 +82,15 @@ const SpeechBubbleOverlay = ({
   anchorX,
   anchorY,
   onDismiss,
+  variant = 'npc',
 }: SpeechBubbleOverlayProps) => {
   const sequenceKey = useMemo(() => segments.join('\n'), [segments])
 
   if (segments.length === 0) {
     return null
   }
+
+  const ariaLabel = variant === 'player' ? '串串的消息' : 'Syzygy 的回复'
 
   return (
     <div
@@ -121,12 +101,12 @@ const SpeechBubbleOverlay = ({
       }}
       role="status"
       aria-live="polite"
-      aria-label="Syzygy 的回复"
+      aria-label={ariaLabel}
     >
       <SpeechBubbleStack
         key={sequenceKey}
         segments={segments}
-        onDismiss={onDismiss}
+        variant={variant}
       />
     </div>
   )

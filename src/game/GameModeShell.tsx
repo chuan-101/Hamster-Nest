@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import type { User } from "@supabase/supabase-js";
-import { EventBus, GAME_EVENTS, type OpenNpcActionsPayload, type SyzygyPositionPayload } from "./EventBus";
+import { EventBus, GAME_EVENTS, type OpenNpcActionsPayload, type SyzygyPositionPayload, type PlayerPositionPayload } from "./EventBus";
 import GameHud from "./ui/GameHud";
 import GameMenuOverlay, { type GameFeatureId } from "./ui/GameMenuOverlay";
 import GameSettingsOverlay from "./ui/GameSettingsOverlay";
@@ -105,9 +105,12 @@ const GameModeShell = ({
   const [isBubbleHistoryOpen, setIsBubbleHistoryOpen] = useState(false);
   const [bubbleSending, setBubbleSending] = useState(false);
   const [bubbleSegments, setBubbleSegments] = useState<string[]>([]);
+  const [playerBubbleText, setPlayerBubbleText] = useState<string | null>(null);
   const [syzygyPos, setSyzygyPos] = useState<SyzygyPositionPayload | null>(null);
+  const [playerPos, setPlayerPos] = useState<PlayerPositionPayload | null>(null);
   const bubbleChatHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const bubbleSessionRestoredRef = useRef(false);
+  const sceneBubblesVisibleRef = useRef(false);
 
   const handleOpenNpcActions = useCallback((payload: OpenNpcActionsPayload) => {
     setActiveNpcMenu(payload);
@@ -132,6 +135,10 @@ const GameModeShell = ({
 
   const handleSyzygyPositionUpdate = useCallback((pos: SyzygyPositionPayload) => {
     setSyzygyPos(pos);
+  }, []);
+
+  const handlePlayerPositionUpdate = useCallback((pos: PlayerPositionPayload) => {
+    setPlayerPos(pos);
   }, []);
 
   // Restore persisted bubble chat history on mount
@@ -178,6 +185,10 @@ const GameModeShell = ({
         ...bubbleChatHistoryRef.current.slice(-10),
         { role: 'user' as const, content: text },
       ];
+
+      // Show player bubble immediately
+      setPlayerBubbleText(text);
+      sceneBubblesVisibleRef.current = true;
 
       try {
         await persistBubbleMessage('user', text);
@@ -234,6 +245,7 @@ const GameModeShell = ({
         const segments = parseBubbleReply(content);
         if (segments.length > 0) {
           setBubbleSegments(segments);
+          sceneBubblesVisibleRef.current = true;
         }
       }
     } catch (error) {
@@ -245,17 +257,21 @@ const GameModeShell = ({
 
   const handleBubbleDismiss = useCallback(() => {
     setBubbleSegments([]);
+    setPlayerBubbleText(null);
+    sceneBubblesVisibleRef.current = false;
   }, []);
 
   useEffect(() => {
     EventBus.on(GAME_EVENTS.OPEN_NPC_ACTIONS, handleOpenNpcActions);
     EventBus.on(GAME_EVENTS.SYZYGY_POSITION_UPDATE, handleSyzygyPositionUpdate);
+    EventBus.on(GAME_EVENTS.PLAYER_POSITION_UPDATE, handlePlayerPositionUpdate);
 
     return () => {
       EventBus.off(GAME_EVENTS.OPEN_NPC_ACTIONS, handleOpenNpcActions);
       EventBus.off(GAME_EVENTS.SYZYGY_POSITION_UPDATE, handleSyzygyPositionUpdate);
+      EventBus.off(GAME_EVENTS.PLAYER_POSITION_UPDATE, handlePlayerPositionUpdate);
     };
-  }, [handleOpenNpcActions, handleSyzygyPositionUpdate]);
+  }, [handleOpenNpcActions, handleSyzygyPositionUpdate, handlePlayerPositionUpdate]);
 
   useEffect(() => {
     if (!activeNpcMenu) {
@@ -278,6 +294,38 @@ const GameModeShell = ({
       window.removeEventListener("pointerdown", handlePointerDown);
     };
   }, [activeNpcMenu]);
+
+  // Click-away dismissal for scene bubbles
+  useEffect(() => {
+    if (!sceneBubblesVisibleRef.current) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        handleBubbleDismiss();
+        return;
+      }
+
+      // Don't dismiss when interacting with the bubble input bar
+      if (target.closest('.game-bubble-input-bar')) {
+        return;
+      }
+
+      // Don't dismiss when interacting with the speech bubbles themselves
+      if (target.closest('.speech-bubble-overlay')) {
+        return;
+      }
+
+      handleBubbleDismiss();
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [handleBubbleDismiss, playerBubbleText, bubbleSegments]);
 
   useLayoutEffect(() => {
     if (!activeNpcMenu) {
@@ -380,12 +428,23 @@ const GameModeShell = ({
           bubbleSending={bubbleSending}
         />
 
+        {playerBubbleText && playerPos ? (
+          <SpeechBubbleOverlay
+            segments={[playerBubbleText]}
+            anchorX={playerPos.x}
+            anchorY={playerPos.y}
+            onDismiss={handleBubbleDismiss}
+            variant="player"
+          />
+        ) : null}
+
         {bubbleSegments.length > 0 && syzygyPos ? (
           <SpeechBubbleOverlay
             segments={bubbleSegments}
             anchorX={syzygyPos.x}
             anchorY={syzygyPos.y}
             onDismiss={handleBubbleDismiss}
+            variant="npc"
           />
         ) : null}
 
