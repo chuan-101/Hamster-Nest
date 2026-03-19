@@ -6,6 +6,7 @@ const CHUAN_KEY = 'chuan1'
 const SYZYGY_KEY = 'syzygy1'
 
 export class HomeScene extends Phaser.Scene {
+  private playerSprite?: Phaser.GameObjects.Image
   private syzygySprite?: Phaser.GameObjects.Image
 
   private getSpriteScreenAnchor(sprite: Phaser.GameObjects.Image) {
@@ -35,6 +36,22 @@ export class HomeScene extends Phaser.Scene {
     this.load.image(SYZYGY_KEY, `${assetBase}syzygy1.png`)
   }
 
+  private emitPlayerPosition() {
+    if (!this.playerSprite) {
+      return
+    }
+    const bounds = this.playerSprite.getBounds()
+    const canvas = this.game.canvas
+    const canvasRect = canvas.getBoundingClientRect()
+    const scaleX = canvasRect.width / this.scale.width
+    const scaleY = canvasRect.height / this.scale.height
+
+    EventBus.emit(GAME_EVENTS.PLAYER_POSITION_UPDATE, {
+      x: canvasRect.left + (bounds.x + bounds.width * 0.5) * scaleX,
+      y: canvasRect.top + bounds.top * scaleY,
+    })
+  }
+
   private emitSyzygyPosition() {
     if (!this.syzygySprite) {
       return
@@ -60,7 +77,7 @@ export class HomeScene extends Phaser.Scene {
     const spacing = Math.round(Math.min(220, width * 0.18))
     const centerX = Math.round(width * 0.5)
 
-    this.add
+    this.playerSprite = this.add
       .image(centerX - spacing, baseY, CHUAN_KEY)
       .setOrigin(0.5, 1)
       .setScale(2)
@@ -89,6 +106,10 @@ export class HomeScene extends Phaser.Scene {
     })
 
     this.emitSyzygyPosition()
-    this.scale.on('resize', () => this.emitSyzygyPosition())
+    this.emitPlayerPosition()
+    this.scale.on('resize', () => {
+      this.emitSyzygyPosition()
+      this.emitPlayerPosition()
+    })
   }
 }
