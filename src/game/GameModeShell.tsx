@@ -35,6 +35,13 @@ type SharedSnackAiConfig = {
   syzygyReplySystemPrompt: string;
 };
 
+type BubbleChatConfig = {
+  model: string;
+  systemPrompt: string;
+  temperature: number;
+  maxTokens: number;
+};
+
 type GameModeShellProps = {
   onSwitchToPhoneMode: () => void;
   onOpenSharedSettings: () => void;
@@ -42,6 +49,7 @@ type GameModeShellProps = {
   user: User | null;
   snackAiConfig: SharedSnackAiConfig;
   syzygyAiConfig: SharedSnackAiConfig;
+  bubbleChatConfig: BubbleChatConfig;
 };
 
 type ActiveNpcMenu = OpenNpcActionsPayload;
@@ -55,12 +63,6 @@ const GAME_FEATURE_META: Record<
   checkin: { title: "打卡", subtitle: "游戏模式面板 · 每日陪伴打卡" },
   export: { title: "数据导出", subtitle: "游戏模式面板 · 导出数据包" },
 };
-
-const BUBBLE_CHAT_SYSTEM_PROMPT = `你是 Syzygy，一只住在仓鼠小窝里的仓鼠伙伴。
-用中文回复，语气温柔、简短、口语化。
-每条回复控制在 1-2 句话，总字数不超过 60 字。
-不要使用 markdown 格式。不要分点。
-如果想表达多个想法，用 ||| 分隔成多条气泡。`
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -79,6 +81,7 @@ const GameModeShell = ({
   user,
   snackAiConfig,
   syzygyAiConfig,
+  bubbleChatConfig,
 }: GameModeShellProps) => {
   const [activeNpcMenu, setActiveNpcMenu] = useState<ActiveNpcMenu | null>(
     null,
@@ -161,15 +164,15 @@ const GameModeShell = ({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: snackAiConfig.model,
-            modelId: snackAiConfig.model,
+            model: bubbleChatConfig.model,
+            modelId: bubbleChatConfig.model,
             module: 'bubble-chat',
             messages: [
-              { role: 'system', content: BUBBLE_CHAT_SYSTEM_PROMPT },
+              { role: 'system', content: bubbleChatConfig.systemPrompt },
               ...bubbleChatHistoryRef.current,
             ],
-            temperature: 0.8,
-            max_tokens: 200,
+            temperature: bubbleChatConfig.temperature,
+            max_tokens: bubbleChatConfig.maxTokens,
             stream: false,
           }),
         },
@@ -201,7 +204,7 @@ const GameModeShell = ({
     } finally {
       setBubbleSending(false);
     }
-  }, [bubbleSending, user, snackAiConfig.model]);
+  }, [bubbleSending, user, bubbleChatConfig]);
 
   const handleBubbleDismiss = useCallback(() => {
     setBubbleSegments([]);

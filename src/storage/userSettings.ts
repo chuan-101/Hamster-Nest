@@ -5,10 +5,12 @@ import {
   DEFAULT_SYZYGY_POST_PROMPT,
   DEFAULT_SYZYGY_REPLY_PROMPT,
   DEFAULT_LETTER_REPLY_PROMPT,
+  DEFAULT_BUBBLE_CHAT_PROMPT,
   resolveSnackSystemOverlay,
   resolveSyzygyPostPrompt,
   resolveSyzygyReplyPrompt,
   resolveLetterReplyPrompt,
+  resolveBubbleChatPrompt,
 } from '../constants/aiOverlays'
 
 type UserSettingsRow = {
@@ -33,6 +35,10 @@ type UserSettingsRow = {
   enable_reasoning: boolean | null
   chat_reasoning_enabled: boolean | null
   rp_reasoning_enabled: boolean | null
+  bubble_chat_model: string | null
+  bubble_chat_system_prompt: string | null
+  bubble_chat_max_tokens: number | null
+  bubble_chat_temperature: number | null
   updated_at: string
 }
 
@@ -100,6 +106,10 @@ export const createDefaultSettings = (userId: string): UserSettings => ({
   syzygyPostSystemPrompt: DEFAULT_SYZYGY_POST_PROMPT,
   syzygyReplySystemPrompt: DEFAULT_SYZYGY_REPLY_PROMPT,
   letterReplySystemPrompt: DEFAULT_LETTER_REPLY_PROMPT,
+  bubbleChatModel: null,
+  bubbleChatSystemPrompt: DEFAULT_BUBBLE_CHAT_PROMPT,
+  bubbleChatMaxTokens: 200,
+  bubbleChatTemperature: 0.8,
   chatReasoningEnabled: true,
   rpReasoningEnabled: false,
   chatHighThinkingEnabled: false,
@@ -128,6 +138,10 @@ const mapSettingsRow = (row: UserSettingsRow): UserSettings => {
   syzygyPostSystemPrompt: resolveSyzygyPostPrompt(row.syzygy_post_system_prompt),
   syzygyReplySystemPrompt: resolveSyzygyReplyPrompt(row.syzygy_reply_system_prompt),
   letterReplySystemPrompt: resolveLetterReplyPrompt(row.letter_reply_system_prompt),
+  bubbleChatModel: row.bubble_chat_model?.trim() ? row.bubble_chat_model : null,
+  bubbleChatSystemPrompt: resolveBubbleChatPrompt(row.bubble_chat_system_prompt),
+  bubbleChatMaxTokens: row.bubble_chat_max_tokens ?? 200,
+  bubbleChatTemperature: row.bubble_chat_temperature ?? 0.8,
   chatReasoningEnabled: row.chat_reasoning_enabled ?? row.enable_reasoning ?? true,
   rpReasoningEnabled: row.rp_reasoning_enabled ?? false,
   chatHighThinkingEnabled: localHighThinking.chatHighThinkingEnabled,
@@ -143,7 +157,7 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
   const { data, error } = await supabase
     .from('user_settings')
     .select(
-      'user_id,enabled_models,default_model,memory_extract_model,compression_enabled,compression_trigger_ratio,compression_keep_recent_messages,summarizer_model,memory_merge_enabled,memory_auto_extract_enabled,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,letter_reply_system_prompt,enable_reasoning,chat_reasoning_enabled,rp_reasoning_enabled,updated_at',
+      'user_id,enabled_models,default_model,memory_extract_model,compression_enabled,compression_trigger_ratio,compression_keep_recent_messages,summarizer_model,memory_merge_enabled,memory_auto_extract_enabled,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,letter_reply_system_prompt,enable_reasoning,chat_reasoning_enabled,rp_reasoning_enabled,bubble_chat_model,bubble_chat_system_prompt,bubble_chat_max_tokens,bubble_chat_temperature,updated_at',
     )
     .eq('user_id', userId)
     .maybeSingle()
@@ -174,13 +188,17 @@ export const ensureUserSettings = async (userId: string): Promise<UserSettings> 
         syzygy_post_system_prompt: defaults.syzygyPostSystemPrompt,
         syzygy_reply_system_prompt: defaults.syzygyReplySystemPrompt,
         letter_reply_system_prompt: defaults.letterReplySystemPrompt,
+        bubble_chat_model: defaults.bubbleChatModel,
+        bubble_chat_system_prompt: defaults.bubbleChatSystemPrompt,
+        bubble_chat_max_tokens: defaults.bubbleChatMaxTokens,
+        bubble_chat_temperature: defaults.bubbleChatTemperature,
         enable_reasoning: defaults.chatReasoningEnabled,
         chat_reasoning_enabled: defaults.chatReasoningEnabled,
         rp_reasoning_enabled: defaults.rpReasoningEnabled,
         updated_at: now,
       })
       .select(
-        'user_id,enabled_models,default_model,memory_extract_model,compression_enabled,compression_trigger_ratio,compression_keep_recent_messages,summarizer_model,memory_merge_enabled,memory_auto_extract_enabled,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,letter_reply_system_prompt,enable_reasoning,chat_reasoning_enabled,rp_reasoning_enabled,updated_at',
+        'user_id,enabled_models,default_model,memory_extract_model,compression_enabled,compression_trigger_ratio,compression_keep_recent_messages,summarizer_model,memory_merge_enabled,memory_auto_extract_enabled,temperature,top_p,max_tokens,system_prompt,snack_system_prompt,syzygy_post_system_prompt,syzygy_reply_system_prompt,letter_reply_system_prompt,enable_reasoning,chat_reasoning_enabled,rp_reasoning_enabled,bubble_chat_model,bubble_chat_system_prompt,bubble_chat_max_tokens,bubble_chat_temperature,updated_at',
       )
       .single()
     if (insertError || !inserted) {
@@ -216,6 +234,10 @@ export const updateUserSettings = async (settings: UserSettings): Promise<void> 
       syzygy_post_system_prompt: settings.syzygyPostSystemPrompt,
       syzygy_reply_system_prompt: settings.syzygyReplySystemPrompt,
       letter_reply_system_prompt: settings.letterReplySystemPrompt,
+      bubble_chat_model: settings.bubbleChatModel,
+      bubble_chat_system_prompt: settings.bubbleChatSystemPrompt,
+      bubble_chat_max_tokens: settings.bubbleChatMaxTokens,
+      bubble_chat_temperature: settings.bubbleChatTemperature,
       enable_reasoning: settings.chatReasoningEnabled,
       chat_reasoning_enabled: settings.chatReasoningEnabled,
       rp_reasoning_enabled: settings.rpReasoningEnabled,
@@ -365,6 +387,34 @@ export const saveLetterReplySystemPrompt = async (userId: string, value: string)
     .from('user_settings')
     .update({
       letter_reply_system_prompt: value,
+      updated_at: now,
+    })
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const saveBubbleChatSettings = async (
+  userId: string,
+  values: {
+    bubbleChatModel: string | null
+    bubbleChatSystemPrompt: string
+    bubbleChatMaxTokens: number
+    bubbleChatTemperature: number
+  },
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('user_settings')
+    .update({
+      bubble_chat_model: values.bubbleChatModel,
+      bubble_chat_system_prompt: values.bubbleChatSystemPrompt,
+      bubble_chat_max_tokens: values.bubbleChatMaxTokens,
+      bubble_chat_temperature: values.bubbleChatTemperature,
       updated_at: now,
     })
     .eq('user_id', userId)
