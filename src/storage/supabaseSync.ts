@@ -1,4 +1,6 @@
 import type {
+  BubbleMessage,
+  BubbleSession,
   ChatMessage,
   ChatSession,
   CheckinEntry,
@@ -2204,4 +2206,149 @@ export const fetchCheckinTotalCount = async (): Promise<number> => {
     throw error
   }
   return count ?? 0
+}
+
+
+// --- Bubble Chat ---
+
+type BubbleSessionRow = {
+  id: string
+  user_id: string
+  session_date: string
+  created_at: string
+  updated_at: string
+}
+
+type BubbleMessageRow = {
+  id: string
+  session_id: string
+  user_id: string
+  role: 'user' | 'assistant'
+  content: string
+  created_at: string
+}
+
+const mapBubbleSessionRow = (row: BubbleSessionRow): BubbleSession => ({
+  id: row.id,
+  userId: row.user_id,
+  sessionDate: row.session_date,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapBubbleMessageRow = (row: BubbleMessageRow): BubbleMessage => ({
+  id: row.id,
+  sessionId: row.session_id,
+  userId: row.user_id,
+  role: row.role,
+  content: row.content,
+  createdAt: row.created_at,
+})
+
+export const resolveOrCreateBubbleSession = async (dateStr: string): Promise<BubbleSession> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+
+  const { data: existing, error: fetchError } = await supabase
+    .from('bubble_sessions')
+    .select('id,user_id,session_date,created_at,updated_at')
+    .eq('user_id', userId)
+    .eq('session_date', dateStr)
+    .maybeSingle()
+
+  if (fetchError) {
+    throw fetchError
+  }
+
+  if (existing) {
+    return mapBubbleSessionRow(existing as BubbleSessionRow)
+  }
+
+  const now = new Date().toISOString()
+  const { data: created, error: insertError } = await supabase
+    .from('bubble_sessions')
+    .insert({
+      user_id: userId,
+      session_date: dateStr,
+      created_at: now,
+      updated_at: now,
+    })
+    .select('id,user_id,session_date,created_at,updated_at')
+    .single()
+
+  if (insertError) {
+    if (insertError.code === '23505') {
+      const { data: retry, error: retryError } = await supabase
+        .from('bubble_sessions')
+        .select('id,user_id,session_date,created_at,updated_at')
+        .eq('user_id', userId)
+        .eq('session_date', dateStr)
+        .single()
+      if (retryError || !retry) {
+        throw retryError ?? new Error('获取气泡聊天会话失败')
+      }
+      return mapBubbleSessionRow(retry as BubbleSessionRow)
+    }
+    throw insertError
+  }
+
+  if (!created) {
+    throw new Error('创建气泡聊天会话失败')
+  }
+  return mapBubbleSessionRow(created as BubbleSessionRow)
+}
+
+export const createBubbleMessage = async (
+  sessionId: string,
+  role: 'user' | 'assistant',
+  content: string,
+): Promise<BubbleMessage> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('bubble_messages')
+    .insert({
+      session_id: sessionId,
+      user_id: userId,
+      role,
+      content,
+      created_at: now,
+    })
+    .select('id,session_id,user_id,role,content,created_at')
+    .single()
+
+  if (error || !data) {
+    throw error ?? new Error('保存气泡聊天消息失败')
+  }
+
+  await supabase
+    .from('bubble_sessions')
+    .update({ updated_at: now })
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+
+  return mapBubbleMessageRow(data as BubbleMessageRow)
+}
+
+export const fetchBubbleMessages = async (sessionId: string): Promise<BubbleMessage[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('bubble_messages')
+    .select('id,session_id,user_id,role,content,created_at')
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapBubbleMessageRow(row as BubbleMessageRow))
 }

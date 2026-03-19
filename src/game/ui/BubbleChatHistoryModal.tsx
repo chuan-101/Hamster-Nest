@@ -22,9 +22,28 @@ function formatDateHeading(): string {
 
 const BubbleChatHistoryModal = ({ onClose }: BubbleChatHistoryModalProps) => {
   const [entries, setEntries] = useState<BubbleChatEntry[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setEntries(getTodayEntries())
+    let cancelled = false
+    const load = async () => {
+      try {
+        const result = await getTodayEntries()
+        if (!cancelled) {
+          setEntries(result)
+        }
+      } catch (error) {
+        console.warn('[bubble-chat] Failed to load history:', error)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return (
@@ -35,7 +54,11 @@ const BubbleChatHistoryModal = ({ onClose }: BubbleChatHistoryModalProps) => {
       onClose={onClose}
       contentClassName="game-system-modal__content--history"
     >
-      {entries.length === 0 ? (
+      {loading ? (
+        <div className="bubble-history-empty">
+          <p className="bubble-history-empty__text">加载中…</p>
+        </div>
+      ) : entries.length === 0 ? (
         <div className="bubble-history-empty">
           <p className="bubble-history-empty__icon">💬</p>
           <p className="bubble-history-empty__text">

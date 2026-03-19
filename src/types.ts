@@ -254,3 +254,20 @@ export type ChatTimelineLetterItem = {
 }
 
 export type ChatTimelineItem = ChatTimelineMessageItem | ChatTimelineLetterItem
+
+export type BubbleSession = {
+  id: string
+  userId: string
+  sessionDate: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type BubbleMessage = {
+  id: string
+  sessionId: string
+  userId: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
