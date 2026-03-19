@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 type SpeechBubbleOverlayProps = {
   segments: string[]
@@ -10,52 +10,93 @@ type SpeechBubbleOverlayProps = {
 const BUBBLE_DISPLAY_MS = 4000
 const BUBBLE_PER_CHAR_MS = 80
 const MIN_DISPLAY_MS = 2500
+const MAX_VISIBLE_BUBBLES = 3
+const STAGGER_DELAY_MS = 400
 
 const computeDisplayTime = (text: string) =>
   Math.max(MIN_DISPLAY_MS, BUBBLE_DISPLAY_MS + text.length * BUBBLE_PER_CHAR_MS)
 
-const SpeechBubbleSequence = ({
+type BubbleItemProps = {
+  text: string
+  showTail: boolean
+  staggerIndex: number
+}
+
+const BubbleItem = ({ text, showTail, staggerIndex }: BubbleItemProps) => {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setVisible(true)
+    }, staggerIndex * STAGGER_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [staggerIndex])
+
+  if (!visible) {
+    return null
+  }
+
+  return (
+    <div className="speech-bubble-stack__item" style={{ animationDelay: '0ms' }}>
+      <div className="speech-bubble">
+        <span className="speech-bubble__text">{text}</span>
+      </div>
+      {showTail ? <div className="speech-bubble__tail" aria-hidden="true" /> : null}
+    </div>
+  )
+}
+
+const SpeechBubbleStack = ({
   segments,
   onDismiss,
 }: {
   segments: string[]
   onDismiss: () => void
 }) => {
-  const [visibleIndex, setVisibleIndex] = useState(0)
+  const dismissTimerRef = useRef<number | null>(null)
+
+  // Cap visible bubbles
+  const visibleSegments = segments.length > MAX_VISIBLE_BUBBLES
+    ? segments.slice(segments.length - MAX_VISIBLE_BUBBLES)
+    : segments
 
   useEffect(() => {
     if (segments.length === 0) {
       return
     }
-    if (visibleIndex >= segments.length) {
-      onDismiss()
-      return
-    }
-    const duration = computeDisplayTime(segments[visibleIndex])
-    const timer = window.setTimeout(() => {
-      setVisibleIndex((i) => i + 1)
-    }, duration)
-    return () => window.clearTimeout(timer)
-  }, [segments, visibleIndex, onDismiss])
 
-  if (segments.length === 0 || visibleIndex >= segments.length) {
+    // Calculate total time: stagger delays + last bubble display time
+    const lastIndex = visibleSegments.length - 1
+    const staggerTotal = lastIndex * STAGGER_DELAY_MS
+    const lastBubbleTime = computeDisplayTime(visibleSegments[lastIndex])
+    const totalTime = staggerTotal + lastBubbleTime
+
+    dismissTimerRef.current = window.setTimeout(() => {
+      onDismiss()
+    }, totalTime)
+
+    return () => {
+      if (dismissTimerRef.current !== null) {
+        window.clearTimeout(dismissTimerRef.current)
+      }
+    }
+  }, [segments, visibleSegments, onDismiss])
+
+  if (segments.length === 0) {
     return null
   }
 
-  const currentText = segments[visibleIndex]
-
   return (
-    <>
-      <div className="speech-bubble">
-        <span className="speech-bubble__text">{currentText}</span>
-        {segments.length > 1 ? (
-          <span className="speech-bubble__counter">
-            {visibleIndex + 1}/{segments.length}
-          </span>
-        ) : null}
-      </div>
-      <div className="speech-bubble__tail" aria-hidden="true" />
-    </>
+    <div className="speech-bubble-stack">
+      {visibleSegments.map((text, index) => (
+        <BubbleItem
+          key={`${index}-${text}`}
+          text={text}
+          showTail={index === visibleSegments.length - 1}
+          staggerIndex={index}
+        />
+      ))}
+    </div>
   )
 }
 
@@ -82,7 +123,7 @@ const SpeechBubbleOverlay = ({
       aria-live="polite"
       aria-label="Syzygy 的回复"
     >
-      <SpeechBubbleSequence
+      <SpeechBubbleStack
         key={sequenceKey}
         segments={segments}
         onDismiss={onDismiss}
