@@ -19,7 +19,8 @@ import CheckinPage from "../pages/CheckinPage";
 import ExportPage from "../pages/ExportPage";
 import { supabase } from "../supabase/client";
 import { parseBubbleReply } from "./utils/parseBubbleReply";
-import { appendEntry } from "./utils/bubbleChatHistory";
+import { persistBubbleMessage, resolveTodaySession, invalidateSessionCache } from "./utils/bubbleChatHistory";
+import { fetchBubbleMessages } from "../storage/supabaseSync";
 import BubbleChatHistoryModal from "./ui/BubbleChatHistoryModal";
 import "./gameHud.css";
 
@@ -106,6 +107,7 @@ const GameModeShell = ({
   const [bubbleSegments, setBubbleSegments] = useState<string[]>([]);
   const [syzygyPos, setSyzygyPos] = useState<SyzygyPositionPayload | null>(null);
   const bubbleChatHistoryRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const bubbleSessionRestoredRef = useRef(false);
 
   const handleOpenNpcActions = useCallback((payload: OpenNpcActionsPayload) => {
     setActiveNpcMenu(payload);
@@ -132,6 +134,30 @@ const GameModeShell = ({
     setSyzygyPos(pos);
   }, []);
 
+  // Restore persisted bubble chat history on mount
+  useEffect(() => {
+    if (bubbleSessionRestoredRef.current || !user || !supabase) {
+      return;
+    }
+    bubbleSessionRestoredRef.current = true;
+    invalidateSessionCache();
+
+    const restore = async () => {
+      try {
+        const session = await resolveTodaySession();
+        const messages = await fetchBubbleMessages(session.id);
+        if (messages.length > 0) {
+          bubbleChatHistoryRef.current = messages
+            .slice(-12)
+            .map((m) => ({ role: m.role, content: m.content }));
+        }
+      } catch (error) {
+        console.warn('[bubble-chat] Failed to restore history:', error);
+      }
+    };
+    restore();
+  }, [user]);
+
   const handleBubbleSend = useCallback(async (text: string) => {
     if (bubbleSending || !user || !supabase) {
       return;
@@ -152,7 +178,12 @@ const GameModeShell = ({
         ...bubbleChatHistoryRef.current.slice(-10),
         { role: 'user' as const, content: text },
       ];
-      appendEntry('user', text);
+
+      try {
+        await persistBubbleMessage('user', text);
+      } catch (error) {
+        console.warn('[bubble-chat] Failed to persist user message:', error);
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`,
@@ -193,7 +224,13 @@ const GameModeShell = ({
           ...bubbleChatHistoryRef.current,
           { role: 'assistant' as const, content },
         ];
-        appendEntry('assistant', content);
+
+        try {
+          await persistBubbleMessage('assistant', content);
+        } catch (error) {
+          console.warn('[bubble-chat] Failed to persist assistant message:', error);
+        }
+
         const segments = parseBubbleReply(content);
         if (segments.length > 0) {
           setBubbleSegments(segments);

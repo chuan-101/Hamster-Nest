@@ -1,4 +1,9 @@
-const STORAGE_KEY = 'hamster-nest:bubble-chat-history'
+import type { BubbleMessage, BubbleSession } from '../../types'
+import {
+  resolveOrCreateBubbleSession,
+  createBubbleMessage,
+  fetchBubbleMessages,
+} from '../../storage/supabaseSync'
 
 export type BubbleChatEntry = {
   role: 'user' | 'assistant'
@@ -6,42 +11,62 @@ export type BubbleChatEntry = {
   timestamp: number
 }
 
-function loadAll(): BubbleChatEntry[] {
+let cachedSession: BubbleSession | null = null
+let cachedDateStr: string | null = null
+
+function todayDateStr(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function isCacheValid(): boolean {
+  return cachedSession !== null && cachedDateStr === todayDateStr()
+}
+
+export async function resolveTodaySession(): Promise<BubbleSession> {
+  const dateStr = todayDateStr()
+
+  if (isCacheValid() && cachedSession) {
+    return cachedSession
+  }
+
+  const session = await resolveOrCreateBubbleSession(dateStr)
+  cachedSession = session
+  cachedDateStr = dateStr
+  return session
+}
+
+export async function persistBubbleMessage(
+  role: 'user' | 'assistant',
+  content: string,
+): Promise<BubbleMessage> {
+  const session = await resolveTodaySession()
+  return createBubbleMessage(session.id, role, content)
+}
+
+function toBubbleChatEntry(msg: BubbleMessage): BubbleChatEntry {
+  return {
+    role: msg.role,
+    content: msg.content,
+    timestamp: new Date(msg.createdAt).getTime(),
+  }
+}
+
+export async function getTodayEntries(): Promise<BubbleChatEntry[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      return []
-    }
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
+    const session = await resolveTodaySession()
+    const messages = await fetchBubbleMessages(session.id)
+    return messages.map(toBubbleChatEntry)
+  } catch (error) {
+    console.error('[bubble-chat] Failed to fetch today entries:', error)
     return []
   }
 }
 
-function saveAll(entries: BubbleChatEntry[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
-  } catch {
-    // storage full – silently drop
-  }
-}
-
-function startOfToday(): number {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-}
-
-export function getTodayEntries(): BubbleChatEntry[] {
-  const cutoff = startOfToday()
-  return loadAll().filter((entry) => entry.timestamp >= cutoff)
-}
-
-export function appendEntry(role: BubbleChatEntry['role'], content: string): void {
-  const all = loadAll()
-  all.push({ role, content, timestamp: Date.now() })
-
-  // keep at most 200 entries to avoid unbounded growth
-  const trimmed = all.length > 200 ? all.slice(all.length - 200) : all
-  saveAll(trimmed)
+export function invalidateSessionCache(): void {
+  cachedSession = null
+  cachedDateStr = null
 }
