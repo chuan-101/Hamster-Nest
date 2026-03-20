@@ -243,6 +243,7 @@
 }
 
 .game-viewport-shell {
+  position: relative;
   min-height: 0;
   padding: clamp(8px, 1.8vw, 14px);
   border-radius: 18px;
@@ -269,6 +270,14 @@
   width: 100%;
   height: 100%;
   min-height: 220px;
+}
+
+.game-viewport-overlay-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  overflow: visible;
 }
 
 .game-bottom-bar {
@@ -432,7 +441,7 @@
 }
 
 .npc-actions-layer {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 28;
   pointer-events: none;
@@ -1251,7 +1260,7 @@
 /* ── Speech bubble overlay ── */
 
 .speech-bubble-overlay {
-  position: fixed;
+  position: absolute;
   z-index: 35;
   transform: translate(-50%, -100%);
   pointer-events: none;

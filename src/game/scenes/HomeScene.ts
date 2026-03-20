@@ -9,16 +9,14 @@ export class HomeScene extends Phaser.Scene {
   private playerSprite?: Phaser.GameObjects.Image
   private syzygySprite?: Phaser.GameObjects.Image
 
-  private getSpriteScreenAnchor(sprite: Phaser.GameObjects.Image) {
+  private getSpriteCanvasAnchor(sprite: Phaser.GameObjects.Image) {
     const bounds = sprite.getBounds()
-    const canvas = this.game.canvas
-    const canvasRect = canvas.getBoundingClientRect()
-    const scaleX = canvasRect.width / this.scale.width
-    const scaleY = canvasRect.height / this.scale.height
 
     return {
-      x: canvasRect.left + bounds.right * scaleX,
-      y: canvasRect.top + (bounds.top + bounds.height * 0.45) * scaleY,
+      x: bounds.right,
+      y: bounds.top + bounds.height * 0.45,
+      sceneWidth: this.scale.width,
+      sceneHeight: this.scale.height,
     }
   }
 
@@ -41,14 +39,12 @@ export class HomeScene extends Phaser.Scene {
       return
     }
     const bounds = this.playerSprite.getBounds()
-    const canvas = this.game.canvas
-    const canvasRect = canvas.getBoundingClientRect()
-    const scaleX = canvasRect.width / this.scale.width
-    const scaleY = canvasRect.height / this.scale.height
 
     EventBus.emit(GAME_EVENTS.PLAYER_POSITION_UPDATE, {
-      x: canvasRect.left + (bounds.x + bounds.width * 0.5) * scaleX,
-      y: canvasRect.top + bounds.top * scaleY,
+      x: bounds.x + bounds.width * 0.5,
+      y: bounds.top,
+      sceneWidth: this.scale.width,
+      sceneHeight: this.scale.height,
     })
   }
 
@@ -57,14 +53,12 @@ export class HomeScene extends Phaser.Scene {
       return
     }
     const bounds = this.syzygySprite.getBounds()
-    const canvas = this.game.canvas
-    const canvasRect = canvas.getBoundingClientRect()
-    const scaleX = canvasRect.width / this.scale.width
-    const scaleY = canvasRect.height / this.scale.height
 
     EventBus.emit(GAME_EVENTS.SYZYGY_POSITION_UPDATE, {
-      x: canvasRect.left + (bounds.x + bounds.width * 0.5) * scaleX,
-      y: canvasRect.top + bounds.top * scaleY,
+      x: bounds.x + bounds.width * 0.5,
+      y: bounds.top,
+      sceneWidth: this.scale.width,
+      sceneHeight: this.scale.height,
     })
   }
 
@@ -101,7 +95,7 @@ export class HomeScene extends Phaser.Scene {
 
       EventBus.emit(GAME_EVENTS.OPEN_NPC_ACTIONS, {
         npcId: 'syzygy',
-        anchor: this.getSpriteScreenAnchor(this.syzygySprite),
+        anchor: this.getSpriteCanvasAnchor(this.syzygySprite),
       })
     })
 
