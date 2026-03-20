@@ -316,7 +316,7 @@ const ChatPage = ({
         <div className="header-actions" ref={headerMenuRef}>
           {onReturnToGame ? (
             <button type="button" className="ghost return-to-game-button" onClick={onReturnToGame}>
-              Return to Game
+              返回主机
             </button>
           ) : null}
           <button
