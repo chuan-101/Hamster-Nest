@@ -6,22 +6,20 @@ export const GAME_EVENTS = {
   PLAYER_POSITION_UPDATE: 'player-position-update',
 } as const
 
+type SceneAnchorPayload = {
+  x: number
+  y: number
+  sceneWidth: number
+  sceneHeight: number
+}
+
 export type OpenNpcActionsPayload = {
   npcId: 'syzygy'
-  anchor: {
-    x: number
-    y: number
-  }
+  anchor: SceneAnchorPayload
 }
 
-export type SyzygyPositionPayload = {
-  x: number
-  y: number
-}
+export type SyzygyPositionPayload = SceneAnchorPayload
 
-export type PlayerPositionPayload = {
-  x: number
-  y: number
-}
+export type PlayerPositionPayload = SceneAnchorPayload
 
 export const EventBus = new Phaser.Events.EventEmitter()

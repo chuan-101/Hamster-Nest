@@ -93,6 +93,7 @@ const GameModeShell = ({
     null,
   );
   const npcMenuRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLElement | null>(null);
   const [npcMenuSize, setNpcMenuSize] = useState<{
     width: number;
     height: number;
@@ -105,6 +106,14 @@ const GameModeShell = ({
   const [isBubbleHistoryOpen, setIsBubbleHistoryOpen] = useState(false);
   const [bubbleSending, setBubbleSending] = useState(false);
   const [bubbleSegments, setBubbleSegments] = useState<string[]>([]);
+  const [viewportMetrics, setViewportMetrics] = useState<{
+    viewportWidth: number;
+    viewportHeight: number;
+    canvasOffsetLeft: number;
+    canvasOffsetTop: number;
+    canvasWidth: number;
+    canvasHeight: number;
+  } | null>(null);
   const [playerBubbleText, setPlayerBubbleText] = useState<string | null>(null);
   const [syzygyPos, setSyzygyPos] = useState<SyzygyPositionPayload | null>(null);
   const [playerPos, setPlayerPos] = useState<PlayerPositionPayload | null>(null);
@@ -349,36 +358,118 @@ const GameModeShell = ({
     );
   }, [activeNpcMenu]);
 
+  const toViewportAnchor = useCallback((anchor: { x: number; y: number; sceneWidth: number; sceneHeight: number }) => {
+    if (!viewportMetrics || !anchor.sceneWidth || !anchor.sceneHeight) {
+      return null;
+    }
+
+    const relativeX = anchor.x / anchor.sceneWidth;
+    const relativeY = anchor.y / anchor.sceneHeight;
+
+    return {
+      x: viewportMetrics.canvasOffsetLeft + relativeX * viewportMetrics.canvasWidth,
+      y: viewportMetrics.canvasOffsetTop + relativeY * viewportMetrics.canvasHeight,
+    };
+  }, [viewportMetrics]);
+
+  useLayoutEffect(() => {
+    const viewportElement = viewportRef.current;
+    if (!viewportElement) {
+      return;
+    }
+
+    const refreshLayout = () => {
+      const canvasElement = viewportElement.querySelector('canvas');
+      if (!(canvasElement instanceof HTMLCanvasElement)) {
+        setViewportMetrics(null);
+        return;
+      }
+
+      const viewportRect = viewportElement.getBoundingClientRect();
+      const canvasRect = canvasElement.getBoundingClientRect();
+
+      setViewportMetrics({
+        viewportWidth: viewportRect.width,
+        viewportHeight: viewportRect.height,
+        canvasOffsetLeft: canvasRect.left - viewportRect.left,
+        canvasOffsetTop: canvasRect.top - viewportRect.top,
+        canvasWidth: canvasRect.width,
+        canvasHeight: canvasRect.height,
+      });
+    };
+
+    refreshLayout();
+
+    const resizeObserver = new ResizeObserver(() => {
+      refreshLayout();
+    });
+
+    resizeObserver.observe(viewportElement);
+
+    const canvasElement = viewportElement.querySelector('canvas');
+    if (canvasElement instanceof HTMLCanvasElement) {
+      resizeObserver.observe(canvasElement);
+    }
+
+    window.addEventListener('resize', refreshLayout);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', refreshLayout);
+    };
+  }, []);
+
+  const playerBubbleAnchor = useMemo(() => {
+    if (!playerPos) {
+      return null;
+    }
+
+    return toViewportAnchor(playerPos);
+  }, [playerPos, toViewportAnchor]);
+
+  const syzygyBubbleAnchor = useMemo(() => {
+    if (!syzygyPos) {
+      return null;
+    }
+
+    return toViewportAnchor(syzygyPos);
+  }, [syzygyPos, toViewportAnchor]);
+
   const npcMenuPosition = useMemo(() => {
     if (!activeNpcMenu) {
       return null;
     }
 
     const { edgePadding, anchorOffset } = NPC_MENU_LAYOUT;
+    const viewportAnchor = toViewportAnchor(activeNpcMenu.anchor);
+
+    if (!viewportAnchor) {
+      return null;
+    }
     const menuWidth = npcMenuSize.width;
     const menuHeight = npcMenuSize.height;
 
     const candidatePositions = [
       {
-        left: activeNpcMenu.anchor.x + anchorOffset,
-        top: activeNpcMenu.anchor.y - menuHeight - anchorOffset,
+        left: viewportAnchor.x + anchorOffset,
+        top: viewportAnchor.y - menuHeight - anchorOffset,
       },
       {
-        left: activeNpcMenu.anchor.x + anchorOffset,
-        top: activeNpcMenu.anchor.y + anchorOffset,
+        left: viewportAnchor.x + anchorOffset,
+        top: viewportAnchor.y + anchorOffset,
       },
       {
-        left: activeNpcMenu.anchor.x - menuWidth - anchorOffset,
-        top: activeNpcMenu.anchor.y - menuHeight - anchorOffset,
+        left: viewportAnchor.x - menuWidth - anchorOffset,
+        top: viewportAnchor.y - menuHeight - anchorOffset,
       },
       {
-        left: activeNpcMenu.anchor.x - menuWidth - anchorOffset,
-        top: activeNpcMenu.anchor.y + anchorOffset,
+        left: viewportAnchor.x - menuWidth - anchorOffset,
+        top: viewportAnchor.y + anchorOffset,
       },
     ];
 
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
+    const viewportWidth = viewportMetrics?.viewportWidth ?? window.innerWidth;
+    const viewportHeight = viewportMetrics?.viewportHeight ?? window.innerHeight;
 
     const findBestPosition = () => {
       for (const position of candidatePositions) {
@@ -395,12 +486,12 @@ const GameModeShell = ({
 
       return {
         left: clamp(
-          activeNpcMenu.anchor.x + anchorOffset,
+          viewportAnchor.x + anchorOffset,
           edgePadding,
           viewportWidth - edgePadding - menuWidth,
         ),
         top: clamp(
-          activeNpcMenu.anchor.y - menuHeight - anchorOffset,
+          viewportAnchor.y - menuHeight - anchorOffset,
           edgePadding,
           viewportHeight - edgePadding - menuHeight,
         ),
@@ -413,7 +504,7 @@ const GameModeShell = ({
       left: `${position.left}px`,
       top: `${position.top}px`,
     };
-  }, [activeNpcMenu, npcMenuSize.height, npcMenuSize.width]);
+  }, [activeNpcMenu, npcMenuSize.height, npcMenuSize.width, toViewportAnchor, viewportMetrics]);
 
   const featureMeta = activeFeature ? GAME_FEATURE_META[activeFeature] : null;
 
@@ -421,64 +512,68 @@ const GameModeShell = ({
     <div className="app-shell game-mode-shell">
       <div className="game-mode-container">
         <GameHud
+          viewportRef={viewportRef}
           onOpenPawMenu={() => setIsPawMenuOpen((open) => !open)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onBubbleSend={handleBubbleSend}
           onOpenBubbleHistory={() => setIsBubbleHistoryOpen(true)}
           bubbleSending={bubbleSending}
+          viewportOverlay={
+            <>
+              {playerBubbleText && playerBubbleAnchor ? (
+                <SpeechBubbleOverlay
+                  segments={[playerBubbleText]}
+                  anchorX={playerBubbleAnchor.x}
+                  anchorY={playerBubbleAnchor.y}
+                  variant="player"
+                />
+              ) : null}
+
+              {bubbleSegments.length > 0 && syzygyBubbleAnchor ? (
+                <SpeechBubbleOverlay
+                  segments={bubbleSegments}
+                  anchorX={syzygyBubbleAnchor.x}
+                  anchorY={syzygyBubbleAnchor.y}
+                  variant="npc"
+                />
+              ) : null}
+
+              {activeNpcMenu && npcMenuPosition ? (
+                <div className="npc-actions-layer" role="presentation">
+                  <div
+                    ref={npcMenuRef}
+                    className="npc-actions-menu"
+                    role="dialog"
+                    aria-label="仓鼠互动菜单"
+                    style={npcMenuPosition}
+                  >
+                    <button
+                      type="button"
+                      className="npc-actions-menu__button npc-actions-menu__button--chat"
+                      onClick={handleOpenChat}
+                    >
+                      聊天
+                    </button>
+                    <button
+                      type="button"
+                      className="npc-actions-menu__button npc-actions-menu__button--close"
+                      onClick={handleCloseNpcActions}
+                    >
+                      关闭
+                    </button>
+                    <button
+                      type="button"
+                      className="npc-actions-menu__button npc-actions-menu__button--disabled"
+                      disabled
+                    >
+                      互动（即将开放）
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          }
         />
-
-        {playerBubbleText && playerPos ? (
-          <SpeechBubbleOverlay
-            segments={[playerBubbleText]}
-            anchorX={playerPos.x}
-            anchorY={playerPos.y}
-            variant="player"
-          />
-        ) : null}
-
-        {bubbleSegments.length > 0 && syzygyPos ? (
-          <SpeechBubbleOverlay
-            segments={bubbleSegments}
-            anchorX={syzygyPos.x}
-            anchorY={syzygyPos.y}
-            variant="npc"
-          />
-        ) : null}
-
-        {activeNpcMenu && npcMenuPosition ? (
-          <div className="npc-actions-layer" role="presentation">
-            <div
-              ref={npcMenuRef}
-              className="npc-actions-menu"
-              role="dialog"
-              aria-label="仓鼠互动菜单"
-              style={npcMenuPosition}
-            >
-              <button
-                type="button"
-                className="npc-actions-menu__button npc-actions-menu__button--chat"
-                onClick={handleOpenChat}
-              >
-                聊天
-              </button>
-              <button
-                type="button"
-                className="npc-actions-menu__button npc-actions-menu__button--close"
-                onClick={handleCloseNpcActions}
-              >
-                关闭
-              </button>
-              <button
-                type="button"
-                className="npc-actions-menu__button npc-actions-menu__button--disabled"
-                disabled
-              >
-                互动（即将开放）
-              </button>
-            </div>
-          </div>
-        ) : null}
 
         {isPawMenuOpen ? (
           <GameMenuOverlay
