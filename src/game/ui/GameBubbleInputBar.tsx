@@ -59,7 +59,7 @@ const GameBubbleInputBar = ({ onSend, onOpenHistory, disabled }: GameBubbleInput
           aria-label="聊天历史记录"
           onClick={onOpenHistory}
         >
-          🕐
+          录
         </button>
 
         <button
@@ -68,7 +68,7 @@ const GameBubbleInputBar = ({ onSend, onOpenHistory, disabled }: GameBubbleInput
           disabled={disabled || !draft.trim()}
           aria-label="发送消息"
         >
-          {disabled ? '…' : '→'}
+          {disabled ? '…' : '发'}
         </button>
       </div>
     </form>

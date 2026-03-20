@@ -31,11 +31,11 @@ const GameBottomBar = ({ onOpenPawMenu, onOpenSettings, onBubbleSend, onOpenBubb
 
       <div className="game-bottom-controls" aria-label="功能控制区">
         <button type="button" className="game-control-button game-control-button--icon" onClick={onOpenSettings} aria-label="打开游戏设置">
-          ⚙
+          设
         </button>
 
         <button type="button" className="game-control-button game-control-button--paw" onClick={onOpenPawMenu} aria-label="打开互动菜单">
-          🐾
+          爪
         </button>
       </div>
     </footer>
