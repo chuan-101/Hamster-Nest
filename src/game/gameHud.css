@@ -1579,6 +1579,46 @@
   }
 }
 
+/* ── Typing indicator dots ── */
+
+.speech-bubble--typing {
+  padding: 10px 18px;
+  min-width: 64px;
+}
+
+.typing-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 20px;
+}
+
+.typing-dots__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--game-shell-edge);
+  animation: typing-bounce 0.7s ease-in-out infinite;
+}
+
+.typing-dots__dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dots__dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
+}
+
 /* ── Bubble chat history modal ── */
 
 .game-system-modal__content--history {

@@ -105,6 +105,7 @@ const GameModeShell = ({
   // Bubble chat state
   const [isBubbleHistoryOpen, setIsBubbleHistoryOpen] = useState(false);
   const [bubbleSending, setBubbleSending] = useState(false);
+  const [isWaitingForReply, setIsWaitingForReply] = useState(false);
   const [bubbleSegments, setBubbleSegments] = useState<string[]>([]);
   const [viewportMetrics, setViewportMetrics] = useState<{
     viewportWidth: number;
@@ -195,8 +196,10 @@ const GameModeShell = ({
         { role: 'user' as const, content: text },
       ];
 
-      // Show player bubble immediately
+      // Show player bubble immediately and typing indicator
       setPlayerBubbleText(text);
+      setBubbleSegments([]);
+      setIsWaitingForReply(true);
       sceneBubblesVisibleRef.current = true;
 
       try {
@@ -252,6 +255,7 @@ const GameModeShell = ({
         }
 
         const segments = parseBubbleReply(content);
+        setIsWaitingForReply(false);
         if (segments.length > 0) {
           setBubbleSegments(segments);
           sceneBubblesVisibleRef.current = true;
@@ -261,12 +265,14 @@ const GameModeShell = ({
       console.warn('Bubble chat error', error);
     } finally {
       setBubbleSending(false);
+      setIsWaitingForReply(false);
     }
   }, [bubbleSending, user, bubbleChatConfig]);
 
   const handleBubbleDismiss = useCallback(() => {
     setBubbleSegments([]);
     setPlayerBubbleText(null);
+    setIsWaitingForReply(false);
     sceneBubblesVisibleRef.current = false;
   }, []);
 
@@ -526,6 +532,16 @@ const GameModeShell = ({
                   anchorX={playerBubbleAnchor.x}
                   anchorY={playerBubbleAnchor.y}
                   variant="player"
+                />
+              ) : null}
+
+              {isWaitingForReply && bubbleSegments.length === 0 && syzygyBubbleAnchor ? (
+                <SpeechBubbleOverlay
+                  segments={[]}
+                  anchorX={syzygyBubbleAnchor.x}
+                  anchorY={syzygyBubbleAnchor.y}
+                  variant="npc"
+                  isTyping
                 />
               ) : null}
 

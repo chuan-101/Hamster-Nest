@@ -5,6 +5,7 @@ type SpeechBubbleOverlayProps = {
   anchorX: number
   anchorY: number
   variant?: 'npc' | 'player'
+  isTyping?: boolean
 }
 
 const MAX_VISIBLE_BUBBLES = 3
@@ -76,19 +77,35 @@ const SpeechBubbleStack = ({
   )
 }
 
+const TypingIndicator = () => (
+  <div className="speech-bubble-stack">
+    <div className="speech-bubble-stack__item" style={{ animationDelay: '0ms' }}>
+      <div className="speech-bubble speech-bubble--typing">
+        <span className="typing-dots" aria-hidden="true">
+          <span className="typing-dots__dot" />
+          <span className="typing-dots__dot" />
+          <span className="typing-dots__dot" />
+        </span>
+      </div>
+      <div className="speech-bubble__tail" aria-hidden="true" />
+    </div>
+  </div>
+)
+
 const SpeechBubbleOverlay = ({
   segments,
   anchorX,
   anchorY,
   variant = 'npc',
+  isTyping = false,
 }: SpeechBubbleOverlayProps) => {
   const sequenceKey = useMemo(() => segments.join('\n'), [segments])
 
-  if (segments.length === 0) {
+  if (segments.length === 0 && !isTyping) {
     return null
   }
 
-  const ariaLabel = variant === 'player' ? '串串的消息' : 'Syzygy 的回复'
+  const ariaLabel = isTyping ? 'Syzygy 正在输入' : variant === 'player' ? '串串的消息' : 'Syzygy 的回复'
 
   return (
     <div
@@ -101,11 +118,15 @@ const SpeechBubbleOverlay = ({
       aria-live="polite"
       aria-label={ariaLabel}
     >
-      <SpeechBubbleStack
-        key={sequenceKey}
-        segments={segments}
-        variant={variant}
-      />
+      {isTyping ? (
+        <TypingIndicator />
+      ) : (
+        <SpeechBubbleStack
+          key={sequenceKey}
+          segments={segments}
+          variant={variant}
+        />
+      )}
     </div>
   )
 }
