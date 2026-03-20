@@ -665,12 +665,6 @@ const App = () => {
         max_tokens: activeSettings.maxTokens,
       }
       const systemPrompt = activeSettings.systemPrompt
-      const isFirstMessageInSession = !messagesRef.current.some(
-        (message) =>
-          message.sessionId === sessionId &&
-          message.role === 'user' &&
-          message.content.trim().length > 0,
-      )
       const clientId = createClientId()
       const clientCreatedAt = new Date().toISOString()
       const optimisticMessage: ChatMessage = {
@@ -963,7 +957,6 @@ const App = () => {
             top_p: paramsSnapshot.top_p,
             max_tokens: paramsSnapshot.max_tokens,
             stream: true,
-            isFirstMessage: isFirstMessageInSession,
           }
           if (reasoningEnabled) {
             requestBody.reasoning = highThinkingEnabled && isGpt5Auto(effectiveModel)

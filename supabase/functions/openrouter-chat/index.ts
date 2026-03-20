@@ -16,8 +16,7 @@ type OpenRouterPayload = {
   max_tokens?: number
   reasoning?: boolean | Record<string, unknown>
   stream?: boolean
-  isFirstMessage?: boolean
-  module?: 'snack-feed' | 'syzygy-feed' | 'rp-room' | string
+  module?: 'snack-feed' | 'syzygy-feed' | 'bubble-chat' | 'rp-room' | string
   rpKeepRecentMessages?: number
   debug?: boolean
   extra?: Record<string, unknown>
@@ -171,7 +170,10 @@ const extractOpenRouterContent = (payload: Record<string, unknown>): string => {
 
 const shouldInjectSyzygyFeedMemory = (payload: OpenRouterPayload) => payload.module === 'syzygy-feed'
 
-const shouldInjectChitchatMemory = (payload: OpenRouterPayload) => Boolean(payload.isFirstMessage)
+const shouldInjectChitchatMemory = (payload: OpenRouterPayload) =>
+  !payload.module || payload.module === 'chitchat'
+
+const shouldInjectBubbleChatMemory = (payload: OpenRouterPayload) => payload.module === 'bubble-chat'
 const resolveCompressionModule = (payload: OpenRouterPayload): 'chat' | 'rp' | null => {
   if (!payload.module || payload.module === 'chitchat') {
     return 'chat'
@@ -839,6 +841,7 @@ const maybeInjectMemory = async (
     !shouldInjectSnackFeedMemory(payload)
     && !shouldInjectSyzygyFeedMemory(payload)
     && !shouldInjectChitchatMemory(payload)
+    && !shouldInjectBubbleChatMemory(payload)
   ) {
     return messages
   }
