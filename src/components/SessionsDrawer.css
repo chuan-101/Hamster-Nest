@@ -248,22 +248,22 @@
 
 
 .drawer-scrim--pixel {
-  background: rgba(61, 39, 34, 0.26);
+  background: rgba(90, 85, 81, 0.24);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }
 
 .sessions-drawer--pixel {
-  background: linear-gradient(180deg, rgba(255, 241, 232, 0.98) 0%, rgba(246, 212, 202, 0.98) 100%);
-  border-right: 3px solid #714842;
+  background: linear-gradient(180deg, rgba(255, 251, 245, 0.98) 0%, rgba(253, 244, 232, 0.98) 100%);
+  border-right: 3px solid #86827d;
   border-top-right-radius: 18px;
   border-bottom-right-radius: 18px;
   box-shadow:
-    inset 0 0 0 2px #fff7f2,
-    inset 0 0 0 6px rgba(255, 227, 214, 0.72),
-    inset -7px 0 0 rgba(126, 86, 78, 0.28),
-    0 12px 0 rgba(89, 56, 53, 0.32),
-    0 18px 34px rgba(56, 33, 30, 0.2);
+    inset 0 0 0 2px #fffdf9,
+    inset 0 0 0 6px rgba(246, 215, 212, 0.42),
+    inset -7px 0 0 rgba(134, 130, 125, 0.24),
+    0 12px 0 rgba(134, 130, 125, 0.26),
+    0 18px 34px rgba(90, 85, 81, 0.18);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -273,21 +273,21 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0)),
     repeating-linear-gradient(
       180deg,
-      rgba(242, 141, 160, 0.08) 0,
-      rgba(242, 141, 160, 0.08) 12px,
-      rgba(255, 233, 223, 0.08) 12px,
-      rgba(255, 233, 223, 0.08) 24px
+      rgba(246, 215, 212, 0.14) 0,
+      rgba(246, 215, 212, 0.14) 12px,
+      rgba(255, 251, 245, 0.12) 12px,
+      rgba(255, 251, 245, 0.12) 24px
     );
   opacity: 0.9;
   filter: none;
 }
 
 .sessions-drawer--pixel .drawer-header {
-  border: 3px solid #7e564e;
+  border: 3px solid #86827d;
   border-radius: 12px;
   padding: 10px 12px;
-  background: linear-gradient(180deg, #ffeade 0%, #f6d8ca 100%);
-  box-shadow: inset 0 0 0 2px #fff2e9;
+  background: linear-gradient(180deg, #fffbf5 0%, #f6d7d4 100%);
+  box-shadow: inset 0 0 0 2px #fffdf9;
 }
 
 .sessions-drawer--pixel .drawer-header h2 {
@@ -295,7 +295,7 @@
 }
 
 .sessions-drawer--pixel .syncing {
-  color: #7c5650;
+  color: #86827d;
   font-weight: 700;
 }
 
@@ -312,47 +312,47 @@
 .sessions-drawer--pixel button.danger,
 .sessions-drawer--pixel .inline-actions button {
   min-height: 38px;
-  border: 2px solid #6f4a44;
+  border: 2px solid #86827d;
   border-radius: 9px;
   box-shadow:
-    inset 0 1px 0 #ffe7e0,
-    inset 0 -2px 0 rgba(97, 64, 57, 0.6);
+    inset 0 1px 0 #fffdf9,
+    inset 0 -2px 0 rgba(134, 130, 125, 0.45);
   font-weight: 800;
 }
 
 .sessions-drawer--pixel .drawer-tabs button {
-  background: linear-gradient(180deg, #f8ddd4 0%, #edb8af 100%);
-  color: #4a312d;
+  background: linear-gradient(180deg, #fdf4e8 0%, #f6d7d4 100%);
+  color: #5a5551;
   padding: 7px 10px;
 }
 
 .sessions-drawer--pixel .drawer-tabs button.active,
 .sessions-drawer--pixel button.primary {
-  background: linear-gradient(180deg, #ffd7dd 0%, #f09aae 100%);
-  color: #5d303c;
-  border-color: #6f4a44;
+  background: linear-gradient(180deg, #f6d7d4 0%, #efc2bc 100%);
+  color: #5a5551;
+  border-color: #86827d;
 }
 
 .sessions-drawer--pixel button.primary {
   box-shadow:
-    inset 0 1px 0 #fff0f3,
-    inset 0 -2px 0 rgba(164, 88, 107, 0.55);
+    inset 0 1px 0 #fffdf9,
+    inset 0 -2px 0 rgba(134, 130, 125, 0.4);
 }
 
 .sessions-drawer--pixel .search-input,
 .sessions-drawer--pixel .rename-row input {
-  border: 3px solid #7e564e;
+  border: 3px solid #86827d;
   border-radius: 10px;
   padding: 10px 12px;
-  background: linear-gradient(180deg, #fff1e8 0%, #f7d5ca 100%);
-  box-shadow: inset 0 0 0 2px #fff7f2;
-  color: #2f2322;
+  background: linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%);
+  box-shadow: inset 0 0 0 2px #fffdf9;
+  color: #5a5551;
 }
 
 .sessions-drawer--pixel .search-input:focus,
 .sessions-drawer--pixel .rename-row input:focus {
-  border-color: #cb5f7b;
-  box-shadow: inset 0 0 0 2px #fff7f2, 0 0 0 3px rgba(242, 141, 160, 0.22);
+  border-color: #86827d;
+  box-shadow: inset 0 0 0 2px #fffdf9, 0 0 0 3px rgba(246, 215, 212, 0.45);
 }
 
 .sessions-drawer--pixel .sessions-list {
@@ -360,23 +360,23 @@
 }
 
 .sessions-drawer--pixel .session-row {
-  border: 3px solid #7e564e;
+  border: 3px solid #86827d;
   border-radius: 12px;
   padding: 12px;
-  background: linear-gradient(180deg, #ffe9de 0%, #f8d4ca 100%);
+  background: linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%);
   box-shadow:
-    inset 0 0 0 2px #fff6ef,
-    inset 0 -4px 0 rgba(126, 86, 78, 0.22);
+    inset 0 0 0 2px #fffdf9,
+    inset 0 -4px 0 rgba(134, 130, 125, 0.2);
 }
 
 .sessions-drawer--pixel .session-row.active {
-  background: linear-gradient(180deg, #ffe0e5 0%, #f5b2bf 100%);
-  border-color: #714842;
+  background: linear-gradient(180deg, #f6d7d4 0%, #efc2bc 100%);
+  border-color: #86827d;
 }
 
 .sessions-drawer--pixel .session-select {
   align-items: flex-start;
-  color: #2f2322;
+  color: #5a5551;
   flex-direction: column;
   gap: 4px;
 }
@@ -389,18 +389,18 @@
 
 .sessions-drawer--pixel .session-select .count,
 .sessions-drawer--pixel .empty {
-  color: #7c5650;
+  color: #86827d;
 }
 
 .sessions-drawer--pixel button.ghost,
 .sessions-drawer--pixel .inline-actions button {
-  background: linear-gradient(180deg, #ffe6dc 0%, #f2c1b7 100%);
-  color: #5a3d37;
+  background: linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%);
+  color: #5a5551;
 }
 
 .sessions-drawer--pixel button.danger {
-  background: linear-gradient(180deg, #ffd8df 0%, #ef9db0 100%);
-  color: #6d2235;
+  background: linear-gradient(180deg, #f6d7d4 0%, #d98a7c 100%);
+  color: #5a5551;
 }
 
 .sessions-drawer--pixel .sessions-list::-webkit-scrollbar {
@@ -408,14 +408,14 @@
 }
 
 .sessions-drawer--pixel .sessions-list::-webkit-scrollbar-thumb {
-  border: 2px solid #f9dfd5;
+  border: 2px solid #fdf4e8;
   border-radius: 999px;
-  background: linear-gradient(180deg, #efb5b1 0%, #d78682 100%);
+  background: linear-gradient(180deg, #f6d7d4 0%, #d98a7c 100%);
 }
 
 .sessions-drawer--pixel .sessions-list::-webkit-scrollbar-track {
   border-radius: 999px;
-  background: rgba(126, 86, 78, 0.12);
+  background: rgba(134, 130, 125, 0.12);
 }
 
 @media (max-width: 560px) {
