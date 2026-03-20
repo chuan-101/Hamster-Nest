@@ -1,5 +1,55 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
 
+const HistoryIcon = () => (
+  <svg viewBox="0 0 24 24" className="game-button-icon" aria-hidden="true" focusable="false">
+    <path
+      d="M12 5a7 7 0 1 1-6.2 3.75"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M5 4v4h4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M12 8.5v4l2.5 1.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+const SendIcon = () => (
+  <svg viewBox="0 0 24 24" className="game-button-icon" aria-hidden="true" focusable="false">
+    <path
+      d="M4 12 19 5l-3.5 14-4.5-5-7-2Z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M11 14 19 5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 type GameBubbleInputBarProps = {
   onSend: (text: string) => void
   onOpenHistory: () => void
@@ -59,7 +109,7 @@ const GameBubbleInputBar = ({ onSend, onOpenHistory, disabled }: GameBubbleInput
           aria-label="聊天历史记录"
           onClick={onOpenHistory}
         >
-          录
+          <HistoryIcon />
         </button>
 
         <button
@@ -68,7 +118,7 @@ const GameBubbleInputBar = ({ onSend, onOpenHistory, disabled }: GameBubbleInput
           disabled={disabled || !draft.trim()}
           aria-label="发送消息"
         >
-          {disabled ? '…' : '发'}
+          <SendIcon />
         </button>
       </div>
     </form>
