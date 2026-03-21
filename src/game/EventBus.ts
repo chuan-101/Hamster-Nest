@@ -9,6 +9,8 @@ export const GAME_EVENTS = {
 type SceneAnchorPayload = {
   x: number
   y: number
+  width?: number
+  height?: number
   sceneWidth: number
   sceneHeight: number
 }

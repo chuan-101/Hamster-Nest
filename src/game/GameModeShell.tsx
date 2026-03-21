@@ -71,7 +71,8 @@ const clamp = (value: number, min: number, max: number) =>
 const NPC_MENU_LAYOUT = {
   width: 176,
   estimatedHeight: 170,
-  anchorOffset: 18,
+  spriteClearance: 14,
+  fallbackAnchorOffset: 18,
   edgePadding: 12,
 } as const;
 
@@ -446,7 +447,7 @@ const GameModeShell = ({
       return null;
     }
 
-    const { edgePadding, anchorOffset } = NPC_MENU_LAYOUT;
+    const { edgePadding, spriteClearance, fallbackAnchorOffset } = NPC_MENU_LAYOUT;
     const viewportAnchor = toViewportAnchor(activeNpcMenu.anchor);
 
     if (!viewportAnchor) {
@@ -454,23 +455,22 @@ const GameModeShell = ({
     }
     const menuWidth = npcMenuSize.width;
     const menuHeight = npcMenuSize.height;
+    const spriteHeight = activeNpcMenu.anchor.height ?? 0;
+    const anchorOffset = activeNpcMenu.anchor.height
+      ? Math.max(spriteClearance, spriteHeight * 0.08)
+      : fallbackAnchorOffset;
+    const centeredLeft = viewportAnchor.x - menuWidth * 0.5;
+    const menuTopAboveSprite = viewportAnchor.y - menuHeight - anchorOffset;
+    const menuTopBelowSprite = viewportAnchor.y + spriteHeight + anchorOffset;
 
     const candidatePositions = [
       {
-        left: viewportAnchor.x + anchorOffset,
-        top: viewportAnchor.y - menuHeight - anchorOffset,
+        left: centeredLeft,
+        top: menuTopAboveSprite,
       },
       {
-        left: viewportAnchor.x + anchorOffset,
-        top: viewportAnchor.y + anchorOffset,
-      },
-      {
-        left: viewportAnchor.x - menuWidth - anchorOffset,
-        top: viewportAnchor.y - menuHeight - anchorOffset,
-      },
-      {
-        left: viewportAnchor.x - menuWidth - anchorOffset,
-        top: viewportAnchor.y + anchorOffset,
+        left: centeredLeft,
+        top: menuTopBelowSprite,
       },
     ];
 
@@ -492,12 +492,12 @@ const GameModeShell = ({
 
       return {
         left: clamp(
-          viewportAnchor.x + anchorOffset,
+          centeredLeft,
           edgePadding,
           viewportWidth - edgePadding - menuWidth,
         ),
         top: clamp(
-          viewportAnchor.y - menuHeight - anchorOffset,
+          menuTopAboveSprite,
           edgePadding,
           viewportHeight - edgePadding - menuHeight,
         ),

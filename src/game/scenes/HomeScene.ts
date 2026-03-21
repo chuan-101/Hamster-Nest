@@ -13,8 +13,10 @@ export class HomeScene extends Phaser.Scene {
     const bounds = sprite.getBounds()
 
     return {
-      x: bounds.right,
-      y: bounds.top + bounds.height * 0.45,
+      x: bounds.x + bounds.width * 0.5,
+      y: bounds.top,
+      width: bounds.width,
+      height: bounds.height,
       sceneWidth: this.scale.width,
       sceneHeight: this.scale.height,
     }
