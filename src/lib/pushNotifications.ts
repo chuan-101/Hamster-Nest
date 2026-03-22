@@ -1,8 +1,13 @@
 import { supabase } from '../supabase/client'
+import {
+  registerAppServiceWorker,
+  type AppServiceWorkerRegistration,
+} from './serviceWorker'
 
 const PUSH_SUBSCRIPTIONS_TABLE = 'push_subscriptions'
-const PUSH_SUBSCRIPTION_COLUMNS = 'user_id,endpoint,subscription'
-const swUrl = `${import.meta.env.BASE_URL}sw.js`
+const PUSH_SUBSCRIPTION_COLUMNS = 'user_id,endpoint,p256dh,auth,subscription'
+const WEB_PUSH_VAPID_PUBLIC_KEY =
+  'BE4i06QAwLCwtbVEQEv1qfCW8a4_vclt6-swUq3Gs3D4CJiv3GgyjX4_g-CFI2zarw-ncgqLTJC0RGMExMaWvDc'
 
 export type NotificationPermissionState = NotificationPermission | 'unsupported'
 
@@ -11,6 +16,14 @@ export type PushSupportStatus = {
   reason: string | null
   permission: NotificationPermissionState
   vapidKeyConfigured: boolean
+}
+
+type PushSubscriptionRecord = {
+  auth: string | null
+  endpoint: string
+  p256dh: string | null
+  subscription: ReturnType<PushSubscription['toJSON']>
+  user_id: string
 }
 
 const getNotificationPermission = (): NotificationPermissionState => {
@@ -39,38 +52,59 @@ const getMissingSupportReason = (): string | null => {
   return null
 }
 
-export const getPushSupportStatus = (): PushSupportStatus => {
-  const reason = getMissingSupportReason()
-  return {
-    supported: reason === null,
-    reason,
-    permission: getNotificationPermission(),
-    vapidKeyConfigured: Boolean(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY),
-  }
-}
-
-export const registerPushServiceWorker = async (): Promise<ServiceWorkerRegistration> => {
-  if (!('serviceWorker' in navigator)) {
-    throw new Error('当前浏览器不支持 Service Worker。')
-  }
-  return navigator.serviceWorker.register(swUrl)
-}
-
-export const getExistingPushSubscription = async (): Promise<PushSubscription | null> => {
+const requirePushSupport = (): PushSupportStatus => {
   const support = getPushSupportStatus()
   if (!support.supported) {
-    return null
+    throw new Error(support.reason ?? '当前环境不支持推送通知。')
   }
-  const registration = await registerPushServiceWorker()
-  return registration.pushManager.getSubscription()
+  return support
+}
+
+const requirePushRegistration = async (): Promise<AppServiceWorkerRegistration> => {
+  requirePushSupport()
+  return registerAppServiceWorker()
 }
 
 const decodeVapidPublicKey = (publicKey: string): ArrayBuffer => {
   const normalized = publicKey.replace(/-/g, '+').replace(/_/g, '/')
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
   const binary = window.atob(padded)
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
 }
+
+const extractPushKey = (
+  subscription: PushSubscription,
+  keyName: PushEncryptionKeyName,
+): string | null => {
+  const key = subscription.getKey(keyName)
+  if (!key) {
+    return null
+  }
+
+  const bytes = new Uint8Array(key)
+  let binary = ''
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
+  return window.btoa(binary)
+}
+
+const buildSubscriptionRecord = (
+  userId: string,
+  subscription: PushSubscription,
+): PushSubscriptionRecord => ({
+  user_id: userId,
+  endpoint: subscription.endpoint,
+  p256dh: extractPushKey(subscription, 'p256dh'),
+  auth: extractPushKey(subscription, 'auth'),
+  subscription: subscription.toJSON(),
+})
 
 const requireSupabase = () => {
   if (!supabase) {
@@ -79,17 +113,32 @@ const requireSupabase = () => {
   return supabase
 }
 
-export const createPushSubscription = async (): Promise<PushSubscription> => {
+export const getPushSupportStatus = (): PushSupportStatus => {
+  const reason = getMissingSupportReason()
+  return {
+    supported: reason === null,
+    reason,
+    permission: getNotificationPermission(),
+    vapidKeyConfigured: WEB_PUSH_VAPID_PUBLIC_KEY.length > 0,
+  }
+}
+
+export const registerPushServiceWorker = async (): Promise<ServiceWorkerRegistration> =>
+  requirePushRegistration()
+
+export const getExistingPushSubscription = async (): Promise<PushSubscription | null> => {
   const support = getPushSupportStatus()
   if (!support.supported) {
-    throw new Error(support.reason ?? '当前环境不支持推送通知。')
+    return null
   }
-  const vapidPublicKey = import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY as string | undefined
-  if (!vapidPublicKey) {
-    throw new Error('缺少 Web Push VAPID 公钥配置。')
-  }
+  const registration = await requirePushRegistration()
+  return registration.pushManager.getSubscription()
+}
 
-  const registration = await registerPushServiceWorker()
+export const createPushSubscription = async (): Promise<PushSubscription> => {
+  requirePushSupport()
+
+  const registration = await requirePushRegistration()
   const existingSubscription = await registration.pushManager.getSubscription()
   if (existingSubscription) {
     return existingSubscription
@@ -97,7 +146,7 @@ export const createPushSubscription = async (): Promise<PushSubscription> => {
 
   return registration.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: decodeVapidPublicKey(vapidPublicKey),
+    applicationServerKey: decodeVapidPublicKey(WEB_PUSH_VAPID_PUBLIC_KEY),
   })
 }
 
@@ -106,19 +155,12 @@ export const persistPushSubscription = async (
   subscription: PushSubscription,
 ): Promise<void> => {
   const client = requireSupabase()
-  const payload = subscription.toJSON()
+  const record = buildSubscriptionRecord(userId, subscription)
   const { error } = await client
     .from(PUSH_SUBSCRIPTIONS_TABLE)
-    .upsert(
-      {
-        user_id: userId,
-        endpoint: subscription.endpoint,
-        subscription: payload,
-      },
-      {
-        onConflict: 'endpoint',
-      },
-    )
+    .upsert(record, {
+      onConflict: 'endpoint',
+    })
     .select(PUSH_SUBSCRIPTION_COLUMNS)
     .single()
 
@@ -155,6 +197,9 @@ export const enablePushOnCurrentDevice = async (userId: string): Promise<PushSub
   let resolvedPermission: NotificationPermission = permission
   if (permission === 'default') {
     resolvedPermission = await Notification.requestPermission()
+  }
+  if (resolvedPermission === 'denied') {
+    throw new Error('通知权限已被拒绝，请在浏览器或系统设置中重新开启。')
   }
   if (resolvedPermission !== 'granted') {
     throw new Error('没有获得通知权限，因此无法启用推送通知。')

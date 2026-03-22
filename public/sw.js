@@ -1,7 +1,44 @@
-const APP_SHELL_CACHE = 'hamster-nest-app-shell-v1'
-const RUNTIME_CACHE = 'hamster-nest-runtime-v1'
+const APP_SHELL_CACHE = 'hamster-nest-app-shell-v2'
+const RUNTIME_CACHE = 'hamster-nest-runtime-v2'
+const LETTERS_PATH = '/#/letters'
+const DEFAULT_NOTIFICATION_TITLE = 'Hamster Nest'
+const DEFAULT_NOTIFICATION_BODY = '你收到了一条新的提醒。'
+const DEFAULT_NOTIFICATION_ICON = './icons/pwa-192.png'
 
 const APP_SHELL_URLS = ['./', './index.html', './manifest.webmanifest']
+
+const resolveLettersUrl = () => new URL(LETTERS_PATH, self.location.origin).href
+
+const parsePushPayload = (event) => {
+  if (!event.data) {
+    return {}
+  }
+
+  try {
+    return event.data.json()
+  } catch (error) {
+    return {
+      body: event.data.text(),
+    }
+  }
+}
+
+const buildNotificationOptions = (payload = {}) => {
+  const targetUrl = typeof payload.url === 'string' && payload.url.trim().length > 0
+    ? payload.url
+    : resolveLettersUrl()
+
+  return {
+    body: payload.body || DEFAULT_NOTIFICATION_BODY,
+    icon: payload.icon || DEFAULT_NOTIFICATION_ICON,
+    badge: payload.badge || DEFAULT_NOTIFICATION_ICON,
+    tag: payload.tag || 'auto-letter',
+    renotify: Boolean(payload.renotify),
+    data: {
+      url: targetUrl,
+    },
+  }
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -73,38 +110,36 @@ self.addEventListener('fetch', (event) => {
   )
 })
 
-
 self.addEventListener('push', (event) => {
-  const payload = event.data ? event.data.json() : {}
-  const title = payload.title || 'Hamster Nest'
-  const options = {
-    body: payload.body || '你收到了一条新的提醒。',
-    icon: payload.icon || './icons/pwa-192.png',
-    badge: payload.badge || './icons/pwa-192.png',
-    data: {
-      url: payload.url || './#/letters',
-    },
-  }
+  const payload = parsePushPayload(event)
+  const title = payload.title || DEFAULT_NOTIFICATION_TITLE
+  const options = buildNotificationOptions(payload)
 
   event.waitUntil(self.registration.showNotification(title, options))
 })
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const targetUrl = event.notification.data?.url || './#/letters'
+
+  const targetUrl = event.notification.data?.url || resolveLettersUrl()
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       const matchingClient = clients.find((client) => 'focus' in client)
+
       if (matchingClient) {
-        matchingClient.focus()
-        if ('navigate' in matchingClient) {
-          return matchingClient.navigate(targetUrl)
-        }
-        return undefined
+        return matchingClient.focus().then(() => {
+          if ('navigate' in matchingClient) {
+            return matchingClient.navigate(targetUrl)
+          }
+          return undefined
+        })
       }
+
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl)
       }
+
       return undefined
     }),
   )

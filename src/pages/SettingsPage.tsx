@@ -1041,11 +1041,12 @@ const SettingsPage = ({
   }
 
   const supportLabel = pushState.supportStatus.supported ? '支持' : '不支持'
+  const permissionDenied = pushState.supportStatus.permission === 'denied'
   const pushSummary = pushState.loading
     ? '检查中…'
     : pushState.subscribed
       ? '当前设备已启用'
-      : pushState.supportStatus.permission === 'denied'
+      : permissionDenied
         ? '权限已拒绝'
         : '当前设备未启用'
 
@@ -1532,6 +1533,9 @@ const SettingsPage = ({
                   {!pushState.supportStatus.supported && pushState.supportStatus.reason ? (
                     <p className="settings-helper-text">{pushState.supportStatus.reason}</p>
                   ) : null}
+                  {permissionDenied ? (
+                    <p className="settings-helper-text">通知权限已被拒绝。你仍可继续使用 Auto Letter；如需启用推送，请前往浏览器或系统设置重新允许通知。</p>
+                  ) : null}
                   {pushState.supportStatus.supported && !pushState.supportStatus.vapidKeyConfigured ? (
                     <p className="settings-helper-text">当前前端尚未配置 Web Push 公钥，暂时无法为此设备创建订阅。</p>
                   ) : null}
@@ -1545,7 +1549,7 @@ const SettingsPage = ({
                           pushState.actionStatus === 'saving' ||
                           !pushState.supportStatus.supported ||
                           !pushState.supportStatus.vapidKeyConfigured ||
-                          pushState.supportStatus.permission === 'denied'
+                          permissionDenied
                         }
                       >
                         {pushState.actionStatus === 'saving' ? '启用中…' : '启用当前设备推送'}
