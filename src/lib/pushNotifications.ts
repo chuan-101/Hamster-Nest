@@ -5,7 +5,7 @@ import {
 } from './serviceWorker'
 
 const PUSH_SUBSCRIPTIONS_TABLE = 'push_subscriptions'
-const PUSH_SUBSCRIPTION_COLUMNS = 'user_id,endpoint,p256dh,auth,subscription'
+const PUSH_SUBSCRIPTION_COLUMNS = 'user_id,endpoint,p256dh,auth'
 const WEB_PUSH_VAPID_PUBLIC_KEY =
   'BE4i06QAwLCwtbVEQEv1qfCW8a4_vclt6-swUq3Gs3D4CJiv3GgyjX4_g-CFI2zarw-ncgqLTJC0RGMExMaWvDc'
 
@@ -22,7 +22,6 @@ type PushSubscriptionRecord = {
   auth: string | null
   endpoint: string
   p256dh: string | null
-  subscription: ReturnType<PushSubscription['toJSON']>
   user_id: string
 }
 
@@ -103,7 +102,6 @@ const buildSubscriptionRecord = (
   endpoint: subscription.endpoint,
   p256dh: extractPushKey(subscription, 'p256dh'),
   auth: extractPushKey(subscription, 'auth'),
-  subscription: subscription.toJSON(),
 })
 
 const requireSupabase = () => {
