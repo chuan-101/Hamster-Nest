@@ -1110,7 +1110,20 @@ const SettingsPage = ({
     if (!autoLetterSectionExpanded) {
       return
     }
+
     void refreshPushState()
+
+    const handleVisibilityOrFocus = () => {
+      void refreshPushState()
+    }
+
+    window.addEventListener('focus', handleVisibilityOrFocus)
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus)
+
+    return () => {
+      window.removeEventListener('focus', handleVisibilityOrFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
+    }
   }, [autoLetterSectionExpanded, refreshPushState])
 
   const handleEnablePush = async () => {
