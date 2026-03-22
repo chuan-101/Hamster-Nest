@@ -553,3 +553,40 @@
     grid-column: auto;
   }
 }
+
+.push-notification-card {
+  border-radius: 12px;
+  border: 1px solid #ffe3ee;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.push-notification-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.push-notification-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 240, 246, 0.7);
+  color: #5c5c5c;
+}
+
+.push-notification-label,
+.settings-helper-text {
+  color: #8c8c8c;
+  font-size: 13px;
+}
+
+.settings-helper-text {
+  margin: 0;
+  line-height: 1.4;
+}
