@@ -24,6 +24,34 @@ type OpenRouterModel = {
   context_length?: number | null
 }
 
+type AutoLetterMode = 'off' | 'fixed' | 'random'
+
+type AutoLetterConfigRow = {
+  user_id: string
+  enabled: boolean
+  t2_mode: AutoLetterMode
+  t2_interval_hours: number
+  t2_daily_limit: number
+  t2_random_probability: number
+}
+
+type SpecialDateRow = {
+  id: string
+  month: number
+  day: number
+  label: string
+  enabled: boolean
+}
+
+type SpecialDateDraft = {
+  id: string
+  month: string
+  day: string
+  label: string
+  enabled: boolean
+  isNew?: boolean
+}
+
 type SettingsPageProps = {
   user: User | null
   settings: UserSettings | null
@@ -108,11 +136,20 @@ const SettingsPage = ({
   const [syzygySectionExpanded, setSyzygySectionExpanded] = useState(false)
   const [letterSectionExpanded, setLetterSectionExpanded] = useState(false)
   const [bubbleChatSectionExpanded, setBubbleChatSectionExpanded] = useState(false)
+  const [autoLetterSectionExpanded, setAutoLetterSectionExpanded] = useState(false)
   const [draftBubbleChatModel, setDraftBubbleChatModel] = useState<string | null>(null)
   const [draftBubbleChatPrompt, setDraftBubbleChatPrompt] = useState(DEFAULT_BUBBLE_CHAT_PROMPT)
   const [draftBubbleChatMaxTokensInput, setDraftBubbleChatMaxTokensInput] = useState('200')
   const [draftBubbleChatTemperatureInput, setDraftBubbleChatTemperatureInput] = useState('0.8')
   const [bubbleChatStatus, setBubbleChatStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [autoLetterLoading, setAutoLetterLoading] = useState(true)
+  const [autoLetterLoadError, setAutoLetterLoadError] = useState<string | null>(null)
+  const [autoLetterConfig, setAutoLetterConfig] = useState<AutoLetterConfigRow | null>(null)
+  const [autoLetterStatus, setAutoLetterStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [autoLetterError, setAutoLetterError] = useState<string | null>(null)
+  const [specialDateDrafts, setSpecialDateDrafts] = useState<SpecialDateDraft[]>([])
+  const [specialDatesStatus, setSpecialDatesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [specialDatesError, setSpecialDatesError] = useState<string | null>(null)
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string; compressionRatio?: string; compressionKeepRecent?: string }>(
     {},
   )
@@ -195,6 +232,130 @@ const SettingsPage = ({
       window.clearTimeout(timer)
     }
   }, [settings])
+
+  useEffect(() => {
+    if (!user || !supabase) {
+      setAutoLetterLoading(false)
+      setAutoLetterConfig(null)
+      setSpecialDateDrafts([])
+      return
+    }
+    const client = supabase
+    let active = true
+
+    const mapConfigRow = (row: Partial<AutoLetterConfigRow> | null | undefined): AutoLetterConfigRow => ({
+      user_id: user.id,
+      enabled: Boolean(row?.enabled),
+      t2_mode:
+        row?.t2_mode === 'fixed' || row?.t2_mode === 'random' || row?.t2_mode === 'off'
+          ? row.t2_mode
+          : 'off',
+      t2_interval_hours:
+        typeof row?.t2_interval_hours === 'number' && Number.isFinite(row.t2_interval_hours) && row.t2_interval_hours > 0
+          ? Math.trunc(row.t2_interval_hours)
+          : 24,
+      t2_daily_limit:
+        typeof row?.t2_daily_limit === 'number' && Number.isFinite(row.t2_daily_limit) && row.t2_daily_limit >= 0
+          ? Math.trunc(row.t2_daily_limit)
+          : 1,
+      t2_random_probability:
+        typeof row?.t2_random_probability === 'number' && Number.isFinite(row.t2_random_probability)
+          ? Math.min(1, Math.max(0, row.t2_random_probability))
+          : 0.5,
+    })
+
+    const mapSpecialDateDraft = (row: SpecialDateRow): SpecialDateDraft => ({
+      id: row.id,
+      month: row.month.toString(),
+      day: row.day.toString(),
+      label: row.label,
+      enabled: row.enabled,
+    })
+
+    const ensureAutoLetterConfig = async () => {
+      const selectColumns = 'user_id,enabled,t2_mode,t2_interval_hours,t2_daily_limit,t2_random_probability'
+      const { data: existing, error: fetchError } = await client
+        .from('auto_letter_config')
+        .select(selectColumns)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (fetchError) {
+        throw fetchError
+      }
+      if (existing) {
+        return mapConfigRow(existing as Partial<AutoLetterConfigRow>)
+      }
+
+      const defaults = {
+        user_id: user.id,
+        enabled: false,
+        t2_mode: 'off' as const,
+        t2_interval_hours: 24,
+        t2_daily_limit: 1,
+        t2_random_probability: 0.5,
+      }
+      const { data: created, error: insertError } = await client
+        .from('auto_letter_config')
+        .insert(defaults)
+        .select(selectColumns)
+        .single()
+      if (insertError) {
+        if (insertError.code === '23505') {
+          const { data: retry, error: retryError } = await client
+            .from('auto_letter_config')
+            .select(selectColumns)
+            .eq('user_id', user.id)
+            .single()
+          if (retryError) {
+            throw retryError
+          }
+          return mapConfigRow(retry as Partial<AutoLetterConfigRow>)
+        }
+        throw insertError
+      }
+      return mapConfigRow(created as Partial<AutoLetterConfigRow>)
+    }
+
+    const loadAutoLetterData = async () => {
+      setAutoLetterLoading(true)
+      setAutoLetterLoadError(null)
+      try {
+        const [configRow, specialDatesResult] = await Promise.all([
+          ensureAutoLetterConfig(),
+          client
+            .from('special_dates')
+            .select('id,month,day,label,enabled')
+            .eq('user_id', user.id)
+            .order('month', { ascending: true })
+            .order('day', { ascending: true })
+            .order('label', { ascending: true }),
+        ])
+        if (!active) {
+          return
+        }
+        if (specialDatesResult.error) {
+          throw specialDatesResult.error
+        }
+        setAutoLetterConfig(configRow)
+        setSpecialDateDrafts(((specialDatesResult.data ?? []) as SpecialDateRow[]).map(mapSpecialDateDraft))
+      } catch (error) {
+        console.warn('加载 Auto Letter 设置失败', error)
+        if (!active) {
+          return
+        }
+        setAutoLetterLoadError('加载 Auto Letter 设置失败，请稍后重试。')
+      } finally {
+        if (active) {
+          setAutoLetterLoading(false)
+        }
+      }
+    }
+
+    void loadAutoLetterData()
+    return () => {
+      active = false
+    }
+  }, [user])
 
   useEffect(() => {
     if (!user || !supabase) {
@@ -843,6 +1004,181 @@ const SettingsPage = ({
       : draftEnabledModels[0] ?? draftDefaultModel ?? defaultModelId
 
   const displayModeLabel = displayMode === 'phone' ? 'Phone Mode' : 'Game Mode'
+  const autoLetterMode = autoLetterConfig?.t2_mode ?? 'off'
+  const autoLetterSummary = autoLetterLoading
+    ? '加载中…'
+    : autoLetterConfig?.enabled
+      ? autoLetterMode === 'fixed'
+        ? `已开启 · 固定 ${autoLetterConfig.t2_interval_hours}h`
+        : autoLetterMode === 'random'
+          ? `已开启 · 随机 ${autoLetterConfig.t2_daily_limit}/天`
+          : '已开启 · T2 关闭'
+      : '未开启'
+  const parsedAutoLetterIntervalHours = Number.parseInt(autoLetterConfig?.t2_interval_hours?.toString() ?? '', 10)
+  const parsedAutoLetterDailyLimit = Number.parseInt(autoLetterConfig?.t2_daily_limit?.toString() ?? '', 10)
+  const parsedAutoLetterProbability = Number(autoLetterConfig?.t2_random_probability ?? 0)
+  const autoLetterIntervalValid = Number.isInteger(parsedAutoLetterIntervalHours) && parsedAutoLetterIntervalHours > 0
+  const autoLetterDailyLimitValid = Number.isInteger(parsedAutoLetterDailyLimit) && parsedAutoLetterDailyLimit >= 0
+  const autoLetterProbabilityValid = !Number.isNaN(parsedAutoLetterProbability) && parsedAutoLetterProbability >= 0 && parsedAutoLetterProbability <= 1
+
+  const updateAutoLetterDraft = (updates: Partial<AutoLetterConfigRow>) => {
+    setAutoLetterConfig((current) => {
+      if (!current || !user) {
+        return current
+      }
+      return { ...current, ...updates, user_id: user.id }
+    })
+    setAutoLetterStatus('idle')
+    setAutoLetterError(null)
+  }
+
+  const handleSaveAutoLetterConfig = async () => {
+    if (!user || !supabase || !autoLetterConfig) {
+      return
+    }
+    if (!autoLetterIntervalValid || !autoLetterDailyLimitValid || !autoLetterProbabilityValid) {
+      setAutoLetterStatus('error')
+      setAutoLetterError('请先修正数值范围后再保存。')
+      return
+    }
+    setAutoLetterStatus('saving')
+    setAutoLetterError(null)
+    try {
+      const { data, error } = await supabase
+        .from('auto_letter_config')
+        .update({
+          enabled: autoLetterConfig.enabled,
+          t2_mode: autoLetterConfig.t2_mode,
+          t2_interval_hours: parsedAutoLetterIntervalHours,
+          t2_daily_limit: parsedAutoLetterDailyLimit,
+          t2_random_probability: parsedAutoLetterProbability,
+        })
+        .eq('user_id', user.id)
+        .select('user_id,enabled,t2_mode,t2_interval_hours,t2_daily_limit,t2_random_probability')
+        .single()
+      if (error) {
+        throw error
+      }
+      setAutoLetterConfig((data ?? autoLetterConfig) as AutoLetterConfigRow)
+      setAutoLetterStatus('saved')
+    } catch (error) {
+      console.warn('保存 Auto Letter 配置失败', error)
+      setAutoLetterStatus('error')
+      setAutoLetterError('保存失败，请稍后重试。')
+    }
+  }
+
+  const specialDateErrorForDraft = (draft: SpecialDateDraft) => {
+    const month = Number.parseInt(draft.month, 10)
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return '月份需在 1 到 12 之间'
+    }
+    const day = Number.parseInt(draft.day, 10)
+    if (!Number.isInteger(day) || day < 1 || day > 31) {
+      return '日期需在 1 到 31 之间'
+    }
+    if (draft.label.trim().length === 0) {
+      return '请填写标签'
+    }
+    return null
+  }
+
+  const updateSpecialDateDraft = (draftId: string, updates: Partial<SpecialDateDraft>) => {
+    setSpecialDateDrafts((current) =>
+      current.map((draft) => (draft.id === draftId ? { ...draft, ...updates } : draft)),
+    )
+    setSpecialDatesStatus('idle')
+    setSpecialDatesError(null)
+  }
+
+  const handleAddSpecialDate = () => {
+    setSpecialDateDrafts((current) => [
+      ...current,
+      {
+        id: `new-${Date.now()}`,
+        month: '',
+        day: '',
+        label: '',
+        enabled: true,
+        isNew: true,
+      },
+    ])
+    setSpecialDatesStatus('idle')
+    setSpecialDatesError(null)
+  }
+
+  const handleSaveSpecialDate = async (draft: SpecialDateDraft) => {
+    if (!user || !supabase) {
+      return
+    }
+    const validationError = specialDateErrorForDraft(draft)
+    if (validationError) {
+      setSpecialDatesStatus('error')
+      setSpecialDatesError(validationError)
+      return
+    }
+    setSpecialDatesStatus('saving')
+    setSpecialDatesError(null)
+    const payload = {
+      user_id: user.id,
+      month: Number.parseInt(draft.month, 10),
+      day: Number.parseInt(draft.day, 10),
+      label: draft.label.trim(),
+      enabled: draft.enabled,
+    }
+    try {
+      const query = draft.isNew
+        ? supabase.from('special_dates').insert(payload)
+        : supabase.from('special_dates').update(payload).eq('id', draft.id).eq('user_id', user.id)
+      const { data, error } = await query.select('id,month,day,label,enabled').single()
+      if (error) {
+        throw error
+      }
+      const savedDraft = {
+        id: (data as SpecialDateRow).id,
+        month: (data as SpecialDateRow).month.toString(),
+        day: (data as SpecialDateRow).day.toString(),
+        label: (data as SpecialDateRow).label,
+        enabled: (data as SpecialDateRow).enabled,
+      }
+      setSpecialDateDrafts((current) =>
+        current.map((item) => (item.id === draft.id ? savedDraft : item)),
+      )
+      setSpecialDatesStatus('saved')
+    } catch (error) {
+      console.warn('保存特殊日期失败', error)
+      setSpecialDatesStatus('error')
+      setSpecialDatesError('保存特殊日期失败，请稍后重试。')
+    }
+  }
+
+  const handleDeleteSpecialDate = async (draft: SpecialDateDraft) => {
+    if (!user || !supabase) {
+      return
+    }
+    if (draft.isNew) {
+      setSpecialDateDrafts((current) => current.filter((item) => item.id !== draft.id))
+      return
+    }
+    setSpecialDatesStatus('saving')
+    setSpecialDatesError(null)
+    try {
+      const { error } = await supabase
+        .from('special_dates')
+        .delete()
+        .eq('id', draft.id)
+        .eq('user_id', user.id)
+      if (error) {
+        throw error
+      }
+      setSpecialDateDrafts((current) => current.filter((item) => item.id !== draft.id))
+      setSpecialDatesStatus('saved')
+    } catch (error) {
+      console.warn('删除特殊日期失败', error)
+      setSpecialDatesStatus('error')
+      setSpecialDatesError('删除特殊日期失败，请稍后重试。')
+    }
+  }
 
   if (!ready || !settings) {
     return (
@@ -935,6 +1271,204 @@ const SettingsPage = ({
               </div>
             ) : null}
           </section>
+      <section className="settings-section" role="listitem">
+        <button
+          type="button"
+          className="collapse-header"
+          onClick={() => setAutoLetterSectionExpanded((current) => !current)}
+          aria-expanded={autoLetterSectionExpanded}
+        >
+          <span className="section-title">
+            <span className="section-icon" aria-hidden="true">💌</span>
+            <h2 className="ui-title">Auto Letter</h2>
+            <p>管理自动来信总开关、T2 模式与 T1 特殊日期。</p>
+          </span>
+          <span className="collapse-header-aside">
+            <span className="collapse-summary">{autoLetterSummary}</span>
+            <span className="collapse-indicator" aria-hidden="true">›</span>
+          </span>
+        </button>
+        {autoLetterSectionExpanded ? (
+          <div className="accordion-content">
+            {autoLetterLoading ? <div className="settings-loading-inline">正在加载 Auto Letter 设置...</div> : null}
+            {autoLetterLoadError ? <div className="field-error">{autoLetterLoadError}</div> : null}
+            {!autoLetterLoading && autoLetterConfig ? (
+              <>
+                <div className="auto-letter-card">
+                  <div className="field-group">
+                    <label htmlFor="autoLetterEnabled">总开关</label>
+                    <label className="toggle-control">
+                      <input
+                        id="autoLetterEnabled"
+                        type="checkbox"
+                        checked={autoLetterConfig.enabled}
+                        onChange={(event) => updateAutoLetterDraft({ enabled: event.target.checked })}
+                      />
+                      <span>{autoLetterConfig.enabled ? '已开启' : '已关闭'}</span>
+                    </label>
+                  </div>
+                  <div className="field-group">
+                    <label htmlFor="autoLetterMode">T2 模式</label>
+                    <select
+                      id="autoLetterMode"
+                      value={autoLetterConfig.t2_mode}
+                      onChange={(event) => updateAutoLetterDraft({ t2_mode: event.target.value as AutoLetterMode })}
+                    >
+                      <option value="off">off</option>
+                      <option value="fixed">fixed</option>
+                      <option value="random">random</option>
+                    </select>
+                  </div>
+                  <div className="auto-letter-grid">
+                    <div className="field-group">
+                      <label htmlFor="autoLetterIntervalHours">固定间隔小时</label>
+                      <input
+                        id="autoLetterIntervalHours"
+                        type="number"
+                        min="1"
+                        step="1"
+                        disabled={autoLetterMode !== 'fixed'}
+                        value={autoLetterConfig.t2_interval_hours}
+                        onChange={(event) => updateAutoLetterDraft({ t2_interval_hours: Number.parseInt(event.target.value || '0', 10) })}
+                      />
+                      {!autoLetterIntervalValid ? <span className="field-error">请输入正整数小时数</span> : null}
+                    </div>
+                    <div className="field-group">
+                      <label htmlFor="autoLetterDailyLimit">随机每日上限</label>
+                      <input
+                        id="autoLetterDailyLimit"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={autoLetterConfig.t2_daily_limit}
+                        onChange={(event) => updateAutoLetterDraft({ t2_daily_limit: Number.parseInt(event.target.value || '0', 10) })}
+                      />
+                      {!autoLetterDailyLimitValid ? <span className="field-error">请输入不小于 0 的整数</span> : null}
+                    </div>
+                    <div className="field-group">
+                      <label htmlFor="autoLetterRandomProbability">随机概率</label>
+                      <input
+                        id="autoLetterRandomProbability"
+                        type="number"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        disabled={autoLetterMode !== 'random'}
+                        value={autoLetterConfig.t2_random_probability}
+                        onChange={(event) => updateAutoLetterDraft({ t2_random_probability: Number(event.target.value) })}
+                      />
+                      {!autoLetterProbabilityValid ? <span className="field-error">概率需在 0 到 1 之间</span> : null}
+                    </div>
+                  </div>
+                  <div className="system-prompt-actions">
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() => void handleSaveAutoLetterConfig()}
+                      disabled={autoLetterStatus === 'saving'}
+                    >
+                      {autoLetterStatus === 'saving' ? '保存中…' : '保存 Auto Letter'}
+                    </button>
+                    {autoLetterStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
+                    {autoLetterStatus === 'error' ? <span className="field-error">{autoLetterError}</span> : null}
+                  </div>
+                </div>
+
+                <div className="section-title nested-prompt-title">
+                  <h2 className="ui-title">T1 特殊日期</h2>
+                  <p>为 recurring month/day 条目设置名称与启用状态。</p>
+                </div>
+                <div className="special-dates-list">
+                  {specialDateDrafts.length === 0 ? (
+                    <div className="empty-state">还没有特殊日期，点击下方按钮添加。</div>
+                  ) : null}
+                  {specialDateDrafts.map((draft) => {
+                    const validationError = specialDateErrorForDraft(draft)
+                    return (
+                      <div key={draft.id} className="special-date-card">
+                        <div className="special-date-grid">
+                          <div className="field-group">
+                            <label htmlFor={`special-date-month-${draft.id}`}>月</label>
+                            <input
+                              id={`special-date-month-${draft.id}`}
+                              type="number"
+                              min="1"
+                              max="12"
+                              step="1"
+                              value={draft.month}
+                              onChange={(event) => updateSpecialDateDraft(draft.id, { month: event.target.value })}
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label htmlFor={`special-date-day-${draft.id}`}>日</label>
+                            <input
+                              id={`special-date-day-${draft.id}`}
+                              type="number"
+                              min="1"
+                              max="31"
+                              step="1"
+                              value={draft.day}
+                              onChange={(event) => updateSpecialDateDraft(draft.id, { day: event.target.value })}
+                            />
+                          </div>
+                          <div className="field-group special-date-label-field">
+                            <label htmlFor={`special-date-label-${draft.id}`}>标签</label>
+                            <input
+                              id={`special-date-label-${draft.id}`}
+                              type="text"
+                              maxLength={80}
+                              value={draft.label}
+                              onChange={(event) => updateSpecialDateDraft(draft.id, { label: event.target.value })}
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label htmlFor={`special-date-enabled-${draft.id}`}>启用</label>
+                            <label className="toggle-control">
+                              <input
+                                id={`special-date-enabled-${draft.id}`}
+                                type="checkbox"
+                                checked={draft.enabled}
+                                onChange={(event) => updateSpecialDateDraft(draft.id, { enabled: event.target.checked })}
+                              />
+                              <span>{draft.enabled ? '开启' : '关闭'}</span>
+                            </label>
+                          </div>
+                        </div>
+                        {validationError ? <span className="field-error">{validationError}</span> : null}
+                        <div className="system-prompt-actions">
+                          <button
+                            type="button"
+                            className="primary"
+                            onClick={() => void handleSaveSpecialDate(draft)}
+                            disabled={specialDatesStatus === 'saving' || Boolean(validationError)}
+                          >
+                            {specialDatesStatus === 'saving' ? '保存中…' : '保存条目'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost danger"
+                            onClick={() => void handleDeleteSpecialDate(draft)}
+                            disabled={specialDatesStatus === 'saving'}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="system-prompt-actions">
+                  <button type="button" className="ghost" onClick={handleAddSpecialDate}>
+                    添加特殊日期
+                  </button>
+                  {specialDatesStatus === 'saved' ? <span className="system-prompt-status">特殊日期已更新</span> : null}
+                  {specialDatesStatus === 'error' ? <span className="field-error">{specialDatesError}</span> : null}
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
       <section className="settings-section" role="listitem">
         <button
           type="button"
