@@ -72,3 +72,40 @@ self.addEventListener('fetch', (event) => {
     }),
   )
 })
+
+
+self.addEventListener('push', (event) => {
+  const payload = event.data ? event.data.json() : {}
+  const title = payload.title || 'Hamster Nest'
+  const options = {
+    body: payload.body || '你收到了一条新的提醒。',
+    icon: payload.icon || './icons/pwa-192.png',
+    badge: payload.badge || './icons/pwa-192.png',
+    data: {
+      url: payload.url || './#/letters',
+    },
+  }
+
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const targetUrl = event.notification.data?.url || './#/letters'
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const matchingClient = clients.find((client) => 'focus' in client)
+      if (matchingClient) {
+        matchingClient.focus()
+        if ('navigate' in matchingClient) {
+          return matchingClient.navigate(targetUrl)
+        }
+        return undefined
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl)
+      }
+      return undefined
+    }),
+  )
+})

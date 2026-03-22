@@ -17,6 +17,13 @@ import {
   resolveBubbleChatPrompt,
 } from '../constants/aiOverlays'
 import './SettingsPage.css'
+import {
+  disablePushOnCurrentDevice,
+  enablePushOnCurrentDevice,
+  getExistingPushSubscription,
+  getPushSupportStatus,
+  type NotificationPermissionState,
+} from '../lib/pushNotifications'
 
 type OpenRouterModel = {
   id: string
@@ -50,6 +57,15 @@ type SpecialDateDraft = {
   label: string
   enabled: boolean
   isNew?: boolean
+}
+
+type PushSubscriptionState = {
+  supportStatus: ReturnType<typeof getPushSupportStatus>
+  subscribed: boolean
+  endpoint: string | null
+  loading: boolean
+  actionStatus: 'idle' | 'saving' | 'saved' | 'error'
+  error: string | null
 }
 
 type SettingsPageProps = {
@@ -150,6 +166,14 @@ const SettingsPage = ({
   const [specialDateDrafts, setSpecialDateDrafts] = useState<SpecialDateDraft[]>([])
   const [specialDatesStatus, setSpecialDatesStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [specialDatesError, setSpecialDatesError] = useState<string | null>(null)
+  const [pushState, setPushState] = useState<PushSubscriptionState>({
+    supportStatus: getPushSupportStatus(),
+    subscribed: false,
+    endpoint: null,
+    loading: false,
+    actionStatus: 'idle',
+    error: null,
+  })
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string; compressionRatio?: string; compressionKeepRecent?: string }>(
     {},
   )
@@ -1003,6 +1027,28 @@ const SettingsPage = ({
       ? defaultModelId
       : draftEnabledModels[0] ?? draftDefaultModel ?? defaultModelId
 
+  const permissionLabel = (permission: NotificationPermissionState) => {
+    switch (permission) {
+      case 'granted':
+        return '已允许'
+      case 'denied':
+        return '已拒绝'
+      case 'default':
+        return '未请求'
+      default:
+        return '不支持'
+    }
+  }
+
+  const supportLabel = pushState.supportStatus.supported ? '支持' : '不支持'
+  const pushSummary = pushState.loading
+    ? '检查中…'
+    : pushState.subscribed
+      ? '当前设备已启用'
+      : pushState.supportStatus.permission === 'denied'
+        ? '权限已拒绝'
+        : '当前设备未启用'
+
   const displayModeLabel = displayMode === 'phone' ? 'Phone Mode' : 'Game Mode'
   const autoLetterMode = autoLetterConfig?.t2_mode ?? 'off'
   const autoLetterSummary = autoLetterLoading
@@ -1020,6 +1066,95 @@ const SettingsPage = ({
   const autoLetterIntervalValid = Number.isInteger(parsedAutoLetterIntervalHours) && parsedAutoLetterIntervalHours > 0
   const autoLetterDailyLimitValid = Number.isInteger(parsedAutoLetterDailyLimit) && parsedAutoLetterDailyLimit >= 0
   const autoLetterProbabilityValid = !Number.isNaN(parsedAutoLetterProbability) && parsedAutoLetterProbability >= 0 && parsedAutoLetterProbability <= 1
+
+  const refreshPushState = useCallback(async () => {
+    const supportStatus = getPushSupportStatus()
+    if (!user || !supportStatus.supported) {
+      setPushState((current) => ({
+        ...current,
+        supportStatus,
+        subscribed: false,
+        endpoint: null,
+        loading: false,
+        actionStatus: current.actionStatus === 'saving' ? 'idle' : current.actionStatus,
+      }))
+      return
+    }
+
+    setPushState((current) => ({ ...current, supportStatus, loading: true, error: null }))
+    try {
+      const subscription = await getExistingPushSubscription()
+      setPushState((current) => ({
+        ...current,
+        supportStatus: getPushSupportStatus(),
+        subscribed: Boolean(subscription),
+        endpoint: subscription?.endpoint ?? null,
+        loading: false,
+      }))
+    } catch (error) {
+      console.warn('读取推送订阅状态失败', error)
+      setPushState((current) => ({
+        ...current,
+        supportStatus: getPushSupportStatus(),
+        subscribed: false,
+        endpoint: null,
+        loading: false,
+        actionStatus: 'error',
+        error: '无法读取当前设备的推送状态，请稍后重试。',
+      }))
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!autoLetterSectionExpanded) {
+      return
+    }
+    void refreshPushState()
+  }, [autoLetterSectionExpanded, refreshPushState])
+
+  const handleEnablePush = async () => {
+    if (!user) {
+      return
+    }
+    setPushState((current) => ({ ...current, actionStatus: 'saving', error: null }))
+    try {
+      await enablePushOnCurrentDevice(user.id)
+      setPushState((current) => ({ ...current, actionStatus: 'saved' }))
+      await refreshPushState()
+    } catch (error) {
+      console.warn('启用推送通知失败', error)
+      const message = error instanceof Error ? error.message : '启用推送通知失败，请稍后重试。'
+      setPushState((current) => ({
+        ...current,
+        supportStatus: getPushSupportStatus(),
+        actionStatus: 'error',
+        error: message,
+        loading: false,
+      }))
+    }
+  }
+
+  const handleDisablePush = async () => {
+    if (!user) {
+      return
+    }
+    setPushState((current) => ({ ...current, actionStatus: 'saving', error: null }))
+    try {
+      await disablePushOnCurrentDevice(user.id)
+      setPushState((current) => ({ ...current, actionStatus: 'saved' }))
+      await refreshPushState()
+    } catch (error) {
+      console.warn('关闭推送通知失败', error)
+      const message = error instanceof Error ? error.message : '关闭推送通知失败，请稍后重试。'
+      setPushState((current) => ({
+        ...current,
+        supportStatus: getPushSupportStatus(),
+        actionStatus: 'error',
+        error: message,
+        loading: false,
+      }))
+    }
+  }
 
   const updateAutoLetterDraft = (updates: Partial<AutoLetterConfigRow>) => {
     setAutoLetterConfig((current) => {
@@ -1371,6 +1506,62 @@ const SettingsPage = ({
                     </button>
                     {autoLetterStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
                     {autoLetterStatus === 'error' ? <span className="field-error">{autoLetterError}</span> : null}
+                  </div>
+                </div>
+
+                <div className="push-notification-card">
+                  <div className="section-title nested-prompt-title">
+                    <h2 className="ui-title">Push Notifications</h2>
+                    <p>作为 Auto Letter 的系统通知增强层；权限不可用时不会影响原有来信流程。</p>
+                  </div>
+                  <div className="push-notification-grid">
+                    <div className="push-notification-stat">
+                      <span className="push-notification-label">支持状态</span>
+                      <strong>{supportLabel}</strong>
+                    </div>
+                    <div className="push-notification-stat">
+                      <span className="push-notification-label">权限状态</span>
+                      <strong>{permissionLabel(pushState.supportStatus.permission)}</strong>
+                    </div>
+                    <div className="push-notification-stat">
+                      <span className="push-notification-label">当前设备</span>
+                      <strong>{pushSummary}</strong>
+                    </div>
+                  </div>
+                  <p className="settings-helper-text">仅在你点击启用后才会请求通知权限。iPhone / iPad 通常需要先将 PWA 添加到主屏幕后，才能使用 Web Push。</p>
+                  {!pushState.supportStatus.supported && pushState.supportStatus.reason ? (
+                    <p className="settings-helper-text">{pushState.supportStatus.reason}</p>
+                  ) : null}
+                  {pushState.supportStatus.supported && !pushState.supportStatus.vapidKeyConfigured ? (
+                    <p className="settings-helper-text">当前前端尚未配置 Web Push 公钥，暂时无法为此设备创建订阅。</p>
+                  ) : null}
+                  <div className="system-prompt-actions">
+                    {!pushState.subscribed ? (
+                      <button
+                        type="button"
+                        className="primary"
+                        onClick={() => void handleEnablePush()}
+                        disabled={
+                          pushState.actionStatus === 'saving' ||
+                          !pushState.supportStatus.supported ||
+                          !pushState.supportStatus.vapidKeyConfigured ||
+                          pushState.supportStatus.permission === 'denied'
+                        }
+                      >
+                        {pushState.actionStatus === 'saving' ? '启用中…' : '启用当前设备推送'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => void handleDisablePush()}
+                        disabled={pushState.actionStatus === 'saving'}
+                      >
+                        {pushState.actionStatus === 'saving' ? '关闭中…' : '关闭当前设备推送'}
+                      </button>
+                    )}
+                    {pushState.actionStatus === 'saved' ? <span className="system-prompt-status">已更新</span> : null}
+                    {pushState.actionStatus === 'error' && pushState.error ? <span className="field-error">{pushState.error}</span> : null}
                   </div>
                 </div>
 
