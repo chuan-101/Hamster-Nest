@@ -27,4 +27,34 @@ button {
   color: #475569;
 }
 
+.app-toast-stack {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  pointer-events: none;
+}
+
+.app-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: min(86vw, 320px);
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 251, 245, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(14px);
+}
+
+.app-toast__icon {
+  font-size: 15px;
+  line-height: 1;
+}
 

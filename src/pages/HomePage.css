@@ -498,6 +498,7 @@
 }
 
 .icon-emoji {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: clamp(50px, 14.2vw, 64px);
@@ -508,6 +509,17 @@
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
   font-size: clamp(1.35rem, 4.8vw, 1.8rem);
   overflow: hidden;
+}
+
+.app-icon-notification-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92);
 }
 
 .icon-image {

@@ -9,11 +9,12 @@ type GameHudProps = {
   onBubbleSend: (text: string) => void
   onOpenBubbleHistory: () => void
   bubbleSending: boolean
+  hasUnreadLetters: boolean
   viewportRef: RefObject<HTMLElement | null>
   viewportOverlay?: ReactNode
 }
 
-const GameHud = ({ onOpenPawMenu, onOpenSettings, onBubbleSend, onOpenBubbleHistory, bubbleSending, viewportRef, viewportOverlay }: GameHudProps) => {
+const GameHud = ({ onOpenPawMenu, onOpenSettings, onBubbleSend, onOpenBubbleHistory, bubbleSending, hasUnreadLetters, viewportRef, viewportOverlay }: GameHudProps) => {
   return (
     <div className="game-hud-layout" aria-label="游戏模式主布局">
       <GameTopBar stamina={30} maxStamina={100} level={1} exp={45} maxExp={100} />
@@ -29,6 +30,7 @@ const GameHud = ({ onOpenPawMenu, onOpenSettings, onBubbleSend, onOpenBubbleHist
         onBubbleSend={onBubbleSend}
         onOpenBubbleHistory={onOpenBubbleHistory}
         bubbleSending={bubbleSending}
+        hasUnreadLetters={hasUnreadLetters}
       />
     </div>
   )

@@ -61,9 +61,11 @@ const buildMemoryContext = async () => {
 const LettersPage = ({
   sessions,
   onCreateSession,
+  onUnreadStateChange,
 }: {
   sessions: ChatSession[]
   onCreateSession: (title?: string) => Promise<ChatSession>
+  onUnreadStateChange?: (hasUnread: boolean) => void
 }) => {
   const location = useLocation()
   const navigate = useNavigate()
@@ -104,13 +106,14 @@ const LettersPage = ({
     try {
       const list = await fetchLetters()
       setLetters(list)
+      onUnreadStateChange?.(list.some((letter) => !letter.isRead))
     } catch (loadError) {
       console.warn('加载来信失败', loadError)
       setError('加载失败，请稍后重试。')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [onUnreadStateChange])
 
   useEffect(() => {
     void loadLetters()
@@ -164,9 +167,11 @@ const LettersPage = ({
     if (letter.isRead) {
       return
     }
-    setLetters((current) =>
-      current.map((item) => (item.id === letter.id ? { ...item, isRead: true } : item)),
-    )
+    setLetters((current) => {
+      const nextLetters = current.map((item) => (item.id === letter.id ? { ...item, isRead: true } : item))
+      onUnreadStateChange?.(nextLetters.some((item) => !item.isRead))
+      return nextLetters
+    })
     try {
       await markLetterAsRead(letter.id)
     } catch (markError) {
@@ -262,7 +267,11 @@ const LettersPage = ({
         triggerReason: null,
         module: 'letter',
       })
-      setLetters((current) => [created, ...current])
+      setLetters((current) => {
+        const nextLetters = [created, ...current]
+        onUnreadStateChange?.(nextLetters.some((letter) => !letter.isRead))
+        return nextLetters
+      })
       setActiveLetterId(created.id)
     } catch (generateError) {
       console.warn('手动生成来信失败', generateError)
@@ -285,7 +294,11 @@ const LettersPage = ({
     setDeletingLetterId(activeLetter.id)
     try {
       await deleteLetter(activeLetter.id)
-      setLetters((current) => current.filter((letter) => letter.id !== activeLetter.id))
+      setLetters((current) => {
+        const nextLetters = current.filter((letter) => letter.id !== activeLetter.id)
+        onUnreadStateChange?.(nextLetters.some((letter) => !letter.isRead))
+        return nextLetters
+      })
       setActiveLetterId(null)
     } catch (deleteActionError) {
       console.warn('删除来信失败', deleteActionError)

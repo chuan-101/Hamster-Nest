@@ -35,6 +35,7 @@ import {
   createRemoteSession,
   deleteRemoteMessage,
   deleteRemoteSession,
+  fetchLetters,
   fetchLettersByConversation,
   fetchRemoteMessages,
   fetchRemoteSessions,
@@ -123,6 +124,10 @@ const createClientId = () =>
 const defaultOpenRouterModel = 'openrouter/auto'
 const APP_DISPLAY_MODE_STORAGE_KEY = 'hamster-app-display-mode'
 type AppDisplayMode = 'phone' | 'game'
+type LetterToast = {
+  id: string
+  message: string
+}
 const AUTO_EXTRACT_USER_TURN_INTERVAL = 12
 const AUTO_EXTRACT_COOLDOWN_MS = 10 * 60 * 1000
 const MEMORY_EXTRACT_RECENT_MESSAGES = 24
@@ -236,11 +241,15 @@ const App = () => {
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null)
   const [displayMode, setDisplayMode] = useState<AppDisplayMode>(loadInitialDisplayMode)
   const [isChatOpenedFromGameMode, setIsChatOpenedFromGameMode] = useState(false)
+  const [hasUnreadLetters, setHasUnreadLetters] = useState(false)
+  const [letterToast, setLetterToast] = useState<LetterToast | null>(null)
   const sessionsRef = useRef(sessions)
   const messagesRef = useRef(messages)
   const streamingControllerRef = useRef<AbortController | null>(null)
   const settingsRef = useRef<UserSettings | null>(null)
   const autoExtractStateRef = useRef<Record<string, { lastUserCount: number; lastExtractedAt: number }>>({})
+  const knownLetterIdsRef = useRef<Set<string>>(new Set())
+  const letterToastTimeoutRef = useRef<number | null>(null)
   const fallbackSettings = useMemo(
     () => createDefaultSettings(user?.id ?? 'local'),
     [user?.id],
@@ -258,6 +267,99 @@ const App = () => {
   }, [activeSettings.enabledModels, defaultModelId])
 
   const latestSession = useMemo(() => selectMostRecentSession(sessions), [sessions])
+
+  const showLetterToast = useCallback((message: string) => {
+    const toastId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`
+    setLetterToast({ id: toastId, message })
+  }, [])
+
+  useEffect(() => {
+    if (!letterToast) {
+      if (letterToastTimeoutRef.current !== null) {
+        window.clearTimeout(letterToastTimeoutRef.current)
+        letterToastTimeoutRef.current = null
+      }
+      return
+    }
+
+    if (letterToastTimeoutRef.current !== null) {
+      window.clearTimeout(letterToastTimeoutRef.current)
+    }
+
+    letterToastTimeoutRef.current = window.setTimeout(() => {
+      setLetterToast((current) => (current?.id === letterToast.id ? null : current))
+      letterToastTimeoutRef.current = null
+    }, 2600)
+
+    return () => {
+      if (letterToastTimeoutRef.current !== null) {
+        window.clearTimeout(letterToastTimeoutRef.current)
+        letterToastTimeoutRef.current = null
+      }
+    }
+  }, [letterToast])
+
+  useEffect(() => {
+    const client = supabase
+    if (!client || !user) {
+      knownLetterIdsRef.current = new Set()
+      setHasUnreadLetters(false)
+      return
+    }
+
+    let cancelled = false
+    const channel = client.channel(`letters-insert-${user.id}`)
+
+    const bootstrapRealtimeLetters = async () => {
+      try {
+        const existingLetters = await fetchLetters()
+        if (cancelled) {
+          return
+        }
+        knownLetterIdsRef.current = new Set(existingLetters.map((letter) => letter.id))
+        setHasUnreadLetters(existingLetters.some((letter) => !letter.isRead))
+      } catch (error) {
+        console.warn('初始化来信实时订阅失败', error)
+        if (!cancelled) {
+          knownLetterIdsRef.current = new Set()
+        }
+      }
+
+      if (cancelled) {
+        return
+      }
+
+      channel
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'letters',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const insertedLetter = payload.new as Partial<LetterEntry> & { id?: string; user_id?: string; is_read?: boolean | null }
+            const letterId = insertedLetter.id
+            const letterUserId = insertedLetter.userId ?? insertedLetter.user_id
+            if (!letterId || letterUserId !== user.id || knownLetterIdsRef.current.has(letterId)) {
+              return
+            }
+            knownLetterIdsRef.current.add(letterId)
+            setHasUnreadLetters(true)
+            showLetterToast('收到一封新来信')
+          },
+        )
+        .subscribe()
+    }
+
+    void bootstrapRealtimeLetters()
+
+    return () => {
+      cancelled = true
+      void client.removeChannel(channel)
+    }
+  }, [showLetterToast, user])
   const feedAiConfigBase = useMemo(() => ({
     reasoning: latestSession?.overrideReasoning ?? activeSettings.chatReasoningEnabled,
     temperature: activeSettings.temperature,
@@ -1483,30 +1585,41 @@ const App = () => {
 
   if (displayMode === 'game') {
     return (
-      <Suspense
-        fallback={
-          <div className="app-shell game-mode-shell">
-            <div className="game-mode-loading">游戏模式加载中...</div>
+      <>
+        <Suspense
+          fallback={
+            <div className="app-shell game-mode-shell">
+              <div className="game-mode-loading">游戏模式加载中...</div>
+            </div>
+          }
+        >
+          <GameModeShell
+            onSwitchToPhoneMode={() => {
+              setIsChatOpenedFromGameMode(false)
+              setDisplayMode('phone')
+            }}
+            onOpenSharedSettings={() => {
+              setIsChatOpenedFromGameMode(false)
+              setDisplayMode('phone')
+              navigate('/settings')
+            }}
+            onOpenChat={openChatFromGameMode}
+            user={user}
+            hasUnreadLetters={hasUnreadLetters}
+            snackAiConfig={snackAiConfig}
+            syzygyAiConfig={syzygyAiConfig}
+            bubbleChatConfig={bubbleChatConfig}
+          />
+        </Suspense>
+        {letterToast ? (
+          <div className="app-toast-stack" aria-live="polite" aria-atomic="true">
+            <div key={letterToast.id} className="app-toast app-toast--letter" role="status">
+              <span className="app-toast__icon" aria-hidden="true">💌</span>
+              <span>{letterToast.message}</span>
+            </div>
           </div>
-        }
-      >
-        <GameModeShell
-          onSwitchToPhoneMode={() => {
-            setIsChatOpenedFromGameMode(false)
-            setDisplayMode('phone')
-          }}
-          onOpenSharedSettings={() => {
-            setIsChatOpenedFromGameMode(false)
-            setDisplayMode('phone')
-            navigate('/settings')
-          }}
-          onOpenChat={openChatFromGameMode}
-          user={user}
-          snackAiConfig={snackAiConfig}
-          syzygyAiConfig={syzygyAiConfig}
-          bubbleChatConfig={bubbleChatConfig}
-        />
-      </Suspense>
+        ) : null}
+      </>
     )
   }
 
@@ -1523,6 +1636,7 @@ const App = () => {
             <RequireAuth ready={authReady} user={user}>
               <HomePage
                 user={user}
+                hasUnreadLetters={hasUnreadLetters}
                 onOpenChat={() => {
                   const latest = selectMostRecentSession(sessions)
                   if (latest) {
@@ -1609,7 +1723,11 @@ const App = () => {
           path="/letters"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <LettersPage sessions={sessions} onCreateSession={createSessionEntry} />
+              <LettersPage
+                sessions={sessions}
+                onCreateSession={createSessionEntry}
+                onUnreadStateChange={setHasUnreadLetters}
+              />
             </RequireAuth>
           }
         />
@@ -1743,6 +1861,14 @@ const App = () => {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {letterToast ? (
+        <div className="app-toast-stack" aria-live="polite" aria-atomic="true">
+          <div key={letterToast.id} className="app-toast app-toast--letter" role="status">
+            <span className="app-toast__icon" aria-hidden="true">💌</span>
+            <span>{letterToast.message}</span>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
