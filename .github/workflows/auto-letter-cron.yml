@@ -1,0 +1,19 @@
+name: Auto Letter Cron
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-letter-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger letter-check Edge Function
+        run: |
+          curl --fail --show-error --silent \
+            --request POST \
+            --url 'https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/letter-check' \
+            --header 'Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}' \
+            --header 'Content-Type: application/json' \
+            --data '{}'
