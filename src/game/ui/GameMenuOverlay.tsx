@@ -11,6 +11,7 @@ type MenuEntry = {
 type GameMenuOverlayProps = {
   onClose: () => void
   onOpenFeature: (featureId: GameFeatureId) => void
+  hasUnreadLetters: boolean
 }
 
 const GAME_MENU_ENTRIES: MenuEntry[] = [
@@ -20,7 +21,7 @@ const GAME_MENU_ENTRIES: MenuEntry[] = [
   { id: 'export', title: '数据导出', description: '以游戏模式外壳进入数据导出功能。' },
 ]
 
-const GameMenuOverlay = ({ onClose, onOpenFeature }: GameMenuOverlayProps) => {
+const GameMenuOverlay = ({ onClose, onOpenFeature, hasUnreadLetters }: GameMenuOverlayProps) => {
   return (
     <GameSystemModal
       title="游戏菜单"
@@ -32,7 +33,10 @@ const GameMenuOverlay = ({ onClose, onOpenFeature }: GameMenuOverlayProps) => {
       <div className="game-system-modal__content-shell">
         <section className="game-settings-section" aria-label="游戏菜单入口">
           <p className="game-menu-section__title">系统功能入口</p>
-          <p className="game-menu-section__hint">与游戏设置共享同一系统弹窗外壳，保留稳定尺寸，并在内容较多时于内部滚动。</p>
+          <p className="game-menu-section__hint">
+            与游戏设置共享同一系统弹窗外壳，保留稳定尺寸，并在内容较多时于内部滚动。
+            {hasUnreadLetters ? <span className="game-menu-section__badge">新来信</span> : null}
+          </p>
         </section>
 
         <div className="game-overlay-list game-overlay-list--scrollable">

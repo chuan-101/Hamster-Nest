@@ -48,6 +48,7 @@ type GameModeShellProps = {
   onOpenSharedSettings: () => void;
   onOpenChat: (npcId: OpenNpcActionsPayload["npcId"]) => void;
   user: User | null;
+  hasUnreadLetters: boolean;
   snackAiConfig: SharedSnackAiConfig;
   syzygyAiConfig: SharedSnackAiConfig;
   bubbleChatConfig: BubbleChatConfig;
@@ -81,6 +82,7 @@ const GameModeShell = ({
   onOpenSharedSettings,
   onOpenChat,
   user,
+  hasUnreadLetters,
   snackAiConfig,
   syzygyAiConfig,
   bubbleChatConfig,
@@ -524,6 +526,7 @@ const GameModeShell = ({
           onBubbleSend={handleBubbleSend}
           onOpenBubbleHistory={() => setIsBubbleHistoryOpen(true)}
           bubbleSending={bubbleSending}
+          hasUnreadLetters={hasUnreadLetters}
           viewportOverlay={
             <>
               {playerBubbleText && playerBubbleAnchor ? (
@@ -595,6 +598,7 @@ const GameModeShell = ({
           <GameMenuOverlay
             onClose={() => setIsPawMenuOpen(false)}
             onOpenFeature={handleOpenFeature}
+            hasUnreadLetters={hasUnreadLetters}
           />
         ) : null}
 

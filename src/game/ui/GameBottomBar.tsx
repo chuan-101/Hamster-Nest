@@ -38,9 +38,10 @@ type GameBottomBarProps = {
   onBubbleSend: (text: string) => void
   onOpenBubbleHistory: () => void
   bubbleSending: boolean
+  hasUnreadLetters: boolean
 }
 
-const GameBottomBar = ({ onOpenPawMenu, onOpenSettings, onBubbleSend, onOpenBubbleHistory, bubbleSending }: GameBottomBarProps) => {
+const GameBottomBar = ({ onOpenPawMenu, onOpenSettings, onBubbleSend, onOpenBubbleHistory, bubbleSending, hasUnreadLetters }: GameBottomBarProps) => {
   return (
     <footer className="game-bottom-bar" aria-label="游戏操作栏">
       <div className="game-direction-pad" aria-label="方向控制（占位）">
@@ -66,7 +67,8 @@ const GameBottomBar = ({ onOpenPawMenu, onOpenSettings, onBubbleSend, onOpenBubb
           <SettingsIcon />
         </button>
 
-        <button type="button" className="game-control-button game-control-button--paw" onClick={onOpenPawMenu} aria-label="打开互动菜单">
+        <button type="button" className="game-control-button game-control-button--paw" onClick={onOpenPawMenu} aria-label={hasUnreadLetters ? '打开互动菜单（有新来信）' : '打开互动菜单'}>
+          {hasUnreadLetters ? <span className="game-notification-dot" aria-hidden="true" /> : null}
           <PawIcon />
         </button>
       </div>

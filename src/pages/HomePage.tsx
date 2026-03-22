@@ -31,6 +31,7 @@ import "./HomePage.css";
 type HomePageProps = {
   user: User | null;
   onOpenChat: () => void;
+  hasUnreadLetters?: boolean;
   mode?: "default" | "settings";
 };
 
@@ -190,7 +191,7 @@ const computeStreak = (dates: string[], todayKey: string) => {
   return streak;
 };
 
-const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
+const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default" }: HomePageProps) => {
   const isSettingsPage = mode === "settings";
   const navigate = useNavigate();
   const [now, setNow] = useState(() => new Date());
@@ -1558,6 +1559,9 @@ const HomePage = ({ user, onOpenChat, mode = "default" }: HomePageProps) => {
                           }}
                         >
                           <span className="icon-emoji">
+                            {icon.id === "letters" && hasUnreadLetters ? (
+                              <span className="app-icon-notification-dot" aria-hidden="true" />
+                            ) : null}
                             {iconImageUrl ? (
                               <img
                                 src={iconImageUrl}

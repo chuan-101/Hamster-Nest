@@ -612,6 +612,17 @@
   background: var(--game-control-accent-bg);
 }
 
+.game-notification-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(255, 251, 245, 0.95);
+}
+
 .npc-actions-layer {
   position: absolute;
   inset: 0;
@@ -997,6 +1008,18 @@
   font-size: 12px;
   line-height: 1.45;
   color: #86827d;
+}
+
+.game-menu-section__badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .game-feature-shell-backdrop {
