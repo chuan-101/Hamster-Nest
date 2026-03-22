@@ -113,6 +113,61 @@ const requireSupabase = () => {
   return supabase
 }
 
+const upsertSubscriptionRecord = async (record: PushSubscriptionRecord): Promise<void> => {
+  const client = requireSupabase()
+  const { data: existingRows, error: lookupError } = await client
+    .from(PUSH_SUBSCRIPTIONS_TABLE)
+    .select('endpoint')
+    .eq('user_id', record.user_id)
+    .eq('endpoint', record.endpoint)
+
+  if (lookupError) {
+    throw lookupError
+  }
+
+  const hasExistingRow = (existingRows?.length ?? 0) > 0
+  const duplicateRows = existingRows?.slice(1) ?? []
+
+  const writeQuery = hasExistingRow
+    ? client
+        .from(PUSH_SUBSCRIPTIONS_TABLE)
+        .update(record)
+        .eq('user_id', record.user_id)
+        .eq('endpoint', record.endpoint)
+    : client.from(PUSH_SUBSCRIPTIONS_TABLE).insert(record)
+
+  const { error: writeError } = await writeQuery
+    .select(PUSH_SUBSCRIPTION_COLUMNS)
+    .limit(1)
+    .single()
+
+  if (writeError) {
+    throw writeError
+  }
+
+  if (duplicateRows.length > 0) {
+    const { error: cleanupError } = await client
+      .from(PUSH_SUBSCRIPTIONS_TABLE)
+      .delete()
+      .eq('user_id', record.user_id)
+      .eq('endpoint', record.endpoint)
+
+    if (cleanupError) {
+      throw cleanupError
+    }
+
+    const { error: restoreError } = await client
+      .from(PUSH_SUBSCRIPTIONS_TABLE)
+      .insert(record)
+      .select(PUSH_SUBSCRIPTION_COLUMNS)
+      .single()
+
+    if (restoreError) {
+      throw restoreError
+    }
+  }
+}
+
 export const getPushSupportStatus = (): PushSupportStatus => {
   const reason = getMissingSupportReason()
   return {
@@ -154,19 +209,8 @@ export const persistPushSubscription = async (
   userId: string,
   subscription: PushSubscription,
 ): Promise<void> => {
-  const client = requireSupabase()
   const record = buildSubscriptionRecord(userId, subscription)
-  const { error } = await client
-    .from(PUSH_SUBSCRIPTIONS_TABLE)
-    .upsert(record, {
-      onConflict: 'endpoint',
-    })
-    .select(PUSH_SUBSCRIPTION_COLUMNS)
-    .single()
-
-  if (error) {
-    throw error
-  }
+  await upsertSubscriptionRecord(record)
 }
 
 export const removePushSubscription = async (

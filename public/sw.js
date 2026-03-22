@@ -4,6 +4,7 @@ const LETTERS_PATH = '/#/letters'
 const DEFAULT_NOTIFICATION_TITLE = 'Hamster Nest'
 const DEFAULT_NOTIFICATION_BODY = '你收到了一条新的提醒。'
 const DEFAULT_NOTIFICATION_ICON = './icons/pwa-192.png'
+const DEFAULT_NOTIFICATION_TAG = 'auto-letter'
 
 const APP_SHELL_URLS = ['./', './index.html', './manifest.webmanifest']
 
@@ -32,8 +33,10 @@ const buildNotificationOptions = (payload = {}) => {
     body: payload.body || DEFAULT_NOTIFICATION_BODY,
     icon: payload.icon || DEFAULT_NOTIFICATION_ICON,
     badge: payload.badge || DEFAULT_NOTIFICATION_ICON,
-    tag: payload.tag || 'auto-letter',
+    image: typeof payload.image === 'string' ? payload.image : undefined,
+    tag: payload.tag || DEFAULT_NOTIFICATION_TAG,
     renotify: Boolean(payload.renotify),
+    requireInteraction: Boolean(payload.requireInteraction),
     data: {
       url: targetUrl,
     },
@@ -125,7 +128,18 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      const matchingClient = clients.find((client) => 'focus' in client)
+      const targetPathname = new URL(targetUrl, self.location.origin).pathname
+      const matchingClient = clients.find((client) => {
+        if (!('focus' in client)) {
+          return false
+        }
+
+        try {
+          return new URL(client.url).pathname === targetPathname
+        } catch (error) {
+          return false
+        }
+      }) ?? clients.find((client) => 'focus' in client)
 
       if (matchingClient) {
         return matchingClient.focus().then(() => {
