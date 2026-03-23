@@ -40,6 +40,8 @@ type AutoLetterConfigRow = {
   t2_interval_hours: number
   t2_daily_limit: number
   t2_random_probability: number
+  active_hour_start: number
+  active_hour_end: number
 }
 
 type SpecialDateRow = {
@@ -286,6 +288,14 @@ const SettingsPage = ({
         typeof row?.t2_random_probability === 'number' && Number.isFinite(row.t2_random_probability)
           ? Math.min(1, Math.max(0, row.t2_random_probability))
           : 0.5,
+      active_hour_start:
+        typeof row?.active_hour_start === 'number' && Number.isFinite(row.active_hour_start) && row.active_hour_start >= 0 && row.active_hour_start <= 23
+          ? Math.trunc(row.active_hour_start)
+          : 0,
+      active_hour_end:
+        typeof row?.active_hour_end === 'number' && Number.isFinite(row.active_hour_end) && row.active_hour_end >= 0 && row.active_hour_end <= 23
+          ? Math.trunc(row.active_hour_end)
+          : 23,
     })
 
     const mapSpecialDateDraft = (row: SpecialDateRow): SpecialDateDraft => ({
@@ -297,7 +307,7 @@ const SettingsPage = ({
     })
 
     const ensureAutoLetterConfig = async () => {
-      const selectColumns = 'user_id,enabled,t2_mode,t2_interval_hours,t2_daily_limit,t2_random_probability'
+      const selectColumns = 'user_id,enabled,t2_mode,t2_interval_hours,t2_daily_limit,t2_random_probability,active_hour_start,active_hour_end'
       const { data: existing, error: fetchError } = await client
         .from('auto_letter_config')
         .select(selectColumns)
@@ -317,6 +327,8 @@ const SettingsPage = ({
         t2_interval_hours: 24,
         t2_daily_limit: 1,
         t2_random_probability: 0.5,
+        active_hour_start: 0,
+        active_hour_end: 23,
       }
       const { data: created, error: insertError } = await client
         .from('auto_letter_config')
@@ -1064,9 +1076,13 @@ const SettingsPage = ({
   const parsedAutoLetterIntervalHours = Number.parseInt(autoLetterConfig?.t2_interval_hours?.toString() ?? '', 10)
   const parsedAutoLetterDailyLimit = Number.parseInt(autoLetterConfig?.t2_daily_limit?.toString() ?? '', 10)
   const parsedAutoLetterProbability = Number(autoLetterConfig?.t2_random_probability ?? 0)
+  const parsedActiveHourStart = Number.parseInt(autoLetterConfig?.active_hour_start?.toString() ?? '', 10)
+  const parsedActiveHourEnd = Number.parseInt(autoLetterConfig?.active_hour_end?.toString() ?? '', 10)
   const autoLetterIntervalValid = Number.isInteger(parsedAutoLetterIntervalHours) && parsedAutoLetterIntervalHours > 0
   const autoLetterDailyLimitValid = Number.isInteger(parsedAutoLetterDailyLimit) && parsedAutoLetterDailyLimit >= 0
   const autoLetterProbabilityValid = !Number.isNaN(parsedAutoLetterProbability) && parsedAutoLetterProbability >= 0 && parsedAutoLetterProbability <= 1
+  const activeHourStartValid = Number.isInteger(parsedActiveHourStart) && parsedActiveHourStart >= 0 && parsedActiveHourStart <= 23
+  const activeHourEndValid = Number.isInteger(parsedActiveHourEnd) && parsedActiveHourEnd >= 0 && parsedActiveHourEnd <= 23
 
   const refreshPushState = useCallback(async () => {
     const supportStatus = getPushSupportStatus()
@@ -1185,7 +1201,7 @@ const SettingsPage = ({
     if (!user || !supabase || !autoLetterConfig) {
       return
     }
-    if (!autoLetterIntervalValid || !autoLetterDailyLimitValid || !autoLetterProbabilityValid) {
+    if (!autoLetterIntervalValid || !autoLetterDailyLimitValid || !autoLetterProbabilityValid || !activeHourStartValid || !activeHourEndValid) {
       setAutoLetterStatus('error')
       setAutoLetterError('请先修正数值范围后再保存。')
       return
@@ -1201,9 +1217,11 @@ const SettingsPage = ({
           t2_interval_hours: parsedAutoLetterIntervalHours,
           t2_daily_limit: parsedAutoLetterDailyLimit,
           t2_random_probability: parsedAutoLetterProbability,
+          active_hour_start: parsedActiveHourStart,
+          active_hour_end: parsedActiveHourEnd,
         })
         .eq('user_id', user.id)
-        .select('user_id,enabled,t2_mode,t2_interval_hours,t2_daily_limit,t2_random_probability')
+        .select('user_id,enabled,t2_mode,t2_interval_hours,t2_daily_limit,t2_random_probability,active_hour_start,active_hour_end')
         .single()
       if (error) {
         throw error
@@ -1508,6 +1526,42 @@ const SettingsPage = ({
                       />
                       {!autoLetterProbabilityValid ? <span className="field-error">概率需在 0 到 1 之间</span> : null}
                     </div>
+                  </div>
+                  <div className="field-group">
+                    <label>活跃来信时间范围</label>
+                    <div className="auto-letter-hours-row">
+                      <label className="auto-letter-hour-field" htmlFor="autoLetterActiveHourStart">
+                        <span>开始时间</span>
+                        <span className="auto-letter-hour-input">
+                          <input
+                            id="autoLetterActiveHourStart"
+                            type="number"
+                            min="0"
+                            max="23"
+                            step="1"
+                            value={autoLetterConfig.active_hour_start}
+                            onChange={(event) => updateAutoLetterDraft({ active_hour_start: Number.parseInt(event.target.value || '0', 10) })}
+                          />
+                          <span className="auto-letter-hour-suffix">点</span>
+                        </span>
+                      </label>
+                      <label className="auto-letter-hour-field" htmlFor="autoLetterActiveHourEnd">
+                        <span>结束时间</span>
+                        <span className="auto-letter-hour-input">
+                          <input
+                            id="autoLetterActiveHourEnd"
+                            type="number"
+                            min="0"
+                            max="23"
+                            step="1"
+                            value={autoLetterConfig.active_hour_end}
+                            onChange={(event) => updateAutoLetterDraft({ active_hour_end: Number.parseInt(event.target.value || '0', 10) })}
+                          />
+                          <span className="auto-letter-hour-suffix">点</span>
+                        </span>
+                      </label>
+                    </div>
+                    {!activeHourStartValid || !activeHourEndValid ? <span className="field-error">请输入 0 到 23 的整数小时</span> : null}
                   </div>
                   <div className="system-prompt-actions">
                     <button
