@@ -448,42 +448,6 @@ const requireAuthenticatedUserId = async (): Promise<string> => {
   return user.id
 }
 
-/**
- * Fire-and-forget embedding: calls rag-embed edge function after a write.
- * Never throws — failures are logged only, so the main write flow is unaffected.
- */
-const fireEmbedding = (params: {
-  userId: string
-  text: string
-  zone: string
-  sourceTable: string
-  sourceId: string
-  metadata?: Record<string, unknown>
-}) => {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-  if (!supabaseUrl || !anonKey) return
-
-  fetch(`${supabaseUrl}/functions/v1/rag-embed`, {
-    method: 'POST',
-    headers: {
-      apikey: anonKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      user_id: params.userId,
-      text: params.text,
-      source: 'hamster-nest',
-      zone: params.zone,
-      source_table: params.sourceTable,
-      source_id: params.sourceId,
-      metadata: params.metadata ?? {},
-    }),
-  }).catch((err) => {
-    console.warn('[fireEmbedding] failed (non-blocking)', err)
-  })
-}
-
 export const fetchLetters = async (): Promise<LetterEntry[]> => {
   if (!supabase) {
     return []
@@ -579,13 +543,6 @@ export const createLetter = async (
     throw error ?? new Error('创建信件失败')
   }
   const letter = mapLetterRow(data as LetterRow)
-  fireEmbedding({
-    userId,
-    text: letter.content,
-    zone: 'letter',
-    sourceTable: 'letters',
-    sourceId: letter.id,
-  })
   return letter
 }
 
@@ -1299,13 +1256,6 @@ export const addRemoteMessage = async (
     throw sessionError
   }
   const message = mapMessageRow(data as MessageRow)
-  fireEmbedding({
-    userId,
-    text: message.content,
-    zone: 'daily_chat',
-    sourceTable: 'messages',
-    sourceId: message.id,
-  })
   return { message, updatedAt: now }
 }
 
@@ -1366,13 +1316,6 @@ export const createSnackPost = async (content: string): Promise<SnackPost> => {
     throw error ?? new Error('发布零食记录失败')
   }
   const post = mapSnackPostRow(data as SnackPostRow)
-  fireEmbedding({
-    userId: post.userId,
-    text: post.content,
-    zone: 'snack',
-    sourceTable: 'snack_posts',
-    sourceId: post.id,
-  })
   return post
 }
 
@@ -1451,13 +1394,6 @@ export const createSnackReply = async (
     throw error ?? new Error('保存零食回复失败')
   }
   const reply = mapSnackReplyRow(data as SnackReplyRow)
-  fireEmbedding({
-    userId: reply.userId,
-    text: reply.content,
-    zone: 'snack',
-    sourceTable: 'snack_replies',
-    sourceId: reply.id,
-  })
   return reply
 }
 
@@ -1587,13 +1523,6 @@ export const createSyzygyPost = async (
     throw error ?? new Error('发布观察日志失败')
   }
   const post = mapSyzygyPostRow(data as SyzygyPostRow)
-  fireEmbedding({
-    userId: post.userId,
-    text: post.content,
-    zone: 'syzygy_post',
-    sourceTable: 'syzygy_posts',
-    sourceId: post.id,
-  })
   return post
 }
 
@@ -1684,13 +1613,6 @@ export const createSyzygyReply = async (
     throw error ?? new Error('保存观察日志回复失败')
   }
   const reply = mapSyzygyReplyRow(data as SyzygyReplyRow)
-  fireEmbedding({
-    userId: reply.userId,
-    text: reply.content,
-    zone: 'syzygy_post',
-    sourceTable: 'syzygy_replies',
-    sourceId: reply.id,
-  })
   return reply
 }
 
@@ -1942,13 +1864,6 @@ export const createForumThread = async (params: {
     throw error ?? new Error('创建论坛主题失败')
   }
   const thread = mapForumThreadRow(data as ForumThreadRow)
-  fireEmbedding({
-    userId,
-    text: `${thread.title}\n${thread.content}`,
-    zone: 'forum',
-    sourceTable: 'forum_threads',
-    sourceId: thread.id,
-  })
   return thread
 }
 
@@ -2023,13 +1938,6 @@ export const createForumReply = async (params: {
     throw error ?? new Error('创建论坛回复失败')
   }
   const reply = mapForumReplyRow(data as ForumReplyRow)
-  fireEmbedding({
-    userId,
-    text: reply.content,
-    zone: 'forum',
-    sourceTable: 'forum_replies',
-    sourceId: reply.id,
-  })
   return reply
 }
 
@@ -2435,13 +2343,6 @@ export const createBubbleMessage = async (
     .eq('user_id', userId)
 
   const message = mapBubbleMessageRow(data as BubbleMessageRow)
-  fireEmbedding({
-    userId,
-    text: message.content,
-    zone: 'bubble',
-    sourceTable: 'bubble_messages',
-    sourceId: message.id,
-  })
   return message
 }
 
