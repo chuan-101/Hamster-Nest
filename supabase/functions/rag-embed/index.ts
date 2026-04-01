@@ -289,28 +289,18 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY')
 
-    if (!supabaseUrl || !anonKey) {
-      return jsonResponse({ error: 'Supabase environment variables are missing' }, 500, origin)
+    if (!supabaseUrl || !serviceRoleKey) {
+      return jsonResponse({ error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' }, 500, origin)
     }
     if (!openRouterApiKey) {
       return jsonResponse({ error: 'OPENROUTER_API_KEY is not configured' }, 500, origin)
     }
 
-    const authHeader = req.headers.get('authorization')
-    const apikey = req.headers.get('apikey')
-    if (!authHeader || !apikey) {
-      return jsonResponse({ error: 'Missing auth headers' }, 401, origin)
-    }
-
-    // Detect service-role calls (server-to-server, e.g. from rag-backfill)
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const isServiceRole = serviceRoleKey && apikey === serviceRoleKey
-
-    let userId: string
-    let supabase: ReturnType<typeof createClient>
+    // Always use service role key to bypass RLS — no JWT verification needed
+    const supabase = createClient(supabaseUrl, serviceRoleKey)
 
     let payload: RagEmbedPayload
     try {
@@ -319,35 +309,10 @@ serve(async (req) => {
       return jsonResponse({ error: 'Invalid JSON body' }, 400, origin)
     }
 
-    if (isServiceRole) {
-      // Service-role: create client with service role key (bypasses RLS)
-      supabase = createClient(supabaseUrl, serviceRoleKey)
-
-      if (typeof payload.user_id !== 'string' || !payload.user_id) {
-        return jsonResponse({ error: 'Service-role calls must provide user_id' }, 400, origin)
-      }
-      userId = payload.user_id
-    } else {
-      supabase = createClient(supabaseUrl, anonKey, {
-        global: {
-          headers: {
-            Authorization: authHeader,
-            apikey,
-          },
-        },
-      })
-
-      // Auth handling: block anonymous writes and bind user_id from Supabase auth.
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-
-      if (userError || !user) {
-        return jsonResponse({ error: 'Unauthorized' }, 401, origin)
-      }
-      userId = user.id
+    if (typeof payload.user_id !== 'string' || !payload.user_id) {
+      return jsonResponse({ error: 'user_id is required' }, 400, origin)
     }
+    const userId = payload.user_id
 
     const normalized = normalizePayload(payload)
     if (normalized.earlyError) {
