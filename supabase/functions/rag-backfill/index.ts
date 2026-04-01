@@ -68,9 +68,8 @@ const callRagEmbed = async (
   const resp = await fetch(`${supabaseUrl}/functions/v1/rag-embed`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${serviceRoleKey}`,
-      apikey: serviceRoleKey,
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
     },
     body: JSON.stringify({ items }),
   })
