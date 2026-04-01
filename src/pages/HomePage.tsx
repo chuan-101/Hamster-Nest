@@ -63,7 +63,7 @@ const DEFAULT_ICON_ORDER = [
   "settings",
   "export",
 ];
-const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters"];
+const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters", "rag"];
 const PAGE_IDS: HomeLayoutPageId[] = ["page1", "page2"];
 const CORE_WIDGET_ID = "widget-checkin";
 const MAX_WIDGETS = 6;
@@ -264,6 +264,7 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
       { id: "export", defaultEmoji: "📦", label: "导出", route: "/export" },
       { id: "forum", defaultEmoji: "💭", label: "Forum", route: "/forum" },
       { id: "letters", defaultEmoji: "💌", label: "Letters", route: "/letters" },
+      { id: "rag", defaultEmoji: "🔮", label: "记忆引擎", route: "/rag-settings" },
     ],
     [onOpenChat],
   );
@@ -516,6 +517,7 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
         {
           forum: defaultAppIconConfigs.forum,
           letters: defaultAppIconConfigs.letters,
+          rag: defaultAppIconConfigs.rag,
         },
         false,
       ),

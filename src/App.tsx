@@ -62,6 +62,7 @@ import ForumNewThreadPage from './pages/ForumNewThreadPage'
 import ForumThreadPage from './pages/ForumThreadPage'
 import ForumSettingsPage from './pages/ForumSettingsPage'
 import LettersPage from './pages/LettersPage'
+import RagSettingsPage from './pages/RagSettingsPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1728,6 +1729,14 @@ const App = () => {
                 onCreateSession={createSessionEntry}
                 onUnreadStateChange={setHasUnreadLetters}
               />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/rag-settings"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <RagSettingsPage />
             </RequireAuth>
           }
         />
