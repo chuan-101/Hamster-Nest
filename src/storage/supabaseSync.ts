@@ -2554,7 +2554,7 @@ export const deleteStoryGroup = async (groupId: string): Promise<void> => {
   if (error) throw error
 }
 
-export const fetchSessionGroups = async (userId: string): Promise<RpSessionGroup[]> => {
+export const fetchSessionGroups = async (_userId: string): Promise<RpSessionGroup[]> => {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('rp_session_groups')
