@@ -990,9 +990,6 @@ const maybeInjectRagContext = async (
     const serviceClient = buildSupabaseServiceRoleClient()
     const ragConfig = await loadRagConfig(serviceClient, userId)
 
-    console.log('[RAG] starting, ragEnabled:', ragConfig.ragEnabled)
-    console.log('[RAG] config:', JSON.stringify(ragConfig))
-
     if (!ragConfig.ragEnabled) return messages
 
     // Determine zones and metadata filter
@@ -1037,7 +1034,6 @@ const maybeInjectRagContext = async (
       query,
     )
     if (!embedding) return messages
-    console.log('[RAG] query embedding generated, dimensions:', embedding.length)
 
     // Call match_rag_chunks RPC with multiple signature attempts
     const rpcArgs = [
@@ -1078,8 +1074,6 @@ const maybeInjectRagContext = async (
       const { data, error } = await serviceClient.rpc('match_rag_chunks', args)
       if (!error) {
         chunks = (data ?? []) as RagChunkRow[]
-        console.log('[RAG] RPC result:', JSON.stringify(data?.length), 'chunks found')
-        console.log('[RAG] first chunk preview:', data?.[0]?.chunk_text?.substring(0, 100))
         break
       }
       const msg = String((error as { message?: string }).message ?? '')
@@ -1097,16 +1091,13 @@ const maybeInjectRagContext = async (
 
     if (chunkTexts.length === 0) return messages
 
-    const ragContext = ['[相关记忆 - 以下内容来自历史对话，供参考]', ...chunkTexts.map((t) => `- ${t}`)].join('\n')
     const ragSystemMessage: OpenAiMessage = {
       role: 'system',
-      content: ragContext,
+      content: ['[相关记忆 - 以下内容来自历史对话，供参考]', ...chunkTexts.map((t) => `- ${t}`)].join('\n'),
     }
 
-    console.log('[RAG] injected into system prompt, total context length:', ragContext.length)
     return injectMemoryBlock(messages, ragSystemMessage)
   } catch (error) {
-    console.error('[RAG] error:', (error as Error).message)
     console.warn('[rag] RAG retrieval failed, skipping injection', error)
     return messages
   }
