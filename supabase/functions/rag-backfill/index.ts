@@ -196,6 +196,7 @@ const buildChatChunks = (
 ): EmbedItem[] => {
   const bySession = new Map<string, typeof rows>()
   for (const row of rows) {
+    if (!row.content?.trim()) continue // skip null/empty content
     const group = bySession.get(row.session_id) ?? []
     group.push(row)
     bySession.set(row.session_id, group)
@@ -241,6 +242,57 @@ const buildChatChunks = (
         source_table: sourceTable,
         source_id: ids[0],
         metadata,
+      })
+    }
+  }
+
+  return items
+}
+
+// Group RP messages by session_id and pair consecutive turns into chunks.
+// Unlike daily chat, RP roles are character names (not 'user'/'assistant'),
+// so we pair consecutive messages regardless of role value.
+const buildRpChunks = (
+  rows: Array<{ id: string; session_id: string; role: string; content: string; created_at: string }>,
+): EmbedItem[] => {
+  const bySession = new Map<string, typeof rows>()
+  for (const row of rows) {
+    if (!row.content?.trim()) continue // skip null/empty content
+    const group = bySession.get(row.session_id) ?? []
+    group.push(row)
+    bySession.set(row.session_id, group)
+  }
+
+  const items: EmbedItem[] = []
+
+  for (const [sessionId, msgs] of bySession) {
+    msgs.sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+    let i = 0
+    while (i < msgs.length) {
+      const parts: string[] = []
+      const ids: string[] = []
+
+      // Take current message
+      parts.push(`${msgs[i].role}: ${msgs[i].content}`)
+      ids.push(msgs[i].id)
+      const currentRole = msgs[i].role
+      i++
+
+      // Collect consecutive messages with a different role (the "reply")
+      while (i < msgs.length && msgs[i].role !== currentRole) {
+        parts.push(`${msgs[i].role}: ${msgs[i].content}`)
+        ids.push(msgs[i].id)
+        i++
+      }
+
+      items.push({
+        text: parts.join('\n'),
+        source: 'hamster-nest',
+        zone: 'rp',
+        source_table: 'rp_messages',
+        source_id: ids[0],
+        metadata: { session_id: sessionId },
       })
     }
   }
@@ -348,7 +400,10 @@ serve(async (req) => {
 
       if (error) throw new Error(`Failed to read messages: ${error.message}`)
 
-      const items = buildChatChunks(data ?? [], 'daily_chat', 'messages', false)
+      const rawRows = data ?? []
+      const validRows = rawRows.filter((r: { content: string }) => r.content?.trim())
+      result.skipped += rawRows.length - validRows.length
+      const items = buildChatChunks(validRows, 'daily_chat', 'messages', false)
       await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
@@ -378,7 +433,10 @@ serve(async (req) => {
 
       if (error) throw new Error(`Failed to read rp_messages: ${error.message}`)
 
-      const items = buildChatChunks(data ?? [], 'rp', 'rp_messages', true)
+      const rawRows = data ?? []
+      const validRows = rawRows.filter((r: { content: string }) => r.content?.trim())
+      result.skipped += rawRows.length - validRows.length
+      const items = buildRpChunks(validRows)
       await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
