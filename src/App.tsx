@@ -63,6 +63,7 @@ import ForumThreadPage from './pages/ForumThreadPage'
 import ForumSettingsPage from './pages/ForumSettingsPage'
 import LettersPage from './pages/LettersPage'
 import RagSettingsPage from './pages/RagSettingsPage'
+import StoryGroupPage from './pages/StoryGroupPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1811,6 +1812,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <RpRoomPage user={user} mode="dashboard" rpReasoningEnabled={activeSettings.rpReasoningEnabled} rpHighThinkingEnabled={activeSettings.rpHighThinkingEnabled} onDisableRpReasoning={handleDisableRpReasoning} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/rp/story-groups"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <StoryGroupPage user={user} />
             </RequireAuth>
           }
         />

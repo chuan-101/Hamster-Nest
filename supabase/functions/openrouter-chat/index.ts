@@ -987,12 +987,22 @@ const maybeInjectRagContext = async (
     if (isRp) {
       zones = ['rp']
       const sessionId = payload.conversationId?.trim()
-      if (sessionId) {
-        const storyGroupId = await resolveRpStoryGroupId(serviceClient, sessionId)
-        if (storyGroupId) {
-          metadataFilter = { story_group_id: storyGroupId }
-        } else {
+      if (ragConfig.rpSearchMode === 'all_rp') {
+        // No metadata filter — search all RP data
+      } else if (ragConfig.rpSearchMode === 'session') {
+        if (sessionId) {
           metadataFilter = { session_id: sessionId }
+        }
+      } else {
+        // story_group mode (default)
+        if (sessionId) {
+          const storyGroupId = await resolveRpStoryGroupId(serviceClient, sessionId)
+          if (storyGroupId) {
+            metadataFilter = { story_group_id: storyGroupId }
+          } else {
+            // Fallback: session not in any group, filter by session_id
+            metadataFilter = { session_id: sessionId }
+          }
         }
       }
     } else {

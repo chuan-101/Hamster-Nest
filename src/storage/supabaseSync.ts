@@ -15,6 +15,8 @@ import type {
   RpNpcCard,
   RpMessage,
   RpSession,
+  RpSessionGroup,
+  RpStoryGroup,
   SnackPost,
   SnackReply,
   SyzygyPost,
@@ -2476,4 +2478,110 @@ export const fetchBubbleMessages = async (sessionId: string): Promise<BubbleMess
     throw error
   }
   return (data ?? []).map((row) => mapBubbleMessageRow(row as BubbleMessageRow))
+}
+
+// ── Story Groups ──────────────────────────────────────────────────────
+
+type StoryGroupRow = {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
+  updated_at: string | null
+}
+
+type SessionGroupRow = {
+  id: string
+  session_id: string
+  story_group_id: string
+  created_at: string
+}
+
+const mapStoryGroupRow = (row: StoryGroupRow): RpStoryGroup => ({
+  id: row.id,
+  userId: row.user_id,
+  name: row.name,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapSessionGroupRow = (row: SessionGroupRow): RpSessionGroup => ({
+  id: row.id,
+  sessionId: row.session_id,
+  storyGroupId: row.story_group_id,
+  createdAt: row.created_at,
+})
+
+export const fetchStoryGroups = async (userId: string): Promise<RpStoryGroup[]> => {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('rp_story_groups')
+    .select('id,user_id,name,created_at,updated_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((row) => mapStoryGroupRow(row as StoryGroupRow))
+}
+
+export const createStoryGroup = async (userId: string, name: string): Promise<RpStoryGroup> => {
+  if (!supabase) throw new Error('Supabase 客户端未配置')
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('rp_story_groups')
+    .insert({ user_id: userId, name, created_at: now })
+    .select('id,user_id,name,created_at,updated_at')
+    .single()
+  if (error || !data) throw error ?? new Error('创建故事组失败')
+  return mapStoryGroupRow(data as StoryGroupRow)
+}
+
+export const renameStoryGroup = async (groupId: string, name: string): Promise<void> => {
+  if (!supabase) return
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('rp_story_groups')
+    .update({ name, updated_at: now })
+    .eq('id', groupId)
+  if (error) throw error
+}
+
+export const deleteStoryGroup = async (groupId: string): Promise<void> => {
+  if (!supabase) return
+  const { error } = await supabase
+    .from('rp_story_groups')
+    .delete()
+    .eq('id', groupId)
+  if (error) throw error
+}
+
+export const fetchSessionGroups = async (userId: string): Promise<RpSessionGroup[]> => {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('rp_session_groups')
+    .select('id,session_id,story_group_id,created_at')
+  if (error) throw error
+  return (data ?? []).map((row) => mapSessionGroupRow(row as SessionGroupRow))
+}
+
+export const addSessionToGroup = async (sessionId: string, storyGroupId: string): Promise<RpSessionGroup> => {
+  if (!supabase) throw new Error('Supabase 客户端未配置')
+  const { data, error } = await supabase
+    .from('rp_session_groups')
+    .upsert(
+      { session_id: sessionId, story_group_id: storyGroupId, created_at: new Date().toISOString() },
+      { onConflict: 'session_id' },
+    )
+    .select('id,session_id,story_group_id,created_at')
+    .single()
+  if (error || !data) throw error ?? new Error('添加 session 到故事组失败')
+  return mapSessionGroupRow(data as SessionGroupRow)
+}
+
+export const removeSessionFromGroup = async (sessionId: string): Promise<void> => {
+  if (!supabase) return
+  const { error } = await supabase
+    .from('rp_session_groups')
+    .delete()
+    .eq('session_id', sessionId)
+  if (error) throw error
 }

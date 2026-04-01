@@ -96,6 +96,13 @@
   font-weight: 800;
 }
 
+.rp-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .rp-back-btn {
   border: 1px solid rgba(255, 214, 231, 0.9);
   border-radius: 999px;
