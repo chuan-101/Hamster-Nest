@@ -17,7 +17,7 @@ type BatchType =
   | 'syzygy_posts'
 
 type BackfillPayload = {
-  batch: BatchType | 'all'
+  batch: BatchType
   limit?: number
   offset?: number
 }
@@ -49,18 +49,6 @@ const VALID_BATCHES: BatchType[] = [
   'messages',
   'bubble_messages',
   'letters',
-  'rp_messages',
-  'forum',
-  'snack',
-  'syzygy_posts',
-]
-
-/** Order used when batch:"all" runs every batch sequentially. */
-const ALL_BATCHES_ORDER: BatchType[] = [
-  'memory_entries',
-  'letters',
-  'messages',
-  'bubble_messages',
   'rp_messages',
   'forum',
   'snack',
@@ -260,331 +248,6 @@ const buildChatChunks = (
   return items
 }
 
-/**
- * Run a single batch at a given offset/limit.
- * Returns the BackfillResult for that page and `fetchedCount` (raw rows from DB)
- * so the caller can detect end-of-data (fetchedCount < limit).
- */
-const runBatch = async (
-  supabase: ReturnType<typeof createClient>,
-  openRouterApiKey: string,
-  embeddingModel: string,
-  embeddingDimensions: number,
-  batch: BatchType,
-  limit: number,
-  offset: number,
-): Promise<{ result: BackfillResult; fetchedCount: number }> => {
-  const result: BackfillResult = { processed: 0, inserted: 0, skipped: 0, failed: 0, errors: [] }
-  let fetchedCount = 0
-
-  // ── memory_entries ──
-  if (batch === 'memory_entries') {
-    const { data, error } = await supabase
-      .from('memory_entries')
-      .select('id, content')
-      .eq('user_id', FIXED_USER_ID)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (error) throw new Error(`Failed to read memory_entries: ${error.message}`)
-
-    fetchedCount = (data ?? []).length
-    const items: EmbedItem[] = (data ?? [])
-      .filter((row: { content: string }) => row.content?.trim())
-      .map((row: { id: string; content: string }) => ({
-        text: row.content,
-        source: 'hamster-nest',
-        zone: 'daily_chat',
-        source_table: 'memory_entries',
-        source_id: row.id,
-      }))
-
-    await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
-  }
-
-  // ── letters ──
-  if (batch === 'letters') {
-    const { data, error } = await supabase
-      .from('letters')
-      .select('id, content')
-      .eq('user_id', FIXED_USER_ID)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (error) throw new Error(`Failed to read letters: ${error.message}`)
-
-    fetchedCount = (data ?? []).length
-    const items: EmbedItem[] = (data ?? [])
-      .filter((row: { content: string }) => row.content?.trim())
-      .map((row: { id: string; content: string }) => ({
-        text: row.content,
-        source: 'hamster-nest',
-        zone: 'letter',
-        source_table: 'letters',
-        source_id: row.id,
-      }))
-
-    await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
-  }
-
-  // ── messages (daily_chat) ──
-  if (batch === 'messages') {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('id, session_id, role, content, created_at')
-      .eq('user_id', FIXED_USER_ID)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (error) throw new Error(`Failed to read messages: ${error.message}`)
-
-    fetchedCount = (data ?? []).length
-    const items = buildChatChunks(data ?? [], 'daily_chat', 'messages', false)
-    await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
-  }
-
-  // ── bubble_messages ──
-  if (batch === 'bubble_messages') {
-    const { data, error } = await supabase
-      .from('bubble_messages')
-      .select('id, session_id, role, content, created_at')
-      .eq('user_id', FIXED_USER_ID)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (error) throw new Error(`Failed to read bubble_messages: ${error.message}`)
-
-    fetchedCount = (data ?? []).length
-    const items = buildChatChunks(data ?? [], 'bubble', 'bubble_messages', false)
-    await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
-  }
-
-  // ── rp_messages ──
-  if (batch === 'rp_messages') {
-    const { data, error } = await supabase
-      .from('rp_messages')
-      .select('id, session_id, role, content, created_at')
-      .eq('user_id', FIXED_USER_ID)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (error) throw new Error(`Failed to read rp_messages: ${error.message}`)
-
-    fetchedCount = (data ?? []).length
-    const items = buildChatChunks(data ?? [], 'rp', 'rp_messages', true)
-    await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
-  }
-
-  // ── forum ──
-  if (batch === 'forum') {
-    const items: EmbedItem[] = []
-
-    const { data: threads, error: threadErr } = await supabase
-      .from('forum_threads')
-      .select('id, title, body')
-      .eq('user_id', FIXED_USER_ID)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (threadErr) throw new Error(`Failed to read forum_threads: ${threadErr.message}`)
-
-    const threadCount = (threads ?? []).length
-    for (const t of threads ?? []) {
-      const text = [t.title, t.body].filter(Boolean).join('\n')
-      if (!text.trim()) continue
-      items.push({
-        text,
-        source: 'hamster-nest',
-        zone: 'forum',
-        source_table: 'forum_threads',
-        source_id: t.id,
-      })
-    }
-
-    const { data: replies, error: replyErr } = await supabase
-      .from('forum_replies')
-      .select('id, body')
-      .eq('user_id', FIXED_USER_ID)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (replyErr) throw new Error(`Failed to read forum_replies: ${replyErr.message}`)
-
-    const replyCount = (replies ?? []).length
-    for (const r of replies ?? []) {
-      if (!r.body?.trim()) continue
-      items.push({
-        text: r.body,
-        source: 'hamster-nest',
-        zone: 'forum',
-        source_table: 'forum_replies',
-        source_id: r.id,
-      })
-    }
-
-    fetchedCount = Math.max(threadCount, replyCount)
-    await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
-  }
-
-  // ── snack ──
-  if (batch === 'snack') {
-    const items: EmbedItem[] = []
-
-    const { data: posts, error: postErr } = await supabase
-      .from('snack_posts')
-      .select('id, content')
-      .eq('user_id', FIXED_USER_ID)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (postErr) throw new Error(`Failed to read snack_posts: ${postErr.message}`)
-
-    const postCount = (posts ?? []).length
-    for (const p of posts ?? []) {
-      if (!p.content?.trim()) continue
-      items.push({
-        text: p.content,
-        source: 'hamster-nest',
-        zone: 'snack',
-        source_table: 'snack_posts',
-        source_id: p.id,
-      })
-    }
-
-    const { data: replies, error: replyErr } = await supabase
-      .from('snack_replies')
-      .select('id, content')
-      .eq('user_id', FIXED_USER_ID)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (replyErr) throw new Error(`Failed to read snack_replies: ${replyErr.message}`)
-
-    const replyCount = (replies ?? []).length
-    for (const r of replies ?? []) {
-      if (!r.content?.trim()) continue
-      items.push({
-        text: r.content,
-        source: 'hamster-nest',
-        zone: 'snack',
-        source_table: 'snack_replies',
-        source_id: r.id,
-      })
-    }
-
-    fetchedCount = Math.max(postCount, replyCount)
-    await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
-  }
-
-  // ── syzygy_posts ──
-  if (batch === 'syzygy_posts') {
-    const items: EmbedItem[] = []
-
-    const { data: posts, error: postErr } = await supabase
-      .from('syzygy_posts')
-      .select('id, content')
-      .eq('user_id', FIXED_USER_ID)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (postErr) throw new Error(`Failed to read syzygy_posts: ${postErr.message}`)
-
-    const postCount = (posts ?? []).length
-    for (const p of posts ?? []) {
-      if (!p.content?.trim()) continue
-      items.push({
-        text: p.content,
-        source: 'hamster-nest',
-        zone: 'syzygy_post',
-        source_table: 'syzygy_posts',
-        source_id: p.id,
-      })
-    }
-
-    const { data: replies, error: replyErr } = await supabase
-      .from('syzygy_replies')
-      .select('id, content')
-      .eq('user_id', FIXED_USER_ID)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (replyErr) throw new Error(`Failed to read syzygy_replies: ${replyErr.message}`)
-
-    const replyCount = (replies ?? []).length
-    for (const r of replies ?? []) {
-      if (!r.content?.trim()) continue
-      items.push({
-        text: r.content,
-        source: 'hamster-nest',
-        zone: 'syzygy_post',
-        source_table: 'syzygy_replies',
-        source_id: r.id,
-      })
-    }
-
-    fetchedCount = Math.max(postCount, replyCount)
-    await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
-  }
-
-  return { result, fetchedCount }
-}
-
-type BatchSummary = { processed: number; inserted: number; skipped: number; failed: number }
-
-/**
- * Run every batch in ALL_BATCHES_ORDER, auto-paginating each until exhausted.
- */
-const runAllBatches = async (
-  supabase: ReturnType<typeof createClient>,
-  openRouterApiKey: string,
-  embeddingModel: string,
-  embeddingDimensions: number,
-  pageSize: number,
-): Promise<{ batches: Record<string, BatchSummary>; total_inserted: number; errors: string[] }> => {
-  const batches: Record<string, BatchSummary> = {}
-  let totalInserted = 0
-  const allErrors: string[] = []
-
-  for (const batch of ALL_BATCHES_ORDER) {
-    const summary: BatchSummary = { processed: 0, inserted: 0, skipped: 0, failed: 0 }
-    let offset = 0
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      console.log(`[rag-backfill] all: ${batch} offset=${offset}`)
-      const { result, fetchedCount } = await runBatch(
-        supabase,
-        openRouterApiKey,
-        embeddingModel,
-        embeddingDimensions,
-        batch,
-        pageSize,
-        offset,
-      )
-
-      summary.processed += result.processed
-      summary.inserted += result.inserted
-      summary.skipped += result.skipped
-      summary.failed += result.failed
-      if (result.errors.length > 0) {
-        allErrors.push(...result.errors)
-      }
-
-      if (fetchedCount < pageSize) break
-      offset += pageSize
-    }
-
-    batches[batch] = summary
-    totalInserted += summary.inserted
-  }
-
-  return { batches, total_inserted: totalInserted, errors: allErrors }
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204 })
@@ -615,24 +278,256 @@ serve(async (req) => {
 
     const { batch, limit = 50, offset = 0 } = payload
 
-    if (!batch || (batch !== 'all' && !VALID_BATCHES.includes(batch))) {
+    if (!batch || !VALID_BATCHES.includes(batch)) {
       return Response.json(
-        { error: `Invalid batch. Must be one of: all, ${VALID_BATCHES.join(', ')}` },
+        { error: `Invalid batch. Must be one of: ${VALID_BATCHES.join(', ')}` },
         { status: 400 },
       )
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey)
     const { embeddingModel, embeddingDimensions } = await loadEmbeddingRuntimeConfig(supabase, FIXED_USER_ID)
+    const result: BackfillResult = { processed: 0, inserted: 0, skipped: 0, failed: 0, errors: [] }
 
-    // ── full run: batch = "all" ──
-    if (batch === 'all') {
-      const allResult = await runAllBatches(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, limit)
-      return Response.json(allResult, { status: 200 })
+    // ── memory_entries ──
+    if (batch === 'memory_entries') {
+      const { data, error } = await supabase
+        .from('memory_entries')
+        .select('id, content')
+        .eq('user_id', FIXED_USER_ID)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (error) throw new Error(`Failed to read memory_entries: ${error.message}`)
+
+      const items: EmbedItem[] = (data ?? [])
+        .filter((row: { content: string }) => row.content?.trim())
+        .map((row: { id: string; content: string }) => ({
+          text: row.content,
+          source: 'hamster-nest',
+          zone: 'daily_chat',
+          source_table: 'memory_entries',
+          source_id: row.id,
+        }))
+
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
-    // ── single batch ──
-    const { result } = await runBatch(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, batch, limit, offset)
+    // ── letters ──
+    if (batch === 'letters') {
+      const { data, error } = await supabase
+        .from('letters')
+        .select('id, content')
+        .eq('user_id', FIXED_USER_ID)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (error) throw new Error(`Failed to read letters: ${error.message}`)
+
+      const items: EmbedItem[] = (data ?? [])
+        .filter((row: { content: string }) => row.content?.trim())
+        .map((row: { id: string; content: string }) => ({
+          text: row.content,
+          source: 'hamster-nest',
+          zone: 'letter',
+          source_table: 'letters',
+          source_id: row.id,
+        }))
+
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
+    }
+
+    // ── messages (daily_chat) ──
+    if (batch === 'messages') {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, session_id, role, content, created_at')
+        .eq('user_id', FIXED_USER_ID)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (error) throw new Error(`Failed to read messages: ${error.message}`)
+
+      const items = buildChatChunks(data ?? [], 'daily_chat', 'messages', false)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
+    }
+
+    // ── bubble_messages ──
+    if (batch === 'bubble_messages') {
+      const { data, error } = await supabase
+        .from('bubble_messages')
+        .select('id, session_id, role, content, created_at')
+        .eq('user_id', FIXED_USER_ID)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (error) throw new Error(`Failed to read bubble_messages: ${error.message}`)
+
+      const items = buildChatChunks(data ?? [], 'bubble', 'bubble_messages', false)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
+    }
+
+    // ── rp_messages ──
+    if (batch === 'rp_messages') {
+      const { data, error } = await supabase
+        .from('rp_messages')
+        .select('id, session_id, role, content, created_at')
+        .eq('user_id', FIXED_USER_ID)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (error) throw new Error(`Failed to read rp_messages: ${error.message}`)
+
+      const items = buildChatChunks(data ?? [], 'rp', 'rp_messages', true)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
+    }
+
+    // ── forum ──
+    if (batch === 'forum') {
+      const items: EmbedItem[] = []
+
+      const { data: threads, error: threadErr } = await supabase
+        .from('forum_threads')
+        .select('id, title, body')
+        .eq('user_id', FIXED_USER_ID)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (threadErr) throw new Error(`Failed to read forum_threads: ${threadErr.message}`)
+
+      for (const t of threads ?? []) {
+        const text = [t.title, t.body].filter(Boolean).join('\n')
+        if (!text.trim()) continue
+        items.push({
+          text,
+          source: 'hamster-nest',
+          zone: 'forum',
+          source_table: 'forum_threads',
+          source_id: t.id,
+        })
+      }
+
+      const { data: replies, error: replyErr } = await supabase
+        .from('forum_replies')
+        .select('id, body')
+        .eq('user_id', FIXED_USER_ID)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (replyErr) throw new Error(`Failed to read forum_replies: ${replyErr.message}`)
+
+      for (const r of replies ?? []) {
+        if (!r.body?.trim()) continue
+        items.push({
+          text: r.body,
+          source: 'hamster-nest',
+          zone: 'forum',
+          source_table: 'forum_replies',
+          source_id: r.id,
+        })
+      }
+
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
+    }
+
+    // ── snack ──
+    if (batch === 'snack') {
+      const items: EmbedItem[] = []
+
+      const { data: posts, error: postErr } = await supabase
+        .from('snack_posts')
+        .select('id, content')
+        .eq('user_id', FIXED_USER_ID)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (postErr) throw new Error(`Failed to read snack_posts: ${postErr.message}`)
+
+      for (const p of posts ?? []) {
+        if (!p.content?.trim()) continue
+        items.push({
+          text: p.content,
+          source: 'hamster-nest',
+          zone: 'snack',
+          source_table: 'snack_posts',
+          source_id: p.id,
+        })
+      }
+
+      const { data: replies, error: replyErr } = await supabase
+        .from('snack_replies')
+        .select('id, content')
+        .eq('user_id', FIXED_USER_ID)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (replyErr) throw new Error(`Failed to read snack_replies: ${replyErr.message}`)
+
+      for (const r of replies ?? []) {
+        if (!r.content?.trim()) continue
+        items.push({
+          text: r.content,
+          source: 'hamster-nest',
+          zone: 'snack',
+          source_table: 'snack_replies',
+          source_id: r.id,
+        })
+      }
+
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
+    }
+
+    // ── syzygy_posts ──
+    if (batch === 'syzygy_posts') {
+      const items: EmbedItem[] = []
+
+      const { data: posts, error: postErr } = await supabase
+        .from('syzygy_posts')
+        .select('id, content')
+        .eq('user_id', FIXED_USER_ID)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (postErr) throw new Error(`Failed to read syzygy_posts: ${postErr.message}`)
+
+      for (const p of posts ?? []) {
+        if (!p.content?.trim()) continue
+        items.push({
+          text: p.content,
+          source: 'hamster-nest',
+          zone: 'syzygy_post',
+          source_table: 'syzygy_posts',
+          source_id: p.id,
+        })
+      }
+
+      const { data: replies, error: replyErr } = await supabase
+        .from('syzygy_replies')
+        .select('id, content')
+        .eq('user_id', FIXED_USER_ID)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit - 1)
+
+      if (replyErr) throw new Error(`Failed to read syzygy_replies: ${replyErr.message}`)
+
+      for (const r of replies ?? []) {
+        if (!r.content?.trim()) continue
+        items.push({
+          text: r.content,
+          source: 'hamster-nest',
+          zone: 'syzygy_post',
+          source_table: 'syzygy_replies',
+          source_id: r.id,
+        })
+      }
+
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
+    }
+
     return Response.json(result, { status: 200 })
   } catch (error) {
     console.error('[rag-backfill] fatal error', error)
