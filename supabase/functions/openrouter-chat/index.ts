@@ -60,6 +60,7 @@ type RagConfigRow = {
 }
 
 type RagRuntimeConfig = {
+  ragEnabled: boolean
   searchTopK: number
   searchThreshold: number
   defaultSearchZones: string[]
@@ -137,6 +138,7 @@ const injectMemoryBlock = (messages: OpenAiMessage[], memoryMessage: OpenAiMessa
 }
 
 const RAG_DEFAULTS = {
+  ragEnabled: true,
   searchTopK: 5,
   searchThreshold: 0.7,
   defaultSearchZones: ['daily_chat', 'bubble', 'letter'],
@@ -864,6 +866,7 @@ const loadRagConfig = async (
   userId: string,
 ): Promise<RagRuntimeConfig> => {
   const keys = [
+    'rag_enabled',
     'search_top_k',
     'search_threshold',
     'default_search_zones',
@@ -913,7 +916,14 @@ const loadRagConfig = async (
   const rpSearchMode: RagRuntimeConfig['rpSearchMode'] =
     rpCandidate === 'session' || rpCandidate === 'all_rp' ? rpCandidate : RAG_DEFAULTS.rpSearchMode
 
+  const rawEnabled = map.get('rag_enabled')
+  const ragEnabled =
+    rawEnabled === false || rawEnabled === 'false' || rawEnabled === '0' || rawEnabled === 0
+      ? false
+      : RAG_DEFAULTS.ragEnabled
+
   return {
+    ragEnabled,
     searchTopK: parseInteger(map.get('search_top_k')) ?? RAG_DEFAULTS.searchTopK,
     searchThreshold: parseFloat_(map.get('search_threshold')) ?? RAG_DEFAULTS.searchThreshold,
     defaultSearchZones: parsedZones && parsedZones.length > 0 ? parsedZones : RAG_DEFAULTS.defaultSearchZones,
@@ -979,6 +989,8 @@ const maybeInjectRagContext = async (
   try {
     const serviceClient = buildSupabaseServiceRoleClient()
     const ragConfig = await loadRagConfig(serviceClient, userId)
+
+    if (!ragConfig.ragEnabled) return messages
 
     // Determine zones and metadata filter
     let zones: string[]
@@ -1081,7 +1093,7 @@ const maybeInjectRagContext = async (
 
     const ragSystemMessage: OpenAiMessage = {
       role: 'system',
-      content: ['[相关记忆]', ...chunkTexts.map((t) => `- ${t}`)].join('\n'),
+      content: ['[相关记忆 - 以下内容来自历史对话，供参考]', ...chunkTexts.map((t) => `- ${t}`)].join('\n'),
     }
 
     return injectMemoryBlock(messages, ragSystemMessage)
@@ -1121,6 +1133,107 @@ const maybeInjectMemory = async (
     // 如果记忆加载失败，则不注入，避免阻塞主流程。
     return messages
   }
+}
+
+const computeSha256Hex = async (text: string): Promise<string> => {
+  const data = new TextEncoder().encode(text)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+const maybeWriteDailyChatRagChunk = async (
+  userMessage: string,
+  assistantReply: string,
+  userId: string,
+  sessionId: string,
+  openRouterApiKey: string,
+): Promise<void> => {
+  try {
+    const chunkText = `[user]: ${userMessage}\n[assistant]: ${assistantReply}`
+    const serviceClient = buildSupabaseServiceRoleClient()
+
+    const ragConfig = await loadRagConfig(serviceClient, userId)
+    if (!ragConfig.ragEnabled) return
+
+    const embedding = await fetchRagEmbedding(
+      openRouterApiKey,
+      ragConfig.embeddingModel,
+      ragConfig.embeddingDimensions,
+      chunkText,
+    )
+    if (!embedding) {
+      console.log('[rag-write] embedding generation failed, skipping chunk write')
+      return
+    }
+
+    const contentHash = await computeSha256Hex(chunkText)
+    const sourceId = crypto.randomUUID()
+
+    const { error } = await serviceClient.from('rag_embeddings').insert({
+      user_id: userId,
+      source: 'hamster-nest',
+      zone: 'daily_chat',
+      source_table: 'messages',
+      source_id: sourceId,
+      chunk_text: chunkText,
+      embedding,
+      content_hash: contentHash,
+      embedding_model: ragConfig.embeddingModel,
+      embedding_version: RAG_EMBEDDING_VERSION,
+      metadata: { session_id: sessionId },
+    })
+
+    if (error) {
+      const code = (error as { code?: string }).code
+      if (code === '23505') {
+        console.log('[rag-write] duplicate content_hash, skipping')
+      } else {
+        console.log('[rag-write] insert failed', { message: error.message, code })
+      }
+    }
+  } catch (err) {
+    console.log('[rag-write] unexpected error, skipping', err)
+  }
+}
+
+const collectSseStream = async (
+  stream: ReadableStream<Uint8Array>,
+): Promise<string> => {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let fullText = ''
+  let assistantContent = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      fullText += decoder.decode(value, { stream: true })
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  // Parse SSE lines to extract assistant content
+  for (const line of fullText.split('\n')) {
+    if (!line.startsWith('data: ')) continue
+    const jsonStr = line.slice(6).trim()
+    if (jsonStr === '[DONE]') break
+    try {
+      const parsed = JSON.parse(jsonStr) as Record<string, unknown>
+      const delta = ((parsed.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined)
+        ?.delta as Record<string, unknown> | undefined
+      if (typeof delta?.content === 'string') {
+        assistantContent += delta.content
+      }
+    } catch {
+      // skip unparseable SSE chunks
+    }
+  }
+
+  return assistantContent.trim()
 }
 
 serve(async (req) => {
@@ -1211,6 +1324,7 @@ serve(async (req) => {
   const { temperature, top_p, max_tokens, reasoning } = payload
   const stream = payload.stream ?? true
   const isForumModule = payload.module === 'forum'
+  const isDailyChat = !payload.module || payload.module === 'chitchat'
   if (isForumModule) {
     console.info('[openrouter-chat][forum] incoming payload', {
       module: payload.module,
@@ -1319,6 +1433,31 @@ serve(async (req) => {
         })
       }
 
+      // For daily chat, tee the stream to collect assistant content for RAG write
+      if (isDailyChat && userId && payload.conversationId) {
+        const [clientStream, collectStream] = upstream.body.tee()
+        const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content?.trim()
+        if (lastUserMsg) {
+          const sessId = payload.conversationId
+          const uid = userId
+          collectSseStream(collectStream).then((assistantContent) => {
+            if (assistantContent) {
+              maybeWriteDailyChatRagChunk(lastUserMsg, assistantContent, uid, sessId, apiKey)
+            }
+          }).catch((err) => console.log('[rag-write] stream collect error', err))
+        }
+        return new Response(clientStream, {
+          status: 200,
+          headers: {
+            ...buildCorsHeaders(origin),
+            ...buildRpCompressionDebugHeaders(),
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+          },
+        })
+      }
+
       return new Response(upstream.body, {
         status: 200,
         headers: {
@@ -1410,6 +1549,16 @@ serve(async (req) => {
 
     if (isForumModule) {
       console.info('[openrouter-chat][forum] forwarding upstream payload to client')
+    }
+
+    // Fire-and-forget RAG chunk write for daily chat non-streaming responses
+    if (isDailyChat && userId && payload.conversationId && parsedUpstreamPayload) {
+      const assistantContent = extractOpenRouterContent(parsedUpstreamPayload)
+      const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content?.trim()
+      if (assistantContent && lastUserMsg) {
+        maybeWriteDailyChatRagChunk(lastUserMsg, assistantContent, userId, payload.conversationId, apiKey)
+          .catch((err) => console.log('[rag-write] non-stream write error', err))
+      }
     }
 
     return new Response(payloadText, {
