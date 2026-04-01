@@ -478,9 +478,14 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
               <h1 className="ui-title">跑跑滚轮区 🎡🐹</h1>
               <p>管理 RP 房间，给每段剧情留好场记与分镜。</p>
             </div>
-            <button type="button" className="rp-back-btn" onClick={() => navigate('/')}>
-              返回聊天
-            </button>
+            <div className="rp-header-actions">
+              <button type="button" className="rp-back-btn" onClick={() => navigate('/rp/story-groups')}>
+                故事组管理
+              </button>
+              <button type="button" className="rp-back-btn" onClick={() => navigate('/')}>
+                返回聊天
+              </button>
+            </div>
           </header>
 
           <section className="rp-create-card">

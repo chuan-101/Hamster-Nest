@@ -255,6 +255,21 @@ export type ChatTimelineLetterItem = {
 
 export type ChatTimelineItem = ChatTimelineMessageItem | ChatTimelineLetterItem
 
+export type RpStoryGroup = {
+  id: string
+  userId: string
+  name: string
+  createdAt: string
+  updatedAt: string | null
+}
+
+export type RpSessionGroup = {
+  id: string
+  sessionId: string
+  storyGroupId: string
+  createdAt: string
+}
+
 export type BubbleSession = {
   id: string
   userId: string
