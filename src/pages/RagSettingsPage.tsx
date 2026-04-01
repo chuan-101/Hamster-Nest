@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase/client'
 import './RagSettingsPage.css'
 
@@ -162,165 +162,164 @@ const RagSettingsPage = () => {
     void save('rp_retrieval_mode', mode)
   }
 
+  const navigate = useNavigate()
+
   return (
-    <div className="rag-settings-page forum-page">
-      <div className="rag-settings-shell forum-page__wrapper">
-        <header className="rag-settings-header forum-header--index">
-          <Link to="/" className="forum-pixel-btn">
-            ← 返回
-          </Link>
-          <h1 className="ui-title">记忆引擎</h1>
-          <div />
-        </header>
+    <div className="rag-settings-page app-shell">
+      <header className="rag-settings-header">
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => navigate(-1)}
+        >
+          返回
+        </button>
+        <h1 className="ui-title">记忆引擎</h1>
+        <span style={{ width: 40 }} />
+      </header>
 
-        <div className="rag-settings-content forum-thread-list">
-          {loading ? (
-            <p className="rag-settings-loading">加载中…</p>
-          ) : (
-            <>
-              {error ? <p className="forum-error">{error}</p> : null}
+      <div className="rag-settings-content">
+        {loading ? (
+          <p className="rag-settings-loading">加载中…</p>
+        ) : (
+          <>
+            {error ? <p className="rag-settings-error">{error}</p> : null}
 
-              {/* RAG 总开关 */}
-              <div className="rag-settings-card forum-thread-item">
-                <div className="rag-settings-row">
-                  <span className="rag-settings-label">RAG 总开关</span>
-                  <label className="rag-toggle">
-                    <input
-                      type="checkbox"
-                      checked={config.rag_enabled}
-                      onChange={(e) => handleToggle(e.target.checked)}
-                      disabled={saving === 'rag_enabled'}
-                    />
-                    <span className="rag-toggle__track">
-                      <span className="rag-toggle__thumb" />
-                    </span>
-                    <span className="rag-toggle__label">
-                      {config.rag_enabled ? '已开启' : '已关闭'}
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Embedding 模型 */}
-              <div className="rag-settings-card forum-thread-item">
-                <div className="rag-settings-row">
-                  <span className="rag-settings-label">Embedding 模型</span>
-                  <select
-                    className="rag-settings-select input-glass"
-                    value={config.embedding_model}
-                    onChange={(e) => handleSelect('embedding_model', e.target.value)}
-                    disabled={saving === 'embedding_model'}
-                  >
-                    <option value="text-embedding-3-small">text-embedding-3-small</option>
-                    <option value="text-embedding-3-large">text-embedding-3-large</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* API 提供商 */}
-              <div className="rag-settings-card forum-thread-item">
-                <div className="rag-settings-row">
-                  <span className="rag-settings-label">API 提供商</span>
-                  <select
-                    className="rag-settings-select input-glass"
-                    value={config.api_provider}
-                    onChange={(e) => handleSelect('api_provider', e.target.value)}
-                    disabled={saving === 'api_provider'}
-                  >
-                    <option value="openrouter">OpenRouter</option>
-                    <option value="openai">OpenAI</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Top-K */}
-              <div className="rag-settings-card forum-thread-item">
-                <div className="rag-settings-row rag-settings-row--vertical">
-                  <span className="rag-settings-label">
-                    检索数量 Top-K
-                    <span className="rag-settings-value">{config.top_k}</span>
-                  </span>
+            {/* RAG 总开关 */}
+            <div className="rag-settings-card">
+              <div className="rag-settings-row">
+                <span className="rag-settings-label">RAG 总开关</span>
+                <label className="rag-toggle">
                   <input
-                    type="range"
-                    className="rag-slider"
-                    min={1}
-                    max={20}
-                    step={1}
-                    value={config.top_k}
-                    onChange={(e) => handleTopK(Number(e.target.value))}
-                    disabled={saving === 'top_k'}
+                    type="checkbox"
+                    checked={config.rag_enabled}
+                    onChange={(e) => handleToggle(e.target.checked)}
+                    disabled={saving === 'rag_enabled'}
                   />
-                </div>
-              </div>
-
-              {/* 相似度阈值 */}
-              <div className="rag-settings-card forum-thread-item">
-                <div className="rag-settings-row rag-settings-row--vertical">
-                  <span className="rag-settings-label">
-                    相似度阈值
-                    <span className="rag-settings-value">{config.similarity_threshold.toFixed(2)}</span>
+                  <span className="rag-toggle__label">
+                    {config.rag_enabled ? '已开启' : '已关闭'}
                   </span>
-                  <input
-                    type="range"
-                    className="rag-slider"
-                    min={0.1}
-                    max={1.0}
-                    step={0.05}
-                    value={config.similarity_threshold}
-                    onChange={(e) => handleThreshold(Number(e.target.value))}
-                    disabled={saving === 'similarity_threshold'}
-                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Embedding 模型 */}
+            <div className="rag-settings-card">
+              <div className="rag-settings-row">
+                <span className="rag-settings-label">Embedding 模型</span>
+                <select
+                  className="rag-settings-select"
+                  value={config.embedding_model}
+                  onChange={(e) => handleSelect('embedding_model', e.target.value)}
+                  disabled={saving === 'embedding_model'}
+                >
+                  <option value="text-embedding-3-small">text-embedding-3-small</option>
+                  <option value="text-embedding-3-large">text-embedding-3-large</option>
+                </select>
+              </div>
+            </div>
+
+            {/* API 提供商 */}
+            <div className="rag-settings-card">
+              <div className="rag-settings-row">
+                <span className="rag-settings-label">API 提供商</span>
+                <select
+                  className="rag-settings-select"
+                  value={config.api_provider}
+                  onChange={(e) => handleSelect('api_provider', e.target.value)}
+                  disabled={saving === 'api_provider'}
+                >
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="openai">OpenAI</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Top-K */}
+            <div className="rag-settings-card">
+              <div className="rag-settings-row rag-settings-row--vertical">
+                <span className="rag-settings-label">
+                  检索数量 Top-K
+                  <span className="rag-settings-value">{config.top_k}</span>
+                </span>
+                <input
+                  type="range"
+                  className="rag-slider"
+                  min={1}
+                  max={20}
+                  step={1}
+                  value={config.top_k}
+                  onChange={(e) => handleTopK(Number(e.target.value))}
+                  disabled={saving === 'top_k'}
+                />
+              </div>
+            </div>
+
+            {/* 相似度阈值 */}
+            <div className="rag-settings-card">
+              <div className="rag-settings-row rag-settings-row--vertical">
+                <span className="rag-settings-label">
+                  相似度阈值
+                  <span className="rag-settings-value">{config.similarity_threshold.toFixed(2)}</span>
+                </span>
+                <input
+                  type="range"
+                  className="rag-slider"
+                  min={0.1}
+                  max={1.0}
+                  step={0.05}
+                  value={config.similarity_threshold}
+                  onChange={(e) => handleThreshold(Number(e.target.value))}
+                  disabled={saving === 'similarity_threshold'}
+                />
+              </div>
+            </div>
+
+            {/* 日常聊天检索区域 */}
+            <div className="rag-settings-card">
+              <div className="rag-settings-row rag-settings-row--vertical">
+                <span className="rag-settings-label">日常聊天检索区域</span>
+                <div className="rag-checkbox-group">
+                  {RETRIEVAL_AREA_OPTIONS.map((opt) => (
+                    <label key={opt.value} className="rag-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={config.retrieval_areas.includes(opt.value)}
+                        onChange={() => handleAreaToggle(opt.value)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
+            </div>
 
-              {/* 日常聊天检索区域 */}
-              <div className="rag-settings-card forum-thread-item">
-                <div className="rag-settings-row rag-settings-row--vertical">
-                  <span className="rag-settings-label">日常聊天检索区域</span>
-                  <div className="rag-checkbox-group">
-                    {RETRIEVAL_AREA_OPTIONS.map((opt) => (
-                      <label key={opt.value} className="rag-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={config.retrieval_areas.includes(opt.value)}
-                          onChange={() => handleAreaToggle(opt.value)}
-                        />
-                        <span className="rag-checkbox__box" />
-                        <span>{opt.label}</span>
-                      </label>
-                    ))}
-                  </div>
+            {/* RP 检索模式 */}
+            <div className="rag-settings-card">
+              <div className="rag-settings-row rag-settings-row--vertical">
+                <span className="rag-settings-label">RP 检索模式</span>
+                <div className="rag-radio-group">
+                  {RP_MODE_OPTIONS.map((opt) => (
+                    <label key={opt.value} className="rag-radio">
+                      <input
+                        type="radio"
+                        name="rp_retrieval_mode"
+                        value={opt.value}
+                        checked={config.rp_retrieval_mode === opt.value}
+                        onChange={() => handleRpMode(opt.value)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
+            </div>
 
-              {/* RP 检索模式 */}
-              <div className="rag-settings-card forum-thread-item">
-                <div className="rag-settings-row rag-settings-row--vertical">
-                  <span className="rag-settings-label">RP 检索模式</span>
-                  <div className="rag-radio-group">
-                    {RP_MODE_OPTIONS.map((opt) => (
-                      <label key={opt.value} className="rag-radio">
-                        <input
-                          type="radio"
-                          name="rp_retrieval_mode"
-                          value={opt.value}
-                          checked={config.rp_retrieval_mode === opt.value}
-                          onChange={() => handleRpMode(opt.value)}
-                        />
-                        <span className="rag-radio__dot" />
-                        <span>{opt.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {saving ? (
-                <p className="rag-settings-saving">保存中…</p>
-              ) : null}
-            </>
-          )}
-        </div>
+            {saving ? (
+              <p className="rag-settings-saving">保存中…</p>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   )
