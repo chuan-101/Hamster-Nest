@@ -14,6 +14,7 @@ type RagEmbedItemInput = {
 
 type RagEmbedPayload = {
   items?: unknown
+  user_id?: unknown
 } & RagEmbedItemInput
 
 type NormalizedRagEmbedItem = {
@@ -304,24 +305,12 @@ serve(async (req) => {
       return jsonResponse({ error: 'Missing auth headers' }, 401, origin)
     }
 
-    const supabase = createClient(supabaseUrl, anonKey, {
-      global: {
-        headers: {
-          Authorization: authHeader,
-          apikey,
-        },
-      },
-    })
+    // Detect service-role calls (server-to-server, e.g. from rag-backfill)
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const isServiceRole = serviceRoleKey && apikey === serviceRoleKey
 
-    // Auth handling: block anonymous writes and bind user_id from Supabase auth.
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401, origin)
-    }
+    let userId: string
+    let supabase: ReturnType<typeof createClient>
 
     let payload: RagEmbedPayload
     try {
@@ -330,16 +319,46 @@ serve(async (req) => {
       return jsonResponse({ error: 'Invalid JSON body' }, 400, origin)
     }
 
+    if (isServiceRole) {
+      // Service-role: create client with service role key (bypasses RLS)
+      supabase = createClient(supabaseUrl, serviceRoleKey)
+
+      if (typeof payload.user_id !== 'string' || !payload.user_id) {
+        return jsonResponse({ error: 'Service-role calls must provide user_id' }, 400, origin)
+      }
+      userId = payload.user_id
+    } else {
+      supabase = createClient(supabaseUrl, anonKey, {
+        global: {
+          headers: {
+            Authorization: authHeader,
+            apikey,
+          },
+        },
+      })
+
+      // Auth handling: block anonymous writes and bind user_id from Supabase auth.
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+
+      if (userError || !user) {
+        return jsonResponse({ error: 'Unauthorized' }, 401, origin)
+      }
+      userId = user.id
+    }
+
     const normalized = normalizePayload(payload)
     if (normalized.earlyError) {
       return jsonResponse({ error: normalized.earlyError }, 400, origin)
     }
 
-    const runtimeConfig = await loadEmbeddingRuntimeConfig(supabase, user.id)
+    const runtimeConfig = await loadEmbeddingRuntimeConfig(supabase, userId)
 
     if (runtimeConfig.embeddingProvider !== 'openrouter') {
       console.warn(
-        `[rag-embed] user ${user.id} embedding_provider=${runtimeConfig.embeddingProvider}, falling back to OpenRouter for this endpoint`,
+        `[rag-embed] user ${userId} embedding_provider=${runtimeConfig.embeddingProvider}, falling back to OpenRouter for this endpoint`,
       )
     }
 
@@ -353,7 +372,7 @@ serve(async (req) => {
         // Hash generation + dedupe key: stable content hash includes model/version and source identity.
         const contentHash = await sha256Hex(
           [
-            user.id,
+            userId,
             item.source,
             item.zone,
             item.source_table,
@@ -380,7 +399,7 @@ serve(async (req) => {
             error: embeddingResult.error,
           })
           console.error('[rag-embed] embedding failed', {
-            user_id: user.id,
+            user_id: userId,
             source_id: item.source_id,
             error: embeddingResult.error,
           })
@@ -401,7 +420,7 @@ serve(async (req) => {
           embedding_version: EMBEDDING_VERSION,
           chunk_index: item.chunk_index,
           token_count: item.token_count,
-          user_id: user.id,
+          user_id: userId,
         })
 
         if (insertError) {
@@ -418,7 +437,7 @@ serve(async (req) => {
             error: insertError.message,
           })
           console.error('[rag-embed] insert failed', {
-            user_id: user.id,
+            user_id: userId,
             source_id: item.source_id,
             error: insertError,
           })
@@ -437,7 +456,7 @@ serve(async (req) => {
         })
         // Error handling: keep item-scoped failures isolated in batch mode.
         console.error('[rag-embed] unexpected item failure', {
-          user_id: user.id,
+          user_id: userId,
           source_id: item.source_id,
           error,
         })

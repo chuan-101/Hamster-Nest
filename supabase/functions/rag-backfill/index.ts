@@ -72,7 +72,7 @@ const callRagEmbed = async (
       apikey: serviceRoleKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ items }),
+    body: JSON.stringify({ items, user_id: FIXED_USER_ID }),
   })
 
   if (!resp.ok) {
