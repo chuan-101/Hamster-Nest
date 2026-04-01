@@ -2,6 +2,9 @@ import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 const FIXED_USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
+const EMBEDDING_VERSION = 'v1'
+const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small'
+const DEFAULT_EMBEDDING_DIMENSIONS = 1536
 
 type BatchType =
   | 'memory_entries'
@@ -19,7 +22,7 @@ type BackfillPayload = {
   offset?: number
 }
 
-type RagEmbedItem = {
+type EmbedItem = {
   text: string
   source: string
   zone: string
@@ -30,19 +33,15 @@ type RagEmbedItem = {
 
 type BackfillResult = {
   processed: number
+  inserted: number
   skipped: number
   failed: number
   errors: string[]
 }
 
-type RagEmbedResponse = {
-  success?: boolean
-  processed?: number
-  inserted?: number
-  skipped?: number
-  failed?: number
-  results?: Array<{ source_id: string; status: string; error?: string }>
-  error?: string
+type RagConfigRow = {
+  config_key: string | null
+  config_value: string | number | null
 }
 
 const VALID_BATCHES: BatchType[] = [
@@ -56,31 +55,136 @@ const VALID_BATCHES: BatchType[] = [
   'syzygy_posts',
 ]
 
-const callRagEmbed = async (
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  items: RagEmbedItem[],
-): Promise<RagEmbedResponse> => {
-  if (items.length === 0) {
-    return { success: true, processed: 0, inserted: 0, skipped: 0, failed: 0, results: [] }
+const sha256Hex = async (input: string) => {
+  const data = new TextEncoder().encode(input)
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+const loadEmbeddingRuntimeConfig = async (
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<{ embeddingModel: string; embeddingDimensions: number }> => {
+  const { data, error } = await supabase
+    .from('rag_config')
+    .select('config_key, config_value')
+    .eq('user_id', userId)
+    .in('config_key', ['embedding_model', 'embedding_dimensions'])
+
+  if (error) {
+    console.error('[rag-backfill] failed to load rag_config, using defaults', error)
+    return { embeddingModel: DEFAULT_EMBEDDING_MODEL, embeddingDimensions: DEFAULT_EMBEDDING_DIMENSIONS }
   }
 
-  const resp = await fetch(`${supabaseUrl}/functions/v1/rag-embed`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${serviceRoleKey}`,
-      apikey: serviceRoleKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ items, user_id: FIXED_USER_ID }),
-  })
-
-  if (!resp.ok) {
-    const text = await resp.text()
-    throw new Error(`rag-embed returned ${resp.status}: ${text}`)
+  const rows = (data ?? []) as RagConfigRow[]
+  const map = new Map<string, string | number>()
+  for (const row of rows) {
+    if (!row.config_key || row.config_value === null || row.config_value === undefined) continue
+    map.set(row.config_key, row.config_value)
   }
 
-  return (await resp.json()) as RagEmbedResponse
+  const modelValue = map.get('embedding_model')
+  const dimensionsValue = map.get('embedding_dimensions')
+  const parsedDimensions =
+    typeof dimensionsValue === 'number'
+      ? dimensionsValue
+      : typeof dimensionsValue === 'string'
+        ? Number.parseInt(dimensionsValue, 10)
+        : Number.NaN
+
+  return {
+    embeddingModel:
+      typeof modelValue === 'string' && modelValue.trim() ? modelValue.trim() : DEFAULT_EMBEDDING_MODEL,
+    embeddingDimensions: Number.isFinite(parsedDimensions) ? parsedDimensions : DEFAULT_EMBEDDING_DIMENSIONS,
+  }
+}
+
+const generateEmbedding = async (
+  apiKey: string,
+  model: string,
+  dimensions: number,
+  text: string,
+): Promise<{ ok: true; embedding: number[] } | { ok: false; error: string }> => {
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ model, input: text, dimensions }),
+    })
+
+    if (!resp.ok) {
+      const errorText = await resp.text()
+      return { ok: false, error: `OpenRouter ${resp.status}: ${errorText || 'unknown error'}` }
+    }
+
+    const body = (await resp.json()) as { data?: Array<{ embedding?: number[] }> }
+    const embedding = body.data?.[0]?.embedding
+    if (!embedding || !Array.isArray(embedding) || embedding.length === 0) {
+      return { ok: false, error: 'OpenRouter returned an empty embedding vector' }
+    }
+
+    return { ok: true, embedding }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'embedding request crashed' }
+  }
+}
+
+const processItems = async (
+  supabase: ReturnType<typeof createClient>,
+  openRouterApiKey: string,
+  embeddingModel: string,
+  embeddingDimensions: number,
+  items: EmbedItem[],
+  result: BackfillResult,
+) => {
+  for (const item of items) {
+    const contentHash = await sha256Hex(
+      [FIXED_USER_ID, item.source, item.zone, item.source_table, item.source_id, item.text, embeddingModel, EMBEDDING_VERSION].join('|'),
+    )
+
+    const embeddingResult = await generateEmbedding(openRouterApiKey, embeddingModel, embeddingDimensions, item.text)
+
+    if (!embeddingResult.ok) {
+      result.failed += 1
+      result.errors.push(`${item.source_id}: ${embeddingResult.error}`)
+      console.error('[rag-backfill] embedding failed', { source_id: item.source_id, error: embeddingResult.error })
+      continue
+    }
+
+    const { error: insertError } = await supabase.from('rag_embeddings').insert({
+      source: item.source,
+      zone: item.zone,
+      source_table: item.source_table,
+      source_id: item.source_id,
+      chunk_text: item.text,
+      embedding: embeddingResult.embedding,
+      metadata: item.metadata ?? {},
+      content_hash: contentHash,
+      embedding_model: embeddingModel,
+      embedding_version: EMBEDDING_VERSION,
+      chunk_index: null,
+      token_count: null,
+      user_id: FIXED_USER_ID,
+    })
+
+    if (insertError) {
+      if ((insertError as { code?: string }).code === '23505') {
+        result.skipped += 1
+        continue
+      }
+      result.failed += 1
+      result.errors.push(`${item.source_id}: ${insertError.message}`)
+      console.error('[rag-backfill] insert failed', { source_id: item.source_id, error: insertError })
+      continue
+    }
+
+    result.inserted += 1
+  }
+
+  result.processed += items.length
 }
 
 // Group messages by session_id and pair user+assistant turns into chunks
@@ -89,8 +193,7 @@ const buildChatChunks = (
   zone: string,
   sourceTable: string,
   includeSessionInMeta: boolean,
-): RagEmbedItem[] => {
-  // Group by session_id
+): EmbedItem[] => {
   const bySession = new Map<string, typeof rows>()
   for (const row of rows) {
     const group = bySession.get(row.session_id) ?? []
@@ -98,10 +201,9 @@ const buildChatChunks = (
     bySession.set(row.session_id, group)
   }
 
-  const items: RagEmbedItem[] = []
+  const items: EmbedItem[] = []
 
   for (const [sessionId, msgs] of bySession) {
-    // Sort by created_at within each session
     msgs.sort((a, b) => a.created_at.localeCompare(b.created_at))
 
     let i = 0
@@ -109,21 +211,18 @@ const buildChatChunks = (
       const parts: string[] = []
       const ids: string[] = []
 
-      // Collect one user message (if present)
       if (msgs[i].role === 'user') {
         parts.push(`user: ${msgs[i].content}`)
         ids.push(msgs[i].id)
         i++
       }
 
-      // Collect following assistant message(s) before next user message
       while (i < msgs.length && msgs[i].role === 'assistant') {
         parts.push(`assistant: ${msgs[i].content}`)
         ids.push(msgs[i].id)
         i++
       }
 
-      // If we collected nothing (unexpected role), skip to avoid infinite loop
       if (parts.length === 0) {
         i++
         continue
@@ -161,9 +260,13 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY')
 
     if (!supabaseUrl || !serviceRoleKey) {
       return Response.json({ error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' }, { status: 500 })
+    }
+    if (!openRouterApiKey) {
+      return Response.json({ error: 'Missing OPENROUTER_API_KEY' }, { status: 500 })
     }
 
     let payload: BackfillPayload
@@ -182,23 +285,9 @@ serve(async (req) => {
       )
     }
 
-    // Use service role key to bypass RLS
     const supabase = createClient(supabaseUrl, serviceRoleKey)
-
-    const result: BackfillResult = { processed: 0, skipped: 0, failed: 0, errors: [] }
-
-    const collectEmbedResult = (resp: RagEmbedResponse) => {
-      result.processed += resp.processed ?? 0
-      result.skipped += resp.skipped ?? 0
-      result.failed += resp.failed ?? 0
-      if (resp.results) {
-        for (const r of resp.results) {
-          if (r.status === 'failed' && r.error) {
-            result.errors.push(`${r.source_id}: ${r.error}`)
-          }
-        }
-      }
-    }
+    const { embeddingModel, embeddingDimensions } = await loadEmbeddingRuntimeConfig(supabase, FIXED_USER_ID)
+    const result: BackfillResult = { processed: 0, inserted: 0, skipped: 0, failed: 0, errors: [] }
 
     // ── memory_entries ──
     if (batch === 'memory_entries') {
@@ -211,7 +300,7 @@ serve(async (req) => {
 
       if (error) throw new Error(`Failed to read memory_entries: ${error.message}`)
 
-      const items: RagEmbedItem[] = (data ?? [])
+      const items: EmbedItem[] = (data ?? [])
         .filter((row: { content: string }) => row.content?.trim())
         .map((row: { id: string; content: string }) => ({
           text: row.content,
@@ -221,8 +310,7 @@ serve(async (req) => {
           source_id: row.id,
         }))
 
-      const resp = await callRagEmbed(supabaseUrl, serviceRoleKey, items)
-      collectEmbedResult(resp)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
     // ── letters ──
@@ -236,7 +324,7 @@ serve(async (req) => {
 
       if (error) throw new Error(`Failed to read letters: ${error.message}`)
 
-      const items: RagEmbedItem[] = (data ?? [])
+      const items: EmbedItem[] = (data ?? [])
         .filter((row: { content: string }) => row.content?.trim())
         .map((row: { id: string; content: string }) => ({
           text: row.content,
@@ -246,8 +334,7 @@ serve(async (req) => {
           source_id: row.id,
         }))
 
-      const resp = await callRagEmbed(supabaseUrl, serviceRoleKey, items)
-      collectEmbedResult(resp)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
     // ── messages (daily_chat) ──
@@ -262,8 +349,7 @@ serve(async (req) => {
       if (error) throw new Error(`Failed to read messages: ${error.message}`)
 
       const items = buildChatChunks(data ?? [], 'daily_chat', 'messages', false)
-      const resp = await callRagEmbed(supabaseUrl, serviceRoleKey, items)
-      collectEmbedResult(resp)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
     // ── bubble_messages ──
@@ -278,8 +364,7 @@ serve(async (req) => {
       if (error) throw new Error(`Failed to read bubble_messages: ${error.message}`)
 
       const items = buildChatChunks(data ?? [], 'bubble', 'bubble_messages', false)
-      const resp = await callRagEmbed(supabaseUrl, serviceRoleKey, items)
-      collectEmbedResult(resp)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
     // ── rp_messages ──
@@ -294,15 +379,13 @@ serve(async (req) => {
       if (error) throw new Error(`Failed to read rp_messages: ${error.message}`)
 
       const items = buildChatChunks(data ?? [], 'rp', 'rp_messages', true)
-      const resp = await callRagEmbed(supabaseUrl, serviceRoleKey, items)
-      collectEmbedResult(resp)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
     // ── forum ──
     if (batch === 'forum') {
-      const items: RagEmbedItem[] = []
+      const items: EmbedItem[] = []
 
-      // forum_threads
       const { data: threads, error: threadErr } = await supabase
         .from('forum_threads')
         .select('id, title, body')
@@ -324,7 +407,6 @@ serve(async (req) => {
         })
       }
 
-      // forum_replies
       const { data: replies, error: replyErr } = await supabase
         .from('forum_replies')
         .select('id, body')
@@ -345,13 +427,12 @@ serve(async (req) => {
         })
       }
 
-      const resp = await callRagEmbed(supabaseUrl, serviceRoleKey, items)
-      collectEmbedResult(resp)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
     // ── snack ──
     if (batch === 'snack') {
-      const items: RagEmbedItem[] = []
+      const items: EmbedItem[] = []
 
       const { data: posts, error: postErr } = await supabase
         .from('snack_posts')
@@ -395,13 +476,12 @@ serve(async (req) => {
         })
       }
 
-      const resp = await callRagEmbed(supabaseUrl, serviceRoleKey, items)
-      collectEmbedResult(resp)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
     // ── syzygy_posts ──
     if (batch === 'syzygy_posts') {
-      const items: RagEmbedItem[] = []
+      const items: EmbedItem[] = []
 
       const { data: posts, error: postErr } = await supabase
         .from('syzygy_posts')
@@ -445,8 +525,7 @@ serve(async (req) => {
         })
       }
 
-      const resp = await callRagEmbed(supabaseUrl, serviceRoleKey, items)
-      collectEmbedResult(resp)
+      await processItems(supabase, openRouterApiKey, embeddingModel, embeddingDimensions, items, result)
     }
 
     return Response.json(result, { status: 200 })
@@ -455,6 +534,7 @@ serve(async (req) => {
     return Response.json(
       {
         processed: 0,
+        inserted: 0,
         skipped: 0,
         failed: 1,
         errors: [error instanceof Error ? error.message : 'Unexpected error'],
