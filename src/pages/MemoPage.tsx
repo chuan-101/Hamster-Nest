@@ -217,16 +217,20 @@ const MemoPage = () => {
   return (
     <div className="memo-page">
       <header className="memo-header">
-        <button type="button" className="ghost" onClick={() => navigate(-1)}>
-          返回
+        <button type="button" className="ghost memo-header-btn" onClick={() => navigate(-1)}>
+          ← 返回
         </button>
-        <h1 className="ui-title">备忘录</h1>
-        <button type="button" className="ghost" onClick={() => setEditor(buildEditorState())}>
-          新建
+        <div className="memo-title-wrap">
+          <p className="memo-kicker">Cozy Notes</p>
+          <h1 className="ui-title">备忘录</h1>
+        </div>
+        <button type="button" className="memo-create-btn" onClick={() => setEditor(buildEditorState())}>
+          + 新建
         </button>
       </header>
 
-      <section className="memo-filter-card glass-card">
+      <section className="memo-filter-card" aria-label="标签筛选面板">
+        <div className="memo-filter-dot" aria-hidden="true" />
         <div className="memo-filter-top">
           <strong>标签筛选</strong>
           <div className="memo-mode-toggle" role="group" aria-label="筛选模式">
@@ -264,10 +268,10 @@ const MemoPage = () => {
       {notice ? <p className="memo-notice">{notice}</p> : null}
       {error ? <p className="memo-error">{error}</p> : null}
 
-      <section className="memo-list">
+      <section className="memo-list" aria-label="备忘录列表">
         {loading ? <p className="tips">加载中…</p> : null}
         {!loading && sortedAndFilteredEntries.length === 0 ? (
-          <p className="tips">还没有备忘录，点击右上角新建吧。</p>
+          <p className="tips memo-empty">还没有备忘录，点击右上角新建吧。</p>
         ) : null}
         {sortedAndFilteredEntries.map((entry) => (
           <article key={entry.id} className="memo-card" onClick={() => setEditor(buildEditorState(entry))}>
@@ -346,7 +350,7 @@ const MemoPage = () => {
                   删除
                 </button>
               ) : null}
-              <button type="submit" disabled={saving || !editor.content.trim()}>
+              <button type="submit" className="memo-save-btn" disabled={saving || !editor.content.trim()}>
                 {saving ? '保存中…' : '保存'}
               </button>
             </div>
