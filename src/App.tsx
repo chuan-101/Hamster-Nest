@@ -74,6 +74,7 @@ import {
   resolveBubbleChatPrompt,
 } from './constants/aiOverlays'
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
+import { buildMemoInjectionBlock } from './utils/memoRetrieval'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -1045,10 +1046,14 @@ const App = () => {
           } catch (error) {
             console.warn('无法加载会话关联来信上下文', error)
           }
+          const memoInjectionBlock = await buildMemoInjectionBlock(content)
+          const requestSystemPrompt = memoInjectionBlock
+            ? [systemPrompt, memoInjectionBlock].filter((item): item is string => Boolean(item?.trim())).join('\n\n')
+            : systemPrompt
           const messagesPayload = buildOpenAiMessages(
             sessionId,
             messagesRef.current,
-            systemPrompt,
+            requestSystemPrompt,
             linkedLetters,
           )
           const isClaudeModel = (model: string) => /claude|anthropic/i.test(model)
