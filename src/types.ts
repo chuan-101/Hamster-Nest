@@ -278,6 +278,27 @@ export type BubbleSession = {
   updatedAt: string
 }
 
+export type MemoSource = 'user' | 'ai'
+
+export type MemoTag = {
+  id: string
+  userId: string
+  name: string
+  createdAt: string
+}
+
+export type MemoEntry = {
+  id: string
+  userId: string
+  content: string
+  source: MemoSource
+  isPinned: boolean
+  createdAt: string
+  updatedAt: string
+  isDeleted: boolean
+  tagIds: string[]
+}
+
 export type BubbleMessage = {
   id: string
   sessionId: string

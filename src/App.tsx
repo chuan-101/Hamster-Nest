@@ -64,6 +64,7 @@ import ForumSettingsPage from './pages/ForumSettingsPage'
 import LettersPage from './pages/LettersPage'
 import RagSettingsPage from './pages/RagSettingsPage'
 import StoryGroupPage from './pages/StoryGroupPage'
+import MemoPage from './pages/MemoPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1874,6 +1875,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <SyzygyFeedPage user={user} snackAiConfig={syzygyAiConfig} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/memo"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <MemoPage />
             </RequireAuth>
           }
         />

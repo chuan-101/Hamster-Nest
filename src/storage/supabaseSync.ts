@@ -10,6 +10,9 @@ import type {
   ForumAuthorType,
   LetterEntry,
   LetterTriggerType,
+  MemoEntry,
+  MemoSource,
+  MemoTag,
   MemoryEntry,
   MemoryStatus,
   RpNpcCard,
@@ -102,6 +105,29 @@ type MemoryEntryRow = {
   created_at: string
   updated_at: string
   is_deleted: boolean
+}
+
+type MemoEntryRow = {
+  id: string
+  user_id: string
+  content: string
+  source: MemoSource
+  is_pinned: boolean | null
+  created_at: string
+  updated_at: string
+  is_deleted: boolean
+}
+
+type MemoTagRow = {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
+}
+
+type MemoEntryTagRow = {
+  memo_entry_id: string
+  memo_tag_id: string
 }
 
 type CheckinRow = {
@@ -274,6 +300,25 @@ const mapCheckinRow = (row: CheckinRow): CheckinEntry => ({
   id: row.id,
   userId: row.user_id,
   checkinDate: row.checkin_date,
+  createdAt: row.created_at,
+})
+
+const mapMemoEntryRow = (row: MemoEntryRow, tagIds: string[]): MemoEntry => ({
+  id: row.id,
+  userId: row.user_id,
+  content: row.content,
+  source: row.source,
+  isPinned: row.is_pinned ?? false,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  isDeleted: row.is_deleted,
+  tagIds,
+})
+
+const mapMemoTagRow = (row: MemoTagRow): MemoTag => ({
+  id: row.id,
+  userId: row.user_id,
+  name: row.name,
   createdAt: row.created_at,
 })
 
@@ -2162,6 +2207,189 @@ export const discardMemory = async (id: string): Promise<void> => {
     .from('memory_entries')
     .update({ is_deleted: true, updated_at: new Date().toISOString() })
     .eq('id', id)
+  if (error) {
+    throw error
+  }
+}
+
+export const listMemoTags = async (): Promise<MemoTag[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('memo_tags')
+    .select('id,user_id,name,created_at')
+    .eq('user_id', userId)
+    .order('name', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapMemoTagRow(row as MemoTagRow))
+}
+
+export const createMemoTag = async (name: string): Promise<MemoTag> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const trimmed = name.trim()
+  if (!trimmed) {
+    throw new Error('标签名不能为空')
+  }
+  const { data: existing, error: findError } = await supabase
+    .from('memo_tags')
+    .select('id,user_id,name,created_at')
+    .eq('user_id', userId)
+    .eq('name', trimmed)
+    .maybeSingle()
+  if (findError) {
+    throw findError
+  }
+  if (existing) {
+    return mapMemoTagRow(existing as MemoTagRow)
+  }
+  const { data, error } = await supabase
+    .from('memo_tags')
+    .insert({ user_id: userId, name: trimmed })
+    .select('id,user_id,name,created_at')
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('创建标签失败')
+  }
+  return mapMemoTagRow(data as MemoTagRow)
+}
+
+export const listMemoEntries = async (): Promise<MemoEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data: entryRows, error: entryError } = await supabase
+    .from('memo_entries')
+    .select('id,user_id,content,source,is_pinned,created_at,updated_at,is_deleted')
+    .eq('user_id', userId)
+    .eq('is_deleted', false)
+    .order('updated_at', { ascending: false })
+  if (entryError) {
+    throw entryError
+  }
+  const entries = (entryRows ?? []) as MemoEntryRow[]
+  if (entries.length === 0) {
+    return []
+  }
+  const entryIds = entries.map((entry) => entry.id)
+  const { data: relationRows, error: relationError } = await supabase
+    .from('memo_entry_tags')
+    .select('memo_entry_id,memo_tag_id')
+    .in('memo_entry_id', entryIds)
+  if (relationError) {
+    throw relationError
+  }
+
+  const tagIdsByEntryId = new Map<string, string[]>()
+  ;((relationRows ?? []) as MemoEntryTagRow[]).forEach((relation) => {
+    const current = tagIdsByEntryId.get(relation.memo_entry_id) ?? []
+    current.push(relation.memo_tag_id)
+    tagIdsByEntryId.set(relation.memo_entry_id, current)
+  })
+  return entries.map((entry) => mapMemoEntryRow(entry, tagIdsByEntryId.get(entry.id) ?? []))
+}
+
+export const createMemoEntry = async (payload: {
+  content: string
+  isPinned: boolean
+  source?: MemoSource
+  tagIds: string[]
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const now = new Date().toISOString()
+  const { data: entry, error: entryError } = await supabase
+    .from('memo_entries')
+    .insert({
+      user_id: userId,
+      content: payload.content,
+      source: payload.source ?? 'user',
+      is_pinned: payload.isPinned,
+      is_deleted: false,
+      created_at: now,
+      updated_at: now,
+    })
+    .select('id')
+    .single()
+  if (entryError || !entry) {
+    throw entryError ?? new Error('创建备忘录失败')
+  }
+  const uniqueTagIds = Array.from(new Set(payload.tagIds))
+  if (uniqueTagIds.length === 0) {
+    return
+  }
+  const { error: linkError } = await supabase.from('memo_entry_tags').insert(
+    uniqueTagIds.map((tagId) => ({
+      memo_entry_id: entry.id,
+      memo_tag_id: tagId,
+    })),
+  )
+  if (linkError) {
+    throw linkError
+  }
+}
+
+export const updateMemoEntry = async (
+  entryId: string,
+  payload: { content: string; isPinned: boolean; tagIds: string[] },
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const now = new Date().toISOString()
+  const { error: updateError } = await supabase
+    .from('memo_entries')
+    .update({
+      content: payload.content,
+      is_pinned: payload.isPinned,
+      updated_at: now,
+    })
+    .eq('id', entryId)
+    .eq('is_deleted', false)
+  if (updateError) {
+    throw updateError
+  }
+
+  const { error: deleteLinksError } = await supabase
+    .from('memo_entry_tags')
+    .delete()
+    .eq('memo_entry_id', entryId)
+  if (deleteLinksError) {
+    throw deleteLinksError
+  }
+
+  const uniqueTagIds = Array.from(new Set(payload.tagIds))
+  if (uniqueTagIds.length === 0) {
+    return
+  }
+  const { error: linkError } = await supabase.from('memo_entry_tags').insert(
+    uniqueTagIds.map((tagId) => ({
+      memo_entry_id: entryId,
+      memo_tag_id: tagId,
+    })),
+  )
+  if (linkError) {
+    throw linkError
+  }
+}
+
+export const softDeleteMemoEntry = async (entryId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('memo_entries')
+    .update({ is_deleted: true, updated_at: new Date().toISOString() })
+    .eq('id', entryId)
   if (error) {
     throw error
   }

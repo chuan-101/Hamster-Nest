@@ -76,7 +76,7 @@ const DEFAULT_PAGE_LAYOUTS: Record<HomeLayoutPageId, HomePageLayoutState> = {
     appIconConfigs: {},
   },
   page2: {
-    iconOrder: ['forum', 'letters'],
+    iconOrder: ['forum', 'letters', 'rag', 'memo'],
     widgetOrder: ['widget-checkin'],
     widgets: [],
     checkinSize: '1x1',
