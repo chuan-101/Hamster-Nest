@@ -1,0 +1,156 @@
+.memo-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.memo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.memo-filter-card {
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.memo-filter-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.memo-mode-toggle {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.memo-mode-toggle button,
+.tag-chip {
+  border: 1px solid rgba(110, 98, 174, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #4f437e;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.memo-mode-toggle button.active,
+.tag-chip.selected {
+  background: #8f80ff;
+  color: #fff;
+  border-color: #8f80ff;
+}
+
+.memo-tag-chip-list {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.memo-list {
+  display: grid;
+  gap: 10px;
+}
+
+.memo-card {
+  border: 1px solid rgba(139, 126, 219, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.memo-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #6b5aa8;
+}
+
+.memo-content-preview {
+  margin: 0;
+  color: #2d2a41;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.memo-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-chip.static {
+  pointer-events: none;
+}
+
+.memo-time,
+.memo-notice,
+.memo-error {
+  font-size: 12px;
+}
+
+.memo-notice {
+  color: #2d7d50;
+}
+
+.memo-error {
+  color: #b13f4d;
+}
+
+.memo-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 27, 46, 0.36);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  z-index: 20;
+}
+
+.memo-editor {
+  width: min(620px, 100%);
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.memo-editor textarea,
+.memo-editor input[type='text'] {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(139, 126, 219, 0.25);
+  padding: 10px;
+}
+
+.memo-editor__pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.memo-editor__new-tag {
+  display: flex;
+  gap: 8px;
+}
+
+.memo-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.memo-editor__actions .danger {
+  background: #ffe1e4;
+  color: #992f3d;
+}
