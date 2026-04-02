@@ -22,6 +22,7 @@ import { parseBubbleReply } from "./utils/parseBubbleReply";
 import { persistBubbleMessage, resolveTodaySession, invalidateSessionCache } from "./utils/bubbleChatHistory";
 import { fetchBubbleMessages } from "../storage/supabaseSync";
 import BubbleChatHistoryModal from "./ui/BubbleChatHistoryModal";
+import { buildMemoInjectionBlock } from "../utils/memoRetrieval";
 import "./gameHud.css";
 
 type SharedSnackAiConfig = {
@@ -211,6 +212,13 @@ const GameModeShell = ({
         console.warn('[bubble-chat] Failed to persist user message:', error);
       }
 
+      const memoInjectionBlock = await buildMemoInjectionBlock(text);
+      const bubbleSystemPrompt = memoInjectionBlock
+        ? [bubbleChatConfig.systemPrompt, memoInjectionBlock]
+            .filter((item): item is string => Boolean(item?.trim()))
+            .join("\n\n")
+        : bubbleChatConfig.systemPrompt;
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`,
         {
@@ -225,7 +233,7 @@ const GameModeShell = ({
             modelId: bubbleChatConfig.model,
             module: 'bubble-chat',
             messages: [
-              { role: 'system', content: bubbleChatConfig.systemPrompt },
+              { role: 'system', content: bubbleSystemPrompt },
               ...bubbleChatHistoryRef.current,
             ],
             temperature: bubbleChatConfig.temperature,
