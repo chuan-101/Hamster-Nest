@@ -337,7 +337,7 @@ const MemoPage = () => {
                 placeholder="输入新标签"
               />
               <button type="button" className="ghost" onClick={() => void handleCreateInlineTag()}>
-                添加标签
+                添加
               </button>
             </div>
 
