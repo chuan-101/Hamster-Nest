@@ -24,6 +24,8 @@ import type {
   SnackReply,
   SyzygyPost,
   SyzygyReply,
+  TimelineEntry,
+  TimelineRecorder,
 } from '../types'
 import { supabase } from '../supabase/client'
 
@@ -128,6 +130,17 @@ type MemoTagRow = {
 type MemoEntryTagRow = {
   memo_entry_id: string
   memo_tag_id: string
+}
+
+type TimelineEntryRow = {
+  id: string
+  user_id: string
+  event_date: string
+  summary: string
+  recorder: TimelineRecorder
+  source: string
+  created_at: string
+  updated_at: string
 }
 
 type CheckinRow = {
@@ -320,6 +333,17 @@ const mapMemoTagRow = (row: MemoTagRow): MemoTag => ({
   userId: row.user_id,
   name: row.name,
   createdAt: row.created_at,
+})
+
+const mapTimelineEntryRow = (row: TimelineEntryRow): TimelineEntry => ({
+  id: row.id,
+  userId: row.user_id,
+  eventDate: row.event_date,
+  summary: row.summary,
+  recorder: row.recorder,
+  source: row.source,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 })
 
 const mapRpSessionRow = (row: RpSessionRow): RpSession => ({
@@ -2390,6 +2414,83 @@ export const softDeleteMemoEntry = async (entryId: string): Promise<void> => {
     .from('memo_entries')
     .update({ is_deleted: true, updated_at: new Date().toISOString() })
     .eq('id', entryId)
+  if (error) {
+    throw error
+  }
+}
+
+export const listTimelineEntriesByMonth = async (
+  monthStart: string,
+  monthEnd: string,
+): Promise<TimelineEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('timeline_entries')
+    .select('id,user_id,event_date,summary,recorder,source,created_at,updated_at')
+    .eq('user_id', userId)
+    .gte('event_date', monthStart)
+    .lte('event_date', monthEnd)
+    .order('event_date', { ascending: false })
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapTimelineEntryRow(row as TimelineEntryRow))
+}
+
+export const createTimelineEntry = async (payload: {
+  eventDate: string
+  summary: string
+  recorder: TimelineRecorder
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase.from('timeline_entries').insert({
+    user_id: userId,
+    event_date: payload.eventDate,
+    summary: payload.summary,
+    recorder: payload.recorder,
+    source: 'user',
+  })
+  if (error) {
+    throw error
+  }
+}
+
+export const updateTimelineEntry = async (
+  entryId: string,
+  payload: {
+    eventDate: string
+    summary: string
+    recorder: TimelineRecorder
+  },
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('timeline_entries')
+    .update({
+      event_date: payload.eventDate,
+      summary: payload.summary,
+      recorder: payload.recorder,
+    })
+    .eq('id', entryId)
+  if (error) {
+    throw error
+  }
+}
+
+export const deleteTimelineEntry = async (entryId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('timeline_entries').delete().eq('id', entryId)
   if (error) {
     throw error
   }

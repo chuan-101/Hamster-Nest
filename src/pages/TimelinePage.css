@@ -1,0 +1,193 @@
+.timeline-page {
+  min-height: 100dvh;
+  padding: 1rem;
+  color: #1f2937;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.timeline-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.timeline-title-wrap {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
+}
+
+.timeline-kicker {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.timeline-back-btn,
+.timeline-create-btn {
+  white-space: nowrap;
+}
+
+.timeline-calendar,
+.timeline-list {
+  border-radius: 16px;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+}
+
+.timeline-calendar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.timeline-calendar__weekdays,
+.timeline-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.timeline-calendar__weekdays {
+  margin-bottom: 0.4rem;
+  font-size: 0.82rem;
+  opacity: 0.7;
+  text-align: center;
+}
+
+.timeline-calendar__cell {
+  min-height: 2.2rem;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  display: grid;
+  place-items: center;
+  position: relative;
+  background: #fff;
+}
+
+.timeline-calendar__cell.active {
+  border-color: #f59e0b;
+  background: #fef3c7;
+  color: #7c2d12;
+}
+
+.timeline-calendar__cell em {
+  position: absolute;
+  right: 0.35rem;
+  top: 0.2rem;
+  font-size: 0.7rem;
+  font-style: normal;
+  opacity: 0.8;
+}
+
+.timeline-calendar__cell--blank {
+  border: none;
+  background: transparent;
+}
+
+.timeline-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.timeline-date-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.timeline-date-group h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.timeline-date-group__entries {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.timeline-card {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem;
+  text-align: left;
+}
+
+.timeline-card__content p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.timeline-notice {
+  margin: 0;
+  color: #166534;
+}
+
+.timeline-error {
+  margin: 0;
+  color: #b91c1c;
+}
+
+.timeline-empty {
+  margin: 0;
+}
+
+.timeline-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 60;
+}
+
+.timeline-editor {
+  width: min(520px, 100%);
+  background: white;
+  border-radius: 16px;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.timeline-editor h2 {
+  margin: 0;
+}
+
+.timeline-editor label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.timeline-editor input,
+.timeline-editor textarea,
+.timeline-editor select {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+
+.timeline-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.timeline-editor__actions .danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
