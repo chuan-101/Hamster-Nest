@@ -23,6 +23,7 @@ import { persistBubbleMessage, resolveTodaySession, invalidateSessionCache } fro
 import { fetchBubbleMessages } from "../storage/supabaseSync";
 import BubbleChatHistoryModal from "./ui/BubbleChatHistoryModal";
 import { buildMemoInjectionBlock } from "../utils/memoRetrieval";
+import { maybeInjectManualTimelineContext } from "../utils/timelineManualRetrieval";
 import "./gameHud.css";
 
 type SharedSnackAiConfig = {
@@ -213,11 +214,18 @@ const GameModeShell = ({
       }
 
       const memoInjectionBlock = await buildMemoInjectionBlock(text);
+      const manualTimelineBlock = await maybeInjectManualTimelineContext(text);
       const bubbleSystemPrompt = memoInjectionBlock
         ? [bubbleChatConfig.systemPrompt, memoInjectionBlock]
             .filter((item): item is string => Boolean(item?.trim()))
             .join("\n\n")
         : bubbleChatConfig.systemPrompt;
+      const bubbleSystemPromptWithTimeline = manualTimelineBlock
+        && !bubbleSystemPrompt.includes('【时间轴】')
+        ? [bubbleSystemPrompt, manualTimelineBlock]
+            .filter((item): item is string => Boolean(item?.trim()))
+            .join('\n\n')
+        : bubbleSystemPrompt;
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`,
@@ -233,7 +241,7 @@ const GameModeShell = ({
             modelId: bubbleChatConfig.model,
             module: 'bubble-chat',
             messages: [
-              { role: 'system', content: bubbleSystemPrompt },
+              { role: 'system', content: bubbleSystemPromptWithTimeline },
               ...bubbleChatHistoryRef.current,
             ],
             temperature: bubbleChatConfig.temperature,
