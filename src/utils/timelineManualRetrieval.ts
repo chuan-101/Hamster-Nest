@@ -13,6 +13,13 @@ type TimelineDateRange = {
   endDate: string
 }
 
+export type ManualTimelineResolution = {
+  detected: boolean
+  parsedRange: TimelineDateRange | null
+  entries: TimelineEntryLite[]
+  timelineText: string | null
+}
+
 const TIMELINE_TRIGGER_TOKEN = '时间轴'
 const TIMELINE_HEADER = '【时间轴】'
 
@@ -212,19 +219,33 @@ export const buildTimelineManualInjectionText = (entries: TimelineEntryLite[]): 
 
 export const maybeInjectManualTimelineContext = async (message: string): Promise<string | null> => {
   try {
-    const parsedRange = detectTimelineManualRequest(message)
-    if (!parsedRange) {
-      return null
-    }
-
-    const entries = await fetchTimelineEntriesForRange(parsedRange)
-    if (entries.length === 0) {
-      return null
-    }
-
-    return buildTimelineManualInjectionText(entries)
+    const result = await resolveManualTimelineContext(message)
+    return result.timelineText
   } catch (error) {
     console.warn('[timeline-manual] Failed to inject timeline context:', error)
     return null
+  }
+}
+
+export const resolveManualTimelineContext = async (
+  message: string,
+): Promise<ManualTimelineResolution> => {
+  const parsedRange = detectTimelineManualRequest(message)
+  if (!parsedRange) {
+    return {
+      detected: false,
+      parsedRange: null,
+      entries: [],
+      timelineText: null,
+    }
+  }
+
+  const entries = await fetchTimelineEntriesForRange(parsedRange)
+  const timelineText = buildTimelineManualInjectionText(entries)
+  return {
+    detected: true,
+    parsedRange,
+    entries,
+    timelineText,
   }
 }
