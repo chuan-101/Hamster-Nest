@@ -299,6 +299,20 @@ export type MemoEntry = {
   tagIds: string[]
 }
 
+export type TimelineRecorder = 'chuanchuan' | 'syzygy'
+export type TimelineSource = string
+
+export type TimelineEntry = {
+  id: string
+  userId: string
+  eventDate: string
+  summary: string
+  recorder: TimelineRecorder
+  source: TimelineSource
+  createdAt: string
+  updatedAt: string
+}
+
 export type BubbleMessage = {
   id: string
   sessionId: string

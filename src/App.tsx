@@ -65,6 +65,7 @@ import LettersPage from './pages/LettersPage'
 import RagSettingsPage from './pages/RagSettingsPage'
 import StoryGroupPage from './pages/StoryGroupPage'
 import MemoPage from './pages/MemoPage'
+import TimelinePage from './pages/TimelinePage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1888,6 +1889,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <MemoPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/timeline"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <TimelinePage />
             </RequireAuth>
           }
         />
