@@ -27,6 +27,7 @@ import {
   resolveSyzygyReplyPrompt,
 } from '../constants/aiOverlays'
 import './SnacksPage.css'
+import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
 
 type SyzygyFeedPageProps = {
   user: User | null
@@ -430,6 +431,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
   }
 
   const requestOpenRouter = async (messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => {
+    const injectedMessages = await maybeInjectTimelineContext(messagesPayload, 'observation')
     if (!supabase) {
       throw new Error('Supabase 客户端未配置')
     }
@@ -447,7 +449,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
         apikey: anonKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(buildRequestBody(messagesPayload)),
+      body: JSON.stringify(buildRequestBody(injectedMessages)),
     })
 
     if (!response.ok) {
