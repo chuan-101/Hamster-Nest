@@ -76,6 +76,7 @@ import {
 } from './constants/aiOverlays'
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
 import { buildMemoInjectionBlock } from './utils/memoRetrieval'
+import { maybeInjectManualTimelineContext } from './utils/timelineManualRetrieval'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -1048,13 +1049,20 @@ const App = () => {
             console.warn('无法加载会话关联来信上下文', error)
           }
           const memoInjectionBlock = await buildMemoInjectionBlock(content)
+          const manualTimelineBlock = await maybeInjectManualTimelineContext(content)
           const requestSystemPrompt = memoInjectionBlock
             ? [systemPrompt, memoInjectionBlock].filter((item): item is string => Boolean(item?.trim())).join('\n\n')
             : systemPrompt
+          const requestSystemPromptWithTimeline = manualTimelineBlock
+            && !requestSystemPrompt.includes('【时间轴】')
+            ? [requestSystemPrompt, manualTimelineBlock]
+                .filter((item): item is string => Boolean(item?.trim()))
+                .join('\n\n')
+            : requestSystemPrompt
           const messagesPayload = buildOpenAiMessages(
             sessionId,
             messagesRef.current,
-            requestSystemPrompt,
+            requestSystemPromptWithTimeline,
             linkedLetters,
           )
           const isClaudeModel = (model: string) => /claude|anthropic/i.test(model)
