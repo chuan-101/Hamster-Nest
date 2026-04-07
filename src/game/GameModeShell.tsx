@@ -23,7 +23,7 @@ import { persistBubbleMessage, resolveTodaySession, invalidateSessionCache } fro
 import { fetchBubbleMessages } from "../storage/supabaseSync";
 import BubbleChatHistoryModal from "./ui/BubbleChatHistoryModal";
 import { buildMemoInjectionBlock } from "../utils/memoRetrieval";
-import { maybeInjectManualTimelineContext } from "../utils/timelineManualRetrieval";
+import { resolveManualTimelineContext } from "../utils/timelineManualRetrieval";
 import "./gameHud.css";
 
 type SharedSnackAiConfig = {
@@ -67,6 +67,8 @@ const GAME_FEATURE_META: Record<
   checkin: { title: "打卡", subtitle: "游戏模式面板 · 每日陪伴打卡" },
   export: { title: "数据导出", subtitle: "游戏模式面板 · 导出数据包" },
 };
+
+const TIMELINE_MANUAL_DEBUG = import.meta.env.DEV;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -214,18 +216,35 @@ const GameModeShell = ({
       }
 
       const memoInjectionBlock = await buildMemoInjectionBlock(text);
-      const manualTimelineBlock = await maybeInjectManualTimelineContext(text);
+      const manualTimelineResult = await resolveManualTimelineContext(text);
+      const manualTimelineBlock = manualTimelineResult.timelineText?.trim() ?? '';
+      const hasManualTimelineBlock = manualTimelineBlock.length > 0;
       const bubbleSystemPrompt = memoInjectionBlock
         ? [bubbleChatConfig.systemPrompt, memoInjectionBlock]
             .filter((item): item is string => Boolean(item?.trim()))
             .join("\n\n")
         : bubbleChatConfig.systemPrompt;
-      const bubbleSystemPromptWithTimeline = manualTimelineBlock
-        && !bubbleSystemPrompt.includes('【时间轴】')
+      const bubbleSystemPromptWithTimeline = hasManualTimelineBlock
+        && !bubbleSystemPrompt.includes(manualTimelineBlock)
         ? [bubbleSystemPrompt, manualTimelineBlock]
             .filter((item): item is string => Boolean(item?.trim()))
             .join('\n\n')
         : bubbleSystemPrompt;
+      if (TIMELINE_MANUAL_DEBUG) {
+        const parsedRange = manualTimelineResult.parsedRange
+          ? `${manualTimelineResult.parsedRange.startDate} -> ${manualTimelineResult.parsedRange.endDate}`
+          : 'none';
+        console.info('[timeline-manual][send]', {
+          surface: 'bubble-chat/openrouter-chat',
+          detected: manualTimelineResult.detected,
+          parsedRange,
+          fetchedEntryCount: manualTimelineResult.entries.length,
+          timelineTextLength: manualTimelineBlock.length,
+          augmentationIncludesTimelineBlock:
+            hasManualTimelineBlock && bubbleSystemPromptWithTimeline.includes(manualTimelineBlock),
+          augmentationHasTimelineHeader: bubbleSystemPromptWithTimeline.includes('【时间轴】'),
+        });
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`,

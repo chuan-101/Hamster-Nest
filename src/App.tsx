@@ -76,7 +76,7 @@ import {
 } from './constants/aiOverlays'
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
 import { buildMemoInjectionBlock } from './utils/memoRetrieval'
-import { maybeInjectManualTimelineContext } from './utils/timelineManualRetrieval'
+import { resolveManualTimelineContext } from './utils/timelineManualRetrieval'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -138,6 +138,7 @@ const AUTO_EXTRACT_USER_TURN_INTERVAL = 12
 const AUTO_EXTRACT_COOLDOWN_MS = 10 * 60 * 1000
 const MEMORY_EXTRACT_RECENT_MESSAGES = 24
 const AUTO_EXTRACT_PENDING_LIMIT = 50
+const TIMELINE_MANUAL_DEBUG = import.meta.env.DEV
 
 const GameModeShell = lazy(() => import('./game/GameModeShell'))
 
@@ -171,6 +172,7 @@ const buildOpenAiMessages = (
   messages: ChatMessage[],
   systemPrompt?: string,
   linkedLetters: LetterEntry[] = [],
+  sendSurface: string = 'unknown',
 ) => {
   const trimmedPrompt = systemPrompt?.trim()
   const compactLetterEvents = buildCompactLetterEvents(linkedLetters)
@@ -188,6 +190,14 @@ const buildOpenAiMessages = (
   }
   if (compactLetterEvents) {
     systemLayers.push({ role: 'system', content: compactLetterEvents })
+  }
+  if (TIMELINE_MANUAL_DEBUG) {
+    console.info('[timeline-manual][request-builder]', {
+      surface: sendSurface,
+      systemPromptLength: trimmedPrompt?.length ?? 0,
+      systemPromptHasTimelineHeader: Boolean(trimmedPrompt?.includes('【时间轴】')),
+      systemLayerCount: systemLayers.length,
+    })
   }
   return [...systemLayers, ...history]
 }
@@ -1049,21 +1059,39 @@ const App = () => {
             console.warn('无法加载会话关联来信上下文', error)
           }
           const memoInjectionBlock = await buildMemoInjectionBlock(content)
-          const manualTimelineBlock = await maybeInjectManualTimelineContext(content)
+          const manualTimelineResult = await resolveManualTimelineContext(content)
+          const manualTimelineBlock = manualTimelineResult.timelineText?.trim() ?? ''
+          const hasManualTimelineBlock = manualTimelineBlock.length > 0
           const requestSystemPrompt = memoInjectionBlock
             ? [systemPrompt, memoInjectionBlock].filter((item): item is string => Boolean(item?.trim())).join('\n\n')
             : systemPrompt
-          const requestSystemPromptWithTimeline = manualTimelineBlock
-            && !requestSystemPrompt.includes('【时间轴】')
+          const requestSystemPromptWithTimeline = hasManualTimelineBlock
+            && !requestSystemPrompt.includes(manualTimelineBlock)
             ? [requestSystemPrompt, manualTimelineBlock]
                 .filter((item): item is string => Boolean(item?.trim()))
                 .join('\n\n')
             : requestSystemPrompt
+          if (TIMELINE_MANUAL_DEBUG) {
+            const parsedRange = manualTimelineResult.parsedRange
+              ? `${manualTimelineResult.parsedRange.startDate} -> ${manualTimelineResult.parsedRange.endDate}`
+              : 'none'
+            console.info('[timeline-manual][send]', {
+              surface: 'daily-chat/openrouter-chat',
+              detected: manualTimelineResult.detected,
+              parsedRange,
+              fetchedEntryCount: manualTimelineResult.entries.length,
+              timelineTextLength: manualTimelineBlock.length,
+              augmentationIncludesTimelineBlock:
+                hasManualTimelineBlock && requestSystemPromptWithTimeline.includes(manualTimelineBlock),
+              augmentationHasTimelineHeader: requestSystemPromptWithTimeline.includes('【时间轴】'),
+            })
+          }
           const messagesPayload = buildOpenAiMessages(
             sessionId,
             messagesRef.current,
             requestSystemPromptWithTimeline,
             linkedLetters,
+            'daily-chat/openrouter-chat',
           )
           const isClaudeModel = (model: string) => /claude|anthropic/i.test(model)
           const requestBody: Record<string, unknown> = {
