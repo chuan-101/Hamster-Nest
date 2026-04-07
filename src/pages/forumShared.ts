@@ -2,6 +2,7 @@ import type { ForumAiProfile, ForumReply, ForumThread } from '../types'
 import { supabase } from '../supabase/client'
 import type { MemoryEntry } from '../types'
 import { ensureUserSettings } from '../storage/userSettings'
+import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
 
 export const FORUM_AI_SLOTS = [1, 2, 3] as const
 export const FORUM_USER_DISPLAY_NAME = '串串'
@@ -650,6 +651,8 @@ export async function requestForumAiContent({
     })
   }
 
+  const finalMessagesPayload = await maybeInjectTimelineContext(messagesPayload, 'forum')
+
   const selectedModel = profile.model.trim()
   const resolvedModel =
     selectedModel && globalModelConfig.enabledModelIds.includes(selectedModel)
@@ -669,7 +672,7 @@ export async function requestForumAiContent({
     model: resolvedModel,
     modelId: resolvedModel,
     module: 'forum',
-    messages: messagesPayload,
+    messages: finalMessagesPayload,
     temperature: profile.temperature,
     top_p: profile.topP,
     max_tokens: maxOutputTokens,

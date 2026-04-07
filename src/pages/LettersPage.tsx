@@ -13,6 +13,7 @@ import {
 import { ensureUserSettings } from '../storage/userSettings'
 import { formatLocalTimestamp } from '../utils/time'
 import './LettersPage.css'
+import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
 
 const PREVIEW_LIMIT = 30
 const LETTER_MEMORY_LIMIT = 20
@@ -211,6 +212,30 @@ const LettersPage = ({
       const modelId = settings.defaultModel.trim() || 'openrouter/auto'
       setDefaultModelId(modelId)
 
+      const messages = await maybeInjectTimelineContext(
+        [
+          ...(appSystemPrompt
+            ? [{ role: 'system' as const, content: appSystemPrompt }]
+            : []),
+          {
+            role: 'system' as const,
+            content: `Memory context (latest user memory entries):\n${memoryContext}`,
+          },
+          ...(letterReplyPrompt
+            ? [{ role: 'system' as const, content: letterReplyPrompt }]
+            : []),
+          {
+            role: 'system' as const,
+            content: LETTER_HELPER_INSTRUCTION,
+          },
+          {
+            role: 'user' as const,
+            content: manualPrompt.trim() || 'Write a check-in style letter for today.',
+          },
+        ],
+        'letter',
+      )
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
         method: 'POST',
         headers: {
@@ -223,26 +248,7 @@ const LettersPage = ({
           modelId: modelId,
           module: 'letter',
           stream: false,
-          messages: [
-            ...(appSystemPrompt
-              ? [{ role: 'system' as const, content: appSystemPrompt }]
-              : []),
-            {
-              role: 'system',
-              content: `Memory context (latest user memory entries):\n${memoryContext}`,
-            },
-            ...(letterReplyPrompt
-              ? [{ role: 'system' as const, content: letterReplyPrompt }]
-              : []),
-            {
-              role: 'system',
-              content: LETTER_HELPER_INSTRUCTION,
-            },
-            {
-              role: 'user',
-              content: manualPrompt.trim() || 'Write a check-in style letter for today.',
-            },
-          ],
+          messages,
         }),
       })
 

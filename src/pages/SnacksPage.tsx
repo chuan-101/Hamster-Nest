@@ -25,6 +25,7 @@ import {
   resolveSyzygyReplyPrompt,
 } from '../constants/aiOverlays'
 import './SnacksPage.css'
+import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
 
 type SnacksPageProps = {
   user: User | null
@@ -425,6 +426,7 @@ const SnacksPage = ({ user, snackAiConfig, entryMode = 'phone' }: SnacksPageProp
   }
 
   const requestOpenRouter = async (messagesPayload: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => {
+    const injectedMessages = await maybeInjectTimelineContext(messagesPayload, 'snack')
     if (!supabase) {
       throw new Error('Supabase 客户端未配置')
     }
@@ -442,7 +444,7 @@ const SnacksPage = ({ user, snackAiConfig, entryMode = 'phone' }: SnacksPageProp
         apikey: anonKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(buildRequestBody(messagesPayload)),
+      body: JSON.stringify(buildRequestBody(injectedMessages)),
     })
 
     if (!response.ok) {
