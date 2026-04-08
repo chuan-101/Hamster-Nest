@@ -64,6 +64,7 @@ const TimelinePage = () => {
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [entries, setEntries] = useState<TimelineEntry[]>([])
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -74,6 +75,7 @@ const TimelinePage = () => {
 
   const refresh = useCallback(async () => {
     setLoading(true)
+    setEntries([])
     try {
       const data = await listTimelineEntriesByMonth(monthRange.start, monthRange.end)
       setEntries(data)
@@ -123,6 +125,22 @@ const TimelinePage = () => {
   const groupedList = useMemo(() => {
     return Array.from(entriesByDate.entries()).sort((a, b) => b[0].localeCompare(a[0]))
   }, [entriesByDate])
+
+  const selectedEntries = useMemo(() => {
+    if (!selectedDate) {
+      return []
+    }
+    return entriesByDate.get(selectedDate) ?? []
+  }, [entriesByDate, selectedDate])
+
+  useEffect(() => {
+    if (entries.length === 0) {
+      setSelectedDate(null)
+      return
+    }
+    const latestDate = entries.reduce((latest, entry) => (entry.eventDate > latest ? entry.eventDate : latest), entries[0].eventDate)
+    setSelectedDate(latestDate)
+  }, [entries, monthRange.start])
 
   const shiftMonth = (delta: number) => {
     setMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
@@ -233,18 +251,22 @@ const TimelinePage = () => {
         <div className="timeline-calendar__grid">
           {calendarCells.map((cell, index) =>
             cell ? (
-              <div
+              <button
                 key={cell.dateKey}
+                type="button"
                 className={[
                   'timeline-calendar__cell',
-                  cell.count > 0 && 'active',
+                  cell.count > 0 && 'has-entry',
                   cell.dateKey === today && 'today',
+                  cell.dateKey === selectedDate && 'selected',
                 ].filter(Boolean).join(' ')}
                 title={cell.count > 0 ? `${cell.dateKey} 有 ${cell.count} 条记录` : cell.dateKey}
+                onClick={() => setSelectedDate(cell.dateKey)}
+                aria-pressed={cell.dateKey === selectedDate}
               >
                 <span>{cell.day}</span>
                 {cell.count > 1 ? <em>{cell.count}</em> : null}
-              </div>
+              </button>
             ) : (
               <div key={`blank-${index}`} className="timeline-calendar__cell timeline-calendar__cell--blank" />
             ),
@@ -257,32 +279,37 @@ const TimelinePage = () => {
 
       <section className="timeline-list" aria-label="时间轴列表">
         {loading ? <p className="tips">加载中…</p> : null}
-        {!loading && groupedList.length === 0 ? <p className="timeline-empty">当前月份暂无记录。</p> : null}
-        {groupedList.map(([dateKey, dayEntries]) => (
-          <article key={dateKey} className="timeline-date-group">
-            <h2>{dateKey}</h2>
-            <div className="timeline-date-group__entries">
-              {dayEntries.map((entry) => {
-                const recorderMeta = RECORDER_META[entry.recorder]
-                return (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className="timeline-card"
-                    onClick={() => setEditor(buildEditorState(entry))}
-                  >
-                    <span className="timeline-card__recorder" title={recorderMeta.label}>
-                      {recorderMeta.emoji}
-                    </span>
-                    <div className="timeline-card__content">
-                      <p>{entry.summary}</p>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
+        {!loading && groupedList.length === 0 ? <p className="timeline-empty">当前月份暂无记录</p> : null}
+        {!loading && groupedList.length > 0 && !selectedDate ? <p className="timeline-empty">请选择日期查看记录</p> : null}
+        {!loading && selectedDate ? (
+          <article className="timeline-date-group">
+            <h2>{selectedDate}</h2>
+            {selectedEntries.length === 0 ? (
+              <p className="timeline-empty">当天暂无记录</p>
+            ) : (
+              <div className="timeline-date-group__entries">
+                {selectedEntries.map((entry) => {
+                  const recorderMeta = RECORDER_META[entry.recorder]
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      className="timeline-card"
+                      onClick={() => setEditor(buildEditorState(entry))}
+                    >
+                      <span className="timeline-card__recorder" title={recorderMeta.label}>
+                        {recorderMeta.emoji}
+                      </span>
+                      <div className="timeline-card__content">
+                        <p>{entry.summary}</p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </article>
-        ))}
+        ) : null}
       </section>
 
       {editor ? (
