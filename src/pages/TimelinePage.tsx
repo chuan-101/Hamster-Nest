@@ -58,6 +58,7 @@ const buildEditorState = (entry?: TimelineEntry): TimelineEditorState => ({
 
 const TimelinePage = () => {
   const navigate = useNavigate()
+  const today = useMemo(() => getTodayDate(), [])
   const [monthCursor, setMonthCursor] = useState(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
@@ -214,6 +215,7 @@ const TimelinePage = () => {
       </header>
 
       <section className="timeline-calendar" aria-label="月份日历">
+        <div className="timeline-calendar__dot" aria-hidden="true" />
         <div className="timeline-calendar__top">
           <button type="button" className="ghost" onClick={() => shiftMonth(-1)}>
             ← 上月
@@ -233,7 +235,11 @@ const TimelinePage = () => {
             cell ? (
               <div
                 key={cell.dateKey}
-                className={cell.count > 0 ? 'timeline-calendar__cell active' : 'timeline-calendar__cell'}
+                className={[
+                  'timeline-calendar__cell',
+                  cell.count > 0 && 'active',
+                  cell.dateKey === today && 'today',
+                ].filter(Boolean).join(' ')}
                 title={cell.count > 0 ? `${cell.dateKey} 有 ${cell.count} 条记录` : cell.dateKey}
               >
                 <span>{cell.day}</span>
@@ -251,7 +257,7 @@ const TimelinePage = () => {
 
       <section className="timeline-list" aria-label="时间轴列表">
         {loading ? <p className="tips">加载中…</p> : null}
-        {!loading && groupedList.length === 0 ? <p className="tips timeline-empty">当前月份暂无记录。</p> : null}
+        {!loading && groupedList.length === 0 ? <p className="timeline-empty">当前月份暂无记录。</p> : null}
         {groupedList.map(([dateKey, dayEntries]) => (
           <article key={dateKey} className="timeline-date-group">
             <h2>{dateKey}</h2>
@@ -307,8 +313,8 @@ const TimelinePage = () => {
                 value={editor.recorder}
                 onChange={(event) => setEditor({ ...editor, recorder: event.target.value as TimelineRecorder })}
               >
-                <option value="chuanchuan">chuanchuan</option>
-                <option value="syzygy">syzygy</option>
+                <option value="chuanchuan">{RECORDER_META.chuanchuan.emoji} {RECORDER_META.chuanchuan.label}</option>
+                <option value="syzygy">{RECORDER_META.syzygy.emoji} {RECORDER_META.syzygy.label}</option>
               </select>
             </label>
 
