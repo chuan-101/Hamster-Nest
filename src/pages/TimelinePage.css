@@ -76,6 +76,8 @@
 /* ── Calendar ─────────────────────────────────── */
 
 .timeline-calendar {
+  width: 100%;
+  box-sizing: border-box;
   border: 1px solid rgba(255, 214, 231, 0.88);
   border-radius: 18px;
   background: #fff;
@@ -136,6 +138,8 @@
 }
 
 .timeline-calendar__cell {
+  appearance: none;
+  cursor: pointer;
   min-height: 2.4rem;
   border-radius: 12px;
   border: 1px solid rgba(255, 214, 231, 0.5);
@@ -159,15 +163,22 @@
   color: #68485e;
 }
 
-.timeline-calendar__cell.active {
+.timeline-calendar__cell.has-entry {
   border-color: #f8bed9;
-  background: linear-gradient(180deg, #ffdeec 0%, #ffcfe5 100%);
-  color: #59354b;
-  box-shadow: 0 3px 7px rgba(255, 185, 216, 0.38);
+  background: #fff3f8;
+  color: #6a4459;
 }
 
-.timeline-calendar__cell.active.today {
-  box-shadow: 0 0 0 2px rgba(255, 214, 231, 0.35), 0 3px 7px rgba(255, 185, 216, 0.38);
+.timeline-calendar__cell.selected {
+  border-color: #f29cc3;
+  background: linear-gradient(180deg, #ffdeec 0%, #ffcfe5 100%);
+  color: #59354b;
+  box-shadow: 0 4px 10px rgba(255, 185, 216, 0.45);
+  font-weight: 700;
+}
+
+.timeline-calendar__cell.selected.today {
+  box-shadow: 0 0 0 2px rgba(255, 214, 231, 0.35), 0 4px 10px rgba(255, 185, 216, 0.45);
 }
 
 .timeline-calendar__cell em {
@@ -184,6 +195,7 @@
 .timeline-calendar__cell--blank {
   border: none;
   background: transparent;
+  pointer-events: none;
 }
 
 .timeline-calendar__cell--blank:hover {
@@ -225,6 +237,9 @@
 /* ── Timeline list ────────────────────────────── */
 
 .timeline-list {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 124px;
   border: 1px solid rgba(255, 214, 231, 0.88);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.6);
