@@ -1,0 +1,19 @@
+name: Signal Bus Consumer Cron
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-signal-bus-consumer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger signal-bus-consumer Edge Function
+        run: |
+          curl --fail --show-error --silent \
+            --request POST \
+            --url 'https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/signal-bus-consumer' \
+            --header 'Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}' \
+            --header 'Content-Type: application/json' \
+            --data '{"limit":20}'
