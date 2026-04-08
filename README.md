@@ -73,3 +73,26 @@ export default defineConfig([
   },
 ])
 ```
+
+## Signal Bus consumer (Syzygy → Codex/cyberboss)
+
+A first-pass polling consumer is available as Supabase Edge Function:
+
+- Function: `signal-bus-consumer`
+- Source: `supabase/functions/signal-bus-consumer/index.ts`
+- Cron trigger: `.github/workflows/signal-bus-cron.yml` (every 10 minutes)
+
+### Required env vars
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `CYBERBOSS_WECHAT_WEBHOOK_URL`
+
+### Behavior summary
+
+- Polls `syzygy_signals` with `status = 'pending'` (optionally scoped by `user_id`).
+- Claims each row atomically via `pending -> processing` transition.
+- Marks expired signals as `expired` and skips execution.
+- Routes supported types (`sleep_alert`, `hydration_boost`, `calendar_aware`, `mood_check`, `custom`) to a WeChat send path.
+- Marks successful executions as `processed` with `processed_at`.
+- Marks failed executions as `failed`.
