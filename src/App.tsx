@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
-import ChatPage from './pages/ChatPage'
+import ChatPage, { type ChatInjectionOptions } from './pages/ChatPage'
 import AuthPage from './pages/AuthPage'
 import SessionsDrawer from './components/SessionsDrawer'
 import type { ChatMessage, ChatSession, ExtractMessageInput, LetterEntry, UserSettings } from './types'
@@ -75,8 +75,8 @@ import {
   resolveBubbleChatPrompt,
 } from './constants/aiOverlays'
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
-import { buildMemoInjectionBlock } from './utils/memoRetrieval'
-import { resolveManualTimelineContext } from './utils/timelineManualRetrieval'
+import { buildMemoInjectionBlock, buildMemoInjectionFromToggle } from './utils/memoRetrieval'
+import { resolveManualTimelineContext, resolveTimelineFromToggle } from './utils/timelineManualRetrieval'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -771,7 +771,7 @@ const App = () => {
 
 
   const sendMessage = useCallback(
-    async (sessionId: string, content: string) => {
+    async (sessionId: string, content: string, injectionOptions?: ChatInjectionOptions) => {
       const fallbackSettings = createDefaultSettings(user?.id ?? 'local')
       const activeSettings = settingsRef.current ?? fallbackSettings
       const effectiveModel = resolveSessionModel(sessionId)
@@ -1058,8 +1058,12 @@ const App = () => {
           } catch (error) {
             console.warn('无法加载会话关联来信上下文', error)
           }
-          const memoInjectionBlock = await buildMemoInjectionBlock(content)
-          const manualTimelineResult = await resolveManualTimelineContext(content)
+          const memoInjectionBlock = injectionOptions?.memoEnabled
+            ? await buildMemoInjectionFromToggle(content)
+            : await buildMemoInjectionBlock(content)
+          const manualTimelineResult = injectionOptions?.timelineEnabled
+            ? await resolveTimelineFromToggle(content)
+            : await resolveManualTimelineContext(content)
           const manualTimelineBlock = manualTimelineResult.timelineText?.trim() ?? ''
           const hasManualTimelineBlock = manualTimelineBlock.length > 0
           const requestSystemPrompt = memoInjectionBlock
@@ -2053,7 +2057,7 @@ const ChatRoute = ({
   onCloseDrawer: () => void
   onCreateSession: (title?: string) => Promise<ChatSession>
   onRenameSession: (sessionId: string, title: string) => Promise<void>
-  onSendMessage: (sessionId: string, text: string) => Promise<void>
+  onSendMessage: (sessionId: string, text: string, injectionOptions?: ChatInjectionOptions) => Promise<void>
   onDeleteMessage: (messageId: string) => Promise<void>
   onDeleteSession: (sessionId: string) => Promise<void>
   enabledModels: string[]
@@ -2160,7 +2164,7 @@ const ChatRoute = ({
         session={activeSession}
         messages={activeMessages}
         onOpenDrawer={onOpenDrawer}
-        onSendMessage={(text) => onSendMessage(activeSession.id, text)}
+        onSendMessage={(text, options) => onSendMessage(activeSession.id, text, options)}
         onDeleteMessage={onDeleteMessage}
         isStreaming={isStreaming}
         onStopStreaming={onStopStreaming}

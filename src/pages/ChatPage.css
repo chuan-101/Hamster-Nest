@@ -531,6 +531,45 @@
   color: var(--text-subtle);
 }
 
+.injection-toggles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.injection-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 14px;
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  user-select: none;
+}
+
+.injection-toggle:hover {
+  background: rgba(255, 255, 255, 0.35);
+  color: var(--text-main);
+}
+
+.injection-toggle--active {
+  background: color-mix(in srgb, var(--accent) 38%, #ffffff 62%);
+  border-color: color-mix(in srgb, var(--accent-strong) 45%, var(--glass-border) 55%);
+  color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(249, 168, 212, 0.22);
+}
+
+.injection-toggle--active:hover {
+  background: color-mix(in srgb, var(--accent) 48%, #ffffff 52%);
+}
+
 .composer-row {
   display: flex;
   gap: 8px;
@@ -591,6 +630,12 @@
     min-height: 28px;
     font-size: 12px;
     padding: 0 10px;
+  }
+
+  .injection-toggle {
+    min-height: 26px;
+    padding: 3px 12px;
+    font-size: 12px;
   }
 
   .chip-value {
@@ -949,6 +994,33 @@
 .chat-page--pixel .model-selector:focus-within,
 .chat-page--pixel .composer-toggle:active {
   background: linear-gradient(180deg, #fffbf5 0%, #f6d7d4 100%);
+}
+
+.chat-page--pixel .injection-toggle {
+  border: 2px solid var(--pixel-border);
+  background: linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%);
+  color: var(--pixel-subtle);
+  box-shadow:
+    inset 0 1px 0 #fffdf9,
+    inset 0 -2px 0 rgba(134, 130, 125, 0.4);
+}
+
+.chat-page--pixel .injection-toggle:hover {
+  background: linear-gradient(180deg, #fffbf5 0%, #f6d7d4 100%);
+  color: var(--pixel-text);
+}
+
+.chat-page--pixel .injection-toggle--active {
+  background: linear-gradient(180deg, #f6d7d4 0%, #efc2bc 100%);
+  border-color: #86827d;
+  color: var(--pixel-text);
+  box-shadow:
+    inset 0 1px 0 #fffdf9,
+    inset 0 -2px 0 rgba(134, 130, 125, 0.4);
+}
+
+.chat-page--pixel .injection-toggle--active:hover {
+  background: linear-gradient(180deg, #efc2bc 0%, #e8b0a8 100%);
 }
 
 .chat-page--pixel .composer-toggle input {

@@ -10,12 +10,17 @@ import ReasoningPanel from '../components/ReasoningPanel'
 import { fetchLettersByConversation } from '../storage/supabaseSync'
 import './ChatPage.css'
 
+export type ChatInjectionOptions = {
+  memoEnabled?: boolean
+  timelineEnabled?: boolean
+}
+
 export type ChatPageProps = {
   session: ChatSession
   messages: ChatMessage[]
   theme?: 'ios' | 'pixel'
   onOpenDrawer: () => void
-  onSendMessage: (text: string) => Promise<void>
+  onSendMessage: (text: string, options?: ChatInjectionOptions) => Promise<void>
   onDeleteMessage: (messageId: string) => void | Promise<void>
   isStreaming: boolean
   onStopStreaming: () => void
@@ -66,6 +71,8 @@ const ChatPage = ({
   onReturnToGame,
 }: ChatPageProps) => {
   const [draft, setDraft] = useState('')
+  const [memoToggle, setMemoToggle] = useState(false)
+  const [timelineToggle, setTimelineToggle] = useState(false)
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
   const [actionsMenuPosition, setActionsMenuPosition] = useState<{ top: number; left: number } | null>(null)
   const [openHeaderMenu, setOpenHeaderMenu] = useState(false)
@@ -84,7 +91,13 @@ const ChatPage = ({
     if (!trimmed) {
       return
     }
-    await onSendMessage(trimmed)
+    const options: ChatInjectionOptions = {
+      memoEnabled: memoToggle,
+      timelineEnabled: timelineToggle,
+    }
+    setMemoToggle(false)
+    setTimelineToggle(false)
+    await onSendMessage(trimmed, options)
     setDraft('')
   }
 
@@ -579,6 +592,24 @@ const ChatPage = ({
           当前模型：{selectedModel}
           {hasOverride ? '（会话覆盖）' : '（默认）'}
         </span>
+        <div className="injection-toggles">
+          <button
+            type="button"
+            className={`injection-toggle${memoToggle ? ' injection-toggle--active' : ''}`}
+            onClick={() => setMemoToggle((current) => !current)}
+            aria-pressed={memoToggle}
+          >
+            备忘录
+          </button>
+          <button
+            type="button"
+            className={`injection-toggle${timelineToggle ? ' injection-toggle--active' : ''}`}
+            onClick={() => setTimelineToggle((current) => !current)}
+            aria-pressed={timelineToggle}
+          >
+            时间轴
+          </button>
+        </div>
         <div className="composer-row">
           <textarea
             className="textarea-glass"

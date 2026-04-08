@@ -196,3 +196,49 @@ export const buildMemoInjectionBlock = async (message: string): Promise<string |
     return null
   }
 }
+
+const extractKeywordsFromFreeText = (input: string): string[] => {
+  const trimmed = input.trim()
+  if (!trimmed) {
+    return []
+  }
+
+  const quotedKeywords = extractQuotedKeywords(trimmed)
+  const cleaned = trimmed
+    .replace(STOPWORD_REGEX, ' ')
+    .replace(/\b(?:memo|memoes)\b/gi, ' ')
+
+  const segmentedKeywords = cleaned
+    .split(CONNECTOR_SPLIT_REGEX)
+    .map((segment) => normalizeKeyword(segment))
+    .filter((segment) => segment.length > 0)
+
+  const uniqueKeywords = Array.from(
+    new Set([...quotedKeywords, ...segmentedKeywords].filter((keyword) => keyword.length > 0)),
+  )
+
+  return uniqueKeywords.length > 0 ? uniqueKeywords : [trimmed]
+}
+
+export const buildMemoInjectionFromToggle = async (inputText: string): Promise<string | null> => {
+  const trimmed = inputText.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const keywords = extractKeywordsFromFreeText(trimmed)
+  if (keywords.length === 0) {
+    return null
+  }
+
+  try {
+    const entries = await fetchMemoEntriesByTagKeywords(keywords)
+    if (entries.length === 0) {
+      return null
+    }
+    return formatMemoInjectionBlock(keywords, entries)
+  } catch (error) {
+    console.warn('[memo-retrieval] Toggle-based retrieval failed:', error)
+    return null
+  }
+}

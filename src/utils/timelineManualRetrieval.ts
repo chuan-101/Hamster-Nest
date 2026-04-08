@@ -249,3 +249,121 @@ export const resolveManualTimelineContext = async (
     timelineText,
   }
 }
+
+export const parseTimelineDateRangeFromFreeText = (source: string, now = new Date()): TimelineDateRange | null => {
+  const input = source.trim()
+  if (!input) {
+    return null
+  }
+
+  const datePatterns: Array<{ pattern: RegExp; resolve: (match: RegExpMatchArray) => TimelineDateRange | null }> = [
+    {
+      pattern: /(\d{4})\.(\d{2})\.(\d{2})\s*-\s*(\d{4})\.(\d{2})\.(\d{2})/,
+      resolve: (match) => {
+        const startResult = parseDateText(`${match[1]}.${match[2]}.${match[3]}`)
+        const endResult = parseDateText(`${match[4]}.${match[5]}.${match[6]}`)
+        if (!startResult || !endResult || startResult.dateKey > endResult.dateKey) {
+          return null
+        }
+        return { startDate: startResult.dateKey, endDate: endResult.dateKey }
+      },
+    },
+    {
+      pattern: /(\d{4})\.(\d{2})\.(\d{2})/,
+      resolve: (match) => {
+        const result = parseDateText(`${match[1]}.${match[2]}.${match[3]}`)
+        return result ? { startDate: result.dateKey, endDate: result.dateKey } : null
+      },
+    },
+    {
+      pattern: /(\d{1,2})月(\d{1,2})[日号]/u,
+      resolve: (match) => {
+        const month = Number.parseInt(match[1], 10)
+        const day = Number.parseInt(match[2], 10)
+        if (month < 1 || month > 12 || day < 1 || day > 31) {
+          return null
+        }
+        const date = new Date(now.getFullYear(), month - 1, day)
+        if (date.getMonth() + 1 !== month || date.getDate() !== day) {
+          return null
+        }
+        const dateKey = toDateKey(date)
+        return { startDate: dateKey, endDate: dateKey }
+      },
+    },
+    {
+      pattern: /(\d{1,2})月(?:\b|\s|$|[，。,.!?！？])/u,
+      resolve: (match) => {
+        const month = Number.parseInt(match[1], 10)
+        if (month >= 1 && month <= 12) {
+          return buildMonthRange(now.getFullYear(), month)
+        }
+        return null
+      },
+    },
+    {
+      pattern: /今天/u,
+      resolve: () => {
+        const dateKey = toDateKey(normalizeDayStart(now))
+        return { startDate: dateKey, endDate: dateKey }
+      },
+    },
+    {
+      pattern: /昨天/u,
+      resolve: () => {
+        const target = normalizeDayStart(now)
+        target.setDate(target.getDate() - 1)
+        const dateKey = toDateKey(target)
+        return { startDate: dateKey, endDate: dateKey }
+      },
+    },
+    {
+      pattern: /上周/u,
+      resolve: () => {
+        const end = normalizeDayStart(now)
+        const start = normalizeDayStart(now)
+        start.setDate(start.getDate() - 6)
+        return { startDate: toDateKey(start), endDate: toDateKey(end) }
+      },
+    },
+    {
+      pattern: /本月/u,
+      resolve: () => buildMonthRange(now.getFullYear(), now.getMonth() + 1),
+    },
+  ]
+
+  for (const { pattern, resolve } of datePatterns) {
+    const match = input.match(pattern)
+    if (match) {
+      const range = resolve(match)
+      if (range) {
+        return range
+      }
+    }
+  }
+
+  return null
+}
+
+export const resolveTimelineFromToggle = async (
+  inputText: string,
+): Promise<ManualTimelineResolution> => {
+  const trimmed = inputText.trim()
+  if (!trimmed) {
+    return { detected: false, parsedRange: null, entries: [], timelineText: null }
+  }
+
+  try {
+    const parsedRange = parseTimelineDateRangeFromFreeText(trimmed)
+    if (!parsedRange) {
+      return { detected: false, parsedRange: null, entries: [], timelineText: null }
+    }
+
+    const entries = await fetchTimelineEntriesForRange(parsedRange)
+    const timelineText = buildTimelineManualInjectionText(entries)
+    return { detected: true, parsedRange, entries, timelineText }
+  } catch (error) {
+    console.warn('[timeline-manual] Toggle-based retrieval failed:', error)
+    return { detected: false, parsedRange: null, entries: [], timelineText: null }
+  }
+}
