@@ -76,7 +76,7 @@ import {
 } from './constants/aiOverlays'
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
 import { buildMemoInjectionBlock, buildMemoInjectionFromToggle } from './utils/memoRetrieval'
-import { resolveManualTimelineContext, resolveTimelineFromToggle } from './utils/timelineManualRetrieval'
+import { resolveTimelineFromToggle } from './utils/timelineManualRetrieval'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -1063,7 +1063,7 @@ const App = () => {
             : await buildMemoInjectionBlock(content)
           const manualTimelineResult = injectionOptions?.timelineEnabled
             ? await resolveTimelineFromToggle(content)
-            : await resolveManualTimelineContext(content)
+            : { detected: false, parsedRange: null, entries: [] as Array<{ eventDate: string; summary: string; recorder: string; createdAt: string }>, timelineText: null }
           const manualTimelineBlock = manualTimelineResult.timelineText?.trim() ?? ''
           const hasManualTimelineBlock = manualTimelineBlock.length > 0
           const requestSystemPrompt = memoInjectionBlock
