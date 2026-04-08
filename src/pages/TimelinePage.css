@@ -82,7 +82,6 @@
   padding: 14px;
   box-shadow: 0 10px 20px rgba(255, 214, 231, 0.2);
   position: relative;
-  overflow: hidden;
 }
 
 .timeline-calendar__dot {
