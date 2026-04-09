@@ -225,10 +225,12 @@
 }
 
 .timeline-empty {
-  border: 1px dashed rgba(255, 214, 231, 0.85);
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 214, 231, 0.65);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.75);
-  padding: 16px;
+  background: rgba(255, 246, 251, 0.9);
+  padding: 18px 16px;
   margin: 0;
   color: #8f7285;
   text-align: center;
@@ -239,13 +241,18 @@
 .timeline-list {
   width: 100%;
   box-sizing: border-box;
-  min-height: 124px;
+  min-height: 180px;
   border: 1px solid rgba(255, 214, 231, 0.88);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.6);
+  background: #fff;
   padding: 14px;
-  box-shadow: 0 10px 20px rgba(255, 214, 231, 0.2);
+  box-shadow: 0 10px 20px rgba(255, 214, 231, 0.16);
+}
+
+.timeline-list__body {
+  min-height: 100%;
   display: grid;
+  align-content: start;
   gap: 14px;
 }
 
@@ -272,7 +279,7 @@
 
 .timeline-card {
   border: 1px solid rgba(255, 214, 231, 0.8);
-  background: rgba(255, 255, 255, 0.94);
+  background: #fff;
   border-radius: 16px;
   padding: 10px 12px;
   display: grid;
@@ -280,13 +287,13 @@
   gap: 10px;
   align-items: start;
   text-align: left;
-  box-shadow: 0 6px 12px rgba(255, 214, 231, 0.15);
-  transition: background 160ms ease, box-shadow 160ms ease;
+  box-shadow: 0 2px 8px rgba(255, 214, 231, 0.16);
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .timeline-card:hover {
   background: #fffafc;
-  box-shadow: 0 8px 16px rgba(255, 214, 231, 0.28);
+  border-color: #f8bed9;
 }
 
 .timeline-card__recorder {
@@ -302,7 +309,7 @@
   flex-shrink: 0;
 }
 
-.timeline-card__content p {
+.timeline-card__summary {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
@@ -324,15 +331,13 @@
 
 .timeline-editor {
   width: min(520px, 100%);
-  background:
-    radial-gradient(circle at 0 0, rgba(255, 233, 244, 0.6), transparent 30%),
-    #fff;
+  background: #fff;
   border: 1px solid rgba(255, 214, 231, 0.9);
   border-radius: 20px;
-  padding: 14px;
+  padding: 16px;
   display: grid;
-  gap: 10px;
-  box-shadow: 0 14px 28px rgba(255, 214, 231, 0.24);
+  gap: 12px;
+  box-shadow: 0 14px 28px rgba(255, 214, 231, 0.2);
 }
 
 .timeline-editor h2 {
@@ -352,13 +357,20 @@
 .timeline-editor input,
 .timeline-editor textarea,
 .timeline-editor select {
+  appearance: none;
+  -webkit-appearance: none;
   width: 100%;
+  box-sizing: border-box;
   border-radius: 12px;
-  border: 1px solid rgba(255, 214, 231, 0.88);
+  border: 1px solid #f7c6dd;
   padding: 10px;
   font: inherit;
   color: #4f3f4a;
-  background: #fffafd;
+  background: #fff;
+}
+
+.timeline-editor input[type='date'] {
+  min-height: 42px;
 }
 
 .timeline-editor textarea {
