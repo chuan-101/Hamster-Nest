@@ -17,7 +17,7 @@ type SignalPayload = {
 type SyzygySignalRow = {
   id: string
   user_id: string
-  type: string
+  signal_type: string
   status: SignalStatus
   payload: SignalPayload | null
   dedupe_key: string | null
@@ -128,7 +128,7 @@ const handleSleepAlert = async (signal: SyzygySignalRow, webhookUrl: string) => 
     webhookUrl,
     text: `🌙 睡眠提醒\n${message}`,
     signalId: signal.id,
-    signalType: signal.type,
+    signalType: signal.signal_type,
   })
 }
 
@@ -138,7 +138,7 @@ const handleHydrationBoost = async (signal: SyzygySignalRow, webhookUrl: string)
     webhookUrl,
     text: `💧 补水提醒\n${message}`,
     signalId: signal.id,
-    signalType: signal.type,
+    signalType: signal.signal_type,
   })
 }
 
@@ -148,7 +148,7 @@ const handleCalendarAware = async (signal: SyzygySignalRow, webhookUrl: string) 
     webhookUrl,
     text: `📅 日程关怀提醒\n${message}`,
     signalId: signal.id,
-    signalType: signal.type,
+    signalType: signal.signal_type,
   })
 }
 
@@ -158,7 +158,7 @@ const handleMoodCheck = async (signal: SyzygySignalRow, webhookUrl: string) => {
     webhookUrl,
     text: `🫶 情绪关怀\n${message}`,
     signalId: signal.id,
-    signalType: signal.type,
+    signalType: signal.signal_type,
   })
 }
 
@@ -173,7 +173,7 @@ const handleCustomSignal = async (signal: SyzygySignalRow, webhookUrl: string) =
       webhookUrl,
       text: `✨ 自定义提醒\n${message}`,
       signalId: signal.id,
-      signalType: signal.type,
+      signalType: signal.signal_type,
     })
     return
   }
@@ -182,10 +182,10 @@ const handleCustomSignal = async (signal: SyzygySignalRow, webhookUrl: string) =
 }
 
 const routeSignal = async (signal: SyzygySignalRow, webhookUrl: string) => {
-  const signalType = toSignalType(signal.type)
+  const signalType = toSignalType(signal.signal_type)
 
   if (!signalType) {
-    throw new Error(`unsupported signal type: ${signal.type}`)
+    throw new Error(`unsupported signal type: ${signal.signal_type}`)
   }
 
   switch (signalType) {
@@ -256,7 +256,7 @@ const pollPendingSignals = async (
 ) => {
   let query = supabase
     .from('syzygy_signals')
-    .select('id,user_id,type,status,payload,dedupe_key,expires_at,processed_at,created_at')
+    .select('id,user_id,signal_type,status,payload,dedupe_key,expires_at,processed_at,created_at')
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(limit)
@@ -281,7 +281,7 @@ const claimSignal = async (
     })
     .eq('id', signalId)
     .eq('status', 'pending')
-    .select('id,user_id,type,status,payload,dedupe_key,expires_at,processed_at,created_at')
+    .select('id,user_id,signal_type,status,payload,dedupe_key,expires_at,processed_at,created_at')
     .maybeSingle()
 
   if (error) throw error
@@ -313,10 +313,6 @@ serve(async (req) => {
     return jsonResponse({ error: 'Supabase service role env is missing' }, 500, origin)
   }
 
-  if (!wechatWebhookUrl) {
-    return jsonResponse({ error: 'CYBERBOSS_WECHAT_WEBHOOK_URL is missing' }, 500, origin)
-  }
-
   const payload = ((await req.json().catch(() => ({}))) ?? {}) as ConsumePayload
   const userId = typeof payload.user_id === 'string' && payload.user_id.trim() ? payload.user_id.trim() : null
   const limit = typeof payload.limit === 'number' && payload.limit > 0 ? Math.min(Math.floor(payload.limit), 100) : 20
@@ -336,6 +332,44 @@ serve(async (req) => {
       fetchedCount: pendingSignals.length,
     })
 
+    if (pendingSignals.length === 0) {
+      return jsonResponse(
+        {
+          ok: true,
+          user_id: userId,
+          fetched: 0,
+          claimed: 0,
+          processed: 0,
+          expired: 0,
+          failed: 0,
+        },
+        200,
+        origin,
+      )
+    }
+
+    if (!wechatWebhookUrl) {
+      console.warn('[signal-bus] pending signals skipped because webhook is not configured', {
+        userId,
+        fetchedCount: pendingSignals.length,
+      })
+
+      return jsonResponse(
+        {
+          ok: true,
+          user_id: userId,
+          fetched: pendingSignals.length,
+          claimed: 0,
+          processed: 0,
+          expired: 0,
+          failed: 0,
+          skipped_no_webhook: true,
+        },
+        200,
+        origin,
+      )
+    }
+
     let claimedCount = 0
     let processedCount = 0
     let expiredCount = 0
@@ -348,7 +382,7 @@ serve(async (req) => {
       claimedCount += 1
       console.log('[signal-bus] signal claimed', {
         signalId: claimedSignal.id,
-        signalType: claimedSignal.type,
+        signalType: claimedSignal.signal_type,
         dedupeKey: claimedSignal.dedupe_key,
       })
 
@@ -357,7 +391,7 @@ serve(async (req) => {
         expiredCount += 1
         console.log('[signal-bus] signal expired before execution; skipped', {
           signalId: claimedSignal.id,
-          signalType: claimedSignal.type,
+          signalType: claimedSignal.signal_type,
         })
         continue
       }
@@ -368,14 +402,14 @@ serve(async (req) => {
         processedCount += 1
         console.log('[signal-bus] signal processed', {
           signalId: claimedSignal.id,
-          signalType: claimedSignal.type,
+          signalType: claimedSignal.signal_type,
         })
       } catch (error) {
         await markSignalFailed(supabase, claimedSignal.id)
         failedCount += 1
         console.error('[signal-bus] signal failed', {
           signalId: claimedSignal.id,
-          signalType: claimedSignal.type,
+          signalType: claimedSignal.signal_type,
           error: error instanceof Error ? error.message : String(error),
         })
       }
