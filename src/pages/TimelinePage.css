@@ -1,8 +1,10 @@
 .timeline-page {
+  width: 100%;
   max-width: 720px;
   margin: 0 auto;
   padding: 14px 14px 20px;
   min-height: 100dvh;
+  flex-shrink: 0;
   display: grid;
   gap: 12px;
   align-content: start;
@@ -250,7 +252,6 @@
 }
 
 .timeline-list__body {
-  min-height: 100%;
   display: grid;
   align-content: start;
   gap: 14px;
