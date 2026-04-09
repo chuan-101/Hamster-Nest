@@ -278,38 +278,38 @@ const TimelinePage = () => {
       {error ? <p className="timeline-error">{error}</p> : null}
 
       <section className="timeline-list" aria-label="时间轴列表">
-        {loading ? <p className="tips">加载中…</p> : null}
-        {!loading && groupedList.length === 0 ? <p className="timeline-empty">当前月份暂无记录</p> : null}
-        {!loading && groupedList.length > 0 && !selectedDate ? <p className="timeline-empty">请选择日期查看记录</p> : null}
-        {!loading && selectedDate ? (
-          <article className="timeline-date-group">
-            <h2>{selectedDate}</h2>
-            {selectedEntries.length === 0 ? (
-              <p className="timeline-empty">当天暂无记录</p>
-            ) : (
-              <div className="timeline-date-group__entries">
-                {selectedEntries.map((entry) => {
-                  const recorderMeta = RECORDER_META[entry.recorder]
-                  return (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      className="timeline-card"
-                      onClick={() => setEditor(buildEditorState(entry))}
-                    >
-                      <span className="timeline-card__recorder" title={recorderMeta.label}>
-                        {recorderMeta.emoji}
-                      </span>
-                      <div className="timeline-card__content">
-                        <p>{entry.summary}</p>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </article>
-        ) : null}
+        <div className="timeline-list__body">
+          {loading ? <p className="tips">加载中…</p> : null}
+          {!loading && groupedList.length === 0 ? <p className="timeline-empty">当前月份暂无记录</p> : null}
+          {!loading && groupedList.length > 0 && !selectedDate ? <p className="timeline-empty">请选择日期查看记录</p> : null}
+          {!loading && selectedDate ? (
+            <article className="timeline-date-group">
+              <h2>{selectedDate}</h2>
+              {selectedEntries.length === 0 ? (
+                <p className="timeline-empty">当天暂无记录</p>
+              ) : (
+                <div className="timeline-date-group__entries">
+                  {selectedEntries.map((entry) => {
+                    const recorderMeta = RECORDER_META[entry.recorder]
+                    return (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        className="timeline-card"
+                        onClick={() => setEditor(buildEditorState(entry))}
+                      >
+                        <span className="timeline-card__recorder" title={recorderMeta.label}>
+                          {recorderMeta.emoji}
+                        </span>
+                        <p className="timeline-card__summary">{entry.summary}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </article>
+          ) : null}
+        </div>
       </section>
 
       {editor ? (
