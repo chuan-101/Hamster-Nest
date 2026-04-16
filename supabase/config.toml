@@ -1,0 +1,40 @@
+# Supabase project configuration for Hamster-Nest.
+#
+# We disable the gateway-level JWT verification for every Edge Function and
+# let the function code handle authentication itself. The Supabase gateway only
+# understands HS256-signed JWTs, but the current @supabase/supabase-js client
+# issues ES256-signed JWTs, which causes the gateway to reject every request
+# with UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM before the function ever runs.
+#
+# Functions that need user identity (memory-extract, openrouter-chat,
+# openrouter-models, rag-search) re-verify the JWT internally by calling
+# `/auth/v1/user` with the caller's Authorization/apikey headers and return
+# 401 on failure, so this is not a security regression for them.
+#
+# Functions that run with SUPABASE_SERVICE_ROLE_KEY (rag-backfill, rag-embed,
+# signal-bus-consumer) never performed user-JWT verification — they rely on
+# being invoked only from trusted callers (cron jobs, other Edge Functions,
+# server-side backfill scripts) that hold the service-role key. Their
+# exposure profile is unchanged by this setting.
+project_id = "crfhiumxzmaszkapanrb"
+
+[functions.memory-extract]
+verify_jwt = false
+
+[functions.openrouter-chat]
+verify_jwt = false
+
+[functions.openrouter-models]
+verify_jwt = false
+
+[functions.rag-backfill]
+verify_jwt = false
+
+[functions.rag-embed]
+verify_jwt = false
+
+[functions.rag-search]
+verify_jwt = false
+
+[functions.signal-bus-consumer]
+verify_jwt = false
