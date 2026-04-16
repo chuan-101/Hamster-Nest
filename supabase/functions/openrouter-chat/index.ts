@@ -151,18 +151,83 @@ type BuildProviderRequestOptions = {
   stream: boolean
 }
 
+// Vendor prefixes used by OpenRouter-style IDs (e.g. `anthropic/claude-sonnet-4.5`).
+// Most OpenAI-compatible proxies (AiHubMix, official OpenAI/Anthropic, DeepSeek,
+// Together, etc.) reject these prefixes and require the upstream provider's
+// native model ID. We strip them automatically so users can pick any flavor of
+// ID from the catalog without the request failing.
+const VENDOR_PREFIXES_TO_STRIP = [
+  'anthropic/',
+  'openai/',
+  'google/',
+  'deepseek/',
+  'qwen/',
+  'meta-llama/',
+  'mistralai/',
+  'x-ai/',
+  'cohere/',
+  'perplexity/',
+  'moonshotai/',
+  'zhipuai/',
+] as const
+
+const PROVIDERS_KEEP_VENDOR_PREFIX = new Set(['openrouter'])
+
+/**
+ * Adapt a stored model ID to the format the upstream provider expects.
+ *
+ * OpenRouter accepts (and requires) `vendor/model` style IDs. Most other
+ * OpenAI-compatible gateways (AiHubMix, DeepSeek, official providers, etc.)
+ * use the upstream's native model ID — they reject the `anthropic/` prefix.
+ *
+ * Additionally: Anthropic's native IDs use dashes between version components
+ * (`claude-sonnet-4-5`) while OpenRouter uses dots
+ * (`anthropic/claude-sonnet-4.5`). For Claude models, normalize dots to dashes
+ * after stripping the prefix so either form works on AiHubMix-style proxies.
+ */
+const normalizeModelIdForProvider = (modelId: string, providerName: string): string => {
+  const normalizedProvider = providerName.toLowerCase().trim()
+  if (PROVIDERS_KEEP_VENDOR_PREFIX.has(normalizedProvider)) {
+    return modelId
+  }
+
+  let normalized = modelId.trim()
+  const lower = normalized.toLowerCase()
+  for (const prefix of VENDOR_PREFIXES_TO_STRIP) {
+    if (lower.startsWith(prefix)) {
+      normalized = normalized.slice(prefix.length)
+      break
+    }
+  }
+
+  // Claude native IDs use dashes between version segments. Convert any
+  // `4.5` / `3.7` style version separators to `4-5` / `3-7`.
+  if (normalized.toLowerCase().startsWith('claude-')) {
+    normalized = normalized.replace(/(\d+)\.(\d+)/g, '$1-$2')
+  }
+
+  return normalized
+}
+
 const buildProviderRequestPayload = (
   provider: RuntimeProviderConfig,
   options: BuildProviderRequestOptions,
 ): Record<string, unknown> => {
   const { resolvedModelId, messages, temperature, top_p, max_tokens, reasoning, stream } = options
   const isOpenRouter = provider.provider === 'openrouter'
-  const isClaudeModel = resolvedModelId.toLowerCase().includes('claude')
+  const upstreamModelId = normalizeModelIdForProvider(resolvedModelId, provider.provider)
+  const isClaudeModel = upstreamModelId.toLowerCase().includes('claude')
+  // Anthropic's native `/v1/messages` endpoint requires a top-level `system`
+  // field and disallows the `system` role inside `messages`. Every other
+  // OpenAI-compatible endpoint (incl. AiHubMix's `/v1/chat/completions`,
+  // OpenRouter, etc.) takes the standard OpenAI shape with system messages
+  // staying in the array. Switch shape based on the endpoint, not the model.
+  const isAnthropicNativeEndpoint = /\/messages\/?$/.test(provider.chatCompletionsUrl)
 
   let outgoingMessages: OpenAiMessage[] = messages
   let topLevelSystem: string | null = null
 
-  if (!isOpenRouter && isClaudeModel) {
+  if (isAnthropicNativeEndpoint && isClaudeModel) {
     const systemContents = messages
       .filter((message) => message.role === 'system')
       .map((message) => message.content)
@@ -176,7 +241,7 @@ const buildProviderRequestPayload = (
   }
 
   const basePayload: Record<string, unknown> = {
-    model: resolvedModelId,
+    model: upstreamModelId,
     messages: outgoingMessages,
     temperature,
     top_p,
