@@ -129,6 +129,18 @@ const resolveReasoningPayload = (reasoning: OpenRouterPayload['reasoning']) => {
   return null
 }
 
+type RuntimeProviderConfig = {
+  provider: string
+  chatCompletionsUrl: string
+  apiKey: string
+}
+
+type ActiveProviderRow = {
+  name: string | null
+  base_url: string | null
+  secret_name: string | null
+}
+
 const flattenOpenRouterTextParts = (value: unknown): string => {
   if (typeof value === 'string') {
     return value
@@ -306,6 +318,39 @@ const buildSupabaseServiceRoleClient = () => {
   }
 
   return createClient(supabaseUrl, serviceRoleKey)
+}
+
+const resolveActiveProviderConfig = async (userId: string): Promise<RuntimeProviderConfig | null> => {
+  const supabase = buildSupabaseServiceRoleClient()
+  const { data, error } = await supabase
+    .from('llm_providers')
+    .select('name,base_url,secret_name')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .order('priority', { ascending: true })
+    .limit(1)
+    .maybeSingle<ActiveProviderRow>()
+  if (error || !data) {
+    return null
+  }
+  const baseUrl = data.base_url?.trim() ?? ''
+  const secretName = data.secret_name?.trim() ?? ''
+  if (!baseUrl || !secretName) {
+    return null
+  }
+  const apiKey = Deno.env.get(secretName) ?? ''
+  if (!apiKey) {
+    return {
+      provider: data.name?.trim() || 'custom',
+      chatCompletionsUrl: `${baseUrl.replace(/\/+$/, '')}/chat/completions`,
+      apiKey: '',
+    }
+  }
+  return {
+    provider: data.name?.trim() || 'custom',
+    chatCompletionsUrl: `${baseUrl.replace(/\/+$/, '')}/chat/completions`,
+    apiKey,
+  }
 }
 
 const fetchCompressionCache = async (
@@ -521,7 +566,7 @@ const fetchRpSessionCompressionSettings = async (
 }
 
 const summarizeCompressedWindow = async (
-  apiKey: string,
+  provider: RuntimeProviderConfig,
   summarizerModel: string,
   existingSummary: string,
   newMessages: StoredMessageRow[],
@@ -539,10 +584,10 @@ const summarizeCompressedWindow = async (
     .filter(Boolean)
     .join('\n\n')
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const response = await fetch(provider.chatCompletionsUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -571,7 +616,7 @@ const maybeCompressRuntimeContext = async (
   reqUrl: string,
   authHeader: string,
   apiKeyHeader: string,
-  openRouterApiKey: string,
+  provider: RuntimeProviderConfig,
   userId: string,
 ): Promise<RuntimeCompressionResult> => {
   const compressionModule = resolveCompressionModule(payload)
@@ -725,7 +770,7 @@ const maybeCompressRuntimeContext = async (
       const newCompressibleMessages = fullHistory.slice(newChunkStart, refreshBoundaryIndex + 1)
       if (newCompressibleMessages.length > 0) {
         const refreshedSummary = await summarizeCompressedWindow(
-          openRouterApiKey,
+          provider,
           summarizerModel,
           summaryText,
           newCompressibleMessages,
@@ -935,8 +980,14 @@ serve(async (req) => {
     })
   }
 
-  const apiKey = Deno.env.get('OPENROUTER_API_KEY')
-  if (!apiKey) {
+  const activeProvider = userId ? await resolveActiveProviderConfig(userId) : null
+  const runtimeProvider: RuntimeProviderConfig = activeProvider ?? {
+    provider: 'openrouter',
+    chatCompletionsUrl: 'https://openrouter.ai/api/v1/chat/completions',
+    apiKey: Deno.env.get('OPENROUTER_API_KEY') ?? '',
+  }
+
+  if (!runtimeProvider.apiKey) {
     return new Response(JSON.stringify({ error: '服务未配置' }), {
       status: 500,
       headers: {
@@ -982,7 +1033,7 @@ serve(async (req) => {
       req.url,
       authHeader,
       apiKeyHeader,
-      apiKey,
+      runtimeProvider,
       userId,
     )
     messages = compressionResult.messages
@@ -1010,10 +1061,10 @@ serve(async (req) => {
   }
 
   try {
-    const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const upstream = await fetch(runtimeProvider.chatCompletionsUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${runtimeProvider.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

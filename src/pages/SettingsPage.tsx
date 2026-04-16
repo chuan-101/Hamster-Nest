@@ -24,6 +24,17 @@ import {
   getPushSupportStatus,
   type NotificationPermissionState,
 } from '../lib/pushNotifications'
+import {
+  createLlmProvider,
+  deleteProviderAndModels,
+  disableModelForProvider,
+  enableModelForProvider,
+  fetchEnabledModelsForProvider,
+  fetchLlmProviders,
+  type LlmProvider,
+  setActiveProvider,
+  setDefaultModelForProvider,
+} from '../storage/llmProviders'
 
 type OpenRouterModel = {
   id: string
@@ -176,6 +187,13 @@ const SettingsPage = ({
     actionStatus: 'idle',
     error: null,
   })
+  const [providers, setProviders] = useState<LlmProvider[]>([])
+  const [providerStatus, setProviderStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [providerError, setProviderError] = useState<string | null>(null)
+  const [newProviderName, setNewProviderName] = useState('')
+  const [newProviderDisplayName, setNewProviderDisplayName] = useState('')
+  const [newProviderBaseUrl, setNewProviderBaseUrl] = useState('')
+  const [newProviderSecretName, setNewProviderSecretName] = useState('')
   const [errors, setErrors] = useState<{ temperature?: string; topP?: string; maxTokens?: string; compressionRatio?: string; compressionKeepRecent?: string }>(
     {},
   )
@@ -200,8 +218,6 @@ const SettingsPage = ({
       setTemperatureInput(settings.temperature.toString())
       setTopPInput(settings.topP.toString())
       setMaxTokensInput(settings.maxTokens.toString())
-      setDraftEnabledModels(settings.enabledModels)
-      setDraftDefaultModel(settings.defaultModel)
       setCompressionEnabled(settings.compressionEnabled)
       setCompressionRatioInput(settings.compressionTriggerRatio.toString())
       setCompressionKeepRecentInput(settings.compressionKeepRecentMessages.toString())
@@ -423,7 +439,39 @@ const SettingsPage = ({
   }, [user])
 
   useEffect(() => {
-    if (!user || !supabase) {
+    if (!user) {
+      return
+    }
+    let active = true
+    const loadProviders = async () => {
+      try {
+        const rows = await fetchLlmProviders(user.id)
+        if (!active) {
+          return
+        }
+        setProviders(rows)
+      } catch (error) {
+        if (!active) {
+          return
+        }
+        console.warn('加载 Provider 失败', error)
+        setProviderError('加载 Provider 失败')
+      }
+    }
+    void loadProviders()
+    return () => {
+      active = false
+    }
+  }, [user])
+
+  const activeProvider = useMemo(
+    () => providers.find((item) => item.active) ?? providers[0] ?? null,
+    [providers],
+  )
+
+  useEffect(() => {
+    const client = supabase
+    if (!user || !client || !activeProvider) {
       return
     }
     let active = true
@@ -431,33 +479,43 @@ const SettingsPage = ({
       setCatalogStatus('loading')
       setCatalogError(null)
     }, 0)
-    supabase.functions
-      .invoke('openrouter-models')
-      .then(({ data, error }) => {
+
+    const loadCatalogAndEnabled = async () => {
+      try {
+        const [{ data, error }, enabledRows] = await Promise.all([
+          client.functions.invoke('openrouter-models', { body: { provider_id: activeProvider.id } }),
+          fetchEnabledModelsForProvider(user.id, activeProvider.id),
+        ])
         if (!active) {
           return
         }
         if (error) {
           setCatalogStatus('error')
-          setCatalogError('无法加载 OpenRouter 模型库')
-          return
+          setCatalogError('无法加载模型库')
+        } else {
+          const models = (data?.models ?? []) as OpenRouterModel[]
+          setCatalog(models)
+          setCatalogStatus('idle')
         }
-        const models = (data?.models ?? []) as OpenRouterModel[]
-        setCatalog(models)
-        setCatalogStatus('idle')
-      })
-      .catch(() => {
+        setDraftEnabledModels(enabledRows.map((row) => row.modelId))
+        setDraftDefaultModel(enabledRows.find((row) => row.isDefault)?.modelId ?? enabledRows[0]?.modelId ?? defaultModelId)
+      } catch (error) {
         if (!active) {
           return
         }
+        console.warn('加载模型库失败', error)
         setCatalogStatus('error')
-        setCatalogError('无法加载 OpenRouter 模型库')
-      })
+        setCatalogError('无法加载模型库')
+      }
+    }
+
+    void loadCatalogAndEnabled()
+
     return () => {
       active = false
       window.clearTimeout(timer)
     }
-  }, [user])
+  }, [activeProvider, user])
 
   const catalogMap = useMemo(() => {
     return new Map(catalog.map((model) => [model.id, model.name ?? model.id]))
@@ -505,10 +563,7 @@ const SettingsPage = ({
   const compressionKeepRecentValid = !Number.isNaN(parsedCompressionKeepRecent) && parsedCompressionKeepRecent >= 1 && parsedCompressionKeepRecent <= 200
   const generationDraftValid = temperatureValid && topPValid && maxTokensValid && compressionRatioValid && compressionKeepRecentValid
 
-  const hasUnsavedModelSettings = settings
-    ? settings.defaultModel !== draftDefaultModel ||
-      settings.enabledModels.join('|') !== draftEnabledModels.join('|')
-    : false
+  const hasUnsavedModelSettings = false
 
   const hasUnsavedGeneration = settings
     ? settings.temperature !== parsedTemperature ||
@@ -574,66 +629,157 @@ const SettingsPage = ({
     }
   }, [hasUnsavedPrompt])
 
-  const handleDisableModel = () => {
-    if (!settings || !pendingDisable) {
+  const handleDisableModel = async () => {
+    if (!user || !activeProvider || !pendingDisable) {
       return
     }
     const modelId = pendingDisable
-    const nextEnabled = draftEnabledModels.filter((id) => id !== modelId)
-    const nextDefault = draftDefaultModel === modelId ? nextEnabled[0] ?? defaultModelId : draftDefaultModel
-    setDraftEnabledModels(nextEnabled)
-    setDraftDefaultModel(nextDefault)
-    setModelStatus('idle')
-    setPendingDisable(null)
+    setModelStatus('saving')
+    setModelError(null)
+    try {
+      await disableModelForProvider(user.id, activeProvider.id, modelId)
+      const nextEnabled = draftEnabledModels.filter((id) => id !== modelId)
+      const nextDefault = draftDefaultModel === modelId ? nextEnabled[0] ?? defaultModelId : draftDefaultModel
+      setDraftEnabledModels(nextEnabled)
+      setDraftDefaultModel(nextDefault)
+      if (nextDefault) {
+        await setDefaultModelForProvider(user.id, activeProvider.id, nextDefault)
+      }
+      setModelStatus('saved')
+    } catch (error) {
+      console.warn('停用模型失败', error)
+      setModelStatus('error')
+      setModelError('停用失败，请稍后重试。')
+    } finally {
+      setPendingDisable(null)
+    }
   }
 
-  const handleEnableModel = (modelId: string, setDefault: boolean) => {
-    if (!settings) {
-      return
-    }
-    const alreadyEnabled = draftEnabledModels.includes(modelId)
-    const nextEnabled = alreadyEnabled ? draftEnabledModels : [...draftEnabledModels, modelId]
-    const nextDefault = setDefault ? modelId : draftDefaultModel || (alreadyEnabled ? draftDefaultModel : modelId)
-    setDraftEnabledModels(nextEnabled)
-    setDraftDefaultModel(nextDefault)
-    setModelStatus('idle')
-  }
-
-  const handleSetDefault = (modelId: string) => {
-    if (!settings) {
-      return
-    }
-    const nextEnabled = draftEnabledModels.includes(modelId)
-      ? draftEnabledModels
-      : [...draftEnabledModels, modelId]
-    setDraftEnabledModels(nextEnabled)
-    setDraftDefaultModel(modelId)
-    setModelStatus('idle')
-  }
-
-  const handleSaveModelSettings = async () => {
-    if (!settings || !hasUnsavedModelSettings) {
-      return
-    }
-    const nextEnabledModels = draftEnabledModels.includes(draftDefaultModel)
-      ? draftEnabledModels
-      : [...draftEnabledModels, draftDefaultModel]
-    const nextSettings = buildNextSettings({
-      enabledModels: nextEnabledModels,
-      defaultModel: draftDefaultModel,
-    })
-    if (!nextSettings) {
+  const handleEnableModel = async (modelId: string, modelName: string, setDefault: boolean) => {
+    if (!user || !activeProvider) {
       return
     }
     setModelStatus('saving')
     setModelError(null)
     try {
-      await onSaveSettings(nextSettings)
+      await enableModelForProvider(user.id, activeProvider.id, modelId, modelName || modelId)
+      const alreadyEnabled = draftEnabledModels.includes(modelId)
+      const nextEnabled = alreadyEnabled ? draftEnabledModels : [...draftEnabledModels, modelId]
+      const nextDefault = setDefault ? modelId : draftDefaultModel || modelId
+      setDraftEnabledModels(nextEnabled)
+      setDraftDefaultModel(nextDefault)
+      if (setDefault || !draftDefaultModel) {
+        await setDefaultModelForProvider(user.id, activeProvider.id, nextDefault)
+      }
       setModelStatus('saved')
     } catch (error) {
-      console.warn('保存模型库设置失败', error)
+      console.warn('启用模型失败', error)
       setModelStatus('error')
-      setModelError('保存失败，请稍后重试。')
+      setModelError('启用失败，请稍后重试。')
+    }
+  }
+
+  const handleSetDefault = async (modelId: string) => {
+    if (!user || !activeProvider) {
+      return
+    }
+    const nextEnabled = draftEnabledModels.includes(modelId) ? draftEnabledModels : [...draftEnabledModels, modelId]
+    setModelStatus('saving')
+    setModelError(null)
+    try {
+      if (!draftEnabledModels.includes(modelId)) {
+        await enableModelForProvider(user.id, activeProvider.id, modelId, modelId)
+      }
+      await setDefaultModelForProvider(user.id, activeProvider.id, modelId)
+      setDraftEnabledModels(nextEnabled)
+      setDraftDefaultModel(modelId)
+      setModelStatus('saved')
+    } catch (error) {
+      console.warn('设置默认模型失败', error)
+      setModelStatus('error')
+      setModelError('设置默认失败，请稍后重试。')
+    }
+  }
+
+  const handleSaveModelSettings = async () => {
+    if (!user || !activeProvider) {
+      return
+    }
+    setModelStatus('saving')
+    setModelError(null)
+    try {
+      const enabledRows = await fetchEnabledModelsForProvider(user.id, activeProvider.id)
+      setDraftEnabledModels(enabledRows.map((row) => row.modelId))
+      setDraftDefaultModel(enabledRows.find((row) => row.isDefault)?.modelId ?? enabledRows[0]?.modelId ?? defaultModelId)
+      setModelStatus('saved')
+    } catch (error) {
+      console.warn('刷新模型库失败', error)
+      setModelStatus('error')
+      setModelError('刷新失败，请稍后重试。')
+    }
+  }
+
+  const handleCreateProvider = async () => {
+    if (!user) {
+      return
+    }
+    const name = newProviderName.trim()
+    const displayName = newProviderDisplayName.trim()
+    const baseUrl = newProviderBaseUrl.trim()
+    const secretName = newProviderSecretName.trim()
+    if (!name || !displayName || !baseUrl || !secretName) {
+      setProviderStatus('error')
+      setProviderError('请完整填写 provider 信息。')
+      return
+    }
+    setProviderStatus('saving')
+    setProviderError(null)
+    try {
+      const created = await createLlmProvider(user.id, { name, displayName, baseUrl, secretName })
+      setProviders((current) => [...current, created])
+      setNewProviderName('')
+      setNewProviderDisplayName('')
+      setNewProviderBaseUrl('')
+      setNewProviderSecretName('')
+      setProviderStatus('saved')
+    } catch (error) {
+      console.warn('新建 Provider 失败', error)
+      setProviderStatus('error')
+      setProviderError('新建 Provider 失败，请稍后重试。')
+    }
+  }
+
+  const handleToggleProviderActive = async (providerId: string) => {
+    if (!user) {
+      return
+    }
+    setProviderStatus('saving')
+    setProviderError(null)
+    try {
+      await setActiveProvider(user.id, providerId)
+      setProviders((current) => current.map((item) => ({ ...item, active: item.id === providerId })))
+      setProviderStatus('saved')
+    } catch (error) {
+      console.warn('切换 Provider 失败', error)
+      setProviderStatus('error')
+      setProviderError('切换 Provider 失败，请稍后重试。')
+    }
+  }
+
+  const handleDeleteProvider = async (providerId: string) => {
+    if (!user) {
+      return
+    }
+    setProviderStatus('saving')
+    setProviderError(null)
+    try {
+      await deleteProviderAndModels(user.id, providerId)
+      setProviders((current) => current.filter((item) => item.id !== providerId))
+      setProviderStatus('saved')
+    } catch (error) {
+      console.warn('删除 Provider 失败', error)
+      setProviderStatus('error')
+      setProviderError('删除 Provider 失败，请稍后重试。')
     }
   }
 
@@ -966,8 +1112,6 @@ const SettingsPage = ({
       setTemperatureInput(settings.temperature.toString())
       setTopPInput(settings.topP.toString())
       setMaxTokensInput(settings.maxTokens.toString())
-      setDraftEnabledModels(settings.enabledModels)
-      setDraftDefaultModel(settings.defaultModel)
       setDraftMemoryExtractModel(settings.memoryExtractModel)
       setDraftChatReasoning(settings.chatReasoningEnabled)
       setDraftRpReasoning(settings.rpReasoningEnabled)
@@ -1747,6 +1891,51 @@ const SettingsPage = ({
         </button>
         {modelSectionExpanded ? (
           <div className="accordion-content">
+            <div className="section-title nested-prompt-title">
+              <h2 className="ui-title">API Provider</h2>
+              <p>管理 Provider。API Key 请在 Supabase Dashboard → Edge Functions → Secrets 中配置。</p>
+            </div>
+            <div className="catalog-dropdown">
+              {providers.length === 0 ? <div className="catalog-empty">暂无 Provider 记录。</div> : null}
+              <ul className="catalog-results">
+                {providers.map((provider) => (
+                  <li key={provider.id} className="catalog-result-item">
+                    <div className="catalog-meta">
+                      <strong>{provider.displayName}</strong>
+                      <span className="model-id">{provider.baseUrl}</span>
+                      <span className="model-id">Secret: {provider.secretName}</span>
+                      <span className="context-length">{provider.active ? 'active' : 'inactive'}</span>
+                    </div>
+                    <div className="catalog-actions">
+                      <button type="button" className="ghost" onClick={() => void handleToggleProviderActive(provider.id)}>
+                        设为 active
+                      </button>
+                      <button type="button" className="ghost danger" onClick={() => void handleDeleteProvider(provider.id)}>
+                        删除
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="field-group">
+              <label>新增 Provider（name / display_name / base_url / secret_name）</label>
+              <input value={newProviderName} onChange={(event) => setNewProviderName(event.target.value)} placeholder="name (如 aihubmix)" />
+              <input value={newProviderDisplayName} onChange={(event) => setNewProviderDisplayName(event.target.value)} placeholder="display_name" />
+              <input value={newProviderBaseUrl} onChange={(event) => setNewProviderBaseUrl(event.target.value)} placeholder="base_url (含 /v1)" />
+              <input value={newProviderSecretName} onChange={(event) => setNewProviderSecretName(event.target.value)} placeholder="secret_name (如 AIHUBMIX_API_KEY)" />
+              <p className="settings-helper-text">
+                新建后请在 Supabase Dashboard → Edge Functions → Secrets 中添加同名 secret：{newProviderSecretName || '{secret_name}'}。
+              </p>
+              <div className="system-prompt-actions">
+                <button type="button" className="primary" onClick={() => void handleCreateProvider()} disabled={providerStatus === 'saving'}>
+                  {providerStatus === 'saving' ? '处理中…' : '新建 Provider'}
+                </button>
+                {providerStatus === 'saved' ? <span className="system-prompt-status">已更新</span> : null}
+                {providerStatus === 'error' && providerError ? <span className="field-error">{providerError}</span> : null}
+              </div>
+            </div>
+
             {draftEnabledModels.length === 0 ? (
               <div className="empty-state">暂无启用模型，请从下方模型库启用。</div>
             ) : (
@@ -1756,7 +1945,7 @@ const SettingsPage = ({
                   <select
                     id="enabled-models"
                     value={selectedModelId}
-                    onChange={(event) => handleSetDefault(event.target.value)}
+                    onChange={(event) => void handleSetDefault(event.target.value)}
                   >
                     {draftEnabledModels.map((modelId) => (
                       <option key={modelId} value={modelId}>
@@ -1767,10 +1956,10 @@ const SettingsPage = ({
                   <button
                     type="button"
                     className="ghost danger small"
-                    onClick={() => setPendingDisable(selectedModelId)}
-                  >
-                    停用
-                  </button>
+                  onClick={() => setPendingDisable(selectedModelId)}
+                >
+                  停用
+                </button>
                 </div>
                 <div className="model-selected-meta">
                   <strong>{catalogMap.get(selectedModelId) ?? selectedModelId}</strong>
@@ -1780,7 +1969,7 @@ const SettingsPage = ({
             )}
 
             <div className="section-title nested-prompt-title">
-              <h2 className="ui-title">OpenRouter 模型库</h2>
+              <h2 className="ui-title">{activeProvider ? `${activeProvider.displayName} 模型库` : '模型库'}</h2>
               <p>搜索并启用你想使用的模型。</p>
             </div>
             <input
@@ -1820,7 +2009,7 @@ const SettingsPage = ({
                           {enabled ? (
                             <span className="badge subtle">已启用</span>
                           ) : (
-                            <button type="button" onClick={() => handleEnableModel(model.id, false)}>
+                            <button type="button" onClick={() => void handleEnableModel(model.id, model.name ?? model.id, false)}>
                               启用
                             </button>
                           )}
@@ -1840,11 +2029,10 @@ const SettingsPage = ({
                 type="button"
                 className="primary"
                 onClick={() => void handleSaveModelSettings()}
-                disabled={!hasUnsavedModelSettings || modelStatus === 'saving'}
+                disabled={modelStatus === 'saving'}
               >
-                {modelStatus === 'saving' ? '保存中…' : '保存'}
+                {modelStatus === 'saving' ? '保存中…' : '刷新'}
               </button>
-              {hasUnsavedModelSettings ? <span className="system-prompt-status">有未保存修改</span> : null}
               {modelStatus === 'saved' ? <span className="system-prompt-status">已保存</span> : null}
               {modelStatus === 'error' ? <span className="field-error">{modelError}</span> : null}
             </div>
