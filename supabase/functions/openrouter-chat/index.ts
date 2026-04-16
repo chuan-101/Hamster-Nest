@@ -209,25 +209,39 @@ const normalizeModelIdForProvider = (modelId: string, providerName: string): str
   return normalized
 }
 
+const normalizeProviderName = (providerName: string | null | undefined) =>
+  providerName?.trim().toLowerCase() ?? ''
+
+const isClaudeModelId = (modelId: string) => modelId.toLowerCase().includes('claude')
+
+const isGpt5FamilyModelId = (modelId: string) => /^gpt-5(?:[.-]|$)/i.test(modelId)
+
 const buildProviderRequestPayload = (
   provider: RuntimeProviderConfig,
   options: BuildProviderRequestOptions,
 ): Record<string, unknown> => {
   const { resolvedModelId, messages, temperature, top_p, max_tokens, reasoning, stream } = options
-  const isOpenRouter = provider.provider === 'openrouter'
+  const normalizedProviderName = normalizeProviderName(provider.provider)
+  const isOpenRouter = normalizedProviderName === 'openrouter'
+  const isAiHubMix = normalizedProviderName === 'aihubmix'
   const upstreamModelId = normalizeModelIdForProvider(resolvedModelId, provider.provider)
-  const isClaudeModel = upstreamModelId.toLowerCase().includes('claude')
+  const isClaudeModel = isClaudeModelId(upstreamModelId)
+  const isGpt5Family = isGpt5FamilyModelId(upstreamModelId)
   // Anthropic's native `/v1/messages` endpoint requires a top-level `system`
-  // field and disallows the `system` role inside `messages`. Every other
-  // OpenAI-compatible endpoint (incl. AiHubMix's `/v1/chat/completions`,
-  // OpenRouter, etc.) takes the standard OpenAI shape with system messages
-  // staying in the array. Switch shape based on the endpoint, not the model.
+  // field and disallows the `system` role inside `messages`.
+  //
+  // AiHubMix's Claude OpenAI-compatible bridge should perform this hoisting on
+  // its side, but current behavior can leak `system` through to Anthropic and
+  // trigger `Unexpected role "system"`. Work around that here by proactively
+  // hoisting `system` for Claude on AiHubMix as well.
   const isAnthropicNativeEndpoint = /\/messages\/?$/.test(provider.chatCompletionsUrl)
+  const shouldHoistSystemToTopLevel = isClaudeModel
+    && (isAnthropicNativeEndpoint || (isAiHubMix && /\/chat\/completions\/?$/.test(provider.chatCompletionsUrl)))
 
   let outgoingMessages: OpenAiMessage[] = messages
   let topLevelSystem: string | null = null
 
-  if (isAnthropicNativeEndpoint && isClaudeModel) {
+  if (shouldHoistSystemToTopLevel) {
     const systemContents = messages
       .filter((message) => message.role === 'system')
       .map((message) => message.content)
@@ -236,17 +250,32 @@ const buildProviderRequestPayload = (
       (message) => message.role === 'user' || message.role === 'assistant',
     )
     if (systemContents.length > 0) {
-      topLevelSystem = systemContents.join('\n\n')
+      topLevelSystem = systemContents.join('\n')
     }
   }
 
   const basePayload: Record<string, unknown> = {
     model: upstreamModelId,
     messages: outgoingMessages,
-    temperature,
-    top_p,
-    max_tokens,
     stream,
+  }
+
+  if (isAiHubMix && isGpt5Family) {
+    if (max_tokens !== undefined) {
+      basePayload.max_completion_tokens = max_tokens
+    }
+    // AiHubMix documents GPT-5 as a reasoning-oriented family with
+    // temperature/top_p no longer supported on the standard path.
+  } else {
+    if (temperature !== undefined) {
+      basePayload.temperature = temperature
+    }
+    if (top_p !== undefined) {
+      basePayload.top_p = top_p
+    }
+    if (max_tokens !== undefined) {
+      basePayload.max_tokens = max_tokens
+    }
   }
 
   if (isOpenRouter) {
@@ -300,6 +329,23 @@ const extractOpenRouterContent = (payload: Record<string, unknown>): string => {
   const outputParts = flattenOpenRouterTextParts(payload.output)
   const candidate = [messageContent, choiceText, outputText, outputParts].find((item) => item.trim())
   return (candidate ?? '').trim()
+}
+
+const buildUpstreamHeaders = (
+  provider: RuntimeProviderConfig,
+  resolvedModelId: string,
+): Record<string, string> => {
+  const upstreamModelId = normalizeModelIdForProvider(resolvedModelId, provider.provider)
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${provider.apiKey}`,
+    'Content-Type': 'application/json',
+  }
+
+  if (normalizeProviderName(provider.provider) === 'aihubmix' && isGpt5FamilyModelId(upstreamModelId)) {
+    headers['X-Use-Responses-Enabled'] = 'true'
+  }
+
+  return headers
 }
 
 const shouldInjectSyzygyFeedMemory = (payload: OpenRouterPayload) => payload.module === 'syzygy-feed'
@@ -708,10 +754,7 @@ const summarizeCompressedWindow = async (
 
   const response = await fetch(provider.chatCompletionsUrl, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${provider.apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: buildUpstreamHeaders(provider, summarizerModel),
     body: JSON.stringify(
       buildProviderRequestPayload(provider, {
         resolvedModelId: summarizerModel,
@@ -1189,10 +1232,7 @@ serve(async (req) => {
   try {
     const upstream = await fetch(runtimeProvider.chatCompletionsUrl, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${runtimeProvider.apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: buildUpstreamHeaders(runtimeProvider, resolvedModelId),
       body: JSON.stringify(
         buildProviderRequestPayload(runtimeProvider, {
           resolvedModelId,
