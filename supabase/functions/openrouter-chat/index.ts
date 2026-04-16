@@ -141,6 +141,63 @@ type ActiveProviderRow = {
   secret_name: string | null
 }
 
+type BuildProviderRequestOptions = {
+  resolvedModelId: string
+  messages: OpenAiMessage[]
+  temperature: number | undefined
+  top_p: number | undefined
+  max_tokens: number | undefined
+  reasoning: OpenRouterPayload['reasoning']
+  stream: boolean
+}
+
+const buildProviderRequestPayload = (
+  provider: RuntimeProviderConfig,
+  options: BuildProviderRequestOptions,
+): Record<string, unknown> => {
+  const { resolvedModelId, messages, temperature, top_p, max_tokens, reasoning, stream } = options
+  const isOpenRouter = provider.provider === 'openrouter'
+  const isClaudeModel = resolvedModelId.toLowerCase().includes('claude')
+
+  let outgoingMessages: OpenAiMessage[] = messages
+  let topLevelSystem: string | null = null
+
+  if (!isOpenRouter && isClaudeModel) {
+    const systemContents = messages
+      .filter((message) => message.role === 'system')
+      .map((message) => message.content)
+      .filter((content) => content.length > 0)
+    outgoingMessages = messages.filter(
+      (message) => message.role === 'user' || message.role === 'assistant',
+    )
+    if (systemContents.length > 0) {
+      topLevelSystem = systemContents.join('\n\n')
+    }
+  }
+
+  const basePayload: Record<string, unknown> = {
+    model: resolvedModelId,
+    messages: outgoingMessages,
+    temperature,
+    top_p,
+    max_tokens,
+    stream,
+  }
+
+  if (isOpenRouter) {
+    const reasoningPayload = resolveReasoningPayload(reasoning)
+    if (reasoningPayload) {
+      basePayload.reasoning = reasoningPayload
+    }
+  }
+
+  if (topLevelSystem !== null) {
+    basePayload.system = topLevelSystem
+  }
+
+  return basePayload
+}
+
 const flattenOpenRouterTextParts = (value: unknown): string => {
   if (typeof value === 'string') {
     return value
@@ -590,16 +647,20 @@ const summarizeCompressedWindow = async (
       Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: summarizerModel,
-      stream: false,
-      max_tokens: 550,
-      temperature: 0.2,
-      messages: [
-        { role: 'system', content: '你负责维护对话运行时摘要。只输出最终摘要文本。' },
-        { role: 'user', content: prompt },
-      ],
-    }),
+    body: JSON.stringify(
+      buildProviderRequestPayload(provider, {
+        resolvedModelId: summarizerModel,
+        messages: [
+          { role: 'system', content: '你负责维护对话运行时摘要。只输出最终摘要文本。' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.2,
+        top_p: undefined,
+        max_tokens: 550,
+        reasoning: undefined,
+        stream: false,
+      }),
+    ),
   })
   if (!response.ok) {
     throw new Error('summarizer failed')
@@ -1067,15 +1128,17 @@ serve(async (req) => {
         Authorization: `Bearer ${runtimeProvider.apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: resolvedModelId,
-        messages,
-        temperature,
-        top_p,
-        max_tokens,
-        ...(resolveReasoningPayload(reasoning) ? { reasoning: resolveReasoningPayload(reasoning) } : {}),
-        stream,
-      }),
+      body: JSON.stringify(
+        buildProviderRequestPayload(runtimeProvider, {
+          resolvedModelId,
+          messages,
+          temperature,
+          top_p,
+          max_tokens,
+          reasoning,
+          stream,
+        }),
+      ),
     })
 
     if (!upstream.ok) {
