@@ -266,6 +266,17 @@ const buildProviderRequestPayload = (
     }
     // AiHubMix documents GPT-5 as a reasoning-oriented family with
     // temperature/top_p no longer supported on the standard path.
+  } else if (isAiHubMix && isClaudeModel) {
+    // AiHubMix's Claude bridge enforces Anthropic Messages API semantics,
+    // which forbid specifying both `temperature` and `top_p` in the same
+    // request. Prefer `temperature` (the more commonly set control) and
+    // drop `top_p` to avoid the `invalid_request_error`.
+    if (temperature !== undefined) {
+      basePayload.temperature = temperature
+    }
+    if (max_tokens !== undefined) {
+      basePayload.max_tokens = max_tokens
+    }
   } else {
     if (temperature !== undefined) {
       basePayload.temperature = temperature
