@@ -11,6 +11,7 @@ import {
   markLetterAsRead,
 } from '../storage/supabaseSync'
 import { ensureUserSettings } from '../storage/userSettings'
+import { fetchActiveProviderModelConfig } from '../storage/llmProviders'
 import { formatLocalTimestamp } from '../utils/time'
 import './LettersPage.css'
 import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
@@ -146,11 +147,14 @@ const LettersPage = ({
         if (error || !data.user) {
           return
         }
-        const settings = await ensureUserSettings(data.user.id)
+        const [settings, providerModels] = await Promise.all([
+          ensureUserSettings(data.user.id),
+          fetchActiveProviderModelConfig(data.user.id),
+        ])
         if (!active) {
           return
         }
-        setDefaultModelId(settings.defaultModel.trim() || 'openrouter/auto')
+        setDefaultModelId(providerModels.defaultModelId?.trim() || settings.defaultModel.trim() || 'openrouter/auto')
       } catch (settingsError) {
         console.warn('加载默认模型失败', settingsError)
       }
@@ -203,13 +207,14 @@ const LettersPage = ({
         throw new Error('登录状态异常')
       }
 
-      const [settings, memoryContext] = await Promise.all([
+      const [settings, memoryContext, providerModels] = await Promise.all([
         ensureUserSettings(user.id),
         buildMemoryContext(),
+        fetchActiveProviderModelConfig(user.id),
       ])
       const appSystemPrompt = settings.systemPrompt.trim()
       const letterReplyPrompt = settings.letterReplySystemPrompt.trim()
-      const modelId = settings.defaultModel.trim() || 'openrouter/auto'
+      const modelId = providerModels.defaultModelId?.trim() || settings.defaultModel.trim() || 'openrouter/auto'
       setDefaultModelId(modelId)
 
       const messages = await maybeInjectTimelineContext(

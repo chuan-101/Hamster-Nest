@@ -3,6 +3,7 @@ import { supabase } from '../supabase/client'
 import type { MemoryEntry } from '../types'
 import { ensureUserSettings } from '../storage/userSettings'
 import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
+import { fetchActiveProviderModelConfig } from '../storage/llmProviders'
 
 export const FORUM_AI_SLOTS = [1, 2, 3] as const
 export const FORUM_USER_DISPLAY_NAME = '串串'
@@ -525,8 +526,11 @@ export const loadForumGlobalAiConfig = async (): Promise<ForumGlobalAiConfig> =>
     throw error ?? new Error('登录状态异常')
   }
   const settings = await ensureUserSettings(user.id)
-  const defaultModelId = settings.defaultModel?.trim() || DEFAULT_MODEL
-  const enabled = Array.from(new Set([...settings.enabledModels, defaultModelId]))
+  const providerModels = await fetchActiveProviderModelConfig(user.id)
+  const defaultModelId = providerModels.defaultModelId?.trim() || settings.defaultModel?.trim() || DEFAULT_MODEL
+  const enabled = providerModels.enabledModelIds.length > 0
+    ? Array.from(new Set([...providerModels.enabledModelIds, defaultModelId]))
+    : Array.from(new Set([...settings.enabledModels, defaultModelId]))
   return {
     defaultModelId,
     enabledModelIds: enabled,

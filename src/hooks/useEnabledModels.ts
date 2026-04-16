@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { ensureUserSettings } from '../storage/userSettings'
-import { supabase } from '../supabase/client'
-
-type OpenRouterModel = {
-  id: string
-  name?: string
-}
+import { fetchEnabledModelsWithProviders, fetchLlmProviders } from '../storage/llmProviders'
 
 export type EnabledModelOption = {
   id: string
@@ -15,7 +9,8 @@ export type EnabledModelOption = {
 
 export const useEnabledModels = (user: User | null) => {
   const [enabledModelIds, setEnabledModelIds] = useState<string[]>([])
-  const [catalog, setCatalog] = useState<OpenRouterModel[]>([])
+  const [enabledModelOptions, setEnabledModelOptions] = useState<EnabledModelOption[]>([])
+  const [defaultModelId, setDefaultModelId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -25,62 +20,56 @@ export const useEnabledModels = (user: User | null) => {
       }
     }
 
-    ensureUserSettings(user.id).then((settings) => {
-      if (!active) {
-        return
+    const load = async () => {
+      try {
+        const providers = await fetchLlmProviders(user.id)
+        const activeProvider = providers.find((item) => item.active) ?? providers[0] ?? null
+        if (!activeProvider) {
+          if (!active) return
+          setEnabledModelIds([])
+          setEnabledModelOptions([])
+          setDefaultModelId(null)
+          return
+        }
+
+        const rows = await fetchEnabledModelsWithProviders(user.id)
+        const scoped = rows.filter((item) => item.providerId === activeProvider.id)
+        const ids = scoped.map((item) => item.modelId)
+        const options = scoped.map((item) => ({
+          id: item.modelId,
+          label: `${item.displayName || item.modelId} (via ${item.providerDisplayName})`,
+        }))
+        const defaultRow = scoped.find((item) => item.isDefault) ?? scoped[0] ?? null
+        if (!active) {
+          return
+        }
+        setEnabledModelIds(ids)
+        setEnabledModelOptions(options)
+        setDefaultModelId(defaultRow?.modelId ?? null)
+      } catch {
+        if (!active) {
+          return
+        }
+        setEnabledModelIds([])
+        setEnabledModelOptions([])
+        setDefaultModelId(null)
       }
-      setEnabledModelIds(settings.enabledModels)
-    })
+    }
+
+    void load()
 
     return () => {
       active = false
     }
   }, [user])
-
-  useEffect(() => {
-    let active = true
-    if (!user || !supabase) {
-      return () => {
-        active = false
-      }
-    }
-
-    supabase.functions
-      .invoke<{ data?: OpenRouterModel[] }>('openrouter-models', { body: {} })
-      .then(({ data }) => {
-        if (!active) {
-          return
-        }
-        const models = Array.isArray(data?.data) ? data.data : []
-        setCatalog(models)
-      })
-      .catch(() => {
-        if (!active) {
-          return
-        }
-        setCatalog([])
-      })
-
-    return () => {
-      active = false
-    }
-  }, [user])
-
-  const catalogMap = useMemo(() => {
-    return new Map(catalog.map((model) => [model.id, model.name ?? model.id]))
-  }, [catalog])
 
   const safeEnabledIds = useMemo(() => (user ? enabledModelIds : []), [enabledModelIds, user])
-
-  const enabledModelOptions = useMemo<EnabledModelOption[]>(() => {
-    return safeEnabledIds.map((id) => ({
-      id,
-      label: catalogMap.get(id) ?? id,
-    }))
-  }, [catalogMap, safeEnabledIds])
+  const safeEnabledOptions = useMemo(() => (user ? enabledModelOptions : []), [enabledModelOptions, user])
+  const safeDefaultModelId = user ? defaultModelId : null
 
   return {
     enabledModelIds: safeEnabledIds,
-    enabledModelOptions,
+    enabledModelOptions: safeEnabledOptions,
+    defaultModelId: safeDefaultModelId,
   }
 }

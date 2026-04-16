@@ -30,6 +30,7 @@ import {
 } from './storage/userSettings'
 import { formatLocalTimestamp } from './utils/time'
 import { invokeMemoryExtraction } from './storage/memoryExtraction'
+import { useEnabledModels } from './hooks/useEnabledModels'
 import {
   addRemoteMessage,
   createRemoteSession,
@@ -271,16 +272,23 @@ const App = () => {
     [user?.id],
   )
   const activeSettings = userSettings ?? fallbackSettings
-  const defaultModelId =
+  const { enabledModelIds, defaultModelId: enabledDefaultModelId } = useEnabledModels(user)
+  const fallbackDefaultModelId =
     activeSettings.defaultModel?.trim().length > 0
       ? activeSettings.defaultModel
       : defaultOpenRouterModel
+  const defaultModelId = enabledDefaultModelId ?? fallbackDefaultModelId
   const enabledModels = useMemo(() => {
+    if (enabledModelIds.length > 0) {
+      const unique = new Set<string>(enabledModelIds)
+      unique.add(defaultModelId)
+      return Array.from(unique)
+    }
     const unique = new Set<string>()
     activeSettings.enabledModels.forEach((model) => unique.add(model))
     unique.add(defaultModelId)
     return Array.from(unique)
-  }, [activeSettings.enabledModels, defaultModelId])
+  }, [activeSettings.enabledModels, defaultModelId, enabledModelIds])
 
   const latestSession = useMemo(() => selectMostRecentSession(sessions), [sessions])
 
