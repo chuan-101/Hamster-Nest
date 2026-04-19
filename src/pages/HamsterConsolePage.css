@@ -1,0 +1,244 @@
+.hamster-console-page {
+  min-height: 100%;
+  padding: 1rem;
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  color: #111827;
+}
+
+.hamster-console-page__header {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.hamster-console-page__header h1 {
+  margin: 0;
+  font-size: clamp(1.4rem, 5vw, 1.9rem);
+}
+
+.hamster-console-page__header p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.92rem;
+}
+
+.hamster-console-page__back {
+  width: fit-content;
+  text-decoration: none;
+  color: #374151;
+  font-weight: 600;
+}
+
+.hamster-console-alert,
+.hamster-console-toast,
+.hamster-console-loading {
+  border-radius: 14px;
+  padding: 0.65rem 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.hamster-console-alert {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.hamster-console-toast {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.hamster-console-loading {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.hamster-console-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.hamster-console-card {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.hamster-console-card h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.hamster-console-card__hint {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.88rem;
+}
+
+.hamster-console-channel-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.hamster-console-channel-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.hamster-console-channel-title {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.hamster-console-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hamster-toggle {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.hamster-toggle.enabled {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #14532d;
+}
+
+.hamster-console-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 0.6rem;
+}
+
+.hamster-console-input {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+
+.hamster-console-json,
+.hamster-console-template-editor {
+  width: 100%;
+  resize: vertical;
+}
+
+.hamster-console-template-list {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.hamster-template-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.5rem 0.65rem;
+  min-width: 128px;
+  text-align: left;
+  display: grid;
+  gap: 0.2rem;
+  cursor: pointer;
+}
+
+.hamster-template-item.active {
+  border-color: #f9a8d4;
+  box-shadow: 0 0 0 2px rgba(249, 168, 212, 0.22);
+}
+
+.hamster-template-item small {
+  color: #6b7280;
+}
+
+.hamster-console-template-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.hamster-console-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.hamster-console-command-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.hamster-command-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.hamster-command-header {
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.3rem;
+  grid-template-columns: 1.1fr auto auto auto;
+  align-items: center;
+}
+
+.hamster-command-status {
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.78rem;
+}
+
+.hamster-command-status.pending { background: #fef3c7; color: #92400e; }
+.hamster-command-status.running { background: #dbeafe; color: #1d4ed8; }
+.hamster-command-status.done { background: #dcfce7; color: #166534; }
+.hamster-command-status.failed { background: #fee2e2; color: #b91c1c; }
+
+.hamster-command-body {
+  padding: 0.2rem 0.6rem 0.7rem;
+}
+
+.hamster-command-body h4 {
+  margin: 0.35rem 0;
+  font-size: 0.83rem;
+  color: #4b5563;
+}
+
+.hamster-command-body pre {
+  margin: 0;
+  background: #111827;
+  color: #f9fafb;
+  border-radius: 10px;
+  padding: 0.55rem;
+  overflow: auto;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 680px) {
+  .hamster-console-page {
+    padding: 0.8rem;
+  }
+
+  .hamster-console-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hamster-console-channel-row,
+  .hamster-command-header {
+    grid-template-columns: 1fr;
+  }
+}
