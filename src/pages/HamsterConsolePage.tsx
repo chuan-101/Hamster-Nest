@@ -54,10 +54,15 @@ const MODEL_OPTIONS = [
   'openai/gpt-4.1-mini',
   'openai/gpt-4.1',
   'openai/gpt-5',
+  'openai/gpt-5.4',
   'anthropic/claude-sonnet-4.5',
+  'anthropic/claude-sonnet-4.6',
+  'anthropic/claude-opus-4.5',
+  'anthropic/claude-opus-4.6',
   'anthropic/claude-opus-4.7',
   'anthropic/claude-haiku-4.5',
   'google/gemini-2.5-pro',
+  'google/gemini-3.1-pro-preview',
 ]
 
 const categoryLabelMap: Record<string, string> = {
