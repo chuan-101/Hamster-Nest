@@ -67,6 +67,7 @@ import RagSettingsPage from './pages/RagSettingsPage'
 import StoryGroupPage from './pages/StoryGroupPage'
 import MemoPage from './pages/MemoPage'
 import TimelinePage from './pages/TimelinePage'
+import HamsterConsolePage from './pages/HamsterConsolePage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1945,6 +1946,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <TimelinePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/hamster-console"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <HamsterConsolePage user={user} />
             </RequireAuth>
           }
         />
