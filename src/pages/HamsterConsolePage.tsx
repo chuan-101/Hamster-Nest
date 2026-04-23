@@ -54,6 +54,10 @@ type SyzygyCommandRow = {
   completed_at: string | null
 }
 
+type ProviderModelRow = {
+  model_id: string
+}
+
 const TARGET_USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
 
 const MODEL_OPTIONS = [
@@ -102,6 +106,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const [toast, setToast] = useState<string | null>(null)
 
   const [channels, setChannels] = useState<ChannelConfigRow[]>([])
+  const [availableModels, setAvailableModels] = useState<string[]>([])
   const [savingChannelName, setSavingChannelName] = useState<string | null>(null)
 
   const [agentSettings, setAgentSettings] = useState<AgentSettingsRow | null>(null)
@@ -124,6 +129,19 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     () => promptTemplates.find((item) => item.id === activeTemplateId) ?? null,
     [promptTemplates, activeTemplateId],
   )
+
+  const modelOptions = useMemo(() => {
+    const merged = new Set<string>(availableModels)
+    channels.forEach((item) => {
+      if (item.active_model) merged.add(item.active_model)
+    })
+    const summaryModel = agentForm.wechat_context_summary_model?.trim()
+    if (summaryModel) merged.add(summaryModel)
+    if (!merged.size) {
+      MODEL_OPTIONS.forEach((item) => merged.add(item))
+    }
+    return Array.from(merged)
+  }, [availableModels, channels, agentForm.wechat_context_summary_model])
 
   const showToast = useCallback((message: string) => {
     setToast(message)
@@ -165,7 +183,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     setLoading(true)
     setErrorMessage(null)
 
-    const [channelRes, settingsRes, templateRes, commandsRes] = await Promise.all([
+    const [channelRes, settingsRes, templateRes, commandsRes, modelRes] = await Promise.all([
       supabase
         .from('channel_config')
         .select('user_id, channel_name, active_model')
@@ -190,14 +208,16 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
         .eq('user_id', scopedUserId)
         .order('created_at', { ascending: false })
         .limit(20),
+      supabase.from('provider_models').select('model_id').order('model_id', { ascending: true }),
     ])
 
-    if (channelRes.error || settingsRes.error || templateRes.error || commandsRes.error) {
+    if (channelRes.error || settingsRes.error || templateRes.error || commandsRes.error || modelRes.error) {
       setErrorMessage(
         channelRes.error?.message ||
           settingsRes.error?.message ||
           templateRes.error?.message ||
           commandsRes.error?.message ||
+          modelRes.error?.message ||
           '加载失败',
       )
       setLoading(false)
@@ -206,6 +226,9 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
     const channelRows = channelRes.data ?? []
     setChannels(channelRows)
+
+    const modelRows = (modelRes.data ?? []) as ProviderModelRow[]
+    setAvailableModels(modelRows.map((item) => item.model_id).filter((item) => item.trim().length > 0))
 
     const settingsRow = settingsRes.data
     setAgentSettings(settingsRow)
@@ -417,10 +440,10 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                       <div className="hamster-console-channel-title">{row.channel_name}</div>
                       <select
                         className="input-glass"
-                        value={row.active_model ?? MODEL_OPTIONS[0]}
+                        value={row.active_model ?? modelOptions[0] ?? ''}
                         onChange={(event) => handleChannelModelChange(row.channel_name, event.target.value)}
                       >
-                        {MODEL_OPTIONS.map((model) => (
+                        {modelOptions.map((model) => (
                           <option key={model} value={model}>{model}</option>
                         ))}
                       </select>
@@ -560,12 +583,15 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                 </div>
                 <label className="hamster-console-input">
                   <span>摘要模型</span>
-                  <input
+                  <select
                     className="input-glass"
                     value={agentForm.wechat_context_summary_model ?? ''}
                     onChange={(event) => handleAgentFieldChange('wechat_context_summary_model', event.target.value)}
-                    placeholder="deepseek/deepseek-chat"
-                  />
+                  >
+                    {modelOptions.map((model) => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
                 </label>
                 <button
                   className="btn-primary"
