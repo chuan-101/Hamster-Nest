@@ -27,11 +27,12 @@ type AgentSettingsRow = {
   max_daily_checkins_day: number | null
   max_daily_checkins_night: number | null
   per_channel_schedule: Record<string, unknown> | null
-  wechat_compression_enabled: boolean | null
-  wechat_compression_trigger_ratio: number | null
-  wechat_compression_keep_recent_messages: number | null
-  wechat_context_token_limit: number | null
-  wechat_summarizer_model: string | null
+  wechat_context_summary_model: string | null
+  wechat_context_window_rounds: number | null
+  wechat_context_summary_trigger_rounds: number | null
+  wechat_context_summary_refresh_rounds: number | null
+  wechat_memory_search_min_length: number | null
+  wechat_memory_search_enabled: boolean | null
 }
 
 type PromptTemplateRow = {
@@ -107,6 +108,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const [agentForm, setAgentForm] = useState<Record<string, string>>({})
   const [perChannelScheduleText, setPerChannelScheduleText] = useState('{}')
   const [savingAgentSettings, setSavingAgentSettings] = useState(false)
+  const [savingWechatContextSettings, setSavingWechatContextSettings] = useState(false)
 
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplateRow[]>([])
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null)
@@ -172,7 +174,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       supabase
         .from('agent_settings')
         .select(
-          'user_id, checkin_enabled, day_mode_start_hour, day_mode_end_hour, day_min_interval_minutes, day_max_interval_minutes, night_mode_start_hour, night_mode_end_hour, night_min_interval_minutes, night_max_interval_minutes, quiet_hours_start_hour, quiet_hours_end_hour, cooldown_after_interaction_minutes, max_daily_checkins_day, max_daily_checkins_night, per_channel_schedule, wechat_compression_enabled, wechat_compression_trigger_ratio, wechat_compression_keep_recent_messages, wechat_context_token_limit, wechat_summarizer_model',
+          'user_id, checkin_enabled, day_mode_start_hour, day_mode_end_hour, day_min_interval_minutes, day_max_interval_minutes, night_mode_start_hour, night_mode_end_hour, night_min_interval_minutes, night_max_interval_minutes, quiet_hours_start_hour, quiet_hours_end_hour, cooldown_after_interaction_minutes, max_daily_checkins_day, max_daily_checkins_night, per_channel_schedule, wechat_context_summary_model, wechat_context_window_rounds, wechat_context_summary_trigger_rounds, wechat_context_summary_refresh_rounds, wechat_memory_search_min_length, wechat_memory_search_enabled',
         )
         .eq('user_id', scopedUserId)
         .maybeSingle(),
@@ -222,10 +224,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
         cooldown_after_interaction_minutes: String(settingsRow.cooldown_after_interaction_minutes ?? 15),
         max_daily_checkins_day: String(settingsRow.max_daily_checkins_day ?? 10),
         max_daily_checkins_night: String(settingsRow.max_daily_checkins_night ?? 3),
-        wechat_compression_trigger_ratio: String(settingsRow.wechat_compression_trigger_ratio ?? 0.65),
-        wechat_compression_keep_recent_messages: String(settingsRow.wechat_compression_keep_recent_messages ?? 20),
-        wechat_context_token_limit: String(settingsRow.wechat_context_token_limit ?? 12000),
-        wechat_summarizer_model: settingsRow.wechat_summarizer_model ?? 'openai/gpt-4.1-mini',
+        wechat_context_summary_model: settingsRow.wechat_context_summary_model ?? 'deepseek/deepseek-chat',
+        wechat_context_window_rounds: String(settingsRow.wechat_context_window_rounds ?? 20),
+        wechat_context_summary_trigger_rounds: String(settingsRow.wechat_context_summary_trigger_rounds ?? 30),
+        wechat_context_summary_refresh_rounds: String(settingsRow.wechat_context_summary_refresh_rounds ?? 10),
+        wechat_memory_search_min_length: String(settingsRow.wechat_memory_search_min_length ?? 5),
       })
       setPerChannelScheduleText(JSON.stringify(settingsRow.per_channel_schedule ?? {}, null, 2))
     }
@@ -316,11 +319,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
         max_daily_checkins_day: parseNumberField(agentForm.max_daily_checkins_day, 10),
         max_daily_checkins_night: parseNumberField(agentForm.max_daily_checkins_night, 3),
         per_channel_schedule: parsedSchedule,
-        wechat_compression_enabled: agentSettings.wechat_compression_enabled ?? true,
-        wechat_compression_trigger_ratio: parseNumberField(agentForm.wechat_compression_trigger_ratio, 0.65),
-        wechat_compression_keep_recent_messages: parseNumberField(agentForm.wechat_compression_keep_recent_messages, 20),
-        wechat_context_token_limit: parseNumberField(agentForm.wechat_context_token_limit, 12000),
-        wechat_summarizer_model: (agentForm.wechat_summarizer_model ?? '').trim() || null,
       })
       .eq('user_id', scopedUserId)
 
@@ -331,6 +329,31 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     }
 
     showToast('主动消息设置已保存')
+  }
+
+  const handleSaveWechatContextSettings = async () => {
+    if (!supabase || !agentSettings) return
+
+    setSavingWechatContextSettings(true)
+    const { error } = await supabase
+      .from('agent_settings')
+      .update({
+        wechat_context_summary_model: (agentForm.wechat_context_summary_model ?? '').trim() || null,
+        wechat_context_window_rounds: parseNumberField(agentForm.wechat_context_window_rounds, 20),
+        wechat_context_summary_trigger_rounds: parseNumberField(agentForm.wechat_context_summary_trigger_rounds, 30),
+        wechat_context_summary_refresh_rounds: parseNumberField(agentForm.wechat_context_summary_refresh_rounds, 10),
+        wechat_memory_search_min_length: parseNumberField(agentForm.wechat_memory_search_min_length, 5),
+        wechat_memory_search_enabled: agentSettings.wechat_memory_search_enabled ?? true,
+      })
+      .eq('user_id', scopedUserId)
+
+    setSavingWechatContextSettings(false)
+    if (error) {
+      setErrorMessage(error.message)
+      return
+    }
+
+    showToast('上下文设置已保存')
   }
 
   const handleSelectTemplate = (templateId: string) => {
@@ -489,30 +512,45 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
             <div className={`hamster-console-accordion__content ${expandedSection === 'wechat-context' ? 'expanded' : ''}`}>
               <div className="hamster-console-accordion__inner">
                 <div className="hamster-console-toggle">
-                  <span>wechat_compression_enabled</span>
+                  <span>启用记忆检索</span>
                   <button
-                    className={`hamster-toggle ${agentSettings?.wechat_compression_enabled ?? true ? 'enabled' : ''}`}
+                    className={`hamster-toggle ${agentSettings?.wechat_memory_search_enabled ?? true ? 'enabled' : ''}`}
                     onClick={() =>
                       setAgentSettings((current) =>
-                        current ? { ...current, wechat_compression_enabled: !(current.wechat_compression_enabled ?? true) } : current,
+                        current ? { ...current, wechat_memory_search_enabled: !(current.wechat_memory_search_enabled ?? true) } : current,
                       )
                     }
                     disabled={!agentSettings}
                   >
-                    {agentSettings?.wechat_compression_enabled ?? true ? '开启' : '关闭'}
+                    {agentSettings?.wechat_memory_search_enabled ?? true ? '开启' : '关闭'}
                   </button>
                 </div>
                 <div className="hamster-console-form-grid">
                   {[
-                    ['wechat_compression_trigger_ratio', '触发比例 (0.1 - 0.95)'],
-                    ['wechat_compression_keep_recent_messages', '保留最近消息数'],
-                    ['wechat_context_token_limit', '上下文上限 Token'],
+                    ['wechat_context_window_rounds', '滚动窗口轮数'],
+                    ['wechat_context_summary_trigger_rounds', '摘要触发轮数'],
+                    ['wechat_context_summary_refresh_rounds', '摘要刷新间隔'],
+                    ['wechat_memory_search_min_length', '记忆检索最小长度'],
                   ].map(([field, label]) => (
                     <label className="hamster-console-input" key={field}>
                       <span>{label}</span>
                       <input
                         className="input-glass"
                         type="number"
+                        min={
+                          field === 'wechat_context_summary_trigger_rounds'
+                            ? 10
+                            : field === 'wechat_memory_search_min_length'
+                              ? 1
+                              : 5
+                        }
+                        max={
+                          field === 'wechat_context_summary_trigger_rounds'
+                            ? 100
+                            : field === 'wechat_memory_search_min_length'
+                              ? 20
+                              : 50
+                        }
                         inputMode="numeric"
                         value={agentForm[field] ?? ''}
                         onChange={(event) => handleAgentFieldChange(field, event.target.value)}
@@ -521,16 +559,20 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                   ))}
                 </div>
                 <label className="hamster-console-input">
-                  <span>Summarizer Model</span>
+                  <span>摘要模型</span>
                   <input
                     className="input-glass"
-                    value={agentForm.wechat_summarizer_model ?? ''}
-                    onChange={(event) => handleAgentFieldChange('wechat_summarizer_model', event.target.value)}
-                    placeholder="openai/gpt-4.1-mini"
+                    value={agentForm.wechat_context_summary_model ?? ''}
+                    onChange={(event) => handleAgentFieldChange('wechat_context_summary_model', event.target.value)}
+                    placeholder="deepseek/deepseek-chat"
                   />
                 </label>
-                <button className="btn-primary" onClick={() => void handleSaveAgentSettings()} disabled={savingAgentSettings || !agentSettings}>
-                  {savingAgentSettings ? '保存中...' : '保存微信上下文设置'}
+                <button
+                  className="btn-primary"
+                  onClick={() => void handleSaveWechatContextSettings()}
+                  disabled={savingWechatContextSettings || !agentSettings}
+                >
+                  {savingWechatContextSettings ? '保存中...' : '保存上下文设置'}
                 </button>
               </div>
             </div>
