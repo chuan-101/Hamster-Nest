@@ -27,6 +27,11 @@ type AgentSettingsRow = {
   max_daily_checkins_day: number | null
   max_daily_checkins_night: number | null
   per_channel_schedule: Record<string, unknown> | null
+  wechat_compression_enabled: boolean | null
+  wechat_compression_trigger_ratio: number | null
+  wechat_compression_keep_recent_messages: number | null
+  wechat_context_token_limit: number | null
+  wechat_summarizer_model: string | null
 }
 
 type PromptTemplateRow = {
@@ -111,6 +116,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const [commands, setCommands] = useState<SyzygyCommandRow[]>([])
   const [expandedCommandId, setExpandedCommandId] = useState<string | null>(null)
   const [commandsLoading, setCommandsLoading] = useState(false)
+  const [expandedSection, setExpandedSection] = useState('model-switching')
 
   const activeTemplate = useMemo(
     () => promptTemplates.find((item) => item.id === activeTemplateId) ?? null,
@@ -166,7 +172,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       supabase
         .from('agent_settings')
         .select(
-          'user_id, checkin_enabled, day_mode_start_hour, day_mode_end_hour, day_min_interval_minutes, day_max_interval_minutes, night_mode_start_hour, night_mode_end_hour, night_min_interval_minutes, night_max_interval_minutes, quiet_hours_start_hour, quiet_hours_end_hour, cooldown_after_interaction_minutes, max_daily_checkins_day, max_daily_checkins_night, per_channel_schedule',
+          'user_id, checkin_enabled, day_mode_start_hour, day_mode_end_hour, day_min_interval_minutes, day_max_interval_minutes, night_mode_start_hour, night_mode_end_hour, night_min_interval_minutes, night_max_interval_minutes, quiet_hours_start_hour, quiet_hours_end_hour, cooldown_after_interaction_minutes, max_daily_checkins_day, max_daily_checkins_night, per_channel_schedule, wechat_compression_enabled, wechat_compression_trigger_ratio, wechat_compression_keep_recent_messages, wechat_context_token_limit, wechat_summarizer_model',
         )
         .eq('user_id', scopedUserId)
         .maybeSingle(),
@@ -216,6 +222,10 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
         cooldown_after_interaction_minutes: String(settingsRow.cooldown_after_interaction_minutes ?? 15),
         max_daily_checkins_day: String(settingsRow.max_daily_checkins_day ?? 10),
         max_daily_checkins_night: String(settingsRow.max_daily_checkins_night ?? 3),
+        wechat_compression_trigger_ratio: String(settingsRow.wechat_compression_trigger_ratio ?? 0.65),
+        wechat_compression_keep_recent_messages: String(settingsRow.wechat_compression_keep_recent_messages ?? 20),
+        wechat_context_token_limit: String(settingsRow.wechat_context_token_limit ?? 12000),
+        wechat_summarizer_model: settingsRow.wechat_summarizer_model ?? 'openai/gpt-4.1-mini',
       })
       setPerChannelScheduleText(JSON.stringify(settingsRow.per_channel_schedule ?? {}, null, 2))
     }
@@ -306,6 +316,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
         max_daily_checkins_day: parseNumberField(agentForm.max_daily_checkins_day, 10),
         max_daily_checkins_night: parseNumberField(agentForm.max_daily_checkins_night, 3),
         per_channel_schedule: parsedSchedule,
+        wechat_compression_enabled: agentSettings.wechat_compression_enabled ?? true,
+        wechat_compression_trigger_ratio: parseNumberField(agentForm.wechat_compression_trigger_ratio, 0.65),
+        wechat_compression_keep_recent_messages: parseNumberField(agentForm.wechat_compression_keep_recent_messages, 20),
+        wechat_context_token_limit: parseNumberField(agentForm.wechat_context_token_limit, 12000),
+        wechat_summarizer_model: (agentForm.wechat_summarizer_model ?? '').trim() || null,
       })
       .eq('user_id', scopedUserId)
 
@@ -346,6 +361,10 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     showToast(`Prompt 已保存：${activeTemplate.name}`)
   }
 
+  const toggleSection = (sectionId: string) => {
+    setExpandedSection((current) => (current === sectionId ? '' : sectionId))
+  }
+
   return (
     <div className="hamster-console-page">
       <header className="hamster-console-page__header">
@@ -360,167 +379,250 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       {loading ? <div className="hamster-console-loading">正在加载仓鼠机面板...</div> : null}
 
       {!loading ? (
-        <main className="hamster-console-grid">
+        <main className="hamster-console-accordion">
           <section className="hamster-console-card glass-card" aria-label="模型切换">
-            <h2>模型切换</h2>
-            <p className="hamster-console-card__hint">按渠道配置 active_model，保存后立即生效。</p>
-            <div className="hamster-console-channel-list">
-              {channels.map((row) => (
-                <div className="hamster-console-channel-row" key={row.channel_name}>
-                  <div className="hamster-console-channel-title">{row.channel_name}</div>
-                  <select
-                    className="input-glass"
-                    value={row.active_model ?? MODEL_OPTIONS[0]}
-                    onChange={(event) => handleChannelModelChange(row.channel_name, event.target.value)}
-                  >
-                    {MODEL_OPTIONS.map((model) => (
-                      <option key={model} value={model}>{model}</option>
-                    ))}
-                  </select>
-                  <button
-                    className="btn-primary"
-                    onClick={() => void handleSaveChannelModel(row.channel_name)}
-                    disabled={savingChannelName === row.channel_name}
-                  >
-                    {savingChannelName === row.channel_name ? '保存中...' : '保存'}
-                  </button>
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('model-switching')}>
+              <h2>模型切换</h2>
+              <span>{expandedSection === 'model-switching' ? '▼' : '▶'}</span>
+            </button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'model-switching' ? 'expanded' : ''}`}>
+              <div className="hamster-console-accordion__inner">
+                <p className="hamster-console-card__hint">按渠道配置 active_model，保存后立即生效。</p>
+                <div className="hamster-console-channel-list">
+                  {channels.map((row) => (
+                    <div className="hamster-console-channel-row" key={row.channel_name}>
+                      <div className="hamster-console-channel-title">{row.channel_name}</div>
+                      <select
+                        className="input-glass"
+                        value={row.active_model ?? MODEL_OPTIONS[0]}
+                        onChange={(event) => handleChannelModelChange(row.channel_name, event.target.value)}
+                      >
+                        {MODEL_OPTIONS.map((model) => (
+                          <option key={model} value={model}>{model}</option>
+                        ))}
+                      </select>
+                      <button
+                        className="btn-primary"
+                        onClick={() => void handleSaveChannelModel(row.channel_name)}
+                        disabled={savingChannelName === row.channel_name}
+                      >
+                        {savingChannelName === row.channel_name ? '保存中...' : '保存'}
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </section>
 
-          <section className="hamster-console-card glass-card" aria-label="主动消息控制">
-            <h2>主动消息</h2>
-            <div className="hamster-console-toggle">
-              <span>checkin_enabled</span>
-              <button
-                className={`hamster-toggle ${agentSettings?.checkin_enabled ? 'enabled' : ''}`}
-                onClick={() =>
-                  setAgentSettings((current) => (current ? { ...current, checkin_enabled: !current.checkin_enabled } : current))
-                }
-                disabled={!agentSettings}
-              >
-                {agentSettings?.checkin_enabled ? '开启' : '关闭'}
-              </button>
-            </div>
+          <section className="hamster-console-card glass-card" aria-label="主动消息设置">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('checkin-settings')}>
+              <h2>主动消息设置</h2>
+              <span>{expandedSection === 'checkin-settings' ? '▼' : '▶'}</span>
+            </button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'checkin-settings' ? 'expanded' : ''}`}>
+              <div className="hamster-console-accordion__inner">
+                <div className="hamster-console-toggle">
+                  <span>checkin_enabled</span>
+                  <button
+                    className={`hamster-toggle ${agentSettings?.checkin_enabled ? 'enabled' : ''}`}
+                    onClick={() =>
+                      setAgentSettings((current) => (current ? { ...current, checkin_enabled: !current.checkin_enabled } : current))
+                    }
+                    disabled={!agentSettings}
+                  >
+                    {agentSettings?.checkin_enabled ? '开启' : '关闭'}
+                  </button>
+                </div>
 
-            <div className="hamster-console-form-grid">
-              {[
-                ['day_mode_start_hour', '日间开始'],
-                ['day_mode_end_hour', '日间结束'],
-                ['day_min_interval_minutes', '日间最小间隔(分)'],
-                ['day_max_interval_minutes', '日间最大间隔(分)'],
-                ['night_mode_start_hour', '夜间开始'],
-                ['night_mode_end_hour', '夜间结束'],
-                ['night_min_interval_minutes', '夜间最小间隔(分)'],
-                ['night_max_interval_minutes', '夜间最大间隔(分)'],
-                ['quiet_hours_start_hour', '静默开始(可空)'],
-                ['quiet_hours_end_hour', '静默结束(可空)'],
-                ['cooldown_after_interaction_minutes', '互动后冷却(分)'],
-                ['max_daily_checkins_day', '日间每天上限'],
-                ['max_daily_checkins_night', '夜间每天上限'],
-              ].map(([field, label]) => (
-                <label className="hamster-console-input" key={field}>
-                  <span>{label}</span>
-                  <input
-                    className="input-glass"
-                    type="number"
-                    inputMode="numeric"
-                    value={agentForm[field] ?? ''}
-                    onChange={(event) => handleAgentFieldChange(field, event.target.value)}
+                <div className="hamster-console-form-grid">
+                  {[
+                    ['day_mode_start_hour', '日间开始'],
+                    ['day_mode_end_hour', '日间结束'],
+                    ['day_min_interval_minutes', '日间最小间隔(分)'],
+                    ['day_max_interval_minutes', '日间最大间隔(分)'],
+                    ['night_mode_start_hour', '夜间开始'],
+                    ['night_mode_end_hour', '夜间结束'],
+                    ['night_min_interval_minutes', '夜间最小间隔(分)'],
+                    ['night_max_interval_minutes', '夜间最大间隔(分)'],
+                    ['quiet_hours_start_hour', '静默开始(可空)'],
+                    ['quiet_hours_end_hour', '静默结束(可空)'],
+                    ['cooldown_after_interaction_minutes', '互动后冷却(分)'],
+                    ['max_daily_checkins_day', '日间每天上限'],
+                    ['max_daily_checkins_night', '夜间每天上限'],
+                  ].map(([field, label]) => (
+                    <label className="hamster-console-input" key={field}>
+                      <span>{label}</span>
+                      <input
+                        className="input-glass"
+                        type="number"
+                        inputMode="numeric"
+                        value={agentForm[field] ?? ''}
+                        onChange={(event) => handleAgentFieldChange(field, event.target.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <label className="hamster-console-input">
+                  <span>每渠道计划（JSON）</span>
+                  <textarea
+                    className="textarea-glass hamster-console-json"
+                    rows={7}
+                    value={perChannelScheduleText}
+                    onChange={(event) => setPerChannelScheduleText(event.target.value)}
                   />
                 </label>
-              ))}
+
+                <button className="btn-primary" onClick={() => void handleSaveAgentSettings()} disabled={savingAgentSettings || !agentSettings}>
+                  {savingAgentSettings ? '保存中...' : '保存主动消息设置'}
+                </button>
+              </div>
             </div>
+          </section>
 
-            <label className="hamster-console-input">
-              <span>每渠道计划（JSON）</span>
-              <textarea
-                className="textarea-glass hamster-console-json"
-                rows={7}
-                value={perChannelScheduleText}
-                onChange={(event) => setPerChannelScheduleText(event.target.value)}
-              />
-            </label>
-
-            <button className="btn-primary" onClick={() => void handleSaveAgentSettings()} disabled={savingAgentSettings || !agentSettings}>
-              {savingAgentSettings ? '保存中...' : '保存主动消息设置'}
+          <section className="hamster-console-card glass-card" aria-label="微信上下文管理">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('wechat-context')}>
+              <h2>微信上下文管理</h2>
+              <span>{expandedSection === 'wechat-context' ? '▼' : '▶'}</span>
             </button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'wechat-context' ? 'expanded' : ''}`}>
+              <div className="hamster-console-accordion__inner">
+                <div className="hamster-console-toggle">
+                  <span>wechat_compression_enabled</span>
+                  <button
+                    className={`hamster-toggle ${agentSettings?.wechat_compression_enabled ?? true ? 'enabled' : ''}`}
+                    onClick={() =>
+                      setAgentSettings((current) =>
+                        current ? { ...current, wechat_compression_enabled: !(current.wechat_compression_enabled ?? true) } : current,
+                      )
+                    }
+                    disabled={!agentSettings}
+                  >
+                    {agentSettings?.wechat_compression_enabled ?? true ? '开启' : '关闭'}
+                  </button>
+                </div>
+                <div className="hamster-console-form-grid">
+                  {[
+                    ['wechat_compression_trigger_ratio', '触发比例 (0.1 - 0.95)'],
+                    ['wechat_compression_keep_recent_messages', '保留最近消息数'],
+                    ['wechat_context_token_limit', '上下文上限 Token'],
+                  ].map(([field, label]) => (
+                    <label className="hamster-console-input" key={field}>
+                      <span>{label}</span>
+                      <input
+                        className="input-glass"
+                        type="number"
+                        inputMode="numeric"
+                        value={agentForm[field] ?? ''}
+                        onChange={(event) => handleAgentFieldChange(field, event.target.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <label className="hamster-console-input">
+                  <span>Summarizer Model</span>
+                  <input
+                    className="input-glass"
+                    value={agentForm.wechat_summarizer_model ?? ''}
+                    onChange={(event) => handleAgentFieldChange('wechat_summarizer_model', event.target.value)}
+                    placeholder="openai/gpt-4.1-mini"
+                  />
+                </label>
+                <button className="btn-primary" onClick={() => void handleSaveAgentSettings()} disabled={savingAgentSettings || !agentSettings}>
+                  {savingAgentSettings ? '保存中...' : '保存微信上下文设置'}
+                </button>
+              </div>
+            </div>
           </section>
 
           <section className="hamster-console-card glass-card" aria-label="Prompt 编辑器">
-            <h2>Prompt 编辑器</h2>
-            <div className="hamster-console-template-list">
-              {promptTemplates.map((template) => {
-                const isActive = template.id === activeTemplateId
-                return (
-                  <button
-                    key={template.id}
-                    className={`hamster-template-item ${isActive ? 'active' : ''}`}
-                    onClick={() => handleSelectTemplate(template.id)}
-                  >
-                    <span>{template.name}</span>
-                    <small>{categoryLabelMap[template.category] ?? template.category}</small>
-                  </button>
-                )
-              })}
-            </div>
-
-            {activeTemplate ? (
-              <>
-                <div className="hamster-console-template-meta">
-                  <span>{activeTemplate.name}</span>
-                  <span>v{activeTemplate.version ?? '-'}</span>
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('prompt-editor')}>
+              <h2>Prompt 编辑器</h2>
+              <span>{expandedSection === 'prompt-editor' ? '▼' : '▶'}</span>
+            </button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'prompt-editor' ? 'expanded' : ''}`}>
+              <div className="hamster-console-accordion__inner">
+                <div className="hamster-console-template-list">
+                  {promptTemplates.map((template) => {
+                    const isActive = template.id === activeTemplateId
+                    return (
+                      <button
+                        key={template.id}
+                        className={`hamster-template-item ${isActive ? 'active' : ''}`}
+                        onClick={() => handleSelectTemplate(template.id)}
+                      >
+                        <span>{template.name}</span>
+                        <small>{categoryLabelMap[template.category] ?? template.category}</small>
+                      </button>
+                    )
+                  })}
                 </div>
-                <textarea
-                  className="textarea-glass hamster-console-template-editor"
-                  rows={12}
-                  value={templateDraft}
-                  onChange={(event) => setTemplateDraft(event.target.value)}
-                />
-                <button className="btn-primary" onClick={() => void handleSaveTemplate()} disabled={savingTemplateId === activeTemplate.id}>
-                  {savingTemplateId === activeTemplate.id ? '保存中...' : '保存 Prompt'}
-                </button>
-              </>
-            ) : (
-              <p className="hamster-console-card__hint">暂无 active prompt 模板。</p>
-            )}
+
+                {activeTemplate ? (
+                  <>
+                    <div className="hamster-console-template-meta">
+                      <span>{activeTemplate.name}</span>
+                      <span>v{activeTemplate.version ?? '-'}</span>
+                    </div>
+                    <textarea
+                      className="textarea-glass hamster-console-template-editor"
+                      rows={12}
+                      value={templateDraft}
+                      onChange={(event) => setTemplateDraft(event.target.value)}
+                    />
+                    <button className="btn-primary" onClick={() => void handleSaveTemplate()} disabled={savingTemplateId === activeTemplate.id}>
+                      {savingTemplateId === activeTemplate.id ? '保存中...' : '保存 Prompt'}
+                    </button>
+                  </>
+                ) : (
+                  <p className="hamster-console-card__hint">暂无 active prompt 模板。</p>
+                )}
+              </div>
+            </div>
           </section>
 
           <section className="hamster-console-card glass-card" aria-label="指令记录">
-            <div className="hamster-console-section-title">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('command-log')}>
               <h2>指令记录</h2>
-              <button className="btn-secondary" onClick={() => void loadCommands()} disabled={commandsLoading}>
-                {commandsLoading ? '刷新中...' : '手动刷新'}
-              </button>
-            </div>
-            <p className="hamster-console-card__hint">自动每 30 秒刷新一次，展示最近 20 条。</p>
-            <div className="hamster-console-command-list">
-              {commands.map((command) => {
-                const expanded = expandedCommandId === command.id
-                return (
-                  <article key={command.id} className="hamster-command-item">
-                    <button
-                      className="hamster-command-header"
-                      onClick={() => setExpandedCommandId(expanded ? null : command.id)}
-                    >
-                      <strong>{command.command_type}</strong>
-                      <span className={`hamster-command-status ${command.status}`}>{command.status}</span>
-                      <span>{formatDateTime(command.created_at)}</span>
-                      <span>{formatDateTime(command.completed_at)}</span>
-                    </button>
-                    {expanded ? (
-                      <div className="hamster-command-body">
-                        <h4>payload</h4>
-                        <pre>{JSON.stringify(command.payload ?? {}, null, 2)}</pre>
-                        <h4>result</h4>
-                        <pre>{JSON.stringify(command.result ?? {}, null, 2)}</pre>
-                      </div>
-                    ) : null}
-                  </article>
-                )
-              })}
-              {commands.length === 0 ? <p className="hamster-console-card__hint">暂无指令记录。</p> : null}
+              <span>{expandedSection === 'command-log' ? '▼' : '▶'}</span>
+            </button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'command-log' ? 'expanded' : ''}`}>
+              <div className="hamster-console-accordion__inner">
+                <div className="hamster-console-section-title">
+                  <p className="hamster-console-card__hint">自动每 30 秒刷新一次，展示最近 20 条。</p>
+                  <button className="btn-secondary" onClick={() => void loadCommands()} disabled={commandsLoading}>
+                    {commandsLoading ? '刷新中...' : '手动刷新'}
+                  </button>
+                </div>
+                <div className="hamster-console-command-list">
+                  {commands.map((command) => {
+                    const expanded = expandedCommandId === command.id
+                    return (
+                      <article key={command.id} className="hamster-command-item">
+                        <button
+                          className="hamster-command-header"
+                          onClick={() => setExpandedCommandId(expanded ? null : command.id)}
+                        >
+                          <strong>{command.command_type}</strong>
+                          <span className={`hamster-command-status ${command.status}`}>{command.status}</span>
+                          <span>{formatDateTime(command.created_at)}</span>
+                          <span>{formatDateTime(command.completed_at)}</span>
+                        </button>
+                        {expanded ? (
+                          <div className="hamster-command-body">
+                            <h4>payload</h4>
+                            <pre>{JSON.stringify(command.payload ?? {}, null, 2)}</pre>
+                            <h4>result</h4>
+                            <pre>{JSON.stringify(command.result ?? {}, null, 2)}</pre>
+                          </div>
+                        ) : null}
+                      </article>
+                    )
+                  })}
+                  {commands.length === 0 ? <p className="hamster-console-card__hint">暂无指令记录。</p> : null}
+                </div>
+              </div>
             </div>
           </section>
         </main>
