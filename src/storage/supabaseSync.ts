@@ -26,10 +26,17 @@ import type {
   SyzygyReply,
   TimelineEntry,
   TimelineRecorder,
+  WalletBalance,
+  WalletQuest,
+  WalletQuestCreator,
+  WalletQuestStatus,
+  WalletTransaction,
+  WalletTransactionType,
 } from '../types'
 import { supabase } from '../supabase/client'
 
 const FORUM_USER_AUTHOR_NAME = '串串'
+const WALLET_USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
 
 type SessionRow = {
   id: string
@@ -148,6 +155,34 @@ type CheckinRow = {
   user_id: string
   checkin_date: string
   created_at: string
+}
+
+type WalletQuestRow = {
+  id: string
+  user_id: string
+  created_by: WalletQuestCreator
+  title: string
+  description: string | null
+  reward_points: number
+  status: WalletQuestStatus
+  completed_at: string | null
+  completed_note: string | null
+  created_at: string
+}
+
+type WalletTransactionRow = {
+  id: string
+  type: WalletTransactionType
+  points_delta: number | null
+  coins_delta: number | null
+  description: string | null
+  quest_id: string | null
+  created_at: string
+}
+
+type WalletBalanceRow = {
+  points: number | null
+  coins: number | null
 }
 
 type RpSessionRow = {
@@ -314,6 +349,34 @@ const mapCheckinRow = (row: CheckinRow): CheckinEntry => ({
   userId: row.user_id,
   checkinDate: row.checkin_date,
   createdAt: row.created_at,
+})
+
+const mapWalletQuestRow = (row: WalletQuestRow): WalletQuest => ({
+  id: row.id,
+  userId: row.user_id,
+  createdBy: row.created_by,
+  title: row.title,
+  description: row.description ?? '',
+  rewardPoints: row.reward_points,
+  status: row.status,
+  completedAt: row.completed_at,
+  completedNote: row.completed_note,
+  createdAt: row.created_at,
+})
+
+const mapWalletTransactionRow = (row: WalletTransactionRow): WalletTransaction => ({
+  id: row.id,
+  type: row.type,
+  pointsDelta: row.points_delta ?? 0,
+  coinsDelta: Number(row.coins_delta ?? 0),
+  description: row.description ?? '',
+  questId: row.quest_id,
+  createdAt: row.created_at,
+})
+
+const mapWalletBalanceRow = (row: WalletBalanceRow): WalletBalance => ({
+  points: row.points ?? 0,
+  coins: Number(row.coins ?? 0),
 })
 
 const mapMemoEntryRow = (row: MemoEntryRow, tagIds: string[]): MemoEntry => ({
@@ -2494,6 +2557,145 @@ export const deleteTimelineEntry = async (entryId: string): Promise<void> => {
   if (error) {
     throw error
   }
+}
+
+const assertRpcSuccess = (rpcName: string, payload: unknown) => {
+  const result =
+    payload && typeof payload === 'object' && 'success' in payload
+      ? (payload as { success?: unknown })
+      : null
+  if (!result || result.success !== true) {
+    throw new Error(`${rpcName} 执行失败`)
+  }
+}
+
+export const fetchWalletBalance = async (): Promise<WalletBalance> => {
+  if (!supabase) {
+    return { points: 0, coins: 0 }
+  }
+  const { data, error } = await supabase.from('wallet_balance').select('points,coins').maybeSingle()
+  if (error) {
+    throw error
+  }
+  if (!data) {
+    return { points: 0, coins: 0 }
+  }
+  return mapWalletBalanceRow(data as WalletBalanceRow)
+}
+
+export const listWalletQuests = async (status: 'open' | 'completed'): Promise<WalletQuest[]> => {
+  if (!supabase) {
+    return []
+  }
+  const orderColumn = status === 'completed' ? 'completed_at' : 'created_at'
+  const { data, error } = await supabase
+    .from('quests')
+    .select('id,user_id,created_by,title,description,reward_points,status,completed_at,completed_note,created_at')
+    .eq('user_id', WALLET_USER_ID)
+    .eq('status', status)
+    .order(orderColumn, { ascending: false })
+    .order('created_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapWalletQuestRow(row as WalletQuestRow))
+}
+
+export const createWalletQuest = async (payload: {
+  title: string
+  description: string
+  rewardPoints: number
+  createdBy: WalletQuestCreator
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('quests').insert({
+    user_id: WALLET_USER_ID,
+    created_by: payload.createdBy,
+    title: payload.title,
+    description: payload.description.trim() ? payload.description : null,
+    reward_points: payload.rewardPoints,
+    status: 'open',
+  })
+  if (error) {
+    throw error
+  }
+}
+
+export const updateWalletQuest = async (
+  questId: string,
+  payload: { title: string; description: string; rewardPoints: number },
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('quests')
+    .update({
+      title: payload.title,
+      description: payload.description.trim() ? payload.description : null,
+      reward_points: payload.rewardPoints,
+    })
+    .eq('id', questId)
+    .eq('user_id', WALLET_USER_ID)
+  if (error) {
+    throw error
+  }
+}
+
+export const completeWalletQuest = async (questId: string, note: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { data, error } = await supabase.rpc('complete_quest', {
+    p_quest_id: questId,
+    p_note: note.trim() ? note : null,
+  })
+  if (error) {
+    throw error
+  }
+  assertRpcSuccess('complete_quest', data)
+}
+
+export const exchangeWalletPointsToCoins = async (points: number): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { data, error } = await supabase.rpc('exchange_points_to_coins', { p_points: points })
+  if (error) {
+    throw error
+  }
+  assertRpcSuccess('exchange_points_to_coins', data)
+}
+
+export const spendWalletCoins = async (amount: number, description: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { data, error } = await supabase.rpc('spend_coins', {
+    p_amount: amount,
+    p_description: description,
+  })
+  if (error) {
+    throw error
+  }
+  assertRpcSuccess('spend_coins', data)
+}
+
+export const listWalletTransactions = async (): Promise<WalletTransaction[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('wallet_transactions')
+    .select('id,type,points_delta,coins_delta,description,quest_id,created_at')
+    .eq('user_id', WALLET_USER_ID)
+    .order('created_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapWalletTransactionRow(row as WalletTransactionRow))
 }
 
 export const createTodayCheckin = async (checkinDate: string): Promise<'created' | 'already_checked_in'> => {

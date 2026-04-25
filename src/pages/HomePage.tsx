@@ -63,7 +63,7 @@ const DEFAULT_ICON_ORDER = [
   "settings",
   "export",
 ];
-const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters", "rag", "memo", "timeline", "hamster-console"];
+const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters", "rag", "memo", "timeline", "hamster-wallet", "hamster-console"];
 const PAGE_IDS: HomeLayoutPageId[] = ["page1", "page2"];
 const CORE_WIDGET_ID = "widget-checkin";
 const MAX_WIDGETS = 6;
@@ -267,6 +267,7 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
       { id: "rag", defaultEmoji: "🔮", label: "记忆引擎", route: "/rag-settings" },
       { id: "memo", defaultEmoji: "📝", label: "备忘录", route: "/memo" },
       { id: "timeline", defaultEmoji: "🗓️", label: "时间轴", route: "/timeline" },
+      { id: "hamster-wallet", defaultEmoji: "💰", label: "仓鼠钱包", route: "/wallet" },
       { id: "hamster-console", defaultEmoji: "🎛️", label: "仓鼠机", route: "/hamster-console" },
     ],
     [onOpenChat],
