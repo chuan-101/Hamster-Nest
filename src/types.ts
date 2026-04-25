@@ -313,6 +313,39 @@ export type TimelineEntry = {
   updatedAt: string
 }
 
+export type WalletQuestStatus = 'open' | 'completed' | 'cancelled'
+export type WalletQuestCreator = 'chuanchuan' | 'syzygy'
+
+export type WalletQuest = {
+  id: string
+  userId: string
+  createdBy: WalletQuestCreator
+  title: string
+  description: string
+  rewardPoints: number
+  status: WalletQuestStatus
+  completedAt: string | null
+  completedNote: string | null
+  createdAt: string
+}
+
+export type WalletTransactionType = 'earn' | 'exchange' | 'spend'
+
+export type WalletTransaction = {
+  id: string
+  type: WalletTransactionType
+  pointsDelta: number
+  coinsDelta: number
+  description: string
+  questId: string | null
+  createdAt: string
+}
+
+export type WalletBalance = {
+  points: number
+  coins: number
+}
+
 export type BubbleMessage = {
   id: string
   sessionId: string
