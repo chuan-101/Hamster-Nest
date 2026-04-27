@@ -63,7 +63,6 @@ import ForumNewThreadPage from './pages/ForumNewThreadPage'
 import ForumThreadPage from './pages/ForumThreadPage'
 import ForumSettingsPage from './pages/ForumSettingsPage'
 import LettersPage from './pages/LettersPage'
-import RagSettingsPage from './pages/RagSettingsPage'
 import StoryGroupPage from './pages/StoryGroupPage'
 import MemoPage from './pages/MemoPage'
 import TimelinePage from './pages/TimelinePage'
@@ -1787,14 +1786,6 @@ const App = () => {
                 onCreateSession={createSessionEntry}
                 onUnreadStateChange={setHasUnreadLetters}
               />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/rag-settings"
-          element={
-            <RequireAuth ready={authReady} user={user}>
-              <RagSettingsPage />
             </RequireAuth>
           }
         />
