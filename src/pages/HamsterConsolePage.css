@@ -1,66 +1,99 @@
 .hamster-console-page {
   min-height: 100%;
-  padding: 1rem;
-  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
-  color: #111827;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 14px 14px calc(1.5rem + env(safe-area-inset-bottom));
+  color: #3f3540;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  position: relative;
+  isolation: isolate;
+}
+
+.hamster-console-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 8% 2%, rgba(255, 214, 231, 0.35), transparent 42%),
+    radial-gradient(circle at 92% 0%, rgba(255, 239, 246, 0.82), transparent 54%),
+    linear-gradient(180deg, rgba(255, 252, 254, 0.96) 0%, rgba(253, 245, 249, 0.96) 100%);
 }
 
 .hamster-console-page__header {
   display: grid;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: 0.35rem;
+  padding: 12px;
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 18px rgba(255, 214, 231, 0.24);
 }
 
 .hamster-console-page__header h1 {
   margin: 0;
-  font-size: clamp(1.4rem, 5vw, 1.9rem);
+  font-size: clamp(1.35rem, 5vw, 1.85rem);
+  color: #68485e;
 }
 
 .hamster-console-page__header p {
   margin: 0;
-  color: #4b5563;
-  font-size: 0.92rem;
+  color: #8b7182;
+  font-size: 0.9rem;
 }
 
 .hamster-console-page__back {
   width: fit-content;
   text-decoration: none;
-  color: #374151;
-  font-weight: 600;
+  color: #7d5d70;
+  font-weight: 700;
+  border-radius: 999px;
+  border: 1px solid #ffd6e7;
+  background: #fff;
+  padding: 6px 12px;
 }
 
 .hamster-console-alert,
 .hamster-console-toast,
 .hamster-console-loading {
-  border-radius: 14px;
-  padding: 0.65rem 0.8rem;
-  margin-bottom: 0.8rem;
+  border-radius: 12px;
+  padding: 9px 11px;
+  margin: 0;
+  border: 1px solid;
+  font-size: 0.84rem;
+  background: #fff;
 }
 
 .hamster-console-alert {
-  background: #fee2e2;
-  color: #b91c1c;
+  color: #b13f4d;
+  border-color: rgba(255, 181, 192, 0.7);
 }
 
 .hamster-console-toast {
-  background: #dcfce7;
-  color: #166534;
+  color: #2f7a56;
+  border-color: rgba(126, 211, 167, 0.54);
 }
 
 .hamster-console-loading {
-  background: rgba(255, 255, 255, 0.7);
+  color: #6b7280;
+  border-color: rgba(255, 214, 231, 0.68);
 }
 
 .hamster-console-accordion {
   display: grid;
   gap: 0.9rem;
-  max-width: 700px;
-  margin: 0 auto;
 }
 
 .hamster-console-card {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.6rem;
+  border: 1px solid rgba(255, 214, 231, 0.88);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 20px rgba(255, 214, 231, 0.2);
 }
 
 .hamster-console-accordion__header {
@@ -72,13 +105,19 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0;
+  padding: 0.8rem 0.95rem;
   text-align: left;
 }
 
 .hamster-console-accordion__header h2 {
   margin: 0;
-  font-size: 1.08rem;
+  font-size: 1.03rem;
+  color: #66485d;
+}
+
+.hamster-console-accordion__header span {
+  color: #aa6f8d;
+  font-weight: 700;
 }
 
 .hamster-console-accordion__content {
@@ -88,19 +127,19 @@
 }
 
 .hamster-console-accordion__content.expanded {
-  max-height: 1800px;
+  max-height: 1900px;
 }
 
 .hamster-console-accordion__inner {
   display: grid;
   gap: 0.75rem;
-  padding-top: 0.25rem;
+  padding: 0 0.95rem 0.95rem;
 }
 
 .hamster-console-card__hint {
   margin: 0;
-  color: #6b7280;
-  font-size: 0.88rem;
+  color: #8b7284;
+  font-size: 0.84rem;
 }
 
 .hamster-console-channel-list {
@@ -110,34 +149,48 @@
 
 .hamster-console-channel-row {
   display: grid;
-  grid-template-columns: 80px 1fr auto;
-  gap: 0.6rem;
+  grid-template-columns: 90px 1fr auto;
+  gap: 0.55rem;
   align-items: center;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255, 245, 250, 0.76);
+  border: 1px solid rgba(255, 214, 231, 0.56);
 }
 
 .hamster-console-channel-title {
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7a5e6f;
+  font-size: 0.78rem;
 }
 
 .hamster-console-toggle {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.8rem;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 245, 250, 0.72);
+  border: 1px solid rgba(255, 214, 231, 0.48);
 }
 
 .hamster-toggle {
-  border: 1px solid #d1d5db;
+  border: 1px solid #f3c0d8;
   border-radius: 999px;
   background: #fff;
-  padding: 0.3rem 0.7rem;
+  padding: 0.3rem 0.8rem;
   cursor: pointer;
+  color: #7a5f70;
+  font-weight: 600;
 }
 
 .hamster-toggle.enabled {
-  background: #dcfce7;
-  border-color: #86efac;
-  color: #14532d;
+  background: linear-gradient(180deg, #ffeef6 0%, #ffe1ef 100%);
+  border-color: #f5b3d2;
+  color: #68485e;
 }
 
 .hamster-console-form-grid {
@@ -149,8 +202,8 @@
 .hamster-console-input {
   display: grid;
   gap: 0.35rem;
-  font-size: 0.82rem;
-  color: #4b5563;
+  font-size: 0.8rem;
+  color: #80697a;
 }
 
 .hamster-console-json,
@@ -163,35 +216,37 @@
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
-  padding-bottom: 0.2rem;
+  padding-bottom: 0.25rem;
 }
 
 .hamster-template-item {
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ffd6e7;
   border-radius: 12px;
   background: #fff;
-  padding: 0.5rem 0.65rem;
+  padding: 0.52rem 0.68rem;
   min-width: 128px;
   text-align: left;
   display: grid;
-  gap: 0.2rem;
+  gap: 0.16rem;
   cursor: pointer;
+  color: #68485e;
 }
 
 .hamster-template-item.active {
-  border-color: #f9a8d4;
-  box-shadow: 0 0 0 2px rgba(249, 168, 212, 0.22);
+  border-color: #f29cc3;
+  background: linear-gradient(180deg, #ffdeec 0%, #ffd2e8 100%);
+  box-shadow: 0 4px 10px rgba(255, 185, 216, 0.35);
 }
 
 .hamster-template-item small {
-  color: #6b7280;
+  color: #9a7087;
 }
 
 .hamster-console-template-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 0.85rem;
-  color: #4b5563;
+  font-size: 0.84rem;
+  color: #7b6072;
 }
 
 .hamster-console-section-title {
@@ -207,10 +262,10 @@
 }
 
 .hamster-command-item {
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(255, 214, 231, 0.76);
   border-radius: 14px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.86);
 }
 
 .hamster-command-header {
@@ -219,11 +274,12 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
-  padding: 0.6rem;
+  padding: 0.62rem;
   display: grid;
   gap: 0.3rem;
   grid-template-columns: 1.1fr auto auto auto;
   align-items: center;
+  color: #6f5164;
 }
 
 .hamster-command-status {
@@ -232,34 +288,34 @@
   font-size: 0.78rem;
 }
 
-.hamster-command-status.pending { background: #fef3c7; color: #92400e; }
-.hamster-command-status.running { background: #dbeafe; color: #1d4ed8; }
-.hamster-command-status.done { background: #dcfce7; color: #166534; }
-.hamster-command-status.failed { background: #fee2e2; color: #b91c1c; }
+.hamster-command-status.pending { background: #fff3db; color: #9a5d13; }
+.hamster-command-status.running { background: #ebf3ff; color: #315eb8; }
+.hamster-command-status.done { background: #e7fbf0; color: #1f7b4f; }
+.hamster-command-status.failed { background: #ffe6ea; color: #b13f4d; }
 
 .hamster-command-body {
-  padding: 0.2rem 0.6rem 0.7rem;
+  padding: 0.24rem 0.62rem 0.72rem;
 }
 
 .hamster-command-body h4 {
   margin: 0.35rem 0;
-  font-size: 0.83rem;
-  color: #4b5563;
+  font-size: 0.82rem;
+  color: #8b6f81;
 }
 
 .hamster-command-body pre {
   margin: 0;
-  background: #111827;
-  color: #f9fafb;
+  background: #2a1f2b;
+  color: #fdf7fb;
   border-radius: 10px;
   padding: 0.55rem;
   overflow: auto;
-  font-size: 0.76rem;
+  font-size: 0.74rem;
 }
 
 @media (max-width: 680px) {
   .hamster-console-page {
-    padding: 0.8rem;
+    padding: 12px 10px calc(1.2rem + env(safe-area-inset-bottom));
   }
 
   .hamster-console-form-grid {
