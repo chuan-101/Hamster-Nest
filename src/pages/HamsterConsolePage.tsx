@@ -56,24 +56,10 @@ type SyzygyCommandRow = {
 
 type ProviderModelRow = {
   model_id: string
+  enabled?: boolean | null
 }
 
 const TARGET_USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
-
-const MODEL_OPTIONS = [
-  'openai/gpt-4.1-mini',
-  'openai/gpt-4.1',
-  'openai/gpt-5',
-  'openai/gpt-5.4',
-  'anthropic/claude-sonnet-4.5',
-  'anthropic/claude-sonnet-4.6',
-  'anthropic/claude-opus-4.5',
-  'anthropic/claude-opus-4.6',
-  'anthropic/claude-opus-4.7',
-  'anthropic/claude-haiku-4.5',
-  'google/gemini-2.5-pro',
-  'google/gemini-3.1-pro-preview',
-]
 
 const categoryLabelMap: Record<string, string> = {
   base: '基础',
@@ -108,6 +94,8 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const [channels, setChannels] = useState<ChannelConfigRow[]>([])
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [savingChannelName, setSavingChannelName] = useState<string | null>(null)
+  const [manualModelId, setManualModelId] = useState('')
+  const [addingModel, setAddingModel] = useState(false)
 
   const [agentSettings, setAgentSettings] = useState<AgentSettingsRow | null>(null)
   const [agentForm, setAgentForm] = useState<Record<string, string>>({})
@@ -137,9 +125,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     })
     const summaryModel = agentForm.wechat_context_summary_model?.trim()
     if (summaryModel) merged.add(summaryModel)
-    if (!merged.size) {
-      MODEL_OPTIONS.forEach((item) => merged.add(item))
-    }
     return Array.from(merged)
   }, [availableModels, channels, agentForm.wechat_context_summary_model])
 
@@ -208,7 +193,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
         .eq('user_id', scopedUserId)
         .order('created_at', { ascending: false })
         .limit(20),
-      supabase.from('provider_models').select('model_id').order('model_id', { ascending: true }),
+      supabase
+        .from('provider_models')
+        .select('model_id')
+        .eq('enabled', true)
+        .order('model_id', { ascending: true }),
     ])
 
     if (channelRes.error || settingsRes.error || templateRes.error || commandsRes.error || modelRes.error) {
@@ -308,6 +297,37 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
   const handleAgentFieldChange = (field: string, value: string) => {
     setAgentForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const handleAddModel = async () => {
+    if (!supabase) return
+    const normalizedModelId = manualModelId.trim()
+    if (!normalizedModelId) {
+      setErrorMessage('请先输入 model_id')
+      return
+    }
+
+    setAddingModel(true)
+    setErrorMessage(null)
+    const { error } = await supabase
+      .from('provider_models')
+      .upsert(
+        {
+          model_id: normalizedModelId,
+          enabled: true,
+        },
+        { onConflict: 'model_id' },
+      )
+
+    setAddingModel(false)
+    if (error) {
+      setErrorMessage(error.message)
+      return
+    }
+
+    setManualModelId('')
+    void loadAll()
+    showToast(`模型已添加：${normalizedModelId}`)
   }
 
   const handleSaveAgentSettings = async () => {
@@ -434,6 +454,17 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
             <div className={`hamster-console-accordion__content ${expandedSection === 'model-switching' ? 'expanded' : ''}`}>
               <div className="hamster-console-accordion__inner">
                 <p className="hamster-console-card__hint">按渠道配置 active_model，保存后立即生效。</p>
+                <div className="hamster-console-model-add">
+                  <input
+                    className="input-glass"
+                    value={manualModelId}
+                    onChange={(event) => setManualModelId(event.target.value)}
+                    placeholder="手动添加 model_id（如 openai/gpt-5）"
+                  />
+                  <button className="btn-secondary" onClick={() => void handleAddModel()} disabled={addingModel}>
+                    {addingModel ? '添加中...' : '添加模型'}
+                  </button>
+                </div>
                 <div className="hamster-console-channel-list">
                   {channels.map((row) => (
                     <div className="hamster-console-channel-row" key={row.channel_name}>
