@@ -263,6 +263,16 @@ export type RpStoryGroup = {
   updatedAt: string | null
 }
 
+export type AgentCouncilSpeaker = 'claude' | 'gpt' | 'gemini' | 'chuanchuan'
+
+export type AgentCouncilMessage = {
+  id: string
+  speaker: AgentCouncilSpeaker
+  topic: string
+  message: string
+  createdAt: string
+}
+
 export type RpSessionGroup = {
   id: string
   sessionId: string

@@ -67,6 +67,7 @@ import StoryGroupPage from './pages/StoryGroupPage'
 import MemoPage from './pages/MemoPage'
 import TimelinePage from './pages/TimelinePage'
 import HamsterConsolePage from './pages/HamsterConsolePage'
+import AgentCouncilPage from './pages/AgentCouncilPage'
 import WalletPage from './pages/WalletPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
@@ -1930,6 +1931,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <MemoPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/council"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <AgentCouncilPage />
             </RequireAuth>
           }
         />
