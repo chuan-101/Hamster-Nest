@@ -3,6 +3,8 @@ import type {
   BubbleSession,
   ChatMessage,
   ChatSession,
+  AgentCouncilMessage,
+  AgentCouncilSpeaker,
   CheckinEntry,
   ForumAiProfile,
   ForumReply,
@@ -290,6 +292,14 @@ type LetterConversationRow = {
   conversation_id: string
 }
 
+type AgentCouncilRow = {
+  id: string
+  speaker: AgentCouncilSpeaker
+  topic: string
+  message: string
+  created_at: string
+}
+
 
 const mapSnackPostRow = (row: SnackPostRow): SnackPost => ({
   id: row.id,
@@ -331,6 +341,14 @@ const mapSyzygyReplyRow = (row: SyzygyReplyRow): SyzygyReply => ({
   createdAt: row.created_at,
   isDeleted: row.is_deleted,
   modelId: row.model_id ?? null,
+})
+
+const mapAgentCouncilRow = (row: AgentCouncilRow): AgentCouncilMessage => ({
+  id: row.id,
+  speaker: row.speaker,
+  topic: row.topic,
+  message: row.message,
+  createdAt: row.created_at,
 })
 
 const mapMemoryEntryRow = (row: MemoryEntryRow): MemoryEntry => ({
@@ -2554,6 +2572,37 @@ export const deleteTimelineEntry = async (entryId: string): Promise<void> => {
     throw new Error('Supabase 客户端未配置')
   }
   const { error } = await supabase.from('timeline_entries').delete().eq('id', entryId)
+  if (error) {
+    throw error
+  }
+}
+
+export const listAgentCouncilMessages = async (): Promise<AgentCouncilMessage[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('agent_council')
+    .select('id,speaker,topic,message,created_at')
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapAgentCouncilRow(row as AgentCouncilRow))
+}
+
+export const createAgentCouncilMessage = async (payload: {
+  topic: string
+  message: string
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('agent_council').insert({
+    speaker: 'chuanchuan',
+    topic: payload.topic,
+    message: payload.message,
+  })
   if (error) {
     throw error
   }
