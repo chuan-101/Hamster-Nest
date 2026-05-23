@@ -59,6 +59,19 @@ type ProviderModelRow = {
   enabled?: boolean | null
 }
 
+type CodexControlRow = {
+  id: string
+  action: 'wake' | 'sleep' | string
+  status: 'pending' | 'executed' | string
+  created_at: string
+}
+
+type CodexControlViewState = {
+  tone: 'green' | 'gray' | 'yellow'
+  label: string
+  isRunning: boolean
+}
+
 const TARGET_USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
 
 const categoryLabelMap: Record<string, string> = {
@@ -83,6 +96,14 @@ const parseNumberField = (value: string, fallback: number | null = null) => {
   if (value.trim() === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const toCodexControlViewState = (row: CodexControlRow | null): CodexControlViewState => {
+  if (!row) return { tone: 'gray', label: '已关闭', isRunning: false }
+  if (row.status === 'pending') return { tone: 'yellow', label: '执行中...', isRunning: row.action === 'wake' }
+  if (row.action === 'wake' && row.status === 'executed') return { tone: 'green', label: '运行中', isRunning: true }
+  if (row.action === 'sleep' && row.status === 'executed') return { tone: 'gray', label: '已关闭', isRunning: false }
+  return { tone: 'gray', label: '已关闭', isRunning: false }
 }
 
 const HamsterConsolePage = ({ user }: { user: User | null }) => {
@@ -112,11 +133,14 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const [expandedCommandId, setExpandedCommandId] = useState<string | null>(null)
   const [commandsLoading, setCommandsLoading] = useState(false)
   const [expandedSection, setExpandedSection] = useState('model-switching')
+  const [codexControlRow, setCodexControlRow] = useState<CodexControlRow | null>(null)
+  const [codexActionLoading, setCodexActionLoading] = useState<'wake' | 'sleep' | null>(null)
 
   const activeTemplate = useMemo(
     () => promptTemplates.find((item) => item.id === activeTemplateId) ?? null,
     [promptTemplates, activeTemplateId],
   )
+  const codexControlState = useMemo(() => toCodexControlViewState(codexControlRow), [codexControlRow])
 
   const modelOptions = useMemo(() => {
     const merged = new Set<string>(availableModels)
@@ -168,7 +192,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     setLoading(true)
     setErrorMessage(null)
 
-    const [channelRes, settingsRes, templateRes, commandsRes, modelRes] = await Promise.all([
+    const [channelRes, settingsRes, templateRes, commandsRes, modelRes, codexRes] = await Promise.all([
       supabase
         .from('channel_config')
         .select('user_id, channel_name, active_model')
@@ -198,15 +222,23 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
         .select('model_id')
         .eq('enabled', true)
         .order('model_id', { ascending: true }),
+      supabase
+        .from('codex_control')
+        .select('id, action, status, created_at')
+        .eq('user_id', scopedUserId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
 
-    if (channelRes.error || settingsRes.error || templateRes.error || commandsRes.error || modelRes.error) {
+    if (channelRes.error || settingsRes.error || templateRes.error || commandsRes.error || modelRes.error || codexRes.error) {
       setErrorMessage(
         channelRes.error?.message ||
           settingsRes.error?.message ||
           templateRes.error?.message ||
           commandsRes.error?.message ||
           modelRes.error?.message ||
+          codexRes.error?.message ||
           '加载失败',
       )
       setLoading(false)
@@ -218,6 +250,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
     const modelRows = (modelRes.data ?? []) as ProviderModelRow[]
     setAvailableModels(modelRows.map((item) => item.model_id).filter((item) => item.trim().length > 0))
+    setCodexControlRow((codexRes.data as CodexControlRow | null) ?? null)
 
     const settingsRow = settingsRes.data
     setAgentSettings(settingsRow)
@@ -255,6 +288,45 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
     setLoading(false)
   }, [scopedUserId])
+
+  useEffect(() => {
+    if (!supabase) return
+    const client = supabase
+    const channel = client
+      .channel(`codex-control-${scopedUserId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'codex_control', filter: `user_id=eq.${scopedUserId}` },
+        () => {
+          void client
+            .from('codex_control')
+            .select('id, action, status, created_at')
+            .eq('user_id', scopedUserId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+            .then(({ data }) => {
+              setCodexControlRow((data as CodexControlRow | null) ?? null)
+              setCodexActionLoading(null)
+            })
+        },
+      )
+      .subscribe()
+    return () => {
+      void client.removeChannel(channel)
+    }
+  }, [scopedUserId])
+
+  const handleCodexControl = async (action: 'wake' | 'sleep') => {
+    if (!supabase) return
+    setCodexActionLoading(action)
+    setErrorMessage(null)
+    const { error } = await supabase.from('codex_control').insert({ user_id: scopedUserId, action, source: 'manual' })
+    if (error) {
+      setCodexActionLoading(null)
+      setErrorMessage(error.message)
+    }
+  }
 
   useEffect(() => {
     void loadAll()
@@ -446,6 +518,37 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
       {!loading ? (
         <main className="hamster-console-accordion">
+          <section className="hamster-console-card glass-card" aria-label="Codex 控制">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('codex-control')}>
+              <h2>Codex 控制</h2>
+              <span>{expandedSection === 'codex-control' ? '▼' : '▶'}</span>
+            </button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'codex-control' ? 'expanded' : ''}`}>
+              <div className="hamster-console-accordion__inner">
+                <div className="hamster-console-codex-status">
+                  <span className={`hamster-console-codex-dot ${codexControlState.tone}`} aria-hidden />
+                  <span>{codexControlState.label}</span>
+                </div>
+                <div className="hamster-console-codex-actions">
+                  <button
+                    className="btn-primary"
+                    onClick={() => void handleCodexControl('wake')}
+                    disabled={codexControlState.isRunning || codexActionLoading !== null}
+                  >
+                    {codexActionLoading === 'wake' ? '唤醒中...' : '唤醒 Codex'}
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => void handleCodexControl('sleep')}
+                    disabled={!codexControlState.isRunning || codexActionLoading !== null}
+                  >
+                    {codexActionLoading === 'sleep' ? '关闭中...' : '关闭 Codex'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section className="hamster-console-card glass-card" aria-label="模型切换">
             <button className="hamster-console-accordion__header" onClick={() => toggleSection('model-switching')}>
               <h2>模型切换</h2>

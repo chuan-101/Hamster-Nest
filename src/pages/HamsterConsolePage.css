@@ -142,6 +142,35 @@
   font-size: 0.84rem;
 }
 
+.hamster-console-codex-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  padding: 0.42rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 231, 0.65);
+  background: rgba(255, 245, 250, 0.75);
+  color: #74596c;
+  font-weight: 600;
+}
+
+.hamster-console-codex-dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+}
+
+.hamster-console-codex-dot.green { background: #26b673; }
+.hamster-console-codex-dot.gray { background: #a8a9b3; }
+.hamster-console-codex-dot.yellow { background: #f1ba3b; }
+
+.hamster-console-codex-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
 .hamster-console-channel-list {
   display: grid;
   gap: 0.6rem;
