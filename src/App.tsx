@@ -69,6 +69,7 @@ import TimelinePage from './pages/TimelinePage'
 import HamsterConsolePage from './pages/HamsterConsolePage'
 import AgentCouncilPage from './pages/AgentCouncilPage'
 import WalletPage from './pages/WalletPage'
+import WikiPage from './pages/WikiPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1963,6 +1964,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <WalletPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/wiki"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <WikiPage />
             </RequireAuth>
           }
         />

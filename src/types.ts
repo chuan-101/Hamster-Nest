@@ -323,6 +323,20 @@ export type TimelineEntry = {
   updatedAt: string
 }
 
+export type WikiEntryStatus = 'draft' | 'published'
+
+export type WikiEntry = {
+  id: string
+  userId: string
+  title: string
+  content: string
+  category: string
+  tags: string[]
+  status: WikiEntryStatus
+  createdAt: string
+  updatedAt: string
+}
+
 export type WalletQuestStatus = 'open' | 'completed' | 'cancelled'
 export type WalletQuestCreator = 'chuanchuan' | 'syzygy'
 
