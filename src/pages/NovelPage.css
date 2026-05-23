@@ -1,5 +1,10 @@
 .novel-page,.novel-reader{padding:16px;color:#4a4452}
-.novel-create,.novel-shelf,.novel-detail-grid{display:grid;gap:12px}
-.novel-create textarea,.novel-create input{width:100%;padding:10px;border-radius:10px;border:1px solid #e4dbe8;background:#fff}
-.novel-card{display:grid;gap:6px;text-align:left;padding:14px;border-radius:14px;border:1px solid #eadde9;background:linear-gradient(180deg,#fff,#fff8fb)}
+.novel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.novel-settings-btn,.novel-ai-btn,.novel-characters__header button,.novel-character-card button{border:1px solid #e5d7e6;background:#fff;border-radius:10px;padding:8px 12px}
+.novel-settings-panel,.novel-create,.novel-shelf,.novel-detail-grid{display:grid;gap:12px}
+.novel-settings-panel,.novel-create,.novel-card,.novel-character-card{background:#fff;border:1px solid #eadde9;border-radius:14px;padding:12px}
+.novel-settings-panel label,.novel-create label{display:grid;gap:6px;font-size:13px;color:#6a6473}
+.novel-create textarea,.novel-create input,.novel-settings-panel textarea,.novel-settings-panel input,.novel-settings-panel select,.novel-character-card textarea,.novel-character-card input{width:100%;padding:10px;border-radius:10px;border:1px solid #e4dbe8;background:#fff}
+.novel-card{display:grid;gap:6px;text-align:left;background:linear-gradient(180deg,#fff,#fff8fb)}
+.novel-characters__header{display:flex;justify-content:space-between;align-items:center}
 .novel-reader article{line-height:1.9;max-width:860px;margin:0 auto;background:#fff;padding:20px;border-radius:12px}
