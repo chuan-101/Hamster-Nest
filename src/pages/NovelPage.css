@@ -31,6 +31,13 @@
 /* Book detail (vertical) */
 .novel-info-card{border:1px solid rgba(255,214,231,.88);border-radius:16px;background:#fff;box-shadow:0 6px 14px rgba(255,214,231,.14);padding:14px 16px;display:grid;gap:8px}
 .novel-info-card h3{margin:0;font-size:14px;color:#7d5d70;letter-spacing:.04em}
+.novel-info-card__head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.novel-info-card__actions{display:flex;gap:6px}
+.novel-info-textarea{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #e4dbe8;background:#fff;font:inherit;font-size:14px;line-height:1.65;color:#3f3749;resize:vertical;min-height:64px}
+.novel-character-chip--editing{display:grid;gap:6px;background:#fffaff;border-color:#f3dde9}
+.novel-char-input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #e4dbe8;background:#fff;font:inherit;font-size:13px;resize:vertical}
+.novel-char-remove{justify-self:end;font-size:12px}
+.novel-char-add{justify-self:start;font-size:13px}
 .novel-info-text{margin:0;white-space:pre-wrap;line-height:1.75;font-size:14px;color:#4a4452;font-family:inherit}
 .novel-character-list{display:grid;gap:8px}
 .novel-character-chip{border:1px solid rgba(241,228,235,.95);border-radius:12px;background:#fffaff;padding:10px 12px;font-size:13px;line-height:1.6}
