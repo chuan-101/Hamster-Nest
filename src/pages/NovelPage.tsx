@@ -145,11 +145,26 @@ const NovelPage = ({ user }: { user: User | null }) => {
       const errorText = await response.text().catch(() => '')
       throw new Error(`AI 生成失败: ${response.status} ${errorText}`)
     }
-    const data = await response.json()
-    const choice = data?.choices?.[0]
-    const message = choice?.message ?? choice ?? {}
-    const content = typeof message?.content === 'string' ? message.content : ''
-    return content || String(data?.text ?? data?.content ?? '')
+    const responseText = await response.text()
+    const parseResponseJson = () => {
+      try {
+        return JSON.parse(responseText) as Record<string, unknown>
+      } catch (error) {
+        console.warn('[novel] openrouter-chat 返回了非 JSON 响应，将按纯文本处理。', error, { responseText })
+        return null
+      }
+    }
+
+    const data = parseResponseJson()
+    if (!data) return responseText.trim()
+
+    const choice = Array.isArray(data.choices) ? data.choices[0] : null
+    const message = (choice as Record<string, unknown> | null)?.message ?? choice ?? {}
+    const content = typeof (message as Record<string, unknown>)?.content === 'string'
+      ? String((message as Record<string, unknown>).content)
+      : ''
+
+    return content || String(data.text ?? data.content ?? responseText)
   }
 
   const onAiGenerate = async () => {
