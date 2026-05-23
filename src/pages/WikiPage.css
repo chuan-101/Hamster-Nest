@@ -142,6 +142,28 @@
 .wiki-reader h1 { margin: 0; color: #5c4152; }
 .wiki-meta { margin: 6px 0 14px; color: #a36f8e; font-size: 13px; }
 .wiki-linked { color: #8d6280; font-size: 13px; }
+.wiki-content-sections { display: grid; gap: 10px; }
+.wiki-content-section {
+  border: 1px solid rgba(255, 214, 231, 0.75);
+  border-radius: 12px;
+  background: rgba(255, 252, 254, 0.8);
+  overflow: hidden;
+}
+.wiki-content-section__header {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 214, 231, 0.6);
+  background: #fff6fb;
+  color: #6e4d63;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wiki-content-section__body {
+  padding: 10px 12px 4px;
+}
 .wiki-backlinks { margin-top: 16px; border-top: 1px dashed #f0ccdd; padding-top: 12px; }
 .wiki-backlinks h3 { margin: 0 0 10px; color: #6d4e63; }
 
