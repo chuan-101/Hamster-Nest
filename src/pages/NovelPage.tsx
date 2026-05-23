@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
 import { useEnabledModels } from '../hooks/useEnabledModels'
 import { supabase } from '../supabase/client'
+import MarkdownRenderer from '../components/MarkdownRenderer'
 import type { NovelBook, NovelChapter, NovelCharacterCard, NovelModelConfig } from '../types'
 import { createNovelBook, createNovelChapter, listNovelBooks, listNovelChaptersByBookId, updateNovelBookModelConfig, updateNovelChapter } from '../storage/supabaseSync'
 import './NovelPage.css'
@@ -33,6 +34,14 @@ const NovelPage = ({ user }: { user: User | null }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
+
+  // Chapter-writing state
+  const [directorInput, setDirectorInput] = useState('')
+  const [writing, setWriting] = useState(false)
+  const [summarizing, setSummarizing] = useState(false)
+  const [chapterError, setChapterError] = useState<string | null>(null)
+  const [editingContent, setEditingContent] = useState(false)
+  const [contentDraft, setContentDraft] = useState('')
 
   const baseConfig: NovelModelConfig = useMemo(() => ({
     writing_model: defaultModelId ?? 'openrouter/auto',
@@ -71,6 +80,13 @@ const NovelPage = ({ user }: { user: User | null }) => {
     if (!settingsOpen) return
     setSettingsDraft(activeBookConfig)
   }, [activeBookConfig, settingsOpen])
+
+  useEffect(() => {
+    setDirectorInput('')
+    setChapterError(null)
+    setEditingContent(false)
+    setContentDraft(chapter?.content ?? '')
+  }, [chapter?.id])
 
   const reloadBooks = async () => {
     if (!user) return
@@ -235,11 +251,13 @@ const NovelPage = ({ user }: { user: User | null }) => {
   }
 
   const openDetail = async (item: NovelBook) => { setBook(item); setChapter(null); setChapters(await listNovelChaptersByBookId(item.id)) }
+
   const onContinue = async () => {
     if (!book) return
     const nextNumber = (chapters[chapters.length - 1]?.chapterNumber ?? 0) + 1
-    const created = await createNovelChapter({ bookId: book.id, chapterNumber: nextNumber, title: `第 ${nextNumber} 章`, content: '（请在此编辑 AI 续写内容）', directorNote: '', summary: '' })
-    setChapters((prev) => [...prev, created]); setChapter(created)
+    const created = await createNovelChapter({ bookId: book.id, chapterNumber: nextNumber, title: `第 ${nextNumber} 章`, content: '', directorNote: '', summary: '' })
+    setChapters((prev) => [...prev, created])
+    setChapter(created)
   }
 
   const onSaveSettings = async () => {
@@ -252,6 +270,95 @@ const NovelPage = ({ user }: { user: User | null }) => {
       setSettingsError(error instanceof Error ? error.message : '保存失败，请稍后重试')
     } finally {
       setSettingsSaving(false)
+    }
+  }
+
+  const buildWritingContext = (current: NovelChapter, directive: string) => {
+    if (!book) return ''
+    const window = Math.max(1, Number(activeBookConfig.context_window_chapters) || 1)
+    const priorChapters = chapters
+      .filter((c) => c.chapterNumber < current.chapterNumber)
+      .sort((a, b) => a.chapterNumber - b.chapterNumber)
+    const priorSummaries = priorChapters.slice(-window)
+      .map((c) => `【第${c.chapterNumber}章 ${c.title}】${c.summary || '（暂无摘要）'}`)
+      .join('\n')
+    const characters = (book.characters ?? [])
+      .map((c) => `- ${c.name || '未命名'}：${c.description || ''}（性格：${c.personality || ''}）`)
+      .join('\n')
+    const parts = [
+      `【世界设定】\n${book.worldSetting || '（无）'}`,
+      `【整体大纲】\n${book.outline || '（无）'}`,
+      `【角色卡】\n${characters || '（无）'}`,
+      priorSummaries ? `【前文摘要】\n${priorSummaries}` : '',
+      `【本章已生成正文】\n${current.content || '（这是本章开篇，尚无正文）'}`,
+      `【导演指令（本次重点）】\n${directive}`,
+      '请基于以上上下文，续写一段小说正文（markdown 段落，不要重复已有内容，不要输出任何解释或前后缀，直接给出续写文本）。',
+    ].filter(Boolean)
+    return parts.join('\n\n')
+  }
+
+  const onAiWrite = async () => {
+    if (!chapter || !book) return
+    const directive = directorInput.trim()
+    if (!directive) {
+      setChapterError('请先输入导演指令')
+      return
+    }
+    setWriting(true)
+    setChapterError(null)
+    try {
+      const model = activeBookConfig.writing_model || defaultModelId || 'openrouter/auto'
+      const prompt = `${activeBookConfig.prompts.writing_prompt}\n\n${buildWritingContext(chapter, directive)}`
+      const generated = (await invokeModel(model, prompt)).trim()
+      if (!generated) {
+        setChapterError('AI 未返回内容，请稍后重试')
+        return
+      }
+      const nextContent = chapter.content ? `${chapter.content}\n\n${generated}` : generated
+      const nextDirectorNote = chapter.directorNote ? `${chapter.directorNote}\n${directive}` : directive
+      const updated = await updateNovelChapter(chapter.id, { content: nextContent, directorNote: nextDirectorNote })
+      setChapter(updated)
+      setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      setContentDraft(updated.content)
+      setDirectorInput('')
+    } catch (error) {
+      setChapterError(error instanceof Error ? error.message : 'AI 续写失败')
+    } finally {
+      setWriting(false)
+    }
+  }
+
+  const onSummarizeChapter = async () => {
+    if (!chapter) return
+    if (!chapter.content.trim()) {
+      setChapterError('本章尚无正文，无法总结')
+      return
+    }
+    setSummarizing(true)
+    setChapterError(null)
+    try {
+      const model = activeBookConfig.summary_model || defaultModelId || 'openrouter/auto'
+      const prompt = `${activeBookConfig.prompts.summary_prompt}\n\n严格只输出摘要本身，不要任何前后缀。\n\n章节标题：${chapter.title}\n\n章节正文：\n${chapter.content}`
+      const summary = (await invokeModel(model, prompt)).trim()
+      const updated = await updateNovelChapter(chapter.id, { summary, status: 'published' })
+      setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      setChapter(null)
+    } catch (error) {
+      setChapterError(error instanceof Error ? error.message : '总结失败')
+    } finally {
+      setSummarizing(false)
+    }
+  }
+
+  const onSaveEditedContent = async () => {
+    if (!chapter) return
+    try {
+      const updated = await updateNovelChapter(chapter.id, { content: contentDraft })
+      setChapter(updated)
+      setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      setEditingContent(false)
+    } catch (error) {
+      setChapterError(error instanceof Error ? error.message : '保存失败')
     }
   }
 
@@ -310,34 +417,115 @@ const NovelPage = ({ user }: { user: User | null }) => {
     <section className='novel-shelf'>{books.map((item)=><button key={item.id} className='novel-card' onClick={()=>void openDetail(item)}><h3>{item.title}</h3><p>{item.summary}</p><span>{item.status}</span><span>{item.updatedAt}</span></button>)}</section>
   </div>
 
-  if (!chapter) return <div className='novel-page novel-page--detail'>
-    <button className='novel-nav-btn' onClick={()=>setBook(null)}>← 书架</button>
-    <header className='novel-book-header novel-card-shell'>
-      <h1>{book.title}</h1>
-      <p>{book.status}</p>
-    </header>
-    <div className='novel-detail-grid'>
-      <section className='novel-info-card'><h3>设定</h3><pre>{book.worldSetting}</pre></section>
-      <section className='novel-info-card'><h3>大纲</h3><pre>{book.outline}</pre></section>
-      <section className='novel-info-card'><h3>配置</h3><select value={activeBookConfig.writing_model} onChange={(e)=>void updateNovelBookModelConfig(book.id,{...activeBookConfig,writing_model:e.target.value})}>{modelOptions.map((m)=><option key={m} value={m}>{m}</option>)}</select></section>
+  if (!chapter) return <div className='novel-page'>
+    <div className='novel-header novel-card-shell'>
+      <button className='novel-pill-btn' onClick={() => setBook(null)}>← 书架</button>
+      <div className='novel-title-wrap'>
+        <p className='novel-kicker'>Novel</p>
+        <h1 className='ui-title'>{book.title}</h1>
+      </div>
+      <div className='novel-header-spacer' />
     </div>
-    <section className='novel-chapter-list novel-card-shell'>
-      <h3>章节列表</h3>
-      {chapters.map((c)=><button key={c.id} className='novel-chapter-row' onClick={()=>setChapter(c)}>第{c.chapterNumber}章 {c.title}</button>)}
+
+    <section className='novel-info-card'>
+      <h3>简介</h3>
+      <p className='novel-info-text'>{book.summary || '（暂无）'}</p>
     </section>
-    <button className='novel-pill-btn novel-pill-btn--primary' onClick={()=>void onContinue()}>续写下一章</button>
+    <section className='novel-info-card'>
+      <h3>世界设定</h3>
+      <pre className='novel-info-text'>{book.worldSetting || '（暂无）'}</pre>
+    </section>
+    <section className='novel-info-card'>
+      <h3>大纲</h3>
+      <pre className='novel-info-text'>{book.outline || '（暂无）'}</pre>
+    </section>
+    {book.characters && book.characters.length > 0 ? <section className='novel-info-card'>
+      <h3>角色卡</h3>
+      <div className='novel-character-list'>
+        {book.characters.map((c, i) => <div key={`${i}-${c.name}`} className='novel-character-chip'>
+          <strong>{c.name || '未命名'}</strong>
+          {c.description ? <p>{c.description}</p> : null}
+          {c.personality ? <p className='novel-character-personality'>性格：{c.personality}</p> : null}
+        </div>)}
+      </div>
+    </section> : null}
+    <section className='novel-info-card'>
+      <h3>写作模型</h3>
+      <select className='novel-select' value={activeBookConfig.writing_model} onChange={(e) => void updateNovelBookModelConfig(book.id, { ...activeBookConfig, writing_model: e.target.value })}>
+        {modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+    </section>
+
+    <section className='novel-chapter-list'>
+      <h3>章节列表</h3>
+      {chapters.length === 0 ? <p className='novel-empty'>尚无章节，点击下方按钮开始第 1 章。</p> : null}
+      {chapters.map((c) => <button key={c.id} className='novel-chapter-row' onClick={() => setChapter(c)}>
+        <span className='novel-chapter-row__title'>第 {c.chapterNumber} 章 · {c.title}</span>
+        <span className={`novel-chapter-row__status novel-chapter-row__status--${c.status}`}>{c.status === 'published' ? '已结章' : '草稿中'}</span>
+      </button>)}
+    </section>
+    <button className='novel-pill-btn novel-pill-btn--primary novel-create-btn' onClick={() => void onContinue()}>续写下一章</button>
   </div>
 
-  return <div className='novel-reader'>
-    <button className='novel-nav-btn' onClick={()=>setChapter(null)}>← 返回章节列表</button>
+  return <div className='novel-page novel-page--writer'>
+    <div className='novel-header novel-card-shell'>
+      <button className='novel-pill-btn' onClick={() => setChapter(null)}>← 章节列表</button>
+      <div className='novel-title-wrap'>
+        <p className='novel-kicker'>{book.title}</p>
+        <h1 className='ui-title'>第 {chapter.chapterNumber} 章 · {chapter.title}</h1>
+      </div>
+      <div className='novel-header-spacer' />
+    </div>
+
+    <details className='novel-director-note'>
+      <summary>导演备注 <span className='novel-director-note__count'>{chapter.directorNote ? chapter.directorNote.split('\n').filter(Boolean).length : 0} 条</span></summary>
+      <div className='novel-director-note__body'>
+        {chapter.directorNote
+          ? chapter.directorNote.split('\n').filter(Boolean).map((line, i) => <p key={i}>· {line}</p>)
+          : <p className='novel-director-note__empty'>暂无导演指令</p>}
+      </div>
+    </details>
+
     <section className='novel-reader-paper'>
-      <h2 className='novel-reader-title'>{chapter.title}</h2>
-      <details className='novel-director-note'>
-        <summary>导演备注</summary>
-        <p>{chapter.directorNote || '暂无'}</p>
-      </details>
-      <article className='novel-reader-content'>{chapter.content}</article>
-      <button className='novel-pill-btn novel-pill-btn--primary' onClick={async ()=>{ const updated=await updateNovelChapter(chapter.id,{content:chapter.content, directorNote:chapter.directorNote}); setChapter(updated)}}>保存本章</button>
+      <div className='novel-reader-toolbar'>
+        <span className='novel-reader-toolbar__label'>正文</span>
+        {editingContent ? (
+          <div className='novel-reader-toolbar__actions'>
+            <button className='novel-pill-btn' onClick={() => { setEditingContent(false); setContentDraft(chapter.content) }}>取消</button>
+            <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void onSaveEditedContent()}>保存</button>
+          </div>
+        ) : (
+          <button className='novel-pill-btn' onClick={() => { setContentDraft(chapter.content); setEditingContent(true) }}>编辑</button>
+        )}
+      </div>
+      {editingContent ? (
+        <textarea className='novel-reader-editor' value={contentDraft} onChange={(e) => setContentDraft(e.target.value)} />
+      ) : (
+        <article className='novel-reader-content'>
+          {chapter.content
+            ? <MarkdownRenderer content={chapter.content} />
+            : <p className='novel-reader-empty'>本章尚未生成任何正文。在下方输入导演指令并点击「AI 续写」开始。</p>}
+        </article>
+      )}
+    </section>
+
+    <section className='novel-director-input-card'>
+      <textarea
+        className='novel-director-input'
+        value={directorInput}
+        onChange={(e) => setDirectorInput(e.target.value)}
+        placeholder='输入情节方向/要求...'
+        rows={3}
+      />
+      {chapterError ? <p className='novel-settings-error'>{chapterError}</p> : null}
+      <div className='novel-writer-actions'>
+        <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void onAiWrite()} disabled={writing || summarizing || !directorInput.trim()}>
+          {writing ? 'AI 续写中...' : 'AI 续写'}
+        </button>
+        <button className='novel-pill-btn' onClick={() => void onSummarizeChapter()} disabled={writing || summarizing || !chapter.content.trim()}>
+          {summarizing ? '总结中...' : '总结本章'}
+        </button>
+      </div>
     </section>
   </div>
 }
