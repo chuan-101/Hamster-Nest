@@ -70,6 +70,7 @@ import HamsterConsolePage from './pages/HamsterConsolePage'
 import AgentCouncilPage from './pages/AgentCouncilPage'
 import WalletPage from './pages/WalletPage'
 import WikiPage from './pages/WikiPage'
+import NovelPage from './pages/NovelPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1964,6 +1965,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <WalletPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/novels"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <NovelPage user={user} />
             </RequireAuth>
           }
         />
