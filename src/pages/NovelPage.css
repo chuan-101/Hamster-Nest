@@ -32,6 +32,10 @@
 .novel-info-card{border:1px solid rgba(255,214,231,.88);border-radius:16px;background:#fff;box-shadow:0 6px 14px rgba(255,214,231,.14);padding:14px 16px;display:grid;gap:8px}
 .novel-info-card h3{margin:0;font-size:14px;color:#7d5d70;letter-spacing:.04em}
 .novel-info-card__head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.novel-info-toggle{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;padding:0;color:inherit;cursor:pointer}
+.novel-info-toggle h3{margin:0}
+.novel-info-toggle__chevron{font-size:12px;color:#a08496;transition:transform .2s ease}
+.novel-info-toggle__chevron.is-open{transform:rotate(180deg)}
 .novel-info-card__actions{display:flex;gap:6px}
 .novel-info-textarea{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #e4dbe8;background:#fff;font:inherit;font-size:14px;line-height:1.65;color:#3f3749;resize:vertical;min-height:64px}
 .novel-character-chip--editing{display:grid;gap:6px;background:#fffaff;border-color:#f3dde9}

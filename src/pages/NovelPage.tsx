@@ -50,6 +50,12 @@ const NovelPage = ({ user }: { user: User | null }) => {
   const [metaDraftChars, setMetaDraftChars] = useState<NovelCharacterCard[]>([])
   const [metaSaving, setMetaSaving] = useState(false)
   const [metaError, setMetaError] = useState<string | null>(null)
+  const [metaSectionOpen, setMetaSectionOpen] = useState<Record<MetaField, boolean>>({
+    summary: false,
+    worldSetting: false,
+    outline: false,
+    characters: false,
+  })
 
   const baseConfig: NovelModelConfig = useMemo(() => ({
     writing_model: defaultModelId ?? 'openrouter/auto',
@@ -263,6 +269,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
   const startEditMeta = (field: MetaField) => {
     if (!book) return
     setMetaError(null)
+    setMetaSectionOpen((prev) => ({ ...prev, [field]: true }))
     setEditingField(field)
     if (field === 'characters') {
       setMetaDraftChars((book.characters ?? []).map((c) => ({ ...c })))
@@ -276,6 +283,11 @@ const NovelPage = ({ user }: { user: User | null }) => {
   }
 
   const cancelEditMeta = () => { setEditingField(null); setMetaError(null) }
+
+  const toggleMetaSection = (field: MetaField) => {
+    if (editingField === field) return
+    setMetaSectionOpen((prev) => ({ ...prev, [field]: !prev[field] }))
+  }
 
   const saveEditMeta = async () => {
     if (!book || !editingField) return
@@ -478,7 +490,10 @@ const NovelPage = ({ user }: { user: User | null }) => {
 
     <section className='novel-info-card'>
       <div className='novel-info-card__head'>
-        <h3>简介</h3>
+        <button className='novel-info-toggle' onClick={() => toggleMetaSection('summary')}>
+          <h3>简介</h3>
+          <span className={`novel-info-toggle__chevron ${metaSectionOpen.summary ? 'is-open' : ''}`} aria-hidden>▾</span>
+        </button>
         {editingField === 'summary' ? (
           <div className='novel-info-card__actions'>
             <button className='novel-pill-btn' onClick={cancelEditMeta} disabled={metaSaving}>取消</button>
@@ -488,19 +503,22 @@ const NovelPage = ({ user }: { user: User | null }) => {
           <button className='novel-pill-btn' onClick={() => startEditMeta('summary')}>编辑</button>
         )}
       </div>
-      {editingField === 'summary' ? (
+      {metaSectionOpen.summary ? (editingField === 'summary' ? (
         <>
           <textarea className='novel-info-textarea' value={metaDraftText} onChange={(e) => setMetaDraftText(e.target.value)} rows={3} />
           {metaError ? <p className='novel-settings-error'>{metaError}</p> : null}
         </>
       ) : (
         <p className='novel-info-text'>{book.summary || '（暂无）'}</p>
-      )}
+      )) : null}
     </section>
 
     <section className='novel-info-card'>
       <div className='novel-info-card__head'>
-        <h3>世界设定</h3>
+        <button className='novel-info-toggle' onClick={() => toggleMetaSection('worldSetting')}>
+          <h3>世界设定</h3>
+          <span className={`novel-info-toggle__chevron ${metaSectionOpen.worldSetting ? 'is-open' : ''}`} aria-hidden>▾</span>
+        </button>
         {editingField === 'worldSetting' ? (
           <div className='novel-info-card__actions'>
             <button className='novel-pill-btn' onClick={cancelEditMeta} disabled={metaSaving}>取消</button>
@@ -510,19 +528,22 @@ const NovelPage = ({ user }: { user: User | null }) => {
           <button className='novel-pill-btn' onClick={() => startEditMeta('worldSetting')}>编辑</button>
         )}
       </div>
-      {editingField === 'worldSetting' ? (
+      {metaSectionOpen.worldSetting ? (editingField === 'worldSetting' ? (
         <>
           <textarea className='novel-info-textarea' value={metaDraftText} onChange={(e) => setMetaDraftText(e.target.value)} rows={6} />
           {metaError ? <p className='novel-settings-error'>{metaError}</p> : null}
         </>
       ) : (
         <pre className='novel-info-text'>{book.worldSetting || '（暂无）'}</pre>
-      )}
+      )) : null}
     </section>
 
     <section className='novel-info-card'>
       <div className='novel-info-card__head'>
-        <h3>大纲</h3>
+        <button className='novel-info-toggle' onClick={() => toggleMetaSection('outline')}>
+          <h3>大纲</h3>
+          <span className={`novel-info-toggle__chevron ${metaSectionOpen.outline ? 'is-open' : ''}`} aria-hidden>▾</span>
+        </button>
         {editingField === 'outline' ? (
           <div className='novel-info-card__actions'>
             <button className='novel-pill-btn' onClick={cancelEditMeta} disabled={metaSaving}>取消</button>
@@ -532,19 +553,22 @@ const NovelPage = ({ user }: { user: User | null }) => {
           <button className='novel-pill-btn' onClick={() => startEditMeta('outline')}>编辑</button>
         )}
       </div>
-      {editingField === 'outline' ? (
+      {metaSectionOpen.outline ? (editingField === 'outline' ? (
         <>
           <textarea className='novel-info-textarea' value={metaDraftText} onChange={(e) => setMetaDraftText(e.target.value)} rows={6} />
           {metaError ? <p className='novel-settings-error'>{metaError}</p> : null}
         </>
       ) : (
         <pre className='novel-info-text'>{book.outline || '（暂无）'}</pre>
-      )}
+      )) : null}
     </section>
 
     <section className='novel-info-card'>
       <div className='novel-info-card__head'>
-        <h3>角色卡</h3>
+        <button className='novel-info-toggle' onClick={() => toggleMetaSection('characters')}>
+          <h3>角色卡</h3>
+          <span className={`novel-info-toggle__chevron ${metaSectionOpen.characters ? 'is-open' : ''}`} aria-hidden>▾</span>
+        </button>
         {editingField === 'characters' ? (
           <div className='novel-info-card__actions'>
             <button className='novel-pill-btn' onClick={cancelEditMeta} disabled={metaSaving}>取消</button>
@@ -554,7 +578,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
           <button className='novel-pill-btn' onClick={() => startEditMeta('characters')}>编辑</button>
         )}
       </div>
-      {editingField === 'characters' ? (
+      {metaSectionOpen.characters ? (editingField === 'characters' ? (
         <div className='novel-character-list'>
           {metaDraftChars.map((c, i) => (
             <div key={i} className='novel-character-chip novel-character-chip--editing'>
@@ -577,7 +601,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
             </div>)}
           </div>
         ) : <p className='novel-info-text'>（暂无）</p>
-      )}
+      )) : null}
     </section>
     <section className='novel-info-card'>
       <h3>写作模型</h3>
