@@ -142,28 +142,41 @@
 .wiki-reader h1 { margin: 0; color: #5c4152; }
 .wiki-meta { margin: 6px 0 14px; color: #a36f8e; font-size: 13px; }
 .wiki-linked { color: #8d6280; font-size: 13px; }
-.wiki-content-sections { display: grid; gap: 10px; }
-.wiki-content-section {
-  border: 1px solid rgba(255, 214, 231, 0.75);
-  border-radius: 12px;
-  background: rgba(255, 252, 254, 0.8);
-  overflow: hidden;
+.wiki-content-body { margin-top: 4px; }
+.wiki-content-body h1,
+.wiki-content-body h2,
+.wiki-content-body h3,
+.wiki-content-body h4 {
+  color: #5c4152;
+  margin: 18px 0 8px;
 }
-.wiki-content-section__header {
-  width: 100%;
-  text-align: left;
-  border: 0;
-  border-bottom: 1px solid rgba(255, 214, 231, 0.6);
+.wiki-content-body p { margin: 8px 0; }
+.wiki-content-body ul,
+.wiki-content-body ol { padding-left: 22px; }
+.wiki-content-body code {
+  background: #fff1f8;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 0.92em;
+}
+.wiki-content-body pre {
   background: #fff6fb;
-  color: #6e4d63;
+  border: 1px solid rgba(255, 214, 231, 0.7);
+  border-radius: 10px;
   padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  overflow-x: auto;
 }
-.wiki-content-section__body {
-  padding: 10px 12px 4px;
+.wiki-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #c45e8d;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
 }
+.wiki-link:hover { color: #8e3866; }
 .wiki-backlinks { margin-top: 16px; border-top: 1px dashed #f0ccdd; padding-top: 12px; }
 .wiki-backlinks h3 { margin: 0 0 10px; color: #6d4e63; }
 
