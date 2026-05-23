@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { useNavigate } from 'react-router-dom'
 import { useEnabledModels } from '../hooks/useEnabledModels'
 import { supabase } from '../supabase/client'
 import type { NovelBook, NovelChapter, NovelCharacterCard, NovelModelConfig } from '../types'
@@ -19,6 +20,7 @@ type DraftState = {
 const emptyDraft: DraftState = { title: '', summary: '', outline: '', worldSetting: '', characters: [] }
 
 const NovelPage = ({ user }: { user: User | null }) => {
+  const navigate = useNavigate()
   const { enabledModelIds, defaultModelId } = useEnabledModels(user)
   const [books, setBooks] = useState<NovelBook[]>([])
   const [globalConfigBook, setGlobalConfigBook] = useState<NovelBook | null>(null)
@@ -177,12 +179,12 @@ const NovelPage = ({ user }: { user: User | null }) => {
 
   if (!book) return <div className='novel-page'>
     <div className='novel-header novel-card-shell'>
-      <button className='novel-pill-btn' onClick={() => setSettingsOpen(true)}>⚙️ 设置</button>
+      <button className='novel-pill-btn' onClick={() => navigate('/')}>← 返回</button>
       <div className='novel-title-wrap'>
         <p className='novel-kicker'>Story Studio</p>
         <h1 className='ui-title'>📖 小说工坊</h1>
       </div>
-      <span className='novel-header-spacer' />
+      <button className='novel-pill-btn' onClick={() => setSettingsOpen(true)}>⚙️ 设置</button>
     </div>
 
     {settingsOpen ? <div className='novel-modal-mask' onClick={() => setSettingsOpen(false)}>
@@ -223,7 +225,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
           <button onClick={()=>setDraft((p)=>({...p,characters:p.characters.filter((_,i)=>i!==index)}))}>删除</button>
         </div>)}
       </section>
-      <button onClick={() => void onCreate()}>确认创建</button>
+      <button className='novel-pill-btn novel-pill-btn--primary novel-create-btn' onClick={() => void onCreate()}>确认创建</button>
     </section>
 
     <section className='novel-shelf'>{books.map((item)=><button key={item.id} className='novel-card' onClick={()=>void openDetail(item)}><h3>{item.title}</h3><p>{item.summary}</p><span>{item.status}</span><span>{item.updatedAt}</span></button>)}</section>

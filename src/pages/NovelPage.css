@@ -6,6 +6,7 @@
 .novel-title-wrap{text-align:center}.novel-kicker{margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#b27f98}.novel-header-spacer{width:56px;height:1px}
 .novel-pill-btn,.novel-ai-btn,.novel-characters__header button,.novel-character-card button{border-radius:999px;border:1px solid #ffd6e7;background:#fff;color:#7d5d70;padding:7px 12px}
 .novel-pill-btn--primary{background:linear-gradient(180deg,#ffeef6 0%,#ffe1ef 100%);font-weight:600}
+.novel-create-btn{justify-self:start;min-width:112px;padding:9px 18px;box-shadow:0 3px 7px rgba(255,185,216,.38)}
 .novel-settings-panel,.novel-create,.novel-shelf,.novel-detail-grid{display:grid;gap:12px}
 .novel-create,.novel-card,.novel-character-card{padding:12px}
 .novel-settings-panel label,.novel-create label{display:grid;gap:6px;font-size:13px;color:#6a6473}
