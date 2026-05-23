@@ -14,12 +14,6 @@ type EditorState = {
   status: WikiEntryStatus
 }
 
-type WikiContentSection = {
-  id: string
-  title: string
-  content: string
-}
-
 const emptyEditor = (): EditorState => ({ title: '', content: '', category: '', tags: '', status: 'draft' })
 
 const parseTags = (value: string) =>
@@ -37,44 +31,6 @@ const toEditorState = (entry: WikiEntry): EditorState => ({
   status: entry.status,
 })
 
-const splitWikiContentSections = (content: string): WikiContentSection[] => {
-  const lines = content.split('\n')
-  const sections: WikiContentSection[] = []
-  let currentTitle = '概览'
-  let currentLines: string[] = []
-  let counter = 0
-
-  const pushSection = () => {
-    const text = currentLines.join('\n').trim()
-    if (!text) {
-      return
-    }
-    sections.push({
-      id: `section-${counter}`,
-      title: currentTitle,
-      content: text,
-    })
-    counter += 1
-  }
-
-  lines.forEach((line) => {
-    const headingMatch = /^(#{1,6})\s+(.+)$/.exec(line.trim())
-    if (headingMatch) {
-      pushSection()
-      currentTitle = headingMatch[2].trim()
-      currentLines = []
-      return
-    }
-    currentLines.push(line)
-  })
-
-  pushSection()
-  if (sections.length === 0) {
-    return [{ id: 'section-0', title: '正文', content: content.trim() }]
-  }
-  return sections
-}
-
 const WikiPage = () => {
   const navigate = useNavigate()
   const [entries, setEntries] = useState<WikiEntry[]>([])
@@ -83,7 +39,6 @@ const WikiPage = () => {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [editor, setEditor] = useState<EditorState>(emptyEditor())
@@ -146,28 +101,6 @@ const WikiPage = () => {
     const marker = `[[${selected.title}]]`
     return entries.filter((entry) => entry.id !== selected.id && entry.content.includes(marker))
   }, [selected, entries])
-
-  const renderedContent = useMemo(() => {
-    if (!selected) return ''
-    return selected.content.replace(
-      /\[\[([^\]]+)\]\]/g,
-      (_full, title: string) => `[${title.trim()}](wiki://${encodeURIComponent(title.trim())})`,
-    )
-  }, [selected])
-
-  const contentSections = useMemo(() => splitWikiContentSections(renderedContent), [renderedContent])
-
-  useEffect(() => {
-    if (contentSections.length === 0) {
-      setCollapsedSections({})
-      return
-    }
-    const nextState: Record<string, boolean> = {}
-    contentSections.forEach((section, index) => {
-      nextState[section.id] = index !== 0
-    })
-    setCollapsedSections(nextState)
-  }, [selectedId, contentSections])
 
   const openEntry = (entry: WikiEntry) => {
     setSelectedId(entry.id)
@@ -251,32 +184,14 @@ const WikiPage = () => {
               <button type="button" className="wiki-create" onClick={startEdit}>编辑</button>
             </header>
             <p className="wiki-meta">{selected.category} · {selected.status}</p>
-            <div className="wiki-content-sections">
-              {contentSections.map((section) => (
-                <section key={section.id} className="wiki-content-section">
-                  <button
-                    type="button"
-                    className="wiki-content-section__header"
-                    onClick={() =>
-                      setCollapsedSections((prev) => ({ ...prev, [section.id]: !prev[section.id] }))
-                    }
-                  >
-                    <span>{collapsedSections[section.id] ? '▸' : '▾'}</span>
-                    <strong>{section.title}</strong>
-                  </button>
-                  {!collapsedSections[section.id] && (
-                    <div className="wiki-content-section__body">
-                      <MarkdownRenderer
-                        content={section.content}
-                        onWikiLinkClick={(title) => {
-                          const target = entries.find((entry) => entry.title === title)
-                          if (target) openEntry(target)
-                        }}
-                      />
-                    </div>
-                  )}
-                </section>
-              ))}
+            <div className="wiki-content-body">
+              <MarkdownRenderer
+                content={selected.content}
+                onWikiLinkClick={(title) => {
+                  const target = entries.find((entry) => entry.title === title)
+                  if (target) openEntry(target)
+                }}
+              />
             </div>
             {linkedTitles.length > 0 && <p className="wiki-linked">链接到：{linkedTitles.join('、')}</p>}
             <section className="wiki-backlinks">
