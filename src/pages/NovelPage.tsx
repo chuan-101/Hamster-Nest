@@ -5,7 +5,7 @@ import { useEnabledModels } from '../hooks/useEnabledModels'
 import { supabase } from '../supabase/client'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import type { NovelBook, NovelChapter, NovelCharacterCard, NovelModelConfig } from '../types'
-import { createNovelBook, createNovelChapter, listNovelBooks, listNovelChaptersByBookId, updateNovelBookModelConfig, updateNovelChapter } from '../storage/supabaseSync'
+import { createNovelBook, createNovelChapter, listNovelBooks, listNovelChaptersByBookId, updateNovelBookMeta, updateNovelBookModelConfig, updateNovelChapter } from '../storage/supabaseSync'
 import './NovelPage.css'
 
 const GLOBAL_CONFIG_TITLE = '__global_config__'
@@ -42,6 +42,14 @@ const NovelPage = ({ user }: { user: User | null }) => {
   const [chapterError, setChapterError] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState(false)
   const [contentDraft, setContentDraft] = useState('')
+
+  // Book-meta editing state
+  type MetaField = 'summary' | 'worldSetting' | 'outline' | 'characters'
+  const [editingField, setEditingField] = useState<MetaField | null>(null)
+  const [metaDraftText, setMetaDraftText] = useState('')
+  const [metaDraftChars, setMetaDraftChars] = useState<NovelCharacterCard[]>([])
+  const [metaSaving, setMetaSaving] = useState(false)
+  const [metaError, setMetaError] = useState<string | null>(null)
 
   const baseConfig: NovelModelConfig = useMemo(() => ({
     writing_model: defaultModelId ?? 'openrouter/auto',
@@ -250,7 +258,48 @@ const NovelPage = ({ user }: { user: User | null }) => {
     setBook(created)
   }
 
-  const openDetail = async (item: NovelBook) => { setBook(item); setChapter(null); setChapters(await listNovelChaptersByBookId(item.id)) }
+  const openDetail = async (item: NovelBook) => { setBook(item); setChapter(null); setChapters(await listNovelChaptersByBookId(item.id)); setEditingField(null); setMetaError(null) }
+
+  const startEditMeta = (field: MetaField) => {
+    if (!book) return
+    setMetaError(null)
+    setEditingField(field)
+    if (field === 'characters') {
+      setMetaDraftChars((book.characters ?? []).map((c) => ({ ...c })))
+    } else if (field === 'summary') {
+      setMetaDraftText(book.summary ?? '')
+    } else if (field === 'worldSetting') {
+      setMetaDraftText(book.worldSetting ?? '')
+    } else {
+      setMetaDraftText(book.outline ?? '')
+    }
+  }
+
+  const cancelEditMeta = () => { setEditingField(null); setMetaError(null) }
+
+  const saveEditMeta = async () => {
+    if (!book || !editingField) return
+    setMetaSaving(true)
+    setMetaError(null)
+    try {
+      const patch: { summary?: string; outline?: string; worldSetting?: string; characters?: NovelCharacterCard[] } =
+        editingField === 'characters'
+          ? { characters: metaDraftChars }
+          : editingField === 'summary'
+            ? { summary: metaDraftText }
+            : editingField === 'worldSetting'
+              ? { worldSetting: metaDraftText }
+              : { outline: metaDraftText }
+      const updated = await updateNovelBookMeta(book.id, patch)
+      setBook(updated)
+      setBooks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
+      setEditingField(null)
+    } catch (error) {
+      setMetaError(error instanceof Error ? error.message : '保存失败')
+    } finally {
+      setMetaSaving(false)
+    }
+  }
 
   const onContinue = async () => {
     if (!book) return
@@ -428,27 +477,108 @@ const NovelPage = ({ user }: { user: User | null }) => {
     </div>
 
     <section className='novel-info-card'>
-      <h3>简介</h3>
-      <p className='novel-info-text'>{book.summary || '（暂无）'}</p>
-    </section>
-    <section className='novel-info-card'>
-      <h3>世界设定</h3>
-      <pre className='novel-info-text'>{book.worldSetting || '（暂无）'}</pre>
-    </section>
-    <section className='novel-info-card'>
-      <h3>大纲</h3>
-      <pre className='novel-info-text'>{book.outline || '（暂无）'}</pre>
-    </section>
-    {book.characters && book.characters.length > 0 ? <section className='novel-info-card'>
-      <h3>角色卡</h3>
-      <div className='novel-character-list'>
-        {book.characters.map((c, i) => <div key={`${i}-${c.name}`} className='novel-character-chip'>
-          <strong>{c.name || '未命名'}</strong>
-          {c.description ? <p>{c.description}</p> : null}
-          {c.personality ? <p className='novel-character-personality'>性格：{c.personality}</p> : null}
-        </div>)}
+      <div className='novel-info-card__head'>
+        <h3>简介</h3>
+        {editingField === 'summary' ? (
+          <div className='novel-info-card__actions'>
+            <button className='novel-pill-btn' onClick={cancelEditMeta} disabled={metaSaving}>取消</button>
+            <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void saveEditMeta()} disabled={metaSaving}>{metaSaving ? '保存中...' : '保存'}</button>
+          </div>
+        ) : (
+          <button className='novel-pill-btn' onClick={() => startEditMeta('summary')}>编辑</button>
+        )}
       </div>
-    </section> : null}
+      {editingField === 'summary' ? (
+        <>
+          <textarea className='novel-info-textarea' value={metaDraftText} onChange={(e) => setMetaDraftText(e.target.value)} rows={3} />
+          {metaError ? <p className='novel-settings-error'>{metaError}</p> : null}
+        </>
+      ) : (
+        <p className='novel-info-text'>{book.summary || '（暂无）'}</p>
+      )}
+    </section>
+
+    <section className='novel-info-card'>
+      <div className='novel-info-card__head'>
+        <h3>世界设定</h3>
+        {editingField === 'worldSetting' ? (
+          <div className='novel-info-card__actions'>
+            <button className='novel-pill-btn' onClick={cancelEditMeta} disabled={metaSaving}>取消</button>
+            <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void saveEditMeta()} disabled={metaSaving}>{metaSaving ? '保存中...' : '保存'}</button>
+          </div>
+        ) : (
+          <button className='novel-pill-btn' onClick={() => startEditMeta('worldSetting')}>编辑</button>
+        )}
+      </div>
+      {editingField === 'worldSetting' ? (
+        <>
+          <textarea className='novel-info-textarea' value={metaDraftText} onChange={(e) => setMetaDraftText(e.target.value)} rows={6} />
+          {metaError ? <p className='novel-settings-error'>{metaError}</p> : null}
+        </>
+      ) : (
+        <pre className='novel-info-text'>{book.worldSetting || '（暂无）'}</pre>
+      )}
+    </section>
+
+    <section className='novel-info-card'>
+      <div className='novel-info-card__head'>
+        <h3>大纲</h3>
+        {editingField === 'outline' ? (
+          <div className='novel-info-card__actions'>
+            <button className='novel-pill-btn' onClick={cancelEditMeta} disabled={metaSaving}>取消</button>
+            <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void saveEditMeta()} disabled={metaSaving}>{metaSaving ? '保存中...' : '保存'}</button>
+          </div>
+        ) : (
+          <button className='novel-pill-btn' onClick={() => startEditMeta('outline')}>编辑</button>
+        )}
+      </div>
+      {editingField === 'outline' ? (
+        <>
+          <textarea className='novel-info-textarea' value={metaDraftText} onChange={(e) => setMetaDraftText(e.target.value)} rows={6} />
+          {metaError ? <p className='novel-settings-error'>{metaError}</p> : null}
+        </>
+      ) : (
+        <pre className='novel-info-text'>{book.outline || '（暂无）'}</pre>
+      )}
+    </section>
+
+    <section className='novel-info-card'>
+      <div className='novel-info-card__head'>
+        <h3>角色卡</h3>
+        {editingField === 'characters' ? (
+          <div className='novel-info-card__actions'>
+            <button className='novel-pill-btn' onClick={cancelEditMeta} disabled={metaSaving}>取消</button>
+            <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void saveEditMeta()} disabled={metaSaving}>{metaSaving ? '保存中...' : '保存'}</button>
+          </div>
+        ) : (
+          <button className='novel-pill-btn' onClick={() => startEditMeta('characters')}>编辑</button>
+        )}
+      </div>
+      {editingField === 'characters' ? (
+        <div className='novel-character-list'>
+          {metaDraftChars.map((c, i) => (
+            <div key={i} className='novel-character-chip novel-character-chip--editing'>
+              <input className='novel-char-input' value={c.name} placeholder='名称' onChange={(e) => setMetaDraftChars((prev) => prev.map((it, idx) => idx === i ? { ...it, name: e.target.value } : it))} />
+              <textarea className='novel-char-input' value={c.description} placeholder='描述' rows={2} onChange={(e) => setMetaDraftChars((prev) => prev.map((it, idx) => idx === i ? { ...it, description: e.target.value } : it))} />
+              <textarea className='novel-char-input' value={c.personality} placeholder='性格' rows={2} onChange={(e) => setMetaDraftChars((prev) => prev.map((it, idx) => idx === i ? { ...it, personality: e.target.value } : it))} />
+              <button className='novel-pill-btn novel-char-remove' onClick={() => setMetaDraftChars((prev) => prev.filter((_, idx) => idx !== i))}>删除</button>
+            </div>
+          ))}
+          <button className='novel-pill-btn novel-char-add' onClick={() => setMetaDraftChars((prev) => [...prev, { name: '', description: '', personality: '' }])}>+ 新增角色</button>
+          {metaError ? <p className='novel-settings-error'>{metaError}</p> : null}
+        </div>
+      ) : (
+        (book.characters && book.characters.length > 0) ? (
+          <div className='novel-character-list'>
+            {book.characters.map((c, i) => <div key={`${i}-${c.name}`} className='novel-character-chip'>
+              <strong>{c.name || '未命名'}</strong>
+              {c.description ? <p>{c.description}</p> : null}
+              {c.personality ? <p className='novel-character-personality'>性格：{c.personality}</p> : null}
+            </div>)}
+          </div>
+        ) : <p className='novel-info-text'>（暂无）</p>
+      )}
+    </section>
     <section className='novel-info-card'>
       <h3>写作模型</h3>
       <select className='novel-select' value={activeBookConfig.writing_model} onChange={(e) => void updateNovelBookModelConfig(book.id, { ...activeBookConfig, writing_model: e.target.value })}>
