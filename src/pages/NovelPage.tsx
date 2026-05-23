@@ -310,9 +310,36 @@ const NovelPage = ({ user }: { user: User | null }) => {
     <section className='novel-shelf'>{books.map((item)=><button key={item.id} className='novel-card' onClick={()=>void openDetail(item)}><h3>{item.title}</h3><p>{item.summary}</p><span>{item.status}</span><span>{item.updatedAt}</span></button>)}</section>
   </div>
 
-  if (!chapter) return <div className='novel-page'><button onClick={()=>setBook(null)}>← 书架</button><h1>{book.title}</h1><p>{book.status}</p><div className='novel-detail-grid'><section><h3>设定</h3><pre>{book.worldSetting}</pre></section><section><h3>大纲</h3><pre>{book.outline}</pre></section><section><h3>配置</h3><select value={activeBookConfig.writing_model} onChange={(e)=>void updateNovelBookModelConfig(book.id,{...activeBookConfig,writing_model:e.target.value})}>{modelOptions.map((m)=><option key={m} value={m}>{m}</option>)}</select></section></div><section>{chapters.map((c)=><button key={c.id} onClick={()=>setChapter(c)}>第{c.chapterNumber}章 {c.title}</button>)}</section><button onClick={()=>void onContinue()}>续写下一章</button></div>
+  if (!chapter) return <div className='novel-page novel-page--detail'>
+    <button className='novel-nav-btn' onClick={()=>setBook(null)}>← 书架</button>
+    <header className='novel-book-header novel-card-shell'>
+      <h1>{book.title}</h1>
+      <p>{book.status}</p>
+    </header>
+    <div className='novel-detail-grid'>
+      <section className='novel-info-card'><h3>设定</h3><pre>{book.worldSetting}</pre></section>
+      <section className='novel-info-card'><h3>大纲</h3><pre>{book.outline}</pre></section>
+      <section className='novel-info-card'><h3>配置</h3><select value={activeBookConfig.writing_model} onChange={(e)=>void updateNovelBookModelConfig(book.id,{...activeBookConfig,writing_model:e.target.value})}>{modelOptions.map((m)=><option key={m} value={m}>{m}</option>)}</select></section>
+    </div>
+    <section className='novel-chapter-list novel-card-shell'>
+      <h3>章节列表</h3>
+      {chapters.map((c)=><button key={c.id} className='novel-chapter-row' onClick={()=>setChapter(c)}>第{c.chapterNumber}章 {c.title}</button>)}
+    </section>
+    <button className='novel-pill-btn novel-pill-btn--primary' onClick={()=>void onContinue()}>续写下一章</button>
+  </div>
 
-  return <div className='novel-reader'><button onClick={()=>setChapter(null)}>← 返回章节列表</button><h2>{chapter.title}</h2><details><summary>导演备注</summary><p>{chapter.directorNote || '暂无'}</p></details><article style={{ whiteSpace: 'pre-wrap' }}>{chapter.content}</article><button onClick={async ()=>{ const updated=await updateNovelChapter(chapter.id,{content:chapter.content, directorNote:chapter.directorNote}); setChapter(updated)}}>保存本章</button></div>
+  return <div className='novel-reader'>
+    <button className='novel-nav-btn' onClick={()=>setChapter(null)}>← 返回章节列表</button>
+    <section className='novel-reader-paper'>
+      <h2 className='novel-reader-title'>{chapter.title}</h2>
+      <details className='novel-director-note'>
+        <summary>导演备注</summary>
+        <p>{chapter.directorNote || '暂无'}</p>
+      </details>
+      <article className='novel-reader-content'>{chapter.content}</article>
+      <button className='novel-pill-btn novel-pill-btn--primary' onClick={async ()=>{ const updated=await updateNovelChapter(chapter.id,{content:chapter.content, directorNote:chapter.directorNote}); setChapter(updated)}}>保存本章</button>
+    </section>
+  </div>
 }
 
 export default NovelPage

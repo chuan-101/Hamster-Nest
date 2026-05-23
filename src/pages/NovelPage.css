@@ -21,3 +21,28 @@
 .novel-settings-modal__footer{justify-content:flex-end;position:sticky;bottom:-12px;padding:10px 0 2px;background:linear-gradient(180deg, rgba(255,255,255,0), #fff 36%)}
 .novel-settings-error{margin:0;color:#b13f4d;font-size:12px}
 .novel-pill-btn:disabled{opacity:.55;cursor:not-allowed}
+
+
+.novel-page--detail{max-width:1080px}
+.novel-nav-btn{border:1px solid rgba(214,194,207,.9);border-radius:10px;background:rgba(255,255,255,.75);padding:10px 14px;color:#4b4351}
+.novel-book-header{padding:22px}
+.novel-book-header h1{margin:0;font-size:48px;line-height:1.2}
+.novel-book-header p{margin:10px 0 0;color:#6f6775;font-size:18px}
+.novel-detail-grid{grid-template-columns:1fr;gap:16px}
+.novel-info-card{background:rgba(255,255,255,.85);border:1px solid rgba(241,228,235,.95);border-radius:16px;padding:20px;display:grid;gap:10px}
+.novel-info-card h3{margin:0;font-size:34px;color:#494357}
+.novel-info-card pre{margin:0;white-space:pre-wrap;line-height:1.9;font-size:28px;color:#5a5362;font-family:'Noto Serif SC','Source Han Serif SC','Songti SC',serif}
+.novel-chapter-list{padding:18px;display:grid;gap:8px}
+.novel-chapter-list h3{margin:0 0 8px;color:#5c5563}
+.novel-chapter-row{text-align:left;border:1px solid rgba(225,209,219,.9);padding:11px 12px;border-radius:10px;background:#fff;color:#50495a}
+.novel-reader{max-width:920px;margin:0 auto;padding:18px 14px 30px;display:grid;gap:14px;min-height:100dvh}
+.novel-reader-paper{background:linear-gradient(180deg,#fffefc,#fffcff);border:1px solid rgba(231,216,226,.95);border-radius:18px;padding:26px 24px;display:grid;gap:18px;box-shadow:0 10px 24px rgba(194,166,184,.16)}
+.novel-reader-title{margin:0;font-size:44px;letter-spacing:.03em;color:#433c4d;padding-bottom:14px;border-bottom:1px solid rgba(230,217,227,.9)}
+.novel-director-note{border-radius:12px;border:1px solid rgba(226,219,227,.9);background:rgba(245,241,246,.7);padding:10px 12px}
+.novel-director-note summary{cursor:pointer;color:#807887;font-size:14px}
+.novel-director-note p{margin:8px 0 0;color:#7b7383;font-size:13px;line-height:1.75}
+.novel-reader-content{white-space:pre-wrap;font-family:'Noto Serif SC','Source Han Serif SC','Songti SC',serif;font-size:20px;line-height:2.15;letter-spacing:.01em;color:#3f3749}
+@media (min-width:900px){
+  .novel-detail-grid{grid-template-columns:1fr 1fr}
+  .novel-info-card:last-child{grid-column:1 / -1}
+}
