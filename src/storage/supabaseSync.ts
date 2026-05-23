@@ -34,6 +34,8 @@ import type {
   WalletQuestStatus,
   WalletTransaction,
   WalletTransactionType,
+  WikiEntry,
+  WikiEntryStatus,
 } from '../types'
 import { supabase } from '../supabase/client'
 
@@ -148,6 +150,18 @@ type TimelineEntryRow = {
   summary: string
   recorder: TimelineRecorder
   source: string
+  created_at: string
+  updated_at: string
+}
+
+type WikiEntryRow = {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  category: string
+  tags: string[] | null
+  status: WikiEntryStatus
   created_at: string
   updated_at: string
 }
@@ -423,6 +437,18 @@ const mapTimelineEntryRow = (row: TimelineEntryRow): TimelineEntry => ({
   summary: row.summary,
   recorder: row.recorder,
   source: row.source,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapWikiEntryRow = (row: WikiEntryRow): WikiEntry => ({
+  id: row.id,
+  userId: row.user_id,
+  title: row.title,
+  content: row.content,
+  category: row.category,
+  tags: row.tags ?? [],
+  status: row.status,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -2572,6 +2598,76 @@ export const deleteTimelineEntry = async (entryId: string): Promise<void> => {
     throw new Error('Supabase 客户端未配置')
   }
   const { error } = await supabase.from('timeline_entries').delete().eq('id', entryId)
+  if (error) {
+    throw error
+  }
+}
+
+export const listWikiEntries = async (): Promise<WikiEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('wiki_entries')
+    .select('id,user_id,title,content,category,tags,status,created_at,updated_at')
+    .eq('user_id', userId)
+    .order('category', { ascending: true })
+    .order('title', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapWikiEntryRow(row as WikiEntryRow))
+}
+
+export const createWikiEntry = async (payload: {
+  title: string
+  content: string
+  category: string
+  tags: string[]
+  status?: WikiEntryStatus
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase.from('wiki_entries').insert({
+    user_id: userId,
+    title: payload.title,
+    content: payload.content,
+    category: payload.category,
+    tags: payload.tags,
+    status: payload.status ?? 'draft',
+  })
+  if (error) {
+    throw error
+  }
+}
+
+export const updateWikiEntry = async (
+  entryId: string,
+  payload: {
+    title: string
+    content: string
+    category: string
+    tags: string[]
+    status: WikiEntryStatus
+  },
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('wiki_entries')
+    .update({
+      title: payload.title,
+      content: payload.content,
+      category: payload.category,
+      tags: payload.tags,
+      status: payload.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', entryId)
   if (error) {
     throw error
   }
