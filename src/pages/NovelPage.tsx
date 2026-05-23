@@ -41,6 +41,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
       character_gen_prompt: '根据关键词/简介返回角色 JSON 数组: [{"name":"","description":"","personality":""}]',
     },
   }), [defaultModelId])
+  const [settingsDraft, setSettingsDraft] = useState<NovelModelConfig>(baseConfig)
 
   const globalConfig: NovelModelConfig = useMemo(() => {
     const raw = (globalConfigBook?.modelConfig ?? {}) as Partial<NovelModelConfig>
@@ -61,6 +62,11 @@ const NovelPage = ({ user }: { user: User | null }) => {
   }, [book?.modelConfig, globalConfig])
 
   const modelOptions = enabledModelIds.length > 0 ? enabledModelIds : [globalConfig.writing_model]
+
+  useEffect(() => {
+    if (!settingsOpen) return
+    setSettingsDraft(activeBookConfig)
+  }, [activeBookConfig, settingsOpen])
 
   const reloadBooks = async () => {
     if (!user) return
@@ -164,21 +170,42 @@ const NovelPage = ({ user }: { user: User | null }) => {
     setChapters((prev) => [...prev, created]); setChapter(created)
   }
 
+  const onSaveSettings = async () => {
+    await saveGlobalConfig(settingsDraft)
+    setSettingsOpen(false)
+  }
+
   if (!book) return <div className='novel-page'>
-    <div className='novel-header'>
-      <h1 className='ui-title'>📖 小说</h1>
-      <button className='novel-settings-btn' onClick={() => setSettingsOpen((v) => !v)}>⚙️ 设置</button>
+    <div className='novel-header novel-card-shell'>
+      <button className='novel-pill-btn' onClick={() => setSettingsOpen(true)}>⚙️ 设置</button>
+      <div className='novel-title-wrap'>
+        <p className='novel-kicker'>Story Studio</p>
+        <h1 className='ui-title'>📖 小说工坊</h1>
+      </div>
+      <span className='novel-header-spacer' />
     </div>
 
-    {settingsOpen ? <section className='novel-settings-panel'>
-      <label>写作模型<select value={globalConfig.writing_model} onChange={(e) => void saveGlobalConfig({ ...globalConfig, writing_model: e.target.value })}>{modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <label>摘要模型<select value={globalConfig.summary_model} onChange={(e) => void saveGlobalConfig({ ...globalConfig, summary_model: e.target.value })}>{modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <label>上下文章节数<input type='number' min={1} value={globalConfig.context_window_chapters} onChange={(e) => void saveGlobalConfig({ ...globalConfig, context_window_chapters: Number(e.target.value) || 1 })} /></label>
-      <label>outline_prompt<textarea value={globalConfig.prompts.outline_prompt} onChange={(e) => void saveGlobalConfig({ ...globalConfig, prompts: { ...globalConfig.prompts, outline_prompt: e.target.value } })} /></label>
-      <label>writing_prompt<textarea value={globalConfig.prompts.writing_prompt} onChange={(e) => void saveGlobalConfig({ ...globalConfig, prompts: { ...globalConfig.prompts, writing_prompt: e.target.value } })} /></label>
-      <label>summary_prompt<textarea value={globalConfig.prompts.summary_prompt} onChange={(e) => void saveGlobalConfig({ ...globalConfig, prompts: { ...globalConfig.prompts, summary_prompt: e.target.value } })} /></label>
-      <label>character_gen_prompt<textarea value={globalConfig.prompts.character_gen_prompt} onChange={(e) => void saveGlobalConfig({ ...globalConfig, prompts: { ...globalConfig.prompts, character_gen_prompt: e.target.value } })} /></label>
-    </section> : null}
+    {settingsOpen ? <div className='novel-modal-mask' onClick={() => setSettingsOpen(false)}>
+      <section className='novel-settings-modal' onClick={(e) => e.stopPropagation()}>
+        <header className='novel-settings-modal__header'>
+          <h2>小说设置</h2>
+          <button className='novel-pill-btn' onClick={() => setSettingsOpen(false)}>关闭</button>
+        </header>
+        <div className='novel-settings-panel'>
+          <label>写作模型<select value={settingsDraft.writing_model} onChange={(e) => setSettingsDraft((p) => ({ ...p, writing_model: e.target.value }))}>{modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+          <label>摘要模型<select value={settingsDraft.summary_model} onChange={(e) => setSettingsDraft((p) => ({ ...p, summary_model: e.target.value }))}>{modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+          <label>上下文章节数<input type='number' min={1} value={settingsDraft.context_window_chapters} onChange={(e) => setSettingsDraft((p) => ({ ...p, context_window_chapters: Number(e.target.value) || 1 }))} /></label>
+          <label>outline_prompt<textarea value={settingsDraft.prompts.outline_prompt} onChange={(e) => setSettingsDraft((p) => ({ ...p, prompts: { ...p.prompts, outline_prompt: e.target.value } }))} /></label>
+          <label>writing_prompt<textarea value={settingsDraft.prompts.writing_prompt} onChange={(e) => setSettingsDraft((p) => ({ ...p, prompts: { ...p.prompts, writing_prompt: e.target.value } }))} /></label>
+          <label>summary_prompt<textarea value={settingsDraft.prompts.summary_prompt} onChange={(e) => setSettingsDraft((p) => ({ ...p, prompts: { ...p.prompts, summary_prompt: e.target.value } }))} /></label>
+          <label>character_gen_prompt<textarea value={settingsDraft.prompts.character_gen_prompt} onChange={(e) => setSettingsDraft((p) => ({ ...p, prompts: { ...p.prompts, character_gen_prompt: e.target.value } }))} /></label>
+        </div>
+        <footer className='novel-settings-modal__footer'>
+          <button className='novel-pill-btn' onClick={() => setSettingsOpen(false)}>取消</button>
+          <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void onSaveSettings()}>保存</button>
+        </footer>
+      </section>
+    </div> : null}
 
     <section className='novel-create'>
       <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder='关键词/简要描述' />
