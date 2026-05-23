@@ -413,6 +413,8 @@ export type NovelBook = {
   createdAt: string
 }
 
+export type NovelChapterStatus = 'draft' | 'published'
+
 export type NovelChapter = {
   id: string
   bookId: string
@@ -421,6 +423,7 @@ export type NovelChapter = {
   content: string
   directorNote: string
   summary: string
+  status: NovelChapterStatus
   createdAt: string
   updatedAt: string
 }
