@@ -132,6 +132,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
     const accessToken = sessionData.session?.access_token
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
     if (!accessToken || !anonKey) throw new Error('AI 生成失败: 登录状态异常或环境变量未配置')
+    const messages = [{ role: 'user', content: prompt }]
     const response = await fetch('https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/openrouter-chat', {
       method: 'POST',
       headers: {
@@ -139,17 +140,32 @@ const NovelPage = ({ user }: { user: User | null }) => {
         apikey: anonKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model, messages, stream: false }),
     })
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
       throw new Error(`AI 生成失败: ${response.status} ${errorText}`)
     }
-    const data = await response.json()
-    const choice = data?.choices?.[0]
-    const message = choice?.message ?? choice ?? {}
-    const content = typeof message?.content === 'string' ? message.content : ''
-    return content || String(data?.text ?? data?.content ?? '')
+    const responseText = await response.text()
+    const parseResponseJson = () => {
+      try {
+        return JSON.parse(responseText) as Record<string, unknown>
+      } catch (error) {
+        console.warn('[novel] openrouter-chat 返回了非 JSON 响应，将按纯文本处理。', error, { responseText })
+        return null
+      }
+    }
+
+    const data = parseResponseJson()
+    if (!data) return responseText.trim()
+
+    const choice = Array.isArray(data.choices) ? data.choices[0] : null
+    const message = (choice as Record<string, unknown> | null)?.message ?? choice ?? {}
+    const content = typeof (message as Record<string, unknown>)?.content === 'string'
+      ? String((message as Record<string, unknown>).content)
+      : ''
+
+    return content || String(data.text ?? data.content ?? responseText)
   }
 
   const onAiGenerate = async () => {
