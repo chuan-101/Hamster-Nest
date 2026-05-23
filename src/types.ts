@@ -378,3 +378,49 @@ export type BubbleMessage = {
   content: string
   createdAt: string
 }
+
+export type NovelStatus = 'draft' | 'serializing' | 'completed'
+
+export type NovelCharacterCard = {
+  name: string
+  description: string
+  personality: string
+}
+
+export type NovelModelConfig = {
+  writing_model: string
+  summary_model: string
+  context_window_chapters: number
+  prompts: {
+    outline_prompt: string
+    writing_prompt: string
+    summary_prompt: string
+    character_gen_prompt: string
+  }
+}
+
+export type NovelBook = {
+  id: string
+  userId: string
+  title: string
+  summary: string
+  status: NovelStatus
+  outline: string
+  worldSetting: string
+  characters: NovelCharacterCard[]
+  modelConfig: Record<string, unknown>
+  updatedAt: string
+  createdAt: string
+}
+
+export type NovelChapter = {
+  id: string
+  bookId: string
+  chapterNumber: number
+  title: string
+  content: string
+  directorNote: string
+  summary: string
+  createdAt: string
+  updatedAt: string
+}

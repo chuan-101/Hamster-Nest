@@ -36,6 +36,9 @@ import type {
   WalletTransactionType,
   WikiEntry,
   WikiEntryStatus,
+  NovelBook,
+  NovelChapter,
+  NovelCharacterCard,
 } from '../types'
 import { supabase } from '../supabase/client'
 
@@ -3162,3 +3165,16 @@ export const removeSessionFromGroup = async (sessionId: string): Promise<void> =
     .eq('session_id', sessionId)
   if (error) throw error
 }
+
+type NovelBookRow = { id:string; user_id:string; title:string; summary:string; status:'draft'|'serializing'|'completed'; outline:string; world_setting:string; characters: unknown; model_config: Record<string, unknown> | null; created_at:string; updated_at:string }
+type NovelChapterRow = { id:string; book_id:string; chapter_number:number; title:string; content:string; director_note:string; summary:string; created_at:string; updated_at:string }
+
+const mapNovelBookRow = (row: NovelBookRow): NovelBook => ({ id: row.id, userId: row.user_id, title: row.title, summary: row.summary ?? '', status: row.status, outline: row.outline ?? '', worldSetting: row.world_setting ?? '', characters: Array.isArray(row.characters) ? row.characters as NovelCharacterCard[] : [], modelConfig: row.model_config ?? {}, createdAt: row.created_at, updatedAt: row.updated_at })
+const mapNovelChapterRow = (row: NovelChapterRow): NovelChapter => ({ id: row.id, bookId: row.book_id, chapterNumber: row.chapter_number, title: row.title, content: row.content ?? '', directorNote: row.director_note ?? '', summary: row.summary ?? '', createdAt: row.created_at, updatedAt: row.updated_at })
+
+export const listNovelBooks = async (userId: string): Promise<NovelBook[]> => { if (!supabase) return []; const {data,error}= await supabase.from('novel_books').select('*').eq('user_id', userId).order('updated_at',{ascending:false}); if(error) throw error; return (data??[] as NovelBookRow[]).map((r)=>mapNovelBookRow(r as NovelBookRow)) }
+export const createNovelBook = async (payload: { userId:string; title:string; summary:string; status:'draft'|'serializing'|'completed'; outline:string; worldSetting:string; characters: NovelCharacterCard[]; modelConfig: Record<string, unknown> }): Promise<NovelBook> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const now=new Date().toISOString(); const {data,error}=await supabase.from('novel_books').insert({user_id:payload.userId,title:payload.title,summary:payload.summary,status:payload.status,outline:payload.outline,world_setting:payload.worldSetting,characters:payload.characters,model_config:payload.modelConfig,created_at:now,updated_at:now}).select('*').single(); if(error||!data) throw error ?? new Error('创建失败'); return mapNovelBookRow(data as NovelBookRow) }
+export const updateNovelBookModelConfig = async (bookId:string, modelConfig: Record<string, unknown>): Promise<void> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const userId = await requireAuthenticatedUserId(); const {error}=await supabase.from('novel_books').update({model_config:modelConfig,updated_at:new Date().toISOString()}).eq('id',bookId).eq('user_id',userId); if(error) throw error }
+export const listNovelChaptersByBookId = async (bookId: string): Promise<NovelChapter[]> => { if (!supabase) return []; const {data,error}=await supabase.from('novel_chapters').select('*').eq('book_id',bookId).order('chapter_number',{ascending:true}); if(error) throw error; return (data??[] as NovelChapterRow[]).map((r)=>mapNovelChapterRow(r as NovelChapterRow)) }
+export const createNovelChapter = async (payload:{ bookId:string; chapterNumber:number; title:string; content:string; directorNote:string; summary:string }): Promise<NovelChapter> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const now=new Date().toISOString(); const {data,error}=await supabase.from('novel_chapters').insert({book_id:payload.bookId,chapter_number:payload.chapterNumber,title:payload.title,content:payload.content,director_note:payload.directorNote,summary:payload.summary,created_at:now,updated_at:now}).select('*').single(); if(error||!data) throw error ?? new Error('创建章节失败'); return mapNovelChapterRow(data as NovelChapterRow) }
+export const updateNovelChapter = async (chapterId:string, updates:{ content?:string; directorNote?:string; summary?:string }): Promise<NovelChapter> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const patch: Record<string, unknown> = {updated_at:new Date().toISOString()}; if(typeof updates.content !== 'undefined') patch.content = updates.content; if(typeof updates.directorNote !== 'undefined') patch.director_note = updates.directorNote; if(typeof updates.summary !== 'undefined') patch.summary = updates.summary; const {data,error}=await supabase.from('novel_chapters').update(patch).eq('id',chapterId).select('*').single(); if(error||!data) throw error ?? new Error('更新章节失败'); return mapNovelChapterRow(data as NovelChapterRow) }
