@@ -132,6 +132,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
     const accessToken = sessionData.session?.access_token
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
     if (!accessToken || !anonKey) throw new Error('AI 生成失败: 登录状态异常或环境变量未配置')
+    const messages = [{ role: 'user', content: prompt }]
     const response = await fetch('https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/openrouter-chat', {
       method: 'POST',
       headers: {
@@ -139,17 +140,32 @@ const NovelPage = ({ user }: { user: User | null }) => {
         apikey: anonKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model, messages, stream: false }),
     })
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
       throw new Error(`AI 生成失败: ${response.status} ${errorText}`)
     }
-    const data = await response.json()
-    const choice = data?.choices?.[0]
-    const message = choice?.message ?? choice ?? {}
-    const content = typeof message?.content === 'string' ? message.content : ''
-    return content || String(data?.text ?? data?.content ?? '')
+    const responseText = await response.text()
+    const parseResponseJson = () => {
+      try {
+        return JSON.parse(responseText) as Record<string, unknown>
+      } catch (error) {
+        console.warn('[novel] openrouter-chat 返回了非 JSON 响应，将按纯文本处理。', error, { responseText })
+        return null
+      }
+    }
+
+    const data = parseResponseJson()
+    if (!data) return responseText.trim()
+
+    const choice = Array.isArray(data.choices) ? data.choices[0] : null
+    const message = (choice as Record<string, unknown> | null)?.message ?? choice ?? {}
+    const content = typeof (message as Record<string, unknown>)?.content === 'string'
+      ? String((message as Record<string, unknown>).content)
+      : ''
+
+    return content || String(data.text ?? data.content ?? responseText)
   }
 
   const onAiGenerate = async () => {
@@ -294,9 +310,36 @@ const NovelPage = ({ user }: { user: User | null }) => {
     <section className='novel-shelf'>{books.map((item)=><button key={item.id} className='novel-card' onClick={()=>void openDetail(item)}><h3>{item.title}</h3><p>{item.summary}</p><span>{item.status}</span><span>{item.updatedAt}</span></button>)}</section>
   </div>
 
-  if (!chapter) return <div className='novel-page'><button onClick={()=>setBook(null)}>← 书架</button><h1>{book.title}</h1><p>{book.status}</p><div className='novel-detail-grid'><section><h3>设定</h3><pre>{book.worldSetting}</pre></section><section><h3>大纲</h3><pre>{book.outline}</pre></section><section><h3>配置</h3><select value={activeBookConfig.writing_model} onChange={(e)=>void updateNovelBookModelConfig(book.id,{...activeBookConfig,writing_model:e.target.value})}>{modelOptions.map((m)=><option key={m} value={m}>{m}</option>)}</select></section></div><section>{chapters.map((c)=><button key={c.id} onClick={()=>setChapter(c)}>第{c.chapterNumber}章 {c.title}</button>)}</section><button onClick={()=>void onContinue()}>续写下一章</button></div>
+  if (!chapter) return <div className='novel-page novel-page--detail'>
+    <button className='novel-nav-btn' onClick={()=>setBook(null)}>← 书架</button>
+    <header className='novel-book-header novel-card-shell'>
+      <h1>{book.title}</h1>
+      <p>{book.status}</p>
+    </header>
+    <div className='novel-detail-grid'>
+      <section className='novel-info-card'><h3>设定</h3><pre>{book.worldSetting}</pre></section>
+      <section className='novel-info-card'><h3>大纲</h3><pre>{book.outline}</pre></section>
+      <section className='novel-info-card'><h3>配置</h3><select value={activeBookConfig.writing_model} onChange={(e)=>void updateNovelBookModelConfig(book.id,{...activeBookConfig,writing_model:e.target.value})}>{modelOptions.map((m)=><option key={m} value={m}>{m}</option>)}</select></section>
+    </div>
+    <section className='novel-chapter-list novel-card-shell'>
+      <h3>章节列表</h3>
+      {chapters.map((c)=><button key={c.id} className='novel-chapter-row' onClick={()=>setChapter(c)}>第{c.chapterNumber}章 {c.title}</button>)}
+    </section>
+    <button className='novel-pill-btn novel-pill-btn--primary' onClick={()=>void onContinue()}>续写下一章</button>
+  </div>
 
-  return <div className='novel-reader'><button onClick={()=>setChapter(null)}>← 返回章节列表</button><h2>{chapter.title}</h2><details><summary>导演备注</summary><p>{chapter.directorNote || '暂无'}</p></details><article style={{ whiteSpace: 'pre-wrap' }}>{chapter.content}</article><button onClick={async ()=>{ const updated=await updateNovelChapter(chapter.id,{content:chapter.content, directorNote:chapter.directorNote}); setChapter(updated)}}>保存本章</button></div>
+  return <div className='novel-reader'>
+    <button className='novel-nav-btn' onClick={()=>setChapter(null)}>← 返回章节列表</button>
+    <section className='novel-reader-paper'>
+      <h2 className='novel-reader-title'>{chapter.title}</h2>
+      <details className='novel-director-note'>
+        <summary>导演备注</summary>
+        <p>{chapter.directorNote || '暂无'}</p>
+      </details>
+      <article className='novel-reader-content'>{chapter.content}</article>
+      <button className='novel-pill-btn novel-pill-btn--primary' onClick={async ()=>{ const updated=await updateNovelChapter(chapter.id,{content:chapter.content, directorNote:chapter.directorNote}); setChapter(updated)}}>保存本章</button>
+    </section>
+  </div>
 }
 
 export default NovelPage
