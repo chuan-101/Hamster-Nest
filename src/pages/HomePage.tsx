@@ -267,6 +267,7 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
       { id: "memo", defaultEmoji: "📝", label: "备忘录", route: "/memo" },
       { id: "timeline", defaultEmoji: "🗓️", label: "时间轴", route: "/timeline" },
       { id: "wiki", defaultEmoji: "📚", label: "Wiki", route: "/wiki" },
+      { id: "novels", defaultEmoji: "📖", label: "小说", route: "/novels" },
       { id: "council", defaultEmoji: "🏛️", label: "议事厅", route: "/council" },
       { id: "hamster-wallet", defaultEmoji: "💰", label: "仓鼠钱包", route: "/wallet" },
       { id: "hamster-console", defaultEmoji: "🎛️", label: "仓鼠机", route: "/hamster-console" },
