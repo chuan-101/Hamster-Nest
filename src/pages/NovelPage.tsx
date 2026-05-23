@@ -31,6 +31,8 @@ const NovelPage = ({ user }: { user: User | null }) => {
   const [draft, setDraft] = useState<DraftState>(emptyDraft)
   const [aiGenerating, setAiGenerating] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
 
   const baseConfig: NovelModelConfig = useMemo(() => ({
     writing_model: defaultModelId ?? 'openrouter/auto',
@@ -173,8 +175,16 @@ const NovelPage = ({ user }: { user: User | null }) => {
   }
 
   const onSaveSettings = async () => {
-    await saveGlobalConfig(settingsDraft)
-    setSettingsOpen(false)
+    setSettingsSaving(true)
+    setSettingsError(null)
+    try {
+      await saveGlobalConfig(settingsDraft)
+      setSettingsOpen(false)
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : '保存失败，请稍后重试')
+    } finally {
+      setSettingsSaving(false)
+    }
   }
 
   if (!book) return <div className='novel-page'>
@@ -201,10 +211,11 @@ const NovelPage = ({ user }: { user: User | null }) => {
           <label>writing_prompt<textarea value={settingsDraft.prompts.writing_prompt} onChange={(e) => setSettingsDraft((p) => ({ ...p, prompts: { ...p.prompts, writing_prompt: e.target.value } }))} /></label>
           <label>summary_prompt<textarea value={settingsDraft.prompts.summary_prompt} onChange={(e) => setSettingsDraft((p) => ({ ...p, prompts: { ...p.prompts, summary_prompt: e.target.value } }))} /></label>
           <label>character_gen_prompt<textarea value={settingsDraft.prompts.character_gen_prompt} onChange={(e) => setSettingsDraft((p) => ({ ...p, prompts: { ...p.prompts, character_gen_prompt: e.target.value } }))} /></label>
+          {settingsError ? <p className='novel-settings-error'>{settingsError}</p> : null}
         </div>
         <footer className='novel-settings-modal__footer'>
-          <button className='novel-pill-btn' onClick={() => setSettingsOpen(false)}>取消</button>
-          <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void onSaveSettings()}>保存</button>
+          <button className='novel-pill-btn' onClick={() => setSettingsOpen(false)} disabled={settingsSaving}>取消</button>
+          <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void onSaveSettings()} disabled={settingsSaving}>{settingsSaving ? '保存中...' : '保存'}</button>
         </footer>
       </section>
     </div> : null}

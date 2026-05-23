@@ -19,3 +19,5 @@
 .novel-settings-modal{width:min(680px,100%);max-height:min(86dvh,720px);overflow:auto;border-radius:18px;border:1px solid rgba(255,214,231,.9);background:#fff;padding:12px;display:grid;gap:10px;box-shadow:0 20px 35px rgba(54,25,40,.2)}
 .novel-settings-modal__header,.novel-settings-modal__footer{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .novel-settings-modal__footer{justify-content:flex-end;position:sticky;bottom:-12px;padding:10px 0 2px;background:linear-gradient(180deg, rgba(255,255,255,0), #fff 36%)}
+.novel-settings-error{margin:0;color:#b13f4d;font-size:12px}
+.novel-pill-btn:disabled{opacity:.55;cursor:not-allowed}
