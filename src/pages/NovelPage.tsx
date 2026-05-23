@@ -132,6 +132,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
     const accessToken = sessionData.session?.access_token
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
     if (!accessToken || !anonKey) throw new Error('AI 生成失败: 登录状态异常或环境变量未配置')
+    const messages = [{ role: 'user', content: prompt }]
     const response = await fetch('https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/openrouter-chat', {
       method: 'POST',
       headers: {
@@ -139,7 +140,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
         apikey: anonKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model, messages, stream: false }),
     })
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
