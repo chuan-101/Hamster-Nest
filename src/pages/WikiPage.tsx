@@ -148,21 +148,30 @@ const WikiPage = () => {
 
   return (
     <div className="wiki-page">
-      <aside className="wiki-nav">
-        <div className="wiki-nav-top">
+      <aside className="wiki-nav" aria-label="Wiki 导航筛选区">
+        <div className="wiki-header">
           <button type="button" className="wiki-back" onClick={() => navigate(-1)}>← 返回</button>
+          <div className="wiki-title-wrap">
+            <p className="wiki-kicker">Knowledge Base</p>
+            <h1 className="ui-title">Wiki</h1>
+          </div>
           <button type="button" className="wiki-create" onClick={startCreate}>+ 新建</button>
         </div>
-        <input className="wiki-input" placeholder="搜索标题/正文/tag" value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select className="wiki-input" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-          <option value="all">全部分类</option>
-          {categories.map((category) => <option key={category} value={category}>{category}</option>)}
-        </select>
-        <div className="wiki-tags">
-          <button type="button" className={!tagFilter ? 'pill active' : 'pill'} onClick={() => setTagFilter(null)}>全部</button>
-          {allTags.map((tag) => (
-            <button key={tag} type="button" className={tagFilter === tag ? 'pill active' : 'pill'} onClick={() => setTagFilter(tag)}>{tag}</button>
-          ))}
+        <div className="wiki-filter-card">
+          <div className="wiki-filter-dot" aria-hidden="true" />
+          <div className="wiki-filter-grid">
+            <input className="wiki-input" placeholder="搜索标题/正文/tag" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <select className="wiki-input" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+              <option value="all">全部分类</option>
+              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+          </div>
+          <div className="wiki-tags">
+            <button type="button" className={!tagFilter ? 'pill active' : 'pill'} onClick={() => setTagFilter(null)}>全部</button>
+            {allTags.map((tag) => (
+              <button key={tag} type="button" className={tagFilter === tag ? 'pill active' : 'pill'} onClick={() => setTagFilter(tag)}>{tag}</button>
+            ))}
+          </div>
         </div>
         <div className="wiki-groups">
           {grouped.map(([category, list]) => (
