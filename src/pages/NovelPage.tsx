@@ -90,15 +90,11 @@ const NovelPage = ({ user }: { user: User | null }) => {
 
   const invokeModel = async (model: string, prompt: string) => {
     if (!supabase) throw new Error('Supabase 未配置')
-    const token = (await supabase.auth.getSession()).data.session?.access_token
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
+    const { data, error } = await supabase.functions.invoke('openrouter-chat', {
+      body: { model, messages: [{ role: 'user', content: prompt }] },
     })
-    if (!response.ok) throw new Error('AI 生成失败')
-    const json = await response.json()
-    return String(json?.text ?? json?.content ?? '')
+    if (error) throw new Error(`AI 生成失败: ${error.message}`)
+    return String(data?.text ?? data?.content ?? '')
   }
 
   const onAiGenerate = async () => {
