@@ -82,10 +82,48 @@ const NovelPage = ({ user }: { user: User | null }) => {
 
   useEffect(() => { void reloadBooks() }, [user?.id])
 
+  const stripCodeFences = (content: string) => {
+    const fenceMatch = content.match(/```(?:json|JSON)?\s*([\s\S]*?)```/)
+    return fenceMatch ? fenceMatch[1] : content
+  }
+
+  const sliceBalanced = (content: string, open: '{' | '[') => {
+    const close = open === '{' ? '}' : ']'
+    const start = content.indexOf(open)
+    if (start === -1) return null
+    let depth = 0
+    let inString = false
+    let escape = false
+    for (let i = start; i < content.length; i++) {
+      const ch = content[i]
+      if (escape) { escape = false; continue }
+      if (ch === '\\') { escape = true; continue }
+      if (ch === '"') { inString = !inString; continue }
+      if (inString) continue
+      if (ch === open) depth++
+      else if (ch === close) {
+        depth--
+        if (depth === 0) return content.slice(start, i + 1)
+      }
+    }
+    return null
+  }
+
   const extractJson = (content: string) => {
-    const objectMatch = content.match(/\{[\s\S]*\}/)
-    const arrayMatch = content.match(/\[[\s\S]*\]/)
-    return { objectText: objectMatch?.[0] ?? '{}', arrayText: arrayMatch?.[0] ?? '[]' }
+    const cleaned = stripCodeFences(content)
+    return {
+      objectText: sliceBalanced(cleaned, '{') ?? '{}',
+      arrayText: sliceBalanced(cleaned, '[') ?? '[]',
+    }
+  }
+
+  const parseJsonSafely = <T,>(text: string, fallback: T, label: string, raw: string): T => {
+    try {
+      return JSON.parse(text) as T
+    } catch (error) {
+      console.warn(`[novel] ${label} JSON 解析失败:`, error, { extracted: text, raw })
+      return fallback
+    }
   }
 
   const invokeModel = async (model: string, prompt: string) => {
@@ -119,13 +157,14 @@ const NovelPage = ({ user }: { user: User | null }) => {
     setAiGenerating(true)
     try {
       const model = globalConfig.writing_model || defaultModelId || 'openrouter/auto'
-      const outlinePrompt = `${globalConfig.prompts.outline_prompt}\n\n关键词/简介:\n${brief}`
-      const charsPrompt = `${globalConfig.prompts.character_gen_prompt}\n\n关键词/简介:\n${brief}`
+      const jsonGuard = '\n\n严格只输出 JSON 本身，不要任何解释、前后缀文字或 markdown 代码块包裹。'
+      const outlinePrompt = `${globalConfig.prompts.outline_prompt}${jsonGuard}\n\n关键词/简介:\n${brief}`
+      const charsPrompt = `${globalConfig.prompts.character_gen_prompt}${jsonGuard}\n\n关键词/简介:\n${brief}`
       const [outlineText, charsText] = await Promise.all([invokeModel(model, outlinePrompt), invokeModel(model, charsPrompt)])
       const extractedOutline = extractJson(outlineText)
       const extractedChars = extractJson(charsText)
-      const outlineJson = JSON.parse(extractedOutline.objectText) as Record<string, unknown>
-      const charArray = JSON.parse(extractedChars.arrayText) as Array<Record<string, unknown>>
+      const outlineJson = parseJsonSafely<Record<string, unknown>>(extractedOutline.objectText, {}, '大纲', outlineText)
+      const charArray = parseJsonSafely<Array<Record<string, unknown>>>(extractedChars.arrayText, [], '角色卡', charsText)
       const normalizedCharacters: NovelCharacterCard[] = Array.isArray(charArray)
         ? charArray.map((item) => ({ name: String(item.name ?? ''), description: String(item.description ?? ''), personality: String(item.personality ?? '') }))
         : []
