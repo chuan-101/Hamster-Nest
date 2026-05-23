@@ -63,7 +63,7 @@ const DEFAULT_ICON_ORDER = [
   "settings",
   "export",
 ];
-const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters", "memo", "timeline", "wiki", "council", "hamster-wallet", "hamster-console"];
+const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters", "memo", "timeline", "wiki", "novels", "council", "hamster-wallet", "hamster-console"];
 const PAGE_IDS: HomeLayoutPageId[] = ["page1", "page2"];
 const CORE_WIDGET_ID = "widget-checkin";
 const MAX_WIDGETS = 6;
