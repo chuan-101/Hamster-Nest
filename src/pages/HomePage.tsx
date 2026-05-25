@@ -244,8 +244,6 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
   const [homeSettingsReady, setHomeSettingsReady] = useState(false);
   const homeBackgroundInputRef = useRef<HTMLInputElement | null>(null);
   const appIconInputRef = useRef<HTMLInputElement | null>(null);
-  const imageWidgetInputRef = useRef<HTMLInputElement | null>(null);
-  const [pendingImageWidgetId, setPendingImageWidgetId] = useState<string | null>(null);
   const [imageWidgetUploading, setImageWidgetUploading] = useState<Record<string, boolean>>({});
 
   const holdTimerRef = useRef<number | null>(null);
@@ -881,11 +879,6 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
     setWidgetOrder((current) => [...current, id]);
   };
 
-  const handleUploadImageForWidget = (widgetId: string) => {
-    setPendingImageWidgetId(widgetId);
-    imageWidgetInputRef.current?.click();
-  };
-
   const processImageWidgetFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       throw new Error("请选择图片文件");
@@ -915,14 +908,13 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
   };
 
   const handleImageWidgetFileSelected = async (
+    widgetId: string,
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    const widgetId = pendingImageWidgetId;
     const file = event.target.files?.[0];
     event.target.value = "";
-    setPendingImageWidgetId(null);
 
-    if (!widgetId || !file) {
+    if (!file) {
       return;
     }
 
@@ -1391,13 +1383,6 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
                   </button>
                 </div>
                 <input
-                  ref={imageWidgetInputRef}
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  onChange={(event) => void handleImageWidgetFileSelected(event)}
-                />
-                <input
                   ref={appIconInputRef}
                   type="file"
                   accept="image/*"
@@ -1419,6 +1404,8 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
                     const isCheckin = item.kind === "checkin";
                     const widget = item.widget;
                     const isSpacer = widget?.type === "spacer";
+                    const imageUploadInputId =
+                      widget?.type === "image" ? `image-upload-${widget.id}` : null;
 
                     return (
                       <article
@@ -1456,13 +1443,13 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
                               </select>
                             </label>
                             {widget?.type === "image" ? (
-                              <button
-                                type="button"
+                              <label
+                                htmlFor={imageUploadInputId ?? undefined}
                                 className="widget-upload"
-                                onClick={() => handleUploadImageForWidget(widget.id)}
+                                aria-disabled={imageWidgetUploading[widget.id]}
                               >
                                 {imageWidgetUploading[widget.id] ? "处理中…" : "上传图片"}
-                              </button>
+                              </label>
                             ) : null}
                             {!isCheckin && widget ? (
                               <button
@@ -1567,15 +1554,26 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
                           ) : (
                             <div className="image-widget-placeholder">
                               <p>暂无本地图片</p>
-                              <button
-                                type="button"
+                              <label
+                                htmlFor={imageUploadInputId ?? undefined}
                                 className="widget-upload"
-                                onClick={() => handleUploadImageForWidget(widget.id)}
+                                aria-disabled={imageWidgetUploading[widget.id]}
                               >
                                 {imageWidgetUploading[widget.id] ? "处理中…" : "选择图片"}
-                              </button>
+                              </label>
                             </div>
                           )
+                        ) : null}
+                        {widget?.type === "image" && imageUploadInputId ? (
+                          <input
+                            id={imageUploadInputId}
+                            type="file"
+                            accept="image/*"
+                            className="file-input-visually-hidden"
+                            onChange={(event) =>
+                              void handleImageWidgetFileSelected(widget.id, event)
+                            }
+                          />
                         ) : null}
                       </article>
                     );
