@@ -447,6 +447,29 @@
   box-shadow: 0 0 0 3px rgba(255, 214, 231, 0.24);
 }
 
+.widget-upload {
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.image-widget-placeholder {
+  min-height: 78px;
+  border-radius: 12px;
+  border: 1px dashed rgba(51, 65, 85, 0.35);
+  display: grid;
+  place-items: center;
+  gap: 0.4rem;
+  color: #475569;
+  padding: 0.5rem;
+}
+
+.image-widget-placeholder p {
+  margin: 0;
+  font-size: 0.8rem;
+}
 .widget-delete {
   border-radius: 999px;
   border: none;
