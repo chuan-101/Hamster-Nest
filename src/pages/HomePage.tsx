@@ -71,26 +71,12 @@ const DEFAULT_ICON_TILE_BG_COLOR = "#ffffff";
 const DEFAULT_ICON_TILE_BG_OPACITY = 0.65;
 const DEFAULT_PAGE_OVERLAY_COLOR = "#ffffff";
 const DEFAULT_PAGE_OVERLAY_OPACITY = 0.2;
+const IMAGE_WIDGET_MAX_DIMENSION = 1800;
+const IMAGE_WIDGET_QUALITY = 0.84;
 const PAGE_LABELS: Record<HomeLayoutPageId, string> = {
   page1: "Page 1",
   page2: "Page 2",
 };
-const DEFAULT_IMAGE_WIDGET_DATA_URL =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
-      <defs>
-        <linearGradient id="hamster-image-placeholder" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#fde68a" />
-          <stop offset="100%" stop-color="#f9a8d4" />
-        </linearGradient>
-      </defs>
-      <rect width="240" height="240" rx="24" fill="url(#hamster-image-placeholder)" />
-      <circle cx="120" cy="95" r="30" fill="rgba(255,255,255,0.85)" />
-      <path d="M58 176c15-28 39-42 62-42s47 14 62 42" fill="none" stroke="rgba(255,255,255,0.88)" stroke-width="16" stroke-linecap="round" />
-    </svg>`,
-  );
-
 const createDefaultPageLayouts = (): Record<HomeLayoutPageId, HomePageLayoutState> => ({
   page1: {
     iconOrder: DEFAULT_ICON_ORDER,
@@ -258,6 +244,9 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
   const [homeSettingsReady, setHomeSettingsReady] = useState(false);
   const homeBackgroundInputRef = useRef<HTMLInputElement | null>(null);
   const appIconInputRef = useRef<HTMLInputElement | null>(null);
+  const imageWidgetInputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingImageWidgetId, setPendingImageWidgetId] = useState<string | null>(null);
+  const [imageWidgetUploading, setImageWidgetUploading] = useState<Record<string, boolean>>({});
 
   const holdTimerRef = useRef<number | null>(null);
 
@@ -885,12 +874,91 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
       {
         id,
         type: "image",
-        imageDataUrl: DEFAULT_IMAGE_WIDGET_DATA_URL,
         fit: "cover",
         size: "1x1",
       },
     ]);
     setWidgetOrder((current) => [...current, id]);
+  };
+
+  const handleUploadImageForWidget = (widgetId: string) => {
+    setPendingImageWidgetId(widgetId);
+    imageWidgetInputRef.current?.click();
+  };
+
+  const processImageWidgetFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      throw new Error("请选择图片文件");
+    }
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, IMAGE_WIDGET_MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      bitmap.close();
+      throw new Error("无法处理图片");
+    }
+    context.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    const outputType = file.type === "image/png" ? "image/png" : "image/webp";
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((output) => resolve(output), outputType, IMAGE_WIDGET_QUALITY);
+    });
+    if (!blob) {
+      throw new Error("图片压缩失败");
+    }
+    return blob;
+  };
+
+  const handleImageWidgetFileSelected = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const widgetId = pendingImageWidgetId;
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    setPendingImageWidgetId(null);
+
+    if (!widgetId || !file) {
+      return;
+    }
+
+    setImageWidgetUploading((current) => ({ ...current, [widgetId]: true }));
+    try {
+      const processedBlob = await processImageWidgetFile(file);
+      const dataUrl = await readFileAsDataUrl(processedBlob);
+      const imageKey = createImageKey();
+      await saveImageDataUrl(dataUrl, imageKey);
+
+      const previousWidget = widgets.find((entry) => entry.id === widgetId);
+      const oldKey = previousWidget?.type === "image" ? previousWidget.imageKey : undefined;
+      if (oldKey) {
+        await removeImageData(oldKey);
+      }
+
+      imageCache.set(imageKey, dataUrl);
+      setWidgets((current) =>
+        current.map((widget) =>
+          widget.id === widgetId && widget.type === "image"
+            ? { ...widget, imageKey, imageDataUrl: undefined }
+            : widget,
+        ),
+      );
+      setImageUrls((current) => ({ ...current, [widgetId]: dataUrl }));
+      setNotice("图片已保存到本地缓存");
+    } catch (error) {
+      console.warn("上传本地图片失败", error);
+      setNotice(error instanceof Error ? error.message : "上传失败，请重试");
+    } finally {
+      setImageWidgetUploading((current) => {
+        const next = { ...current };
+        delete next[widgetId];
+        return next;
+      });
+    }
   };
 
   const handleAddSpacerWidget = () => {
@@ -1323,6 +1391,13 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
                   </button>
                 </div>
                 <input
+                  ref={imageWidgetInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(event) => void handleImageWidgetFileSelected(event)}
+                />
+                <input
                   ref={appIconInputRef}
                   type="file"
                   accept="image/*"
@@ -1380,6 +1455,15 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
                                 <option value="2x1">大</option>
                               </select>
                             </label>
+                            {widget?.type === "image" ? (
+                              <button
+                                type="button"
+                                className="widget-upload"
+                                onClick={() => handleUploadImageForWidget(widget.id)}
+                              >
+                                {imageWidgetUploading[widget.id] ? "处理中…" : "上传图片"}
+                              </button>
+                            ) : null}
                             {!isCheckin && widget ? (
                               <button
                                 type="button"
@@ -1473,13 +1557,24 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
                             editMode ? (
                               <div className="spacer-editor">占位</div>
                             ) : null
-                          ) : (
+                          ) : imageUrls[widget.id] ? (
                             <img
                               className="image-widget"
                               src={imageUrls[widget.id]}
                               style={{ objectFit: widget.fit ?? "cover" }}
                               alt="本地图片组件"
                             />
+                          ) : (
+                            <div className="image-widget-placeholder">
+                              <p>暂无本地图片</p>
+                              <button
+                                type="button"
+                                className="widget-upload"
+                                onClick={() => handleUploadImageForWidget(widget.id)}
+                              >
+                                {imageWidgetUploading[widget.id] ? "处理中…" : "选择图片"}
+                              </button>
+                            </div>
                           )
                         ) : null}
                       </article>
