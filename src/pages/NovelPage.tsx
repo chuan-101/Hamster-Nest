@@ -515,8 +515,8 @@ const NovelPage = ({ user }: { user: User | null }) => {
     <div className='novel-header novel-card-shell'>
       <button className='novel-pill-btn' onClick={() => navigate('/')}>← 返回</button>
       <div className='novel-title-wrap'>
-        <p className='novel-kicker'>Story Studio</p>
-        <h1 className='ui-title'>📖 小说工坊</h1>
+        <p className='novel-kicker'>STORY STUDIO</p>
+        <h1 className='ui-title'>小说工坊</h1>
       </div>
       <button className='novel-pill-btn' onClick={() => setSettingsOpen(true)}>⚙️ 设置</button>
     </div>

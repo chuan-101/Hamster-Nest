@@ -507,7 +507,10 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     <div className="hamster-console-page">
       <header className="hamster-console-page__header">
         <Link to="/" className="hamster-console-page__back">← 返回小窝</Link>
-        <h1 className="ui-title">🎛️ 仓鼠机</h1>
+        <div className="hamster-console-page__title-wrap">
+          <p className="hamster-console-page__kicker">HAMSTER MACHINE</p>
+          <h1 className="ui-title">仓鼠机</h1>
+        </div>
         <p>远程控制 Mini Agent（用户：{scopedUserId.slice(0, 8)}...）</p>
       </header>
 

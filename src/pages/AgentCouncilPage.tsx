@@ -124,7 +124,7 @@ const AgentCouncilPage = () => {
       <header className="council-header">
         <button type="button" className="ghost council-back-btn" onClick={() => navigate(-1)}>← 返回</button>
         <div className="council-title-wrap">
-          <p className="council-kicker">Council</p>
+          <p className="council-kicker">COUNCIL</p>
           <h1 className="ui-title">议事厅</h1>
         </div>
         <button type="button" className="council-refresh-btn" onClick={() => void refresh()} disabled={loading}>刷新</button>
