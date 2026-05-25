@@ -42,6 +42,12 @@ const NovelPage = ({ user }: { user: User | null }) => {
   const [chapterError, setChapterError] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState(false)
   const [contentDraft, setContentDraft] = useState('')
+  const [editingBookTitle, setEditingBookTitle] = useState(false)
+  const [bookTitleDraft, setBookTitleDraft] = useState('')
+  const [bookTitleSaving, setBookTitleSaving] = useState(false)
+  const [summaryEditing, setSummaryEditing] = useState(false)
+  const [summaryDraft, setSummaryDraft] = useState('')
+  const [lastContinuationStart, setLastContinuationStart] = useState<number | null>(null)
 
   // Book-meta editing state
   type MetaField = 'summary' | 'worldSetting' | 'outline' | 'characters'
@@ -100,6 +106,9 @@ const NovelPage = ({ user }: { user: User | null }) => {
     setChapterError(null)
     setEditingContent(false)
     setContentDraft(chapter?.content ?? '')
+    setSummaryEditing(false)
+    setSummaryDraft(chapter?.summary ?? '')
+    setLastContinuationStart(null)
   }, [chapter?.id])
 
   const reloadBooks = async () => {
@@ -265,6 +274,32 @@ const NovelPage = ({ user }: { user: User | null }) => {
   }
 
   const openDetail = async (item: NovelBook) => { setBook(item); setChapter(null); setChapters(await listNovelChaptersByBookId(item.id)); setEditingField(null); setMetaError(null) }
+  const startEditBookTitle = () => {
+    if (!book) return
+    setBookTitleDraft(book.title)
+    setBookTitleSaving(false)
+    setEditingBookTitle(true)
+  }
+  const saveBookTitle = async () => {
+    if (!book) return
+    const title = bookTitleDraft.trim()
+    if (!title) {
+      setChapterError('书名不能为空')
+      return
+    }
+    setBookTitleSaving(true)
+    setChapterError(null)
+    try {
+      const updated = await updateNovelBookMeta(book.id, { title })
+      setBook(updated)
+      setBooks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
+      setEditingBookTitle(false)
+    } catch (error) {
+      setChapterError(error instanceof Error ? error.message : '书名保存失败')
+    } finally {
+      setBookTitleSaving(false)
+    }
+  }
 
   const startEditMeta = (field: MetaField) => {
     if (!book) return
@@ -375,12 +410,14 @@ const NovelPage = ({ user }: { user: User | null }) => {
         setChapterError('AI 未返回内容，请稍后重试')
         return
       }
+      const continuationStart = chapter.content ? chapter.content.length + 2 : 0
       const nextContent = chapter.content ? `${chapter.content}\n\n${generated}` : generated
       const nextDirectorNote = chapter.directorNote ? `${chapter.directorNote}\n${directive}` : directive
       const updated = await updateNovelChapter(chapter.id, { content: nextContent, directorNote: nextDirectorNote })
       setChapter(updated)
       setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
       setContentDraft(updated.content)
+      setLastContinuationStart(continuationStart)
       setDirectorInput('')
     } catch (error) {
       setChapterError(error instanceof Error ? error.message : 'AI 续写失败')
@@ -403,7 +440,8 @@ const NovelPage = ({ user }: { user: User | null }) => {
       const summary = (await invokeModel(model, prompt)).trim()
       const updated = await updateNovelChapter(chapter.id, { summary, status: 'published' })
       setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-      setChapter(null)
+      setChapter(updated)
+      setSummaryDraft(updated.summary)
     } catch (error) {
       setChapterError(error instanceof Error ? error.message : '总结失败')
     } finally {
@@ -420,6 +458,17 @@ const NovelPage = ({ user }: { user: User | null }) => {
       setEditingContent(false)
     } catch (error) {
       setChapterError(error instanceof Error ? error.message : '保存失败')
+    }
+  }
+  const onSaveEditedSummary = async () => {
+    if (!chapter) return
+    try {
+      const updated = await updateNovelChapter(chapter.id, { summary: summaryDraft.trim() })
+      setChapter(updated)
+      setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      setSummaryEditing(false)
+    } catch (error) {
+      setChapterError(error instanceof Error ? error.message : '摘要保存失败')
     }
   }
 
@@ -483,8 +532,17 @@ const NovelPage = ({ user }: { user: User | null }) => {
       <button className='novel-pill-btn' onClick={() => setBook(null)}>← 书架</button>
       <div className='novel-title-wrap'>
         <p className='novel-kicker'>Novel</p>
-        <h1 className='ui-title'>{book.title}</h1>
+        {editingBookTitle ? (
+          <div className='novel-title-edit'>
+            <input value={bookTitleDraft} onChange={(e) => setBookTitleDraft(e.target.value)} />
+            <button className='novel-pill-btn' onClick={() => setEditingBookTitle(false)} disabled={bookTitleSaving}>取消</button>
+            <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void saveBookTitle()} disabled={bookTitleSaving || !bookTitleDraft.trim()}>{bookTitleSaving ? '保存中...' : '保存'}</button>
+          </div>
+        ) : (
+          <h1 className='ui-title'>{book.title}</h1>
+        )}
       </div>
+      {!editingBookTitle ? <button className='novel-pill-btn' onClick={startEditBookTitle}>编辑书名</button> : null}
       <div className='novel-header-spacer' />
     </div>
 
@@ -657,11 +715,36 @@ const NovelPage = ({ user }: { user: User | null }) => {
       ) : (
         <article className='novel-reader-content'>
           {chapter.content
-            ? <MarkdownRenderer content={chapter.content} />
+            ? (
+              lastContinuationStart !== null && lastContinuationStart > 0 && lastContinuationStart < chapter.content.length
+                ? <>
+                  <MarkdownRenderer content={chapter.content.slice(0, lastContinuationStart - 2)} />
+                  <div className='novel-continuation-divider' aria-label='AI 续写分割线' />
+                  <MarkdownRenderer content={chapter.content.slice(lastContinuationStart)} />
+                </>
+                : <MarkdownRenderer content={chapter.content} />
+            )
             : <p className='novel-reader-empty'>本章尚未生成任何正文。在下方输入导演指令并点击「AI 续写」开始。</p>}
         </article>
       )}
     </section>
+
+    {!!chapter.summary.trim() || summaryEditing ? (
+      <section className='novel-summary-card'>
+        <div className='novel-summary-card__head'>
+          <h3>本章摘要</h3>
+          {summaryEditing ? (
+            <div className='novel-info-card__actions'>
+              <button className='novel-pill-btn' onClick={() => { setSummaryEditing(false); setSummaryDraft(chapter.summary) }}>取消</button>
+              <button className='novel-pill-btn novel-pill-btn--primary' onClick={() => void onSaveEditedSummary()} disabled={!summaryDraft.trim()}>保存</button>
+            </div>
+          ) : (
+            <button className='novel-pill-btn' onClick={() => { setSummaryDraft(chapter.summary); setSummaryEditing(true) }}>编辑</button>
+          )}
+        </div>
+        {summaryEditing ? <textarea className='novel-info-textarea' value={summaryDraft} onChange={(e) => setSummaryDraft(e.target.value)} rows={5} /> : <p className='novel-info-text'>{chapter.summary}</p>}
+      </section>
+    ) : null}
 
     <section className='novel-director-input-card'>
       <textarea

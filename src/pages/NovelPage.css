@@ -4,6 +4,8 @@
 .novel-card-shell,.novel-create,.novel-card,.novel-character-card,.novel-shelf{border:1px solid rgba(255,214,231,.88);border-radius:18px;background:#fff;box-shadow:0 10px 20px rgba(255,214,231,.18)}
 .novel-card-shell{padding:10px}
 .novel-title-wrap{text-align:center;min-width:0}
+.novel-title-edit{display:flex;gap:6px;align-items:center}
+.novel-title-edit input{min-width:180px;padding:8px 10px;border-radius:10px;border:1px solid #e4dbe8}
 .novel-title-wrap .ui-title{margin:0;font-size:18px;line-height:1.3;color:#5c4152;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .novel-kicker{margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#b27f98}
 .novel-header-spacer{width:56px;height:1px}
@@ -78,6 +80,7 @@
 .novel-reader-content{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC',serif;font-size:15px;line-height:1.9;letter-spacing:.01em;color:#3f3749;min-height:60px}
 .novel-reader-content p{margin:0 0 12px}
 .novel-reader-content h1,.novel-reader-content h2,.novel-reader-content h3{color:#5c4152;margin:14px 0 8px}
+.novel-continuation-divider{border-top:2px dashed #c5c5c5;margin:12px 0 16px;opacity:.9}
 .novel-reader-empty{margin:0;color:#a89eb0;font-style:italic;font-size:13px;font-family:inherit}
 .novel-reader-editor{width:100%;min-height:40dvh;padding:12px;border-radius:10px;border:1px solid #e4dbe8;background:#fff;font-family:'Noto Serif SC','Source Han Serif SC','Songti SC',serif;font-size:15px;line-height:1.9;color:#3f3749;resize:vertical;box-sizing:border-box}
 
@@ -85,6 +88,8 @@
 .novel-director-input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #e4dbe8;background:#fff;font:inherit;font-size:14px;line-height:1.55;resize:vertical;box-sizing:border-box}
 .novel-writer-actions{display:flex;gap:8px;flex-wrap:wrap}
 .novel-writer-actions .novel-pill-btn{flex:1;min-width:120px;padding:10px 14px;font-size:14px;text-align:center}
+.novel-summary-card{border:1px solid rgba(218,218,218,.95);border-radius:16px;background:#fafafa;padding:14px 16px;display:grid;gap:8px}
+.novel-summary-card__head{display:flex;justify-content:space-between;align-items:center;gap:8px}
 
 @media (max-width:560px){
   .novel-page{padding:12px 10px 24px}
