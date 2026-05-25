@@ -251,7 +251,7 @@ const WalletPage = () => {
           ← 返回
         </button>
         <div className="wallet-title-wrap">
-          <p className="wallet-kicker">Hamster Wallet</p>
+          <p className="wallet-kicker">HAMSTER WALLET</p>
           <h1 className="ui-title">仓鼠钱包</h1>
         </div>
       </header>

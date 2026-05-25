@@ -24,13 +24,31 @@
 }
 
 .hamster-console-page__header {
+  position: relative;
   display: grid;
-  gap: 0.35rem;
+  justify-items: center;
+  gap: 0.3rem;
   padding: 12px;
   border: 1px solid rgba(255, 214, 231, 0.85);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 8px 18px rgba(255, 214, 231, 0.24);
+  min-height: 80px;
+}
+
+.hamster-console-page__title-wrap {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+  min-width: 0;
+}
+
+.hamster-console-page__kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b27f98;
 }
 
 .hamster-console-page__header h1 {
@@ -43,9 +61,14 @@
   margin: 0;
   color: #8b7182;
   font-size: 0.9rem;
+  text-align: center;
 }
 
 .hamster-console-page__back {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
   width: fit-content;
   text-decoration: none;
   color: #7d5d70;
