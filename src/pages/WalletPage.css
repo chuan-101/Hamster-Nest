@@ -29,12 +29,12 @@
   display: grid;
   justify-items: center;
   gap: 2px;
-  padding: 10px;
+  padding: 14px 10px;
   border: 1px solid rgba(255, 214, 231, 0.85);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 18px rgba(255, 214, 231, 0.24);
-  min-height: 64px;
+  min-height: 76px;
 }
 
 .wallet-title-wrap {

@@ -144,7 +144,7 @@ const WikiPage = () => {
         <div className="wiki-header">
           <button type="button" className="wiki-back" onClick={() => navigate(-1)}>← 返回</button>
           <div className="wiki-title-wrap">
-            <p className="wiki-kicker">Knowledge Base</p>
+            <p className="wiki-kicker">WIKI</p>
             <h1 className="ui-title">Wiki</h1>
           </div>
           <button type="button" className="wiki-create" onClick={startCreate}>+ 新建</button>
