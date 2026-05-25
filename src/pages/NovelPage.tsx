@@ -20,6 +20,31 @@ type DraftState = {
 
 const emptyDraft: DraftState = { title: '', summary: '', outline: '', worldSetting: '', characters: [] }
 
+
+const continuationDividerKey = (novelId: string, chapterId: string) => `novelContinuationDividers:${novelId}:${chapterId}`
+
+const readContinuationDividers = (novelId: string, chapterId: string) => {
+  if (typeof window === 'undefined') return [] as number[]
+  try {
+    const raw = window.localStorage.getItem(continuationDividerKey(novelId, chapterId))
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((item): item is number => typeof item === 'number' && Number.isFinite(item)) : []
+  } catch {
+    return []
+  }
+}
+
+const writeContinuationDividers = (novelId: string, chapterId: string, offsets: number[]) => {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(continuationDividerKey(novelId, chapterId), JSON.stringify(offsets))
+}
+
+const normalizeContinuationDividers = (offsets: number[], contentLength: number) => {
+  const uniqueSorted = Array.from(new Set(offsets.map((offset) => Math.trunc(offset)))).sort((a, b) => a - b)
+  return uniqueSorted.filter((offset) => offset > 0 && offset < contentLength)
+}
+
 const NovelPage = ({ user }: { user: User | null }) => {
   const navigate = useNavigate()
   const { enabledModelIds, defaultModelId } = useEnabledModels(user)
@@ -47,7 +72,6 @@ const NovelPage = ({ user }: { user: User | null }) => {
   const [bookTitleSaving, setBookTitleSaving] = useState(false)
   const [summaryEditing, setSummaryEditing] = useState(false)
   const [summaryDraft, setSummaryDraft] = useState('')
-  const [lastContinuationStart, setLastContinuationStart] = useState<number | null>(null)
 
   // Book-meta editing state
   type MetaField = 'summary' | 'worldSetting' | 'outline' | 'characters'
@@ -108,7 +132,6 @@ const NovelPage = ({ user }: { user: User | null }) => {
     setContentDraft(chapter?.content ?? '')
     setSummaryEditing(false)
     setSummaryDraft(chapter?.summary ?? '')
-    setLastContinuationStart(null)
   }, [chapter?.id])
 
   const reloadBooks = async () => {
@@ -410,14 +433,18 @@ const NovelPage = ({ user }: { user: User | null }) => {
         setChapterError('AI 未返回内容，请稍后重试')
         return
       }
-      const continuationStart = chapter.content ? chapter.content.length + 2 : 0
+      const continuationStart = chapter.content.length
       const nextContent = chapter.content ? `${chapter.content}\n\n${generated}` : generated
       const nextDirectorNote = chapter.directorNote ? `${chapter.directorNote}\n${directive}` : directive
       const updated = await updateNovelChapter(chapter.id, { content: nextContent, directorNote: nextDirectorNote })
       setChapter(updated)
       setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
       setContentDraft(updated.content)
-      setLastContinuationStart(continuationStart)
+      if (continuationStart > 0) {
+        const stored = readContinuationDividers(book.id, chapter.id)
+        const nextDividers = normalizeContinuationDividers([...stored, continuationStart], nextContent.length)
+        writeContinuationDividers(book.id, chapter.id, nextDividers)
+      }
       setDirectorInput('')
     } catch (error) {
       setChapterError(error instanceof Error ? error.message : 'AI 续写失败')
@@ -450,9 +477,15 @@ const NovelPage = ({ user }: { user: User | null }) => {
   }
 
   const onSaveEditedContent = async () => {
-    if (!chapter) return
+    if (!chapter || !book) return
     try {
       const updated = await updateNovelChapter(chapter.id, { content: contentDraft })
+      const validDividers = normalizeContinuationDividers(readContinuationDividers(book.id, chapter.id), updated.content.length)
+      if (validDividers.length > 0) {
+        writeContinuationDividers(book.id, chapter.id, validDividers)
+      } else if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(continuationDividerKey(book.id, chapter.id))
+      }
       setChapter(updated)
       setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
       setEditingContent(false)
@@ -471,6 +504,12 @@ const NovelPage = ({ user }: { user: User | null }) => {
       setChapterError(error instanceof Error ? error.message : '摘要保存失败')
     }
   }
+
+
+  const chapterDividers = useMemo(() => {
+    if (!book || !chapter?.content) return []
+    return normalizeContinuationDividers(readContinuationDividers(book.id, chapter.id), chapter.content.length)
+  }, [book, chapter?.id, chapter?.content])
 
   if (!book) return <div className='novel-page'>
     <div className='novel-header novel-card-shell'>
@@ -716,12 +755,22 @@ const NovelPage = ({ user }: { user: User | null }) => {
         <article className='novel-reader-content'>
           {chapter.content
             ? (
-              lastContinuationStart !== null && lastContinuationStart > 0 && lastContinuationStart < chapter.content.length
-                ? <>
-                  <MarkdownRenderer content={chapter.content.slice(0, lastContinuationStart - 2)} />
-                  <div className='novel-continuation-divider' aria-label='AI 续写分割线' />
-                  <MarkdownRenderer content={chapter.content.slice(lastContinuationStart)} />
-                </>
+              chapterDividers.length > 0
+                ? (() => {
+                  const segments = [] as { content: string; showDivider: boolean }[]
+                  let start = 0
+                  for (const offset of chapterDividers) {
+                    segments.push({ content: chapter.content.slice(start, offset), showDivider: start !== 0 })
+                    start = offset
+                  }
+                  segments.push({ content: chapter.content.slice(start), showDivider: start !== 0 })
+                  return segments.map((segment, index) => (
+                    <div key={`${index}-${segment.showDivider ? 'cont' : 'base'}`}>
+                      {segment.showDivider ? <div className='novel-continuation-divider' aria-label='AI 续写分割线' /> : null}
+                      <MarkdownRenderer content={segment.content} />
+                    </div>
+                  ))
+                })()
                 : <MarkdownRenderer content={chapter.content} />
             )
             : <p className='novel-reader-empty'>本章尚未生成任何正文。在下方输入导演指令并点击「AI 续写」开始。</p>}
