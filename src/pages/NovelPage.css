@@ -80,7 +80,7 @@
 .novel-reader-content{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC',serif;font-size:15px;line-height:1.9;letter-spacing:.01em;color:#3f3749;min-height:60px}
 .novel-reader-content p{margin:0 0 12px}
 .novel-reader-content h1,.novel-reader-content h2,.novel-reader-content h3{color:#5c4152;margin:14px 0 8px}
-.novel-continuation-divider{border-top:2px dashed #c5c5c5;margin:12px 0 16px;opacity:.9}
+.novel-continuation-divider{border-top:1px dashed rgba(120,120,120,.45);margin:16px 0}
 .novel-reader-empty{margin:0;color:#a89eb0;font-style:italic;font-size:13px;font-family:inherit}
 .novel-reader-editor{width:100%;min-height:40dvh;padding:12px;border-radius:10px;border:1px solid #e4dbe8;background:#fff;font-family:'Noto Serif SC','Source Han Serif SC','Songti SC',serif;font-size:15px;line-height:1.9;color:#3f3749;resize:vertical;box-sizing:border-box}
 
