@@ -75,6 +75,21 @@ const PAGE_LABELS: Record<HomeLayoutPageId, string> = {
   page1: "Page 1",
   page2: "Page 2",
 };
+const DEFAULT_IMAGE_WIDGET_DATA_URL =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+      <defs>
+        <linearGradient id="hamster-image-placeholder" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#fde68a" />
+          <stop offset="100%" stop-color="#f9a8d4" />
+        </linearGradient>
+      </defs>
+      <rect width="240" height="240" rx="24" fill="url(#hamster-image-placeholder)" />
+      <circle cx="120" cy="95" r="30" fill="rgba(255,255,255,0.85)" />
+      <path d="M58 176c15-28 39-42 62-42s47 14 62 42" fill="none" stroke="rgba(255,255,255,0.88)" stroke-width="16" stroke-linecap="round" />
+    </svg>`,
+  );
 
 const createDefaultPageLayouts = (): Record<HomeLayoutPageId, HomePageLayoutState> => ({
   page1: {
@@ -241,7 +256,6 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
   >({});
   const [editingIconId, setEditingIconId] = useState(DEFAULT_ICON_ORDER[0]);
   const [homeSettingsReady, setHomeSettingsReady] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const homeBackgroundInputRef = useRef<HTMLInputElement | null>(null);
   const appIconInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -865,7 +879,18 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
       setNotice(`最多只能放 ${MAX_WIDGETS} 个组件`);
       return;
     }
-    fileInputRef.current?.click();
+    const id = `widget-image-${Date.now()}`;
+    setWidgets((current) => [
+      ...current,
+      {
+        id,
+        type: "image",
+        imageDataUrl: DEFAULT_IMAGE_WIDGET_DATA_URL,
+        fit: "cover",
+        size: "1x1",
+      },
+    ]);
+    setWidgetOrder((current) => [...current, id]);
   };
 
   const handleAddSpacerWidget = () => {
@@ -876,33 +901,6 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
     const id = `widget-spacer-${Date.now()}`;
     setWidgets((current) => [...current, { id, type: "spacer", size: "1x1" }]);
     setWidgetOrder((current) => [...current, id]);
-  };
-
-  const handleImageSelected = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) {
-      return;
-    }
-    if (!canAddWidget) {
-      setNotice(`最多只能放 ${MAX_WIDGETS} 个组件`);
-      return;
-    }
-    const id = `widget-image-${Date.now()}`;
-    try {
-      const imageDataUrl = await readFileAsDataUrl(file);
-      const imageKey = await saveImageDataUrl(imageDataUrl);
-      setWidgets((current) => [
-        ...current,
-        { id, type: "image", imageKey, imageDataUrl, fit: "cover" },
-      ]);
-      setWidgetOrder((current) => [...current, id]);
-    } catch (error) {
-      console.warn("保存图片组件失败", error);
-      setNotice("保存图片失败，请稍后再试");
-    }
   };
 
   const removeWidget = async (id: string) => {
@@ -1190,13 +1188,6 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
                 <span>
                   {decoratedWidgetCount}/{MAX_WIDGETS} 组件
                 </span>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  onChange={(event) => void handleImageSelected(event)}
-                />
               </section>
             ) : null}
 
