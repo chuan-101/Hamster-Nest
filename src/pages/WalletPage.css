@@ -25,20 +25,23 @@
 }
 
 .wallet-header {
+  position: relative;
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 10px;
+  justify-items: center;
+  gap: 2px;
   padding: 10px;
   border: 1px solid rgba(255, 214, 231, 0.85);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 18px rgba(255, 214, 231, 0.24);
+  min-height: 64px;
 }
 
 .wallet-title-wrap {
   display: grid;
   gap: 2px;
+  text-align: center;
+  min-width: 0;
 }
 
 .wallet-kicker {
@@ -55,6 +58,10 @@
 }
 
 .wallet-back-btn {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
   border-radius: 999px;
   border: 1px solid #ffd6e7;
   background: #fff;
