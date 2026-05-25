@@ -19,7 +19,7 @@ type TimelineEditorState = {
 
 const RECORDER_META: Record<TimelineRecorder, { emoji: string; label: string }> = {
   chuanchuan: { emoji: '🐹', label: '串串' },
-  syzygy: { emoji: '🌙', label: 'Syzygy' },
+  syzygy: { emoji: '🩵', label: 'Syzygy' },
 }
 
 const getTodayDate = () => {
