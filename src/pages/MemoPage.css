@@ -21,11 +21,8 @@
 }
 
 .memo-header {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
+  position: relative;
+  padding: 10px 12px 12px;
   border: 1px solid rgba(255, 214, 231, 0.85);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.9);
@@ -52,6 +49,8 @@
 
 .memo-header-btn,
 .memo-create-btn {
+  position: absolute;
+  top: 56px;
   border-radius: 999px;
   border: 1px solid #ffd6e7;
   background: #fff;
@@ -59,6 +58,9 @@
   padding: 7px 12px;
   font-size: 13px;
 }
+
+.memo-header-btn { left: 12px; }
+.memo-create-btn { right: 12px; }
 
 .memo-create-btn {
   background: linear-gradient(180deg, #ffeef6 0%, #ffe1ef 100%);
