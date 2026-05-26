@@ -29,7 +29,11 @@
 
 .timeline-header {
   position: relative;
-  padding: 10px 12px 12px;
+  min-height: 72px;
+  padding: 12px 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(255, 214, 231, 0.85);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.9);
@@ -59,7 +63,7 @@
 .timeline-back-btn,
 .timeline-create-btn {
   position: absolute;
-  top: 56px;
+  top: 14px;
   border-radius: 999px;
   border: 1px solid #ffd6e7;
   background: #fff;
@@ -430,17 +434,14 @@
   }
 
   .timeline-header {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
-  }
-
-  .timeline-title-wrap {
-    order: -1;
-    text-align: left;
+    min-height: 72px;
+    padding: 12px 76px;
   }
 
   .timeline-back-btn,
   .timeline-create-btn {
-    width: 100%;
+    top: 14px;
+    padding: 6px 10px;
+    font-size: 12px;
   }
 }

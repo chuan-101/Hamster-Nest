@@ -22,7 +22,11 @@
 
 .memo-header {
   position: relative;
-  padding: 10px 12px 12px;
+  min-height: 72px;
+  padding: 12px 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(255, 214, 231, 0.85);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.9);
@@ -50,13 +54,14 @@
 .memo-header-btn,
 .memo-create-btn {
   position: absolute;
-  top: 56px;
+  top: 14px;
   border-radius: 999px;
   border: 1px solid #ffd6e7;
   background: #fff;
   color: #7d5d70;
   padding: 7px 12px;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .memo-header-btn { left: 12px; }
@@ -325,18 +330,15 @@
   }
 
   .memo-header {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
-  }
-
-  .memo-title-wrap {
-    order: -1;
-    text-align: left;
+    min-height: 72px;
+    padding: 12px 76px;
   }
 
   .memo-header-btn,
   .memo-create-btn {
-    width: 100%;
+    top: 14px;
+    padding: 6px 10px;
+    font-size: 12px;
   }
 
   .memo-filter-top {
