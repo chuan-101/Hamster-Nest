@@ -323,6 +323,32 @@ export type TimelineEntry = {
   updatedAt: string
 }
 
+export type TodoCreatedBy = 'chuan' | 'syzygy'
+export type TodoStatus = 'pending' | 'completed'
+
+export type TodoCategory = {
+  id: string
+  userId: string
+  date: string
+  name: string
+  sortOrder: number
+  createdAt: string
+}
+
+export type TodoItem = {
+  id: string
+  userId: string
+  categoryId: string
+  date: string
+  title: string
+  notes: string | null
+  status: TodoStatus
+  createdBy: TodoCreatedBy
+  sortOrder: number
+  createdAt: string
+  completedAt: string | null
+}
+
 export type WikiEntryStatus = 'draft' | 'published'
 
 export type WikiEntry = {

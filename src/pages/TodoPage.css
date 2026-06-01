@@ -1,0 +1,226 @@
+.todo-page::before {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 205, 226, 0.38), transparent 42%),
+    radial-gradient(circle at 88% 2%, rgba(255, 239, 246, 0.9), transparent 52%),
+    linear-gradient(180deg, rgba(255, 252, 254, 0.98) 0%, rgba(253, 245, 249, 0.98) 100%);
+}
+
+.todo-calendar__cell--pending i {
+  position: absolute;
+  bottom: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #f29cc3;
+  box-shadow: 0 0 0 3px rgba(242, 156, 195, 0.16);
+}
+
+.todo-calendar__cell--done em {
+  color: #d979aa;
+}
+
+.todo-calendar-loading {
+  margin: 10px 0 0;
+  color: #a77a93;
+  font-size: 12px;
+  text-align: center;
+}
+
+.todo-detail {
+  display: grid;
+  gap: 12px;
+}
+
+.todo-detail__top,
+.todo-category-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.todo-detail__top h2,
+.todo-category-card h3 {
+  margin: 0;
+  color: #68485e;
+}
+
+.todo-detail__top h2 {
+  font-size: 16px;
+}
+
+.todo-soft-btn,
+.todo-inline-form button {
+  border-radius: 999px;
+  border: 1px solid #ffd6e7;
+  background: linear-gradient(180deg, #fff7fb 0%, #ffe8f3 100%);
+  color: #7d4f68;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.todo-inline-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed rgba(245, 179, 210, 0.8);
+  border-radius: 16px;
+  background: #fff8fc;
+}
+
+.todo-inline-form input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #f7c6dd;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font: inherit;
+  color: #4f3f4a;
+  background: #fff;
+}
+
+.todo-inline-form input:focus {
+  outline: none;
+  border-color: #f5b3d2;
+  box-shadow: 0 0 0 2px rgba(255, 214, 231, 0.35);
+}
+
+.todo-empty {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.todo-empty strong {
+  color: #68485e;
+}
+
+.todo-empty span {
+  color: #8f7285;
+  font-size: 13px;
+}
+
+.todo-category-list {
+  display: grid;
+  gap: 12px;
+}
+
+.todo-category-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(255, 214, 231, 0.82);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff 0%, #fff8fc 100%);
+  padding: 12px;
+  box-shadow: 0 5px 14px rgba(255, 214, 231, 0.18);
+}
+
+.todo-category-card h3 {
+  padding-left: 8px;
+  border-left: 3px solid #ffd6e7;
+  font-size: 15px;
+}
+
+.todo-category-empty {
+  margin: 0;
+  border: 1px dashed rgba(255, 214, 231, 0.9);
+  border-radius: 14px;
+  padding: 12px;
+  color: #9c7b8e;
+  background: rgba(255, 255, 255, 0.72);
+  text-align: center;
+  font-size: 13px;
+}
+
+.todo-items {
+  display: grid;
+  gap: 8px;
+}
+
+.todo-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(255, 214, 231, 0.78);
+  border-radius: 16px;
+  background: #fff;
+  padding: 9px 10px;
+  box-shadow: 0 2px 8px rgba(255, 214, 231, 0.14);
+}
+
+.todo-item--completed {
+  opacity: 0.68;
+}
+
+.todo-item__status {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid #f5b3d2;
+  background: #fff;
+  color: #df6ea5;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.todo-item__content {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: inherit;
+}
+
+.todo-item__title {
+  color: #4f3f4a;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.todo-item--completed .todo-item__title {
+  text-decoration: line-through;
+  color: #8f7285;
+}
+
+.todo-item__notes {
+  color: #98798c;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.todo-item__creator {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 214, 231, 0.82);
+  background: #fff5f9;
+}
+
+.todo-editor textarea {
+  min-height: 104px;
+}
+
+@media (max-width: 560px) {
+  .todo-inline-form {
+    grid-template-columns: 1fr;
+  }
+
+  .todo-detail__top,
+  .todo-category-card__head {
+    align-items: flex-start;
+  }
+}

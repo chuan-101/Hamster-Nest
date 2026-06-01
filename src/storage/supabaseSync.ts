@@ -28,6 +28,10 @@ import type {
   SyzygyReply,
   TimelineEntry,
   TimelineRecorder,
+  TodoCategory,
+  TodoCreatedBy,
+  TodoItem,
+  TodoStatus,
   WalletBalance,
   WalletQuest,
   WalletQuestCreator,
@@ -155,6 +159,29 @@ type TimelineEntryRow = {
   source: string
   created_at: string
   updated_at: string
+}
+
+type TodoCategoryRow = {
+  id: string
+  user_id: string
+  date: string
+  name: string
+  sort_order: number | null
+  created_at: string
+}
+
+type TodoItemRow = {
+  id: string
+  user_id: string
+  category_id: string
+  date: string
+  title: string
+  notes: string | null
+  status: TodoStatus
+  created_by: TodoCreatedBy
+  sort_order: number | null
+  created_at: string
+  completed_at: string | null
 }
 
 type WikiEntryRow = {
@@ -442,6 +469,29 @@ const mapTimelineEntryRow = (row: TimelineEntryRow): TimelineEntry => ({
   source: row.source,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+})
+
+const mapTodoCategoryRow = (row: TodoCategoryRow): TodoCategory => ({
+  id: row.id,
+  userId: row.user_id,
+  date: row.date,
+  name: row.name,
+  sortOrder: row.sort_order ?? 0,
+  createdAt: row.created_at,
+})
+
+const mapTodoItemRow = (row: TodoItemRow): TodoItem => ({
+  id: row.id,
+  userId: row.user_id,
+  categoryId: row.category_id,
+  date: row.date,
+  title: row.title,
+  notes: row.notes,
+  status: row.status,
+  createdBy: row.created_by,
+  sortOrder: row.sort_order ?? 0,
+  createdAt: row.created_at,
+  completedAt: row.completed_at,
 })
 
 const mapWikiEntryRow = (row: WikiEntryRow): WikiEntry => ({
@@ -2606,6 +2656,149 @@ export const deleteTimelineEntry = async (entryId: string): Promise<void> => {
   }
 }
 
+
+export const listTodosByMonth = async (
+  monthStart: string,
+  monthEnd: string,
+): Promise<TodoItem[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('todos')
+    .select('id,user_id,category_id,date,title,notes,status,created_by,sort_order,created_at,completed_at')
+    .eq('user_id', userId)
+    .gte('date', monthStart)
+    .lte('date', monthEnd)
+    .order('date', { ascending: true })
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapTodoItemRow(row as TodoItemRow))
+}
+
+export const listTodoCategoriesByDate = async (date: string): Promise<TodoCategory[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('todo_categories')
+    .select('id,user_id,date,name,sort_order,created_at')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapTodoCategoryRow(row as TodoCategoryRow))
+}
+
+export const listTodosByDate = async (date: string): Promise<TodoItem[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('todos')
+    .select('id,user_id,category_id,date,title,notes,status,created_by,sort_order,created_at,completed_at')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapTodoItemRow(row as TodoItemRow))
+}
+
+export const createTodoCategory = async (payload: {
+  date: string
+  name: string
+  sortOrder: number
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase.from('todo_categories').insert({
+    user_id: userId,
+    date: payload.date,
+    name: payload.name,
+    sort_order: payload.sortOrder,
+  })
+  if (error) {
+    throw error
+  }
+}
+
+export const createTodoItem = async (payload: {
+  categoryId: string
+  date: string
+  title: string
+  notes: string | null
+  createdBy: TodoCreatedBy
+  sortOrder: number
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase.from('todos').insert({
+    user_id: userId,
+    category_id: payload.categoryId,
+    date: payload.date,
+    title: payload.title,
+    notes: payload.notes,
+    status: 'pending',
+    created_by: payload.createdBy,
+    sort_order: payload.sortOrder,
+  })
+  if (error) {
+    throw error
+  }
+}
+
+export const updateTodoItem = async (
+  todoId: string,
+  payload: { title: string; notes: string | null; createdBy: TodoCreatedBy },
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('todos')
+    .update({ title: payload.title, notes: payload.notes, created_by: payload.createdBy })
+    .eq('id', todoId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const updateTodoItemStatus = async (todoId: string, status: TodoStatus): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('todos')
+    .update({
+      status,
+      completed_at: status === 'completed' ? new Date().toISOString() : null,
+    })
+    .eq('id', todoId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
 export const listWikiEntries = async (): Promise<WikiEntry[]> => {
   if (!supabase) {
     return []
@@ -3135,6 +3328,7 @@ export const deleteStoryGroup = async (groupId: string): Promise<void> => {
 }
 
 export const fetchSessionGroups = async (_userId: string): Promise<RpSessionGroup[]> => {
+  void _userId
   if (!supabase) return []
   const { data, error } = await supabase
     .from('rp_session_groups')
