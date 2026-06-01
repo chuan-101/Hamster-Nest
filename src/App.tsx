@@ -66,6 +66,7 @@ import LettersPage from './pages/LettersPage'
 import StoryGroupPage from './pages/StoryGroupPage'
 import MemoPage from './pages/MemoPage'
 import TimelinePage from './pages/TimelinePage'
+import TodoPage from './pages/TodoPage'
 import HamsterConsolePage from './pages/HamsterConsolePage'
 import AgentCouncilPage from './pages/AgentCouncilPage'
 import WalletPage from './pages/WalletPage'
@@ -1949,6 +1950,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <TimelinePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/todo"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <TodoPage />
             </RequireAuth>
           }
         />

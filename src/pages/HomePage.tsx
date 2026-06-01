@@ -63,7 +63,7 @@ const DEFAULT_ICON_ORDER = [
   "settings",
   "export",
 ];
-const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters", "memo", "timeline", "wiki", "novels", "council", "hamster-wallet", "hamster-console"];
+const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters", "memo", "timeline", "todo", "wiki", "novels", "council", "hamster-wallet", "hamster-console"];
 const PAGE_IDS: HomeLayoutPageId[] = ["page1", "page2"];
 const CORE_WIDGET_ID = "widget-checkin";
 const MAX_WIDGETS = 6;
@@ -267,6 +267,7 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
       { id: "letters", defaultEmoji: "💌", label: "Letters", route: "/letters" },
       { id: "memo", defaultEmoji: "📝", label: "备忘录", route: "/memo" },
       { id: "timeline", defaultEmoji: "🗓️", label: "时间轴", route: "/timeline" },
+      { id: "todo", defaultEmoji: "🌷", label: "To do", route: "/todo" },
       { id: "wiki", defaultEmoji: "📚", label: "Wiki", route: "/wiki" },
       { id: "novels", defaultEmoji: "📖", label: "小说", route: "/novels" },
       { id: "council", defaultEmoji: "🏛️", label: "议事厅", route: "/council" },
