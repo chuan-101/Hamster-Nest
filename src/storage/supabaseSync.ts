@@ -178,7 +178,7 @@ type TodoItemRow = {
   title: string
   notes: string | null
   status: TodoStatus
-  created_by: TodoCreatedBy
+  created_by: TodoCreatedBy | 'chuan'
   sort_order: number | null
   created_at: string
   completed_at: string | null
@@ -480,6 +480,10 @@ const mapTodoCategoryRow = (row: TodoCategoryRow): TodoCategory => ({
   createdAt: row.created_at,
 })
 
+const normalizeTodoCreatedBy = (createdBy: TodoItemRow['created_by']): TodoCreatedBy => (
+  createdBy === 'chuan' ? '串串' : createdBy
+)
+
 const mapTodoItemRow = (row: TodoItemRow): TodoItem => ({
   id: row.id,
   userId: row.user_id,
@@ -488,7 +492,7 @@ const mapTodoItemRow = (row: TodoItemRow): TodoItem => ({
   title: row.title,
   notes: row.notes,
   status: row.status,
-  createdBy: row.created_by,
+  createdBy: normalizeTodoCreatedBy(row.created_by),
   sortOrder: row.sort_order ?? 0,
   createdAt: row.created_at,
   completedAt: row.completed_at,
@@ -2778,6 +2782,45 @@ export const updateTodoItem = async (
     .eq('user_id', userId)
   if (error) {
     throw error
+  }
+}
+
+
+export const deleteTodoItem = async (todoId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('todos')
+    .delete()
+    .eq('id', todoId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const deleteTodoCategory = async (categoryId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error: todoError } = await supabase
+    .from('todos')
+    .delete()
+    .eq('category_id', categoryId)
+    .eq('user_id', userId)
+  if (todoError) {
+    throw todoError
+  }
+  const { error: categoryError } = await supabase
+    .from('todo_categories')
+    .delete()
+    .eq('id', categoryId)
+    .eq('user_id', userId)
+  if (categoryError) {
+    throw categoryError
   }
 }
 
