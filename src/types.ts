@@ -323,7 +323,7 @@ export type TimelineEntry = {
   updatedAt: string
 }
 
-export type TodoCreatedBy = 'chuan' | 'syzygy'
+export type TodoCreatedBy = '串串' | 'syzygy'
 export type TodoStatus = 'pending' | 'completed'
 
 export type TodoCategory = {

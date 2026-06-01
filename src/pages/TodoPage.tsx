@@ -4,6 +4,8 @@ import type { TodoCategory, TodoCreatedBy, TodoItem } from '../types'
 import {
   createTodoCategory,
   createTodoItem,
+  deleteTodoCategory,
+  deleteTodoItem,
   listTodoCategoriesByDate,
   listTodosByDate,
   listTodosByMonth,
@@ -29,7 +31,7 @@ type CalendarTodoMeta = {
 }
 
 const CREATED_BY_META: Record<TodoCreatedBy, { emoji: string; label: string }> = {
-  chuan: { emoji: '🐹', label: 'chuan' },
+  串串: { emoji: '🐹', label: '串串' },
   syzygy: { emoji: '💙', label: 'syzygy' },
 }
 
@@ -199,7 +201,7 @@ const TodoPage = () => {
   }
 
   const openCreateTodo = (categoryId: string) => {
-    setEditor({ mode: 'create', categoryId, title: '', notes: '', createdBy: 'chuan' })
+    setEditor({ mode: 'create', categoryId, title: '', notes: '', createdBy: '串串' })
   }
 
   const openEditTodo = (todo: TodoItem) => {
@@ -247,6 +249,49 @@ const TodoPage = () => {
     } catch (saveError) {
       console.warn('保存待办失败', saveError)
       setError('保存待办失败，请稍后重试')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteTodo = async (todo: TodoItem) => {
+    const confirmed = window.confirm(`确认删除待办「${todo.title}」吗？此操作不可撤销。`)
+    if (!confirmed) {
+      return
+    }
+    setSaving(true)
+    try {
+      await deleteTodoItem(todo.id)
+      setNotice('待办已删除')
+      setError(null)
+      await refreshAll()
+    } catch (deleteError) {
+      console.warn('删除待办失败', deleteError)
+      setError('删除待办失败，请稍后重试')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteCategory = async (category: TodoCategory) => {
+    const categoryTodos = todosByCategory.get(category.id) ?? []
+    const confirmed = window.confirm(
+      categoryTodos.length > 0
+        ? `确认删除类目「${category.name}」吗？该类目下的 ${categoryTodos.length} 条待办也会一起删除，此操作不可撤销。`
+        : `确认删除类目「${category.name}」吗？此操作不可撤销。`,
+    )
+    if (!confirmed) {
+      return
+    }
+    setSaving(true)
+    try {
+      await deleteTodoCategory(category.id)
+      setNotice('类目已删除')
+      setError(null)
+      await refreshAll()
+    } catch (deleteError) {
+      console.warn('删除类目失败', deleteError)
+      setError('删除类目失败，请稍后重试')
     } finally {
       setSaving(false)
     }
@@ -374,16 +419,26 @@ const TodoPage = () => {
                 <article className="todo-category-card" key={category.id}>
                   <div className="todo-category-card__head">
                     <h3>{category.name}</h3>
-                    <button type="button" className="todo-soft-btn" onClick={() => openCreateTodo(category.id)}>
-                      + 待办
-                    </button>
+                    <div className="todo-category-card__actions">
+                      <button type="button" className="todo-soft-btn" onClick={() => openCreateTodo(category.id)}>
+                        + 待办
+                      </button>
+                      <button
+                        type="button"
+                        className="todo-danger-btn"
+                        onClick={() => handleDeleteCategory(category)}
+                        disabled={saving}
+                      >
+                        删除类目
+                      </button>
+                    </div>
                   </div>
                   {categoryTodos.length === 0 ? (
                     <p className="todo-category-empty">这个类目下还没有待办。</p>
                   ) : (
                     <div className="todo-items">
                       {categoryTodos.map((todo) => {
-                        const creator = CREATED_BY_META[todo.createdBy] ?? CREATED_BY_META.chuan
+                        const creator = CREATED_BY_META[todo.createdBy] ?? CREATED_BY_META.串串
                         const completed = todo.status === 'completed'
                         return (
                           <article className={['todo-item', completed && 'todo-item--completed'].filter(Boolean).join(' ')} key={todo.id}>
@@ -401,6 +456,15 @@ const TodoPage = () => {
                               {todo.notes ? <span className="todo-item__notes">{todo.notes}</span> : null}
                             </button>
                             <span className="todo-item__creator" title={creator.label}>{creator.emoji}</span>
+                            <button
+                              type="button"
+                              className="todo-item__delete"
+                              onClick={() => handleDeleteTodo(todo)}
+                              disabled={saving}
+                              aria-label={`删除待办：${todo.title}`}
+                            >
+                              删除
+                            </button>
                           </article>
                         )
                       })}
@@ -441,7 +505,7 @@ const TodoPage = () => {
                 value={editor.createdBy}
                 onChange={(event) => setEditor({ ...editor, createdBy: event.target.value as TodoCreatedBy })}
               >
-                <option value="chuan">🐹 chuan</option>
+                <option value="串串">🐹 串串</option>
                 <option value="syzygy">💙 syzygy</option>
               </select>
             </label>
