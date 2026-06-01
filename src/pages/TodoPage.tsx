@@ -455,16 +455,19 @@ const TodoPage = () => {
                               <span className="todo-item__title">{todo.title}</span>
                               {todo.notes ? <span className="todo-item__notes">{todo.notes}</span> : null}
                             </button>
-                            <span className="todo-item__creator" title={creator.label}>{creator.emoji}</span>
-                            <button
-                              type="button"
-                              className="todo-item__delete"
-                              onClick={() => handleDeleteTodo(todo)}
-                              disabled={saving}
-                              aria-label={`删除待办：${todo.title}`}
-                            >
-                              删除
-                            </button>
+                            <div className="todo-item__actions">
+                              <span className="todo-item__creator" title={creator.label}>{creator.emoji}</span>
+                              <button
+                                type="button"
+                                className="todo-item__delete"
+                                onClick={() => handleDeleteTodo(todo)}
+                                disabled={saving}
+                                aria-label={`删除待办：${todo.title}`}
+                                title="删除"
+                              >
+                                <span aria-hidden="true">×</span>
+                              </button>
+                            </div>
                           </article>
                         )
                       })}
