@@ -28,7 +28,6 @@ import {
 } from '../constants/aiOverlays'
 import './SnacksPage.css'
 import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
-import { useTtsPlayback } from '../hooks/useTtsPlayback'
 
 type SyzygyFeedPageProps = {
   user: User | null
@@ -51,11 +50,6 @@ const TTS_TEXT_LIMIT = 2000
 const TTS_GENERATE_ENDPOINT = 'https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/tts-generate'
 
 type ReplyTtsState = 'loading' | 'playing'
-
-type CachedTtsAudio = {
-  audio: HTMLAudioElement
-  objectUrl: string
-}
 
 const createPendingReplyId = (postId: string) =>
   `pending-${postId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -106,7 +100,9 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
   const [deletingPermanentReplyId, setDeletingPermanentReplyId] = useState<string | null>(null)
   const [replyTtsStates, setReplyTtsStates] = useState<Record<string, ReplyTtsState>>({})
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
-  const { handleTtsClick, ttsStates, ttsTextLimit } = useTtsPlayback()
+  const activeTtsRef = useRef<HTMLAudioElement | null>(null)
+  const ttsCacheRef = useRef<Map<string, string>>(new Map())
+  const pendingTtsRef = useRef<boolean>(false)
 
   const refreshPosts = useCallback(async () => {
     setLoading(true)
@@ -171,13 +167,15 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
 
   const resetActiveTts = useCallback((exceptReplyId?: string) => {
     const current = activeTtsRef.current
-    if (!current || current.replyId === exceptReplyId) {
+    if (!current || current.dataset.replyId === exceptReplyId) {
       return
     }
 
-    current.audio.pause()
-    current.audio.currentTime = 0
-    setReplyTtsState(current.replyId, null)
+    current.pause()
+    current.currentTime = 0
+    if (current.dataset.replyId) {
+      setReplyTtsState(current.dataset.replyId, null)
+    }
     activeTtsRef.current = null
   }, [setReplyTtsState])
 
@@ -188,37 +186,52 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
     }
 
     const active = activeTtsRef.current
-    if (active?.replyId === reply.id) {
-      if (active.audio.paused) {
+    if (active?.dataset.replyId === reply.id) {
+      if (active.paused) {
         try {
-          await active.audio.play()
+          await active.play()
           setReplyTtsState(reply.id, 'playing')
         } catch (playError) {
           console.warn('TTS 播放失败', playError)
           setReplyTtsState(reply.id, null)
         }
       } else {
-        active.audio.pause()
+        active.pause()
         setReplyTtsState(reply.id, null)
       }
       return
     }
 
-    const pendingTts = pendingTtsRef.current
-    if (pendingTts) {
-      pendingTts.controller.abort()
-      setReplyTtsState(pendingTts.replyId, null)
-      pendingTtsRef.current = null
+    if (pendingTtsRef.current) {
+      return
     }
     resetActiveTts()
 
-    const cached = ttsCacheRef.current[reply.id]
-    if (cached) {
-      cached.audio.currentTime = 0
-      activeTtsRef.current = { replyId: reply.id, audio: cached.audio }
+    const playAudio = async (objectUrl: string) => {
+      const audio = new Audio(objectUrl)
+      audio.dataset.replyId = reply.id
+      audio.onended = () => {
+        if (activeTtsRef.current?.dataset.replyId === reply.id) {
+          activeTtsRef.current = null
+        }
+        setReplyTtsState(reply.id, null)
+      }
+      audio.onerror = () => {
+        if (activeTtsRef.current?.dataset.replyId === reply.id) {
+          activeTtsRef.current = null
+        }
+        setReplyTtsState(reply.id, null)
+      }
+
+      activeTtsRef.current = audio
+      await audio.play()
+      setReplyTtsState(reply.id, 'playing')
+    }
+
+    const cachedObjectUrl = ttsCacheRef.current.get(reply.id)
+    if (cachedObjectUrl) {
       try {
-        await cached.audio.play()
-        setReplyTtsState(reply.id, 'playing')
+        await playAudio(cachedObjectUrl)
       } catch (playError) {
         console.warn('TTS 播放失败', playError)
         activeTtsRef.current = null
@@ -227,8 +240,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
       return
     }
 
-    const controller = new AbortController()
-    pendingTtsRef.current = { replyId: reply.id, controller }
+    pendingTtsRef.current = true
     setReplyTtsState(reply.id, 'loading')
 
     try {
@@ -236,7 +248,6 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
-        signal: controller.signal,
       })
 
       if (!response.ok) {
@@ -244,52 +255,24 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
       }
 
       const blob = await response.blob()
-      if (controller.signal.aborted) {
-        return
-      }
-
       const objectUrl = URL.createObjectURL(blob)
-      const audio = new Audio(objectUrl)
-      audio.onended = () => {
-        if (activeTtsRef.current?.replyId === reply.id) {
-          activeTtsRef.current = null
-        }
-        setReplyTtsState(reply.id, null)
-      }
-      audio.onerror = () => {
-        if (activeTtsRef.current?.replyId === reply.id) {
-          activeTtsRef.current = null
-        }
-        setReplyTtsState(reply.id, null)
-      }
-
-      ttsCacheRef.current[reply.id] = { audio, objectUrl }
-      activeTtsRef.current = { replyId: reply.id, audio }
-      await audio.play()
-      setReplyTtsState(reply.id, 'playing')
+      ttsCacheRef.current.set(reply.id, objectUrl)
+      await playAudio(objectUrl)
     } catch (ttsError) {
-      if (!controller.signal.aborted) {
-        console.warn('TTS 生成失败', ttsError)
-        setReplyTtsState(reply.id, null)
-      }
+      console.warn('TTS 生成失败', ttsError)
+      setReplyTtsState(reply.id, null)
     } finally {
-      if (pendingTtsRef.current?.controller === controller) {
-        pendingTtsRef.current = null
-      }
+      pendingTtsRef.current = false
     }
   }, [replyTtsStates, resetActiveTts, setReplyTtsState])
 
   useEffect(() => {
     return () => {
-      pendingTtsRef.current?.controller.abort()
-      activeTtsRef.current?.audio.pause()
-      Object.values(ttsCacheRef.current).forEach(({ audio, objectUrl }) => {
-        audio.pause()
-        URL.revokeObjectURL(objectUrl)
-      })
-      ttsCacheRef.current = {}
+      activeTtsRef.current?.pause()
+      ttsCacheRef.current.forEach((objectUrl) => URL.revokeObjectURL(objectUrl))
+      ttsCacheRef.current.clear()
       activeTtsRef.current = null
-      pendingTtsRef.current = null
+      pendingTtsRef.current = false
     }
   }, [])
 
@@ -990,13 +973,13 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
                             <div className="reply-footer">
                               <span className="reply-time">{formatChineseTime(reply.createdAt)}</span>
                               {reply.authorRole === 'ai' ? (() => {
-                                const ttsState = ttsStates[reply.id]
-                                const isTooLongForTts = reply.content.trim().length > ttsTextLimit
+                                const ttsState = replyTtsStates[reply.id]
+                                const isTooLongForTts = reply.content.trim().length > TTS_TEXT_LIMIT
                                 return (
                                   <button
                                     type="button"
                                     className={`tts-button${ttsState ? ` tts-button--${ttsState}` : ''}`}
-                                    onClick={() => void handleTtsClick(reply.id, reply.content)}
+                                    onClick={() => void handleReplyTtsClick(reply)}
                                     disabled={ttsState === 'loading' || isTooLongForTts}
                                     aria-label={ttsState === 'playing' ? '暂停语音' : '播放语音'}
                                     aria-pressed={ttsState === 'playing'}
