@@ -28,6 +28,7 @@ import {
 } from '../constants/aiOverlays'
 import './SnacksPage.css'
 import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
+import { useTtsPlayback } from '../hooks/useTtsPlayback'
 
 type SyzygyFeedPageProps = {
   user: User | null
@@ -94,6 +95,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
   const [deletingPermanentPostId, setDeletingPermanentPostId] = useState<string | null>(null)
   const [deletingPermanentReplyId, setDeletingPermanentReplyId] = useState<string | null>(null)
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
+  const { handleTtsClick, ttsStates, ttsTextLimit } = useTtsPlayback()
 
   const refreshPosts = useCallback(async () => {
     setLoading(true)
@@ -838,7 +840,30 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
                             ) : (
                               <p>{reply.content}</p>
                             )}
-                            <span className="reply-time">{formatChineseTime(reply.createdAt)}</span>
+                            <div className="reply-footer">
+                              <span className="reply-time">{formatChineseTime(reply.createdAt)}</span>
+                              {reply.authorRole === 'ai' ? (() => {
+                                const ttsState = ttsStates[reply.id]
+                                const isTooLongForTts = reply.content.trim().length > ttsTextLimit
+                                return (
+                                  <button
+                                    type="button"
+                                    className={`tts-button${ttsState ? ` tts-button--${ttsState}` : ''}`}
+                                    onClick={() => void handleTtsClick(reply.id, reply.content)}
+                                    disabled={ttsState === 'loading' || isTooLongForTts}
+                                    aria-label={ttsState === 'playing' ? '暂停语音' : '播放语音'}
+                                    aria-pressed={ttsState === 'playing'}
+                                    title={isTooLongForTts ? '文本超过 2000 字符，无法生成语音' : '播放 Syzygy 回复'}
+                                  >
+                                    {ttsState === 'loading' ? (
+                                      <span className="tts-spinner" aria-hidden="true" />
+                                    ) : (
+                                      <span aria-hidden="true">{ttsState === 'playing' ? '🔊' : '🔈'}</span>
+                                    )}
+                                  </button>
+                                )
+                              })() : null}
+                            </div>
                           </div>
                           <button type="button" className="ghost danger" onClick={() => setPendingDeleteReply(reply)}>
                             删除
