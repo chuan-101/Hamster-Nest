@@ -28,6 +28,7 @@ import {
 } from '../constants/aiOverlays'
 import './SnacksPage.css'
 import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
+import { useTtsPlayback } from '../hooks/useTtsPlayback'
 
 type SyzygyFeedPageProps = {
   user: User | null
@@ -105,9 +106,7 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
   const [deletingPermanentReplyId, setDeletingPermanentReplyId] = useState<string | null>(null)
   const [replyTtsStates, setReplyTtsStates] = useState<Record<string, ReplyTtsState>>({})
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
-  const ttsCacheRef = useRef<Record<string, CachedTtsAudio>>({})
-  const activeTtsRef = useRef<{ replyId: string; audio: HTMLAudioElement } | null>(null)
-  const pendingTtsRef = useRef<{ replyId: string; controller: AbortController } | null>(null)
+  const { handleTtsClick, ttsStates, ttsTextLimit } = useTtsPlayback()
 
   const refreshPosts = useCallback(async () => {
     setLoading(true)
@@ -991,13 +990,13 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
                             <div className="reply-footer">
                               <span className="reply-time">{formatChineseTime(reply.createdAt)}</span>
                               {reply.authorRole === 'ai' ? (() => {
-                                const ttsState = replyTtsStates[reply.id]
-                                const isTooLongForTts = reply.content.trim().length > TTS_TEXT_LIMIT
+                                const ttsState = ttsStates[reply.id]
+                                const isTooLongForTts = reply.content.trim().length > ttsTextLimit
                                 return (
                                   <button
                                     type="button"
                                     className={`tts-button${ttsState ? ` tts-button--${ttsState}` : ''}`}
-                                    onClick={() => void handleReplyTtsClick(reply)}
+                                    onClick={() => void handleTtsClick(reply.id, reply.content)}
                                     disabled={ttsState === 'loading' || isTooLongForTts}
                                     aria-label={ttsState === 'playing' ? '暂停语音' : '播放语音'}
                                     aria-pressed={ttsState === 'playing'}
