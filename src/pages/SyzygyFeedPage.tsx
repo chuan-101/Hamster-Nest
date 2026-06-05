@@ -46,6 +46,16 @@ type SyzygyFeedPageProps = {
 }
 
 const maxLength = 1000
+const TTS_TEXT_LIMIT = 2000
+const TTS_GENERATE_ENDPOINT = 'https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/tts-generate'
+
+type ReplyTtsState = 'loading' | 'playing'
+
+type CachedTtsAudio = {
+  audio: HTMLAudioElement
+  objectUrl: string
+}
+
 const createPendingReplyId = (postId: string) =>
   `pending-${postId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -93,7 +103,11 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
   const [notice, setNotice] = useState<string | null>(null)
   const [deletingPermanentPostId, setDeletingPermanentPostId] = useState<string | null>(null)
   const [deletingPermanentReplyId, setDeletingPermanentReplyId] = useState<string | null>(null)
+  const [replyTtsStates, setReplyTtsStates] = useState<Record<string, ReplyTtsState>>({})
   const replyInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
+  const ttsCacheRef = useRef<Record<string, CachedTtsAudio>>({})
+  const activeTtsRef = useRef<{ replyId: string; audio: HTMLAudioElement } | null>(null)
+  const pendingTtsRef = useRef<{ replyId: string; controller: AbortController } | null>(null)
 
   const refreshPosts = useCallback(async () => {
     setLoading(true)
@@ -143,6 +157,142 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
       void refreshTrashPosts()
     }
   }, [refreshTrashPosts, showTrash])
+
+  const setReplyTtsState = useCallback((replyId: string, state: ReplyTtsState | null) => {
+    setReplyTtsStates((current) => {
+      const next = { ...current }
+      if (state) {
+        next[replyId] = state
+      } else {
+        delete next[replyId]
+      }
+      return next
+    })
+  }, [])
+
+  const resetActiveTts = useCallback((exceptReplyId?: string) => {
+    const current = activeTtsRef.current
+    if (!current || current.replyId === exceptReplyId) {
+      return
+    }
+
+    current.audio.pause()
+    current.audio.currentTime = 0
+    setReplyTtsState(current.replyId, null)
+    activeTtsRef.current = null
+  }, [setReplyTtsState])
+
+  const handleReplyTtsClick = useCallback(async (reply: SyzygyReply) => {
+    const text = reply.content.trim()
+    if (!text || text.length > TTS_TEXT_LIMIT || replyTtsStates[reply.id] === 'loading') {
+      return
+    }
+
+    const active = activeTtsRef.current
+    if (active?.replyId === reply.id) {
+      if (active.audio.paused) {
+        try {
+          await active.audio.play()
+          setReplyTtsState(reply.id, 'playing')
+        } catch (playError) {
+          console.warn('TTS 播放失败', playError)
+          setReplyTtsState(reply.id, null)
+        }
+      } else {
+        active.audio.pause()
+        setReplyTtsState(reply.id, null)
+      }
+      return
+    }
+
+    const pendingTts = pendingTtsRef.current
+    if (pendingTts) {
+      pendingTts.controller.abort()
+      setReplyTtsState(pendingTts.replyId, null)
+      pendingTtsRef.current = null
+    }
+    resetActiveTts()
+
+    const cached = ttsCacheRef.current[reply.id]
+    if (cached) {
+      cached.audio.currentTime = 0
+      activeTtsRef.current = { replyId: reply.id, audio: cached.audio }
+      try {
+        await cached.audio.play()
+        setReplyTtsState(reply.id, 'playing')
+      } catch (playError) {
+        console.warn('TTS 播放失败', playError)
+        activeTtsRef.current = null
+        setReplyTtsState(reply.id, null)
+      }
+      return
+    }
+
+    const controller = new AbortController()
+    pendingTtsRef.current = { replyId: reply.id, controller }
+    setReplyTtsState(reply.id, 'loading')
+
+    try {
+      const response = await fetch(TTS_GENERATE_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        throw new Error('TTS generation failed')
+      }
+
+      const blob = await response.blob()
+      if (controller.signal.aborted) {
+        return
+      }
+
+      const objectUrl = URL.createObjectURL(blob)
+      const audio = new Audio(objectUrl)
+      audio.onended = () => {
+        if (activeTtsRef.current?.replyId === reply.id) {
+          activeTtsRef.current = null
+        }
+        setReplyTtsState(reply.id, null)
+      }
+      audio.onerror = () => {
+        if (activeTtsRef.current?.replyId === reply.id) {
+          activeTtsRef.current = null
+        }
+        setReplyTtsState(reply.id, null)
+      }
+
+      ttsCacheRef.current[reply.id] = { audio, objectUrl }
+      activeTtsRef.current = { replyId: reply.id, audio }
+      await audio.play()
+      setReplyTtsState(reply.id, 'playing')
+    } catch (ttsError) {
+      if (!controller.signal.aborted) {
+        console.warn('TTS 生成失败', ttsError)
+        setReplyTtsState(reply.id, null)
+      }
+    } finally {
+      if (pendingTtsRef.current?.controller === controller) {
+        pendingTtsRef.current = null
+      }
+    }
+  }, [replyTtsStates, resetActiveTts, setReplyTtsState])
+
+  useEffect(() => {
+    return () => {
+      pendingTtsRef.current?.controller.abort()
+      activeTtsRef.current?.audio.pause()
+      Object.values(ttsCacheRef.current).forEach(({ audio, objectUrl }) => {
+        audio.pause()
+        URL.revokeObjectURL(objectUrl)
+      })
+      ttsCacheRef.current = {}
+      activeTtsRef.current = null
+      pendingTtsRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     const refreshCurrentView = () => {
@@ -838,7 +988,30 @@ const SyzygyFeedPage = ({ user, snackAiConfig, entryMode = 'phone' }: SyzygyFeed
                             ) : (
                               <p>{reply.content}</p>
                             )}
-                            <span className="reply-time">{formatChineseTime(reply.createdAt)}</span>
+                            <div className="reply-footer">
+                              <span className="reply-time">{formatChineseTime(reply.createdAt)}</span>
+                              {reply.authorRole === 'ai' ? (() => {
+                                const ttsState = replyTtsStates[reply.id]
+                                const isTooLongForTts = reply.content.trim().length > TTS_TEXT_LIMIT
+                                return (
+                                  <button
+                                    type="button"
+                                    className={`tts-button${ttsState ? ` tts-button--${ttsState}` : ''}`}
+                                    onClick={() => void handleReplyTtsClick(reply)}
+                                    disabled={ttsState === 'loading' || isTooLongForTts}
+                                    aria-label={ttsState === 'playing' ? '暂停语音' : '播放语音'}
+                                    aria-pressed={ttsState === 'playing'}
+                                    title={isTooLongForTts ? '文本超过 2000 字符，无法生成语音' : '播放 Syzygy 回复'}
+                                  >
+                                    {ttsState === 'loading' ? (
+                                      <span className="tts-spinner" aria-hidden="true" />
+                                    ) : (
+                                      <span aria-hidden="true">{ttsState === 'playing' ? '🔊' : '🔈'}</span>
+                                    )}
+                                  </button>
+                                )
+                              })() : null}
+                            </div>
                           </div>
                           <button type="button" className="ghost danger" onClick={() => setPendingDeleteReply(reply)}>
                             删除
