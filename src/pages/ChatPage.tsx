@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import ReasoningPanel from '../components/ReasoningPanel'
 import { fetchLettersByConversation } from '../storage/supabaseSync'
+import { useTtsPlayback } from '../hooks/useTtsPlayback'
 import './ChatPage.css'
 
 export type ChatInjectionOptions = {
@@ -84,6 +85,7 @@ const ChatPage = ({
   const actionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const { handleTtsClick, ttsStates, ttsTextLimit } = useTtsPlayback()
   const navigate = useNavigate()
 
   const submitDraft = async () => {
@@ -473,13 +475,34 @@ const ChatPage = ({
                   ) : (
                     <p>{message.content}</p>
                   )}
-                  {message.role === 'assistant' && message.meta?.model ? (
-                    <div className="message-footer">
-                      <span className="model-tag">
-                        {message.meta.model === 'mock-model' ? '模拟模型' : message.meta.model}
-                      </span>
-                    </div>
-                  ) : null}
+                  {message.role === 'assistant' ? (() => {
+                    const ttsState = ttsStates[message.id]
+                    const isTooLongForTts = message.content.trim().length > ttsTextLimit
+                    return (
+                      <div className="message-footer">
+                        {message.meta?.model ? (
+                          <span className="model-tag">
+                            {message.meta.model === 'mock-model' ? '模拟模型' : message.meta.model}
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          className={`message-tts-button${ttsState ? ` message-tts-button--${ttsState}` : ''}`}
+                          onClick={() => void handleTtsClick(message.id, message.content)}
+                          disabled={ttsState === 'loading' || isTooLongForTts}
+                          aria-label={ttsState === 'playing' ? '暂停语音' : '播放语音'}
+                          aria-pressed={ttsState === 'playing'}
+                          title={isTooLongForTts ? '文本超过 2000 字符，无法生成语音' : '播放 Syzygy 回复'}
+                        >
+                          {ttsState === 'loading' ? (
+                            <span className="message-tts-spinner" aria-hidden="true" />
+                          ) : (
+                            <span aria-hidden="true">{ttsState === 'playing' ? '🔊' : '🔈'}</span>
+                          )}
+                        </button>
+                      </div>
+                    )
+                  })() : null}
                 </div>
                 <div className="bubble-meta">
                   <span className="timestamp">{formatTime(message.createdAt)}</span>
