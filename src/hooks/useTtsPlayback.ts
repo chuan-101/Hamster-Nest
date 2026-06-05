@@ -12,7 +12,7 @@ type CachedTtsAudio = {
 
 export const useTtsPlayback = () => {
   const [ttsStates, setTtsStates] = useState<Record<string, TtsPlaybackState>>({})
-  const ttsCacheRef = useRef<Record<string, CachedTtsAudio>>({})
+  const ttsCacheRef = useRef<Map<string, CachedTtsAudio>>(new Map())
   const activeTtsRef = useRef<{ id: string; audio: HTMLAudioElement } | null>(null)
   const pendingTtsRef = useRef<{ id: string; controller: AbortController } | null>(null)
 
@@ -77,7 +77,7 @@ export const useTtsPlayback = () => {
     abortPendingTts()
     resetActiveTts()
 
-    const cached = ttsCacheRef.current[id]
+    const cached = ttsCacheRef.current.get(id)
     if (cached) {
       cached.audio.currentTime = 0
       activeTtsRef.current = { id, audio: cached.audio }
@@ -128,7 +128,7 @@ export const useTtsPlayback = () => {
         setTtsState(id, null)
       }
 
-      ttsCacheRef.current[id] = { audio, objectUrl }
+      ttsCacheRef.current.set(id, { audio, objectUrl })
       activeTtsRef.current = { id, audio }
       await audio.play()
       setTtsState(id, 'playing')
@@ -145,14 +145,16 @@ export const useTtsPlayback = () => {
   }, [abortPendingTts, resetActiveTts, setTtsState, ttsStates])
 
   useEffect(() => {
+    const ttsCache = ttsCacheRef.current
+
     return () => {
       pendingTtsRef.current?.controller.abort()
       activeTtsRef.current?.audio.pause()
-      Object.values(ttsCacheRef.current).forEach(({ audio, objectUrl }) => {
+      ttsCache.forEach(({ audio, objectUrl }) => {
         audio.pause()
         URL.revokeObjectURL(objectUrl)
       })
-      ttsCacheRef.current = {}
+      ttsCache.clear()
       activeTtsRef.current = null
       pendingTtsRef.current = null
     }
