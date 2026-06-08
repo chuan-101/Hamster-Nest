@@ -85,8 +85,8 @@ export type Database = {
       learning_edges: {
         Row: {
           id: string
-          source_node_id: string
-          target_node_id: string
+          from_node_id: string
+          to_node_id: string
           edge_type: 'association' | 'derivation' | 'contradiction' | 'application' | 'reference' | 'question'
           strength: number
           description: string | null
@@ -95,8 +95,8 @@ export type Database = {
         }
         Insert: {
           id?: string
-          source_node_id: string
-          target_node_id: string
+          from_node_id: string
+          to_node_id: string
           edge_type: 'association' | 'derivation' | 'contradiction' | 'application' | 'reference' | 'question'
           strength?: number
           description?: string | null
@@ -105,8 +105,8 @@ export type Database = {
         }
         Update: {
           id?: string
-          source_node_id?: string
-          target_node_id?: string
+          from_node_id?: string
+          to_node_id?: string
           edge_type?: 'association' | 'derivation' | 'contradiction' | 'application' | 'reference' | 'question'
           strength?: number
           description?: string | null
@@ -115,15 +115,15 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: 'learning_edges_source_node_id_fkey'
-            columns: ['source_node_id']
+            foreignKeyName: 'learning_edges_from_node_id_fkey'
+            columns: ['from_node_id']
             isOneToOne: false
             referencedRelation: 'learning_nodes'
             referencedColumns: ['id']
           },
           {
-            foreignKeyName: 'learning_edges_target_node_id_fkey'
-            columns: ['target_node_id']
+            foreignKeyName: 'learning_edges_to_node_id_fkey'
+            columns: ['to_node_id']
             isOneToOne: false
             referencedRelation: 'learning_nodes'
             referencedColumns: ['id']

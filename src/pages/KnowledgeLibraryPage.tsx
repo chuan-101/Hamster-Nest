@@ -268,7 +268,7 @@ const KnowledgeLibraryPage = () => {
   )
 
   const selectedNodeEdges = useMemo(
-    () => (selectedNode ? edges.filter((edge) => edge.source_node_id === selectedNode.id || edge.target_node_id === selectedNode.id) : []),
+    () => (selectedNode ? edges.filter((edge) => edge.from_node_id === selectedNode.id || edge.to_node_id === selectedNode.id) : []),
     [edges, selectedNode],
   )
 
@@ -283,14 +283,14 @@ const KnowledgeLibraryPage = () => {
       row: node,
     }))
     const graphLinks: GraphLink[] = edges
-      .filter((edge) => visibleIds.has(edge.source_node_id) && visibleIds.has(edge.target_node_id))
+      .filter((edge) => visibleIds.has(edge.from_node_id) && visibleIds.has(edge.to_node_id))
       .map((edge) => {
-        const source = nodeById.get(edge.source_node_id)
-        const target = nodeById.get(edge.target_node_id)
+        const source = nodeById.get(edge.from_node_id)
+        const target = nodeById.get(edge.to_node_id)
         return {
           id: edge.id,
-          source: edge.source_node_id,
-          target: edge.target_node_id,
+          source: edge.from_node_id,
+          target: edge.to_node_id,
           edgeType: edge.edge_type,
           description: edge.description ?? '无描述',
           strength: edge.strength,
@@ -420,8 +420,8 @@ const KnowledgeLibraryPage = () => {
       ? await supabase.from('learning_edges').update(edgeDetails).eq('id', edgeEditor.id)
       : await supabase.from('learning_edges').insert({
           ...edgeDetails,
-          target_node_id: edgeEditor.targetNodeId,
-          source_node_id: selectedNode.id,
+          to_node_id: edgeEditor.targetNodeId,
+          from_node_id: selectedNode.id,
         })
     if (result.error) setNotice(result.error.message)
     else {
@@ -596,8 +596,8 @@ const KnowledgeLibraryPage = () => {
                     <section className="edge-panel">
                       <div className="edge-title-row"><h3>联想</h3><button type="button" onClick={() => setEdgeEditor({ id: null, targetNodeId: '', edgeType: 'association', description: '', strength: 3 })}>+ 连边</button></div>
                       {selectedNodeEdges.map((edge) => {
-                        const isOutgoing = edge.source_node_id === selectedNode.id
-                        const peer = nodeById.get(isOutgoing ? edge.target_node_id : edge.source_node_id)
+                        const isOutgoing = edge.from_node_id === selectedNode.id
+                        const peer = nodeById.get(isOutgoing ? edge.to_node_id : edge.from_node_id)
                         return (
                           <article key={edge.id} className="edge-card">
                             <button type="button" className="edge-peer" onClick={() => peer && setSelectedNodeId(peer.id)}>{isOutgoing ? '→' : '←'} {peer?.title ?? '未知节点'}</button>
