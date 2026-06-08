@@ -89,6 +89,20 @@ const edgeTypeMeta: Record<EdgeType, { color: string; dash: number[] | null }> =
   question: { color: '#74a85f', dash: [4, 4] },
 }
 
+const graphDefaultSize = { width: 760, height: 560 }
+const graphMinSize = { width: 320, height: 420 }
+const graphNodeBoundaryPadding = 76
+const graphCenterStrength = 0.42
+const graphChargeStrength = -32
+const graphAlphaDecay = 0.06
+const graphVelocityDecay = 0.55
+
+type TunableForce = {
+  strength?: (value: number) => unknown
+}
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
 const createEmptyEditor = (folderId: string | null): NodeEditor => ({
   id: null,
   nodeType: 'concept',
@@ -164,7 +178,7 @@ const KnowledgeLibraryPage = () => {
   const [nodeSearch, setNodeSearch] = useState('')
   const graphRef = useRef<ForceGraphMethods<NodeObject<GraphNode>, LinkObject<GraphNode, GraphLink>> | undefined>(undefined)
   const graphWrapRef = useRef<HTMLDivElement | null>(null)
-  const [graphSize, setGraphSize] = useState({ width: 760, height: 560 })
+  const [graphSize, setGraphSize] = useState(graphDefaultSize)
 
   const loadAll = useCallback(async () => {
     if (!supabase) {
@@ -198,7 +212,10 @@ const KnowledgeLibraryPage = () => {
     if (!element) return undefined
     const resize = () => {
       const rect = element.getBoundingClientRect()
-      setGraphSize({ width: Math.max(320, rect.width), height: Math.max(420, rect.height) })
+      setGraphSize({
+        width: Math.max(graphMinSize.width, Math.round(rect.width)),
+        height: Math.max(graphMinSize.height, Math.round(rect.height)),
+      })
     }
     resize()
     const observer = new ResizeObserver(resize)
@@ -276,6 +293,17 @@ const KnowledgeLibraryPage = () => {
       })
     return { nodes: graphNodes, links: graphLinks }
   }, [edges, filteredNodes, nodeById])
+
+  useEffect(() => {
+    if (viewMode !== 'graph') return
+    const graph = graphRef.current
+    if (!graph) return
+    const centerForce = graph.d3Force('center') as TunableForce | undefined
+    const chargeForce = graph.d3Force('charge') as TunableForce | undefined
+    centerForce?.strength?.(graphCenterStrength)
+    chargeForce?.strength?.(graphChargeStrength)
+    graph.d3ReheatSimulation()
+  }, [graphData.links.length, graphData.nodes.length, viewMode])
 
   const childFolderCount = useMemo(() => {
     const count = new Map<string, number>()
@@ -402,6 +430,28 @@ const KnowledgeLibraryPage = () => {
     if (error) setNotice(error.message)
     else await loadAll()
   }
+
+  const constrainGraphNode = useCallback((node: NodeObject<GraphNode>) => {
+    const xLimit = Math.max(0, graphSize.width / 2 - graphNodeBoundaryPadding)
+    const yLimit = Math.max(0, graphSize.height / 2 - graphNodeBoundaryPadding)
+    const x = typeof node.x === 'number' ? clamp(node.x, -xLimit, xLimit) : 0
+    const y = typeof node.y === 'number' ? clamp(node.y, -yLimit, yLimit) : 0
+
+    if (node.x !== x) {
+      node.x = x
+      node.vx = 0
+    }
+    if (node.y !== y) {
+      node.y = y
+      node.vy = 0
+    }
+    if (typeof node.fx === 'number') node.fx = clamp(node.fx, -xLimit, xLimit)
+    if (typeof node.fy === 'number') node.fy = clamp(node.fy, -yLimit, yLimit)
+  }, [graphSize.height, graphSize.width])
+
+  const constrainGraphNodes = useCallback(() => {
+    graphData.nodes.forEach(constrainGraphNode)
+  }, [constrainGraphNode, graphData.nodes])
 
   const drawGraphNode = useCallback((node: NodeObject<GraphNode>, context: CanvasRenderingContext2D, globalScale: number) => {
     const label = node.title
@@ -580,9 +630,15 @@ const KnowledgeLibraryPage = () => {
                     linkDirectionalArrowLength={4}
                     linkDirectionalArrowRelPos={0.96}
                     linkHoverPrecision={8}
+                    d3AlphaDecay={graphAlphaDecay}
+                    d3VelocityDecay={graphVelocityDecay}
+                    cooldownTime={3600}
+                    onEngineTick={constrainGraphNodes}
                     minZoom={0.25}
                     maxZoom={4}
                     enableNodeDrag
+                    onNodeDrag={constrainGraphNode}
+                    onNodeDragEnd={constrainGraphNode}
                     onNodeClick={(node) => { setSelectedNodeId(node.id); openEditNode(node.row) }}
                   />
                 ) : (
