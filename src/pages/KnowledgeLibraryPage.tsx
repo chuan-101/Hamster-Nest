@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase/client'
 import type { Database, Json } from '../supabase/types'
@@ -34,13 +33,22 @@ const nodeTypes: NodeType[] = ['concept', 'question', 'insight', 'source', 'quot
 const edgeTypes: EdgeType[] = ['association', 'derivation', 'contradiction', 'application', 'reference', 'question']
 
 const nodeTypeMeta: Record<NodeType, { label: string; color: string }> = {
-  concept: { label: 'Concept', color: '#7c3aed' },
-  question: { label: 'Question', color: '#d97706' },
-  insight: { label: 'Insight', color: '#059669' },
-  source: { label: 'Source', color: '#2563eb' },
-  quote: { label: 'Quote', color: '#db2777' },
-  note: { label: 'Note', color: '#64748b' },
-  application: { label: 'Application', color: '#ea580c' },
+  concept: { label: '概念', color: '#c45e8d' },
+  question: { label: '问题', color: '#d977a3' },
+  insight: { label: '洞见', color: '#a8558f' },
+  source: { label: '资料', color: '#b27f98' },
+  quote: { label: '摘录', color: '#db2777' },
+  note: { label: '笔记', color: '#8f7285' },
+  application: { label: '应用', color: '#e879a6' },
+}
+
+const metadataOptionLabels: Record<string, string> = {
+  open: '待探索',
+  exploring: '探索中',
+  resolved: '已解决',
+  idea: '想法',
+  in_progress: '进行中',
+  done: '已完成',
 }
 
 const edgeTypeLabels: Record<EdgeType, string> = {
@@ -73,7 +81,7 @@ const metadataFields: Record<NodeType, Array<{ key: string; label: string; optio
     { key: 'status', label: '状态', options: ['idea', 'in_progress', 'done'] },
   ],
   source: [
-    { key: 'url', label: 'URL' },
+    { key: 'url', label: '链接' },
     { key: 'author', label: '作者' },
   ],
   quote: [
@@ -107,7 +115,7 @@ const formatTime = (value: string) =>
     minute: '2-digit',
   }).format(new Date(value))
 
-const KnowledgeLibraryPage = ({ user }: { user: User | null }) => {
+const KnowledgeLibraryPage = () => {
   const navigate = useNavigate()
   const [folders, setFolders] = useState<FolderRow[]>([])
   const [nodes, setNodes] = useState<NodeRow[]>([])
@@ -208,7 +216,6 @@ const KnowledgeLibraryPage = ({ user }: { user: User | null }) => {
   const createFolder = async () => {
     if (!supabase || !folderDraft.name.trim()) return
     const { error } = await supabase.from('knowledge_folders').insert({
-      user_id: user?.id ?? crypto.randomUUID(),
       name: folderDraft.name.trim(),
       icon: folderDraft.icon.trim() || '📁',
       parent_id: folderDraft.parentId || null,
@@ -267,7 +274,7 @@ const KnowledgeLibraryPage = ({ user }: { user: User | null }) => {
     }
     const result = editor.id
       ? await supabase.from('learning_nodes').update(payload).eq('id', editor.id)
-      : await supabase.from('learning_nodes').insert({ ...payload, node_type: editor.nodeType, user_id: user?.id ?? crypto.randomUUID() })
+      : await supabase.from('learning_nodes').insert({ ...payload, node_type: editor.nodeType })
     if (result.error) setNotice(result.error.message)
     else {
       setEditor(null)
@@ -302,7 +309,6 @@ const KnowledgeLibraryPage = ({ user }: { user: User | null }) => {
           ...edgeDetails,
           target_node_id: edgeEditor.targetNodeId,
           source_node_id: selectedNode.id,
-          user_id: user?.id ?? crypto.randomUUID(),
         })
     if (result.error) setNotice(result.error.message)
     else {
@@ -327,8 +333,8 @@ const KnowledgeLibraryPage = ({ user }: { user: User | null }) => {
     <div className="knowledge-page">
       <header className="knowledge-topbar">
         <button type="button" className="knowledge-ghost" onClick={() => navigate(-1)}>← 返回</button>
-        <div>
-          <p className="knowledge-kicker">Knowledge Library</p>
+        <div className="knowledge-title-wrap">
+          <p className="knowledge-kicker">学习知识库</p>
           <h1>仓鼠小窝 · 学习库</h1>
         </div>
         <button type="button" className="knowledge-primary" onClick={openCreateNode}>+ 新建节点</button>
@@ -366,7 +372,7 @@ const KnowledgeLibraryPage = ({ user }: { user: User | null }) => {
               </div>
               <section className="folder-create-card">
                 <h2>新建文件夹</h2>
-                <input placeholder="emoji" value={folderDraft.icon} onChange={(event) => setFolderDraft((draft) => ({ ...draft, icon: event.target.value }))} />
+                <input placeholder="图标" value={folderDraft.icon} onChange={(event) => setFolderDraft((draft) => ({ ...draft, icon: event.target.value }))} />
                 <input placeholder="文件夹名称" value={folderDraft.name} onChange={(event) => setFolderDraft((draft) => ({ ...draft, name: event.target.value }))} />
                 <select value={folderDraft.parentId} onChange={(event) => setFolderDraft((draft) => ({ ...draft, parentId: event.target.value }))}>
                   <option value="">无父级</option>
@@ -445,10 +451,10 @@ const KnowledgeLibraryPage = ({ user }: { user: User | null }) => {
             <label>类型<select disabled={Boolean(editor.id)} value={editor.nodeType} onChange={(event) => setEditor((current) => current && ({ ...current, nodeType: event.target.value as NodeType, metadata: {} }))}>{nodeTypes.map((type) => <option key={type} value={type}>{nodeTypeMeta[type].label}</option>)}</select></label>
             <label>标题<input value={editor.title} onChange={(event) => setEditor((current) => current && ({ ...current, title: event.target.value }))} /></label>
             <label>正文<textarea value={editor.content} onChange={(event) => setEditor((current) => current && ({ ...current, content: event.target.value }))} /></label>
-            <label>Tags<input placeholder="逗号分隔" value={editor.tags} onChange={(event) => setEditor((current) => current && ({ ...current, tags: event.target.value }))} /></label>
+            <label>标签<input placeholder="逗号分隔" value={editor.tags} onChange={(event) => setEditor((current) => current && ({ ...current, tags: event.target.value }))} /></label>
             <label>文件夹<select value={editor.folderId} onChange={(event) => setEditor((current) => current && ({ ...current, folderId: event.target.value }))}><option value="">不归档</option>{folderOptions.map(({ folder, depth }) => <option key={folder.id} value={folder.id}>{'—'.repeat(depth)} {folder.name}</option>)}</select></label>
             {metadataFields[editor.nodeType].map((field) => (
-              <label key={field.key}>{field.label}{field.options ? <select value={editor.metadata[field.key] ?? ''} onChange={(event) => setEditor((current) => current && ({ ...current, metadata: { ...current.metadata, [field.key]: event.target.value } }))}><option value="">未选择</option>{field.options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input value={editor.metadata[field.key] ?? ''} onChange={(event) => setEditor((current) => current && ({ ...current, metadata: { ...current.metadata, [field.key]: event.target.value } }))} />}</label>
+              <label key={field.key}>{field.label}{field.options ? <select value={editor.metadata[field.key] ?? ''} onChange={(event) => setEditor((current) => current && ({ ...current, metadata: { ...current.metadata, [field.key]: event.target.value } }))}><option value="">未选择</option>{field.options.map((option) => <option key={option} value={option}>{metadataOptionLabels[option] ?? option}</option>)}</select> : <input value={editor.metadata[field.key] ?? ''} onChange={(event) => setEditor((current) => current && ({ ...current, metadata: { ...current.metadata, [field.key]: event.target.value } }))} />}</label>
             ))}
             <div className="modal-actions"><button type="button" className="knowledge-primary" onClick={() => void saveNode()}>保存</button><button type="button" onClick={() => setEditor(null)}>取消</button></div>
           </section>
