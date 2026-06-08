@@ -329,7 +329,8 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   }
 
   useEffect(() => {
-    void loadAll()
+    const handle = window.setTimeout(() => void loadAll(), 0)
+    return () => window.clearTimeout(handle)
   }, [loadAll])
 
   useEffect(() => {

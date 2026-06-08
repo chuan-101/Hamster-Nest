@@ -1,0 +1,381 @@
+.knowledge-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 40%, #eef2ff 100%);
+  color: #1f2937;
+  padding: 20px;
+}
+
+.knowledge-topbar {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: 0 auto 18px;
+  max-width: 1280px;
+}
+
+.knowledge-topbar h1 {
+  font-size: clamp(1.6rem, 4vw, 2.5rem);
+  margin: 0;
+}
+
+.knowledge-kicker {
+  color: #b45309;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.knowledge-shell {
+  display: flex;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 1280px;
+}
+
+.knowledge-sidebar,
+.knowledge-main,
+.node-detail,
+.knowledge-modal {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(146, 64, 14, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.knowledge-sidebar {
+  flex: 0 0 300px;
+  padding: 14px;
+  transition: flex-basis 0.2s ease;
+}
+
+.knowledge-sidebar.collapsed {
+  flex-basis: 72px;
+}
+
+.drawer-toggle,
+.knowledge-ghost,
+.knowledge-primary,
+.folder-actions button,
+.detail-actions button,
+.edge-title-row button,
+.modal-actions button,
+.type-tabs button,
+.knowledge-notice {
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.drawer-toggle,
+.knowledge-ghost,
+.folder-actions button,
+.detail-actions button,
+.edge-title-row button,
+.modal-actions button:not(.knowledge-primary),
+.type-tabs button {
+  background: #fff7ed;
+  color: #92400e;
+  padding: 8px 12px;
+}
+
+.knowledge-primary {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: white;
+  padding: 10px 16px;
+}
+
+.knowledge-notice {
+  background: #fffbeb;
+  color: #92400e;
+  display: block;
+  margin: 0 auto 14px;
+  max-width: 1280px;
+  padding: 12px 16px;
+  text-align: left;
+  width: 100%;
+}
+
+.folder-list {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.folder-item {
+  border-radius: 16px;
+}
+
+.folder-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
+  color: #374151;
+  cursor: pointer;
+  display: flex;
+  font-weight: 700;
+  justify-content: space-between;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.folder-row.active,
+.type-tabs button.active {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.folder-row em {
+  color: #9ca3af;
+  font-style: normal;
+}
+
+.folder-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin: 4px 0 8px;
+}
+
+.folder-actions button {
+  font-size: 0.72rem;
+  padding: 4px 8px;
+}
+
+.folder-edit-row,
+.folder-create-card {
+  display: grid;
+  gap: 8px;
+}
+
+.folder-create-card {
+  border-top: 1px solid #fde68a;
+  margin-top: 12px;
+  padding-top: 14px;
+}
+
+.folder-create-card h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.knowledge-main {
+  flex: 1;
+  min-width: 0;
+  padding: 18px;
+}
+
+.knowledge-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.type-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.node-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+.node-list {
+  align-content: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+
+.node-card,
+.edge-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid #fde68a;
+  border-radius: 20px;
+  cursor: pointer;
+  padding: 14px;
+}
+
+.node-card.active {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+
+.node-card h2,
+.detail-head h2 {
+  margin: 10px 0 6px;
+}
+
+.node-card p,
+.detail-head p,
+.edge-card p {
+  color: #6b7280;
+  line-height: 1.55;
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+}
+
+.type-badge,
+.tag-row span {
+  border-radius: 999px;
+  color: white;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 4px 8px;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tag-row span {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.node-card time {
+  color: #9ca3af;
+  font-size: 0.78rem;
+}
+
+.node-detail {
+  align-self: start;
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  padding: 16px;
+}
+
+.detail-actions,
+.edge-title-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.edge-title-row {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.edge-panel h3 {
+  margin-bottom: 8px;
+}
+
+.edge-card {
+  cursor: default;
+  margin-bottom: 10px;
+}
+
+.edge-peer {
+  background: transparent;
+  border: 0;
+  color: #2563eb;
+  cursor: pointer;
+  display: block;
+  font-weight: 800;
+  margin-bottom: 6px;
+  padding: 0;
+  text-align: left;
+}
+
+.empty-state {
+  color: #9ca3af;
+  padding: 24px;
+  text-align: center;
+}
+
+.knowledge-modal-backdrop {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.36);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 20;
+}
+
+.knowledge-modal {
+  display: grid;
+  gap: 12px;
+  max-height: 90vh;
+  max-width: 560px;
+  overflow: auto;
+  padding: 20px;
+  width: min(560px, 100%);
+}
+
+.knowledge-modal h2 {
+  margin: 0;
+}
+
+.knowledge-modal label {
+  color: #6b7280;
+  display: grid;
+  font-size: 0.86rem;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.knowledge-page input,
+.knowledge-page select,
+.knowledge-page textarea {
+  background: white;
+  border: 1px solid #fcd34d;
+  border-radius: 12px;
+  color: #1f2937;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.knowledge-page textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .knowledge-page {
+    padding: 12px;
+  }
+
+  .knowledge-topbar,
+  .knowledge-shell,
+  .knowledge-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .knowledge-sidebar,
+  .knowledge-sidebar.collapsed {
+    flex-basis: auto;
+  }
+
+  .node-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .node-detail {
+    max-height: none;
+  }
+}

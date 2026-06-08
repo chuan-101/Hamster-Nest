@@ -72,6 +72,7 @@ import AgentCouncilPage from './pages/AgentCouncilPage'
 import WalletPage from './pages/WalletPage'
 import WikiPage from './pages/WikiPage'
 import NovelPage from './pages/NovelPage'
+import KnowledgeLibraryPage from './pages/KnowledgeLibraryPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1990,6 +1991,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <WikiPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/knowledge"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <KnowledgeLibraryPage user={user} />
             </RequireAuth>
           }
         />
