@@ -158,6 +158,11 @@ const formatTime = (value: string) =>
     minute: '2-digit',
   }).format(new Date(value))
 
+const loadLearningEdges = (client: NonNullable<typeof supabase>) => {
+  // learning_edges does not have a user_id column; keep this query unscoped so list and graph views can load edge data.
+  return client.from('learning_edges').select('*').order('created_at', { ascending: false })
+}
+
 const KnowledgeLibraryPage = () => {
   const navigate = useNavigate()
   const [folders, setFolders] = useState<FolderRow[]>([])
@@ -186,10 +191,11 @@ const KnowledgeLibraryPage = () => {
       return
     }
     setLoading(true)
+    const edgeQuery = loadLearningEdges(supabase)
     const [folderResult, nodeResult, edgeResult] = await Promise.all([
       supabase.from('knowledge_folders').select('*').order('created_at', { ascending: true }),
       supabase.from('learning_nodes').select('*').order('created_at', { ascending: false }),
-      supabase.from('learning_edges').select('*').order('created_at', { ascending: false }),
+      edgeQuery,
     ])
     setLoading(false)
     const error = folderResult.error ?? nodeResult.error ?? edgeResult.error
