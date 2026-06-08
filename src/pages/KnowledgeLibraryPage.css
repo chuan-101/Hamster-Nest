@@ -455,18 +455,24 @@
 }
 
 .graph-canvas {
-  border: 1px solid rgba(255, 214, 231, 0.86);
-  border-radius: 22px;
-  min-height: 560px;
-  overflow: hidden;
-  position: relative;
   background:
     radial-gradient(circle at 16% 12%, rgba(251, 207, 231, 0.34), transparent 30%),
     linear-gradient(180deg, rgba(255, 250, 253, 0.92), rgba(255, 247, 251, 0.92));
+  border: 1px solid rgba(255, 214, 231, 0.86);
+  border-radius: 22px;
+  contain: layout paint;
+  height: clamp(420px, 62vh, 640px);
+  overflow: hidden;
+  position: relative;
+  width: 100%;
 }
 
 .graph-canvas canvas {
   display: block;
+  height: 100% !important;
+  max-height: 100%;
+  max-width: 100%;
+  width: 100% !important;
 }
 
 .graph-legend {
