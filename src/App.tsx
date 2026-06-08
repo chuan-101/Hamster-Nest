@@ -1998,7 +1998,7 @@ const App = () => {
           path="/knowledge"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <KnowledgeLibraryPage user={user} />
+              <KnowledgeLibraryPage />
             </RequireAuth>
           }
         />

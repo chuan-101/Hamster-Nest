@@ -6,7 +6,6 @@ export type Database = {
       knowledge_folders: {
         Row: {
           id: string
-          user_id: string
           parent_id: string | null
           name: string
           icon: string | null
@@ -15,7 +14,6 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id: string
           parent_id?: string | null
           name: string
           icon?: string | null
@@ -24,7 +22,6 @@ export type Database = {
         }
         Update: {
           id?: string
-          user_id?: string
           parent_id?: string | null
           name?: string
           icon?: string | null
@@ -44,7 +41,6 @@ export type Database = {
       learning_nodes: {
         Row: {
           id: string
-          user_id: string
           folder_id: string | null
           node_type: 'concept' | 'question' | 'insight' | 'source' | 'quote' | 'note' | 'application'
           title: string
@@ -56,7 +52,6 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id: string
           folder_id?: string | null
           node_type: 'concept' | 'question' | 'insight' | 'source' | 'quote' | 'note' | 'application'
           title: string
@@ -68,7 +63,6 @@ export type Database = {
         }
         Update: {
           id?: string
-          user_id?: string
           folder_id?: string | null
           node_type?: 'concept' | 'question' | 'insight' | 'source' | 'quote' | 'note' | 'application'
           title?: string
@@ -91,7 +85,6 @@ export type Database = {
       learning_edges: {
         Row: {
           id: string
-          user_id: string
           source_node_id: string
           target_node_id: string
           edge_type: 'association' | 'derivation' | 'contradiction' | 'application' | 'reference' | 'question'
@@ -102,7 +95,6 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id: string
           source_node_id: string
           target_node_id: string
           edge_type: 'association' | 'derivation' | 'contradiction' | 'application' | 'reference' | 'question'
@@ -113,7 +105,6 @@ export type Database = {
         }
         Update: {
           id?: string
-          user_id?: string
           source_node_id?: string
           target_node_id?: string
           edge_type?: 'association' | 'derivation' | 'contradiction' | 'application' | 'reference' | 'question'
