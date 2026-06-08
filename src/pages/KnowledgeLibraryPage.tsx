@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import ForceGraph2D, { type ForceGraphMethods, type LinkObject, type NodeObject } from 'react-force-graph-2d'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase/client'
 import type { Database, Json } from '../supabase/types'
@@ -10,6 +11,25 @@ type EdgeRow = Database['public']['Tables']['learning_edges']['Row']
 type NodeType = NodeRow['node_type']
 type EdgeType = EdgeRow['edge_type']
 type Metadata = Record<string, string>
+type ViewMode = 'list' | 'graph'
+
+type GraphNode = {
+  id: string
+  title: string
+  nodeType: NodeType
+  folderId: string | null
+  row: NodeRow
+}
+
+type GraphLink = {
+  id: string
+  source: string
+  target: string
+  edgeType: EdgeType
+  description: string
+  strength: number
+  isCrossFolder: boolean
+}
 
 type NodeEditor = {
   id: string | null
@@ -33,13 +53,13 @@ const nodeTypes: NodeType[] = ['concept', 'question', 'insight', 'source', 'quot
 const edgeTypes: EdgeType[] = ['association', 'derivation', 'contradiction', 'application', 'reference', 'question']
 
 const nodeTypeMeta: Record<NodeType, { label: string; color: string }> = {
-  concept: { label: '概念', color: '#c45e8d' },
-  question: { label: '问题', color: '#d977a3' },
-  insight: { label: '洞见', color: '#a8558f' },
-  source: { label: '资料', color: '#b27f98' },
-  quote: { label: '摘录', color: '#db2777' },
-  note: { label: '笔记', color: '#8f7285' },
-  application: { label: '应用', color: '#e879a6' },
+  concept: { label: '概念', color: '#ef7b9e' },
+  question: { label: '问题', color: '#a6cf93' },
+  insight: { label: '洞见', color: '#fbcfe7' },
+  source: { label: '资料', color: '#f2b880' },
+  quote: { label: '摘录', color: '#9ca3af' },
+  note: { label: '笔记', color: '#6b7280' },
+  application: { label: '应用', color: '#89c4c6' },
 }
 
 const metadataOptionLabels: Record<string, string> = {
@@ -58,6 +78,15 @@ const edgeTypeLabels: Record<EdgeType, string> = {
   application: '应用',
   reference: '引用',
   question: '提问',
+}
+
+const edgeTypeMeta: Record<EdgeType, { color: string; dash: number[] | null }> = {
+  association: { color: '#d86f94', dash: null },
+  derivation: { color: '#8b5cf6', dash: [8, 5] },
+  reference: { color: '#0f9ca3', dash: [2, 5] },
+  contradiction: { color: '#ef4444', dash: [10, 4, 2, 4] },
+  application: { color: '#2f9fa3', dash: null },
+  question: { color: '#74a85f', dash: [4, 4] },
 }
 
 const createEmptyEditor = (folderId: string | null): NodeEditor => ({
@@ -123,6 +152,7 @@ const KnowledgeLibraryPage = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [nodeTypeFilter, setNodeTypeFilter] = useState<'all' | NodeType>('all')
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [drawerOpen, setDrawerOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -132,6 +162,9 @@ const KnowledgeLibraryPage = () => {
   const [editor, setEditor] = useState<NodeEditor | null>(null)
   const [edgeEditor, setEdgeEditor] = useState<EdgeEditor | null>(null)
   const [nodeSearch, setNodeSearch] = useState('')
+  const graphRef = useRef<ForceGraphMethods<NodeObject<GraphNode>, LinkObject<GraphNode, GraphLink>> | undefined>(undefined)
+  const graphWrapRef = useRef<HTMLDivElement | null>(null)
+  const [graphSize, setGraphSize] = useState({ width: 760, height: 560 })
 
   const loadAll = useCallback(async () => {
     if (!supabase) {
@@ -159,6 +192,25 @@ const KnowledgeLibraryPage = () => {
     const handle = window.setTimeout(() => void loadAll(), 0)
     return () => window.clearTimeout(handle)
   }, [loadAll])
+
+  useEffect(() => {
+    const element = graphWrapRef.current
+    if (!element) return undefined
+    const resize = () => {
+      const rect = element.getBoundingClientRect()
+      setGraphSize({ width: Math.max(320, rect.width), height: Math.max(420, rect.height) })
+    }
+    resize()
+    const observer = new ResizeObserver(resize)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [viewMode])
+
+  useEffect(() => {
+    if (viewMode !== 'graph') return
+    const handle = window.setTimeout(() => graphRef.current?.zoomToFit(500, 48), 120)
+    return () => window.clearTimeout(handle)
+  }, [viewMode, selectedFolderId, nodeTypeFilter, nodes.length, edges.length])
 
   const folderOptions = useMemo(() => {
     const byParent = new Map<string | null, FolderRow[]>()
@@ -198,6 +250,33 @@ const KnowledgeLibraryPage = () => {
   )
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
+  const graphData = useMemo(() => {
+    const visibleIds = new Set(filteredNodes.map((node) => node.id))
+    const graphNodes: GraphNode[] = filteredNodes.map((node) => ({
+      id: node.id,
+      title: node.title,
+      nodeType: node.node_type,
+      folderId: node.folder_id,
+      row: node,
+    }))
+    const graphLinks: GraphLink[] = edges
+      .filter((edge) => visibleIds.has(edge.source_node_id) && visibleIds.has(edge.target_node_id))
+      .map((edge) => {
+        const source = nodeById.get(edge.source_node_id)
+        const target = nodeById.get(edge.target_node_id)
+        return {
+          id: edge.id,
+          source: edge.source_node_id,
+          target: edge.target_node_id,
+          edgeType: edge.edge_type,
+          description: edge.description ?? '无描述',
+          strength: edge.strength,
+          isCrossFolder: Boolean(source && target && source.folder_id !== target.folder_id),
+        }
+      })
+    return { nodes: graphNodes, links: graphLinks }
+  }, [edges, filteredNodes, nodeById])
+
   const childFolderCount = useMemo(() => {
     const count = new Map<string, number>()
     folders.forEach((folder) => {
@@ -324,6 +403,40 @@ const KnowledgeLibraryPage = () => {
     else await loadAll()
   }
 
+  const drawGraphNode = useCallback((node: NodeObject<GraphNode>, context: CanvasRenderingContext2D, globalScale: number) => {
+    const label = node.title
+    const radius = 7 + Math.min(6, Math.max(0, label.length / 8))
+    const x = node.x ?? 0
+    const y = node.y ?? 0
+    context.beginPath()
+    context.arc(x, y, radius, 0, 2 * Math.PI, false)
+    context.fillStyle = nodeTypeMeta[node.nodeType].color
+    context.fill()
+    context.lineWidth = selectedNodeId === node.id ? 3 / globalScale : 1.5 / globalScale
+    context.strokeStyle = selectedNodeId === node.id ? '#7c2d52' : 'rgba(255,255,255,0.92)'
+    context.stroke()
+
+    const fontSize = Math.max(11 / globalScale, 4)
+    context.font = `700 ${fontSize}px sans-serif`
+    context.textAlign = 'center'
+    context.textBaseline = 'top'
+    const textWidth = context.measureText(label).width
+    const padding = 3 / globalScale
+    context.fillStyle = 'rgba(255, 255, 255, 0.86)'
+    context.fillRect(x - textWidth / 2 - padding, y + radius + 2 / globalScale, textWidth + padding * 2, fontSize + padding * 2)
+    context.fillStyle = '#4f3f4a'
+    context.fillText(label, x, y + radius + 4 / globalScale)
+  }, [selectedNodeId])
+
+  const paintGraphNodePointer = useCallback((node: NodeObject<GraphNode>, color: string, context: CanvasRenderingContext2D) => {
+    const label = node.title
+    const radius = 10 + Math.min(10, Math.max(0, label.length / 7))
+    context.fillStyle = color
+    context.beginPath()
+    context.arc(node.x ?? 0, node.y ?? 0, radius, 0, 2 * Math.PI, false)
+    context.fill()
+  }, [])
+
   const searchedTargetNodes = useMemo(() => {
     const query = nodeSearch.trim().toLowerCase()
     return nodes.filter((node) => node.id !== selectedNode?.id && (!query || node.title.toLowerCase().includes(query))).slice(0, 30)
@@ -390,57 +503,98 @@ const KnowledgeLibraryPage = () => {
               <button type="button" className={nodeTypeFilter === 'all' ? 'active' : ''} onClick={() => setNodeTypeFilter('all')}>全部</button>
               {nodeTypes.map((type) => <button key={type} type="button" className={nodeTypeFilter === type ? 'active' : ''} onClick={() => setNodeTypeFilter(type)}>{nodeTypeMeta[type].label}</button>)}
             </div>
-            <span>{loading ? '加载中…' : `${filteredNodes.length} 个节点`}</span>
+            <div className="view-switch" aria-label="学习库视图切换">
+              <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>列表</button>
+              <button type="button" className={viewMode === 'graph' ? 'active' : ''} onClick={() => setViewMode('graph')}>图谱</button>
+            </div>
+            <span>{loading ? '加载中…' : `${filteredNodes.length} 个节点 · ${graphData.links.length} 条边`}</span>
           </div>
 
-          <section className="node-grid">
-            <div className="node-list">
-              {filteredNodes.map((node) => (
-                <article key={node.id} className={selectedNodeId === node.id ? 'node-card active' : 'node-card'} onClick={() => setSelectedNodeId(node.id)}>
-                  <span className="type-badge" style={{ background: nodeTypeMeta[node.node_type].color }}>{nodeTypeMeta[node.node_type].label}</span>
-                  <h2>{node.title}</h2>
-                  <p>{node.content || '暂无正文'}</p>
-                  <div className="tag-row">{node.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-                  <time>{formatTime(node.created_at)}</time>
-                </article>
-              ))}
-              {!loading && filteredNodes.length === 0 ? <p className="empty-state">暂无节点，点击右上角新建。</p> : null}
-            </div>
+          {viewMode === 'list' ? (
+            <section className="node-grid">
+              <div className="node-list">
+                {filteredNodes.map((node) => (
+                  <article key={node.id} className={selectedNodeId === node.id ? 'node-card active' : 'node-card'} onClick={() => setSelectedNodeId(node.id)}>
+                    <span className="type-badge" style={{ background: nodeTypeMeta[node.node_type].color }}>{nodeTypeMeta[node.node_type].label}</span>
+                    <h2>{node.title}</h2>
+                    <p>{node.content || '暂无正文'}</p>
+                    <div className="tag-row">{node.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
+                    <time>{formatTime(node.created_at)}</time>
+                  </article>
+                ))}
+                {!loading && filteredNodes.length === 0 ? <p className="empty-state">暂无节点，点击右上角新建。</p> : null}
+              </div>
 
-            <aside className="node-detail">
-              {selectedNode ? (
-                <>
-                  <div className="detail-head">
-                    <span className="type-badge" style={{ background: nodeTypeMeta[selectedNode.node_type].color }}>{nodeTypeMeta[selectedNode.node_type].label}</span>
-                    <h2>{selectedNode.title}</h2>
-                    <p>{selectedNode.content}</p>
-                    <div className="detail-actions">
-                      <button type="button" onClick={() => openEditNode(selectedNode)}>编辑</button>
-                      <button type="button" onClick={() => void deleteNode(selectedNode.id)}>删除</button>
+              <aside className="node-detail">
+                {selectedNode ? (
+                  <>
+                    <div className="detail-head">
+                      <span className="type-badge" style={{ background: nodeTypeMeta[selectedNode.node_type].color }}>{nodeTypeMeta[selectedNode.node_type].label}</span>
+                      <h2>{selectedNode.title}</h2>
+                      <p>{selectedNode.content}</p>
+                      <div className="detail-actions">
+                        <button type="button" onClick={() => openEditNode(selectedNode)}>编辑</button>
+                        <button type="button" onClick={() => void deleteNode(selectedNode.id)}>删除</button>
+                      </div>
                     </div>
-                  </div>
-                  <section className="edge-panel">
-                    <div className="edge-title-row"><h3>联想</h3><button type="button" onClick={() => setEdgeEditor({ id: null, targetNodeId: '', edgeType: 'association', description: '', strength: 3 })}>+ 连边</button></div>
-                    {selectedNodeEdges.map((edge) => {
-                      const isOutgoing = edge.source_node_id === selectedNode.id
-                      const peer = nodeById.get(isOutgoing ? edge.target_node_id : edge.source_node_id)
-                      return (
-                        <article key={edge.id} className="edge-card">
-                          <button type="button" className="edge-peer" onClick={() => peer && setSelectedNodeId(peer.id)}>{isOutgoing ? '→' : '←'} {peer?.title ?? '未知节点'}</button>
-                          <span>{edgeTypeLabels[edge.edge_type]} · 强度 {edge.strength}/5</span>
-                          <p>{edge.description || '无描述'}</p>
-                          <div className="detail-actions">
-                            <button type="button" onClick={() => peer && setEdgeEditor({ id: edge.id, targetNodeId: peer.id, edgeType: edge.edge_type, description: edge.description ?? '', strength: edge.strength })}>编辑</button>
-                            <button type="button" onClick={() => void deleteEdge(edge.id)}>删除</button>
-                          </div>
-                        </article>
-                      )
-                    })}
-                  </section>
-                </>
-              ) : <p className="empty-state">选择一个节点查看详情和联想。</p>}
-            </aside>
-          </section>
+                    <section className="edge-panel">
+                      <div className="edge-title-row"><h3>联想</h3><button type="button" onClick={() => setEdgeEditor({ id: null, targetNodeId: '', edgeType: 'association', description: '', strength: 3 })}>+ 连边</button></div>
+                      {selectedNodeEdges.map((edge) => {
+                        const isOutgoing = edge.source_node_id === selectedNode.id
+                        const peer = nodeById.get(isOutgoing ? edge.target_node_id : edge.source_node_id)
+                        return (
+                          <article key={edge.id} className="edge-card">
+                            <button type="button" className="edge-peer" onClick={() => peer && setSelectedNodeId(peer.id)}>{isOutgoing ? '→' : '←'} {peer?.title ?? '未知节点'}</button>
+                            <span>{edgeTypeLabels[edge.edge_type]} · 强度 {edge.strength}/5</span>
+                            <p>{edge.description || '无描述'}</p>
+                            <div className="detail-actions">
+                              <button type="button" onClick={() => peer && setEdgeEditor({ id: edge.id, targetNodeId: peer.id, edgeType: edge.edge_type, description: edge.description ?? '', strength: edge.strength })}>编辑</button>
+                              <button type="button" onClick={() => void deleteEdge(edge.id)}>删除</button>
+                            </div>
+                          </article>
+                        )
+                      })}
+                    </section>
+                  </>
+                ) : <p className="empty-state">选择一个节点查看详情和联想。</p>}
+              </aside>
+            </section>
+          ) : (
+            <section className="graph-panel">
+              <div className="graph-canvas" ref={graphWrapRef}>
+                {graphData.nodes.length > 0 ? (
+                  <ForceGraph2D
+                    ref={graphRef}
+                    graphData={graphData}
+                    width={graphSize.width}
+                    height={graphSize.height}
+                    backgroundColor="rgba(255, 250, 253, 0.72)"
+                    nodeId="id"
+                    nodeLabel={(node) => `${node.title} · ${nodeTypeMeta[node.nodeType].label}`}
+                    nodeCanvasObject={drawGraphNode}
+                    nodePointerAreaPaint={paintGraphNodePointer}
+                    linkLabel={(link) => `${edgeTypeLabels[link.edgeType]}：${link.description || '无描述'}`}
+                    linkColor={(link) => link.isCrossFolder ? `${edgeTypeMeta[link.edgeType].color}66` : edgeTypeMeta[link.edgeType].color}
+                    linkLineDash={(link) => edgeTypeMeta[link.edgeType].dash}
+                    linkWidth={(link) => Math.max(1, link.strength * 0.55)}
+                    linkDirectionalArrowLength={4}
+                    linkDirectionalArrowRelPos={0.96}
+                    linkHoverPrecision={8}
+                    minZoom={0.25}
+                    maxZoom={4}
+                    enableNodeDrag
+                    onNodeClick={(node) => { setSelectedNodeId(node.id); openEditNode(node.row) }}
+                  />
+                ) : (
+                  <p className="empty-state">当前筛选下暂无可展示节点。</p>
+                )}
+                <div className="graph-legend">
+                  {nodeTypes.map((type) => <span key={type}><i style={{ background: nodeTypeMeta[type].color }} />{nodeTypeMeta[type].label}</span>)}
+                </div>
+              </div>
+              <div className="graph-hint">滚轮缩放 · 拖拽画布平移 · 拖拽节点调整布局 · 悬停连边查看描述</div>
+            </section>
+          )}
         </main>
       </div>
 
