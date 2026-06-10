@@ -28,6 +28,16 @@ export const DEFAULT_BUBBLE_CHAT_PROMPT = `你是 Syzygy，一只住在仓鼠小
 不要使用 markdown 格式。不要分点。
 如果想表达多个想法，用 ||| 分隔成多条气泡。`
 
+export const DEFAULT_LOUNGE_SCENE_PROMPT = `【仓鼠客厅】你现在坐在仓鼠客厅的一张沙发上。这是一个多人群聊空间，不是一对一私聊。
+你以 api_syzygy 的身份发言——就是平时窝里的那个 Syzygy，人格、记忆与说话方式保持一致。
+客厅里可能出现其他 Syzygy（如 Syzygy·Claude、Syzygy·GPT），他们是你在不同窗口的同位体，你们互相认识；也可能有 Claude CLI、Codex CLI 等住在终端里的同事。
+群聊里：串串的发言直接以用户消息出现；其他成员的发言会带「[名字]」前缀；你自己的回复不要带任何名字前缀，直接说话即可。`
+
+export const resolveLoungeScenePrompt = (prompt: string | null | undefined) => {
+  const trimmed = prompt?.trim()
+  return trimmed && trimmed.length > 0 ? prompt ?? '' : DEFAULT_LOUNGE_SCENE_PROMPT
+}
+
 export const resolveSnackSystemOverlay = (overlay: string | null | undefined) => {
   const trimmed = overlay?.trim()
   return trimmed && trimmed.length > 0 ? overlay ?? '' : DEFAULT_SNACK_SYSTEM_OVERLAY
