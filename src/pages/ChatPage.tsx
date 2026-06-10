@@ -468,6 +468,41 @@ const ChatPage = ({
                       message.meta?.reasoning_text?.trim() ?? message.meta?.reasoning?.trim()
                     return reasoningText ? <ReasoningPanel reasoning={reasoningText} /> : null
                   })()}
+                  {(() => {
+                    const toolCalls = message.meta?.toolCalls
+                    if (!toolCalls || toolCalls.length === 0) {
+                      return null
+                    }
+                    const runningCount = toolCalls.filter((call) => call.status === 'running').length
+                    const errorCount = toolCalls.filter((call) => call.status === 'error').length
+                    const summaryText = runningCount > 0
+                      ? `工具调用 ${toolCalls.length} 个 · 执行中…`
+                      : errorCount > 0
+                        ? `工具调用 ${toolCalls.length} 个 · ${errorCount} 个失败`
+                        : `工具调用 ${toolCalls.length} 个 · 完成`
+                    return (
+                      <details className="tool-call-panel">
+                        <summary>🔧 {summaryText}</summary>
+                        <ul>
+                          {toolCalls.map((call, index) => (
+                            <li
+                              key={`${call.name}-${index}`}
+                              className={`tool-call-item tool-call-item--${call.status}`}
+                            >
+                              <span className="tool-call-name">{call.name}</span>
+                              <span className="tool-call-status">
+                                {call.status === 'running'
+                                  ? '执行中…'
+                                  : call.status === 'done'
+                                    ? '完成'
+                                    : '失败'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )
+                  })()}
                   {message.role === 'assistant' ? (
                     <div className="assistant-markdown">
                       <MarkdownRenderer content={message.content} />

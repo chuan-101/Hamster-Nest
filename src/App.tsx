@@ -4,7 +4,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 're
 import ChatPage, { type ChatInjectionOptions } from './pages/ChatPage'
 import AuthPage from './pages/AuthPage'
 import SessionsDrawer from './components/SessionsDrawer'
-import type { ChatMessage, ChatSession, ExtractMessageInput, LetterEntry, UserSettings } from './types'
+import type { ChatMessage, ChatSession, ChatToolCallStatus, ExtractMessageInput, LetterEntry, UserSettings } from './types'
 import {
   createSession,
   deleteMessage,
@@ -84,6 +84,7 @@ import {
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
 import { buildMemoInjectionBlock, buildMemoInjectionFromToggle } from './utils/memoRetrieval'
 import { resolveTimelineFromToggle } from './utils/timelineManualRetrieval'
+import { callMcpTool, listMcpTools, type McpToolDefinition } from './lib/mcpTools'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -141,6 +142,11 @@ type LetterToast = {
   id: string
   message: string
 }
+// 工具循环上限：最多执行 5 轮 tools/call，防止模型与工具间死循环。
+const MAX_TOOL_LOOP_ROUNDS = 5
+// 当模型/上游拒绝带 tools 的请求时记下来，本次会话内不再为它附带工具。
+const toolsUnsupportedModels = new Set<string>()
+
 const AUTO_EXTRACT_USER_TURN_INTERVAL = 12
 const AUTO_EXTRACT_COOLDOWN_MS = 10 * 60 * 1000
 const MEMORY_EXTRACT_RECENT_MESSAGES = 24
@@ -900,6 +906,7 @@ const App = () => {
         let flushTimer: number | null = null
         let thinkCarry = ''
         let isInThink = false
+        const toolStatuses: ChatToolCallStatus[] = []
 
         const openTag = '<think>'
         const closeTag = '</think>'
@@ -1014,6 +1021,9 @@ const App = () => {
           }
           if (reasoningType) {
             meta.reasoning_type = reasoningType
+          }
+          if (toolStatuses.length > 0) {
+            meta.toolCalls = toolStatuses.map((status) => ({ ...status }))
           }
           return meta
         }
@@ -1139,25 +1149,89 @@ const App = () => {
           streamingControllerRef.current?.abort()
           streamingControllerRef.current = controller
           setIsStreaming(true)
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`,
-            {
+
+          // hamster-mcp 工具列表：动态获取（带缓存），失败则本次对话不附带工具。
+          let mcpTools: McpToolDefinition[] | null = null
+          if (!toolsUnsupportedModels.has(effectiveModel)) {
+            try {
+              mcpTools = await listMcpTools({ accessToken, anonKey })
+            } catch (error) {
+              console.warn('获取 MCP 工具列表失败，本次对话不附带工具', error)
+            }
+          }
+
+          const postChatRound = (body: Record<string, unknown>) =>
+            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
               method: 'POST',
               headers: {
                 Authorization: `Bearer ${accessToken}`,
                 apikey: anonKey,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify(requestBody),
+              body: JSON.stringify(body),
               signal: controller.signal,
-            },
-          )
-          if (!response.ok) {
-            const errorText = await response.text()
-            throw new Error(errorText || '请求失败')
+            })
+
+          const forceAssistantUpdate = () => {
+            const streamingUpdate = updateMessage(messagesRef.current, {
+              id: assistantClientId,
+              sessionId,
+              role: 'assistant',
+              clientId: assistantClientId,
+              content: assistantContent,
+              createdAt: assistantClientCreatedAt,
+              clientCreatedAt: assistantClientCreatedAt,
+              meta: buildAssistantMeta(true),
+              pending: true,
+            })
+            applySnapshot(sessionsRef.current, streamingUpdate)
           }
-          const contentType = response.headers.get('content-type') ?? ''
-          const isEventStream = contentType.includes('text/event-stream')
+
+          const loopMessages: Array<Record<string, unknown>> = [...messagesPayload]
+          let toolsEnabled = Boolean(mcpTools && mcpTools.length > 0)
+          let toolRounds = 0
+
+          while (true) {
+            const includeTools = toolsEnabled && toolRounds < MAX_TOOL_LOOP_ROUNDS
+            const roundBody: Record<string, unknown> = { ...requestBody, messages: loopMessages }
+            if (toolRounds > 0) {
+              // 工具循环的后续请求自带完整 tool 上下文；去掉 conversationId，
+              // 避免服务端运行时压缩用数据库历史重建消息时丢掉工具结果。
+              delete roundBody.conversationId
+            }
+            if (includeTools) {
+              roundBody.tools = mcpTools
+            }
+
+            let response = await postChatRound(roundBody)
+            if (!response.ok && includeTools && response.status >= 400 && response.status < 500) {
+              // 模型或上游不支持 function calling：降级为不带 tools 重发本轮。
+              const originalError = await response.text()
+              console.warn('带 tools 的请求被上游拒绝，尝试降级重试', {
+                model: effectiveModel,
+                status: response.status,
+                error: originalError.slice(0, 200),
+              })
+              const fallbackBody = { ...roundBody }
+              delete fallbackBody.tools
+              const fallbackResponse = await postChatRound(fallbackBody)
+              if (fallbackResponse.ok) {
+                toolsUnsupportedModels.add(effectiveModel)
+                toolsEnabled = false
+              }
+              response = fallbackResponse
+            }
+            if (!response.ok) {
+              const errorText = await response.text()
+              throw new Error(errorText || '请求失败')
+            }
+
+            const roundToolCalls: Array<{ id?: string; name: string; argumentsText: string }> = []
+            flushPending()
+            const contentLengthAtRoundStart = assistantContent.length
+
+            const contentType = response.headers.get('content-type') ?? ''
+            const isEventStream = contentType.includes('text/event-stream')
           if (!isEventStream) {
             try {
               const payload = (await response.json()) as Record<string, unknown>
@@ -1176,9 +1250,33 @@ const App = () => {
                     : ''
               if (content) {
                 const { contentChunk, reasoningChunk } = splitReasoningFromContent(content)
-                assistantContent = contentChunk
+                assistantContent += contentChunk
                 if (reasoningChunk) {
                   appendReasoningDelta(reasoningChunk, 'thinking', 'final')
+                }
+              }
+              const rawToolCalls = (message as { tool_calls?: unknown }).tool_calls
+              if (Array.isArray(rawToolCalls)) {
+                for (const item of rawToolCalls) {
+                  if (!item || typeof item !== 'object') {
+                    continue
+                  }
+                  const candidate = item as {
+                    id?: unknown
+                    function?: { name?: unknown; arguments?: unknown }
+                  }
+                  const name = typeof candidate.function?.name === 'string' ? candidate.function.name : ''
+                  if (!name) {
+                    continue
+                  }
+                  roundToolCalls.push({
+                    id: typeof candidate.id === 'string' && candidate.id ? candidate.id : undefined,
+                    name,
+                    argumentsText:
+                      typeof candidate.function?.arguments === 'string'
+                        ? candidate.function.arguments
+                        : JSON.stringify(candidate.function?.arguments ?? {}),
+                  })
                 }
               }
               const messageReasoning = collectReasoningFromObject(message)
@@ -1197,101 +1295,150 @@ const App = () => {
                   appendReasoningDelta(payloadReasoning.text, payloadReasoning.type, 'final')
                 }
               }
-              const { message: assistantMessage, updatedAt } = await addRemoteMessage(
-                sessionId,
-                user.id,
-                'assistant',
-                assistantContent,
-                assistantClientId,
-                assistantClientCreatedAt,
-                buildAssistantMeta(false),
-              )
-              const updatedMessages = updateMessage(messagesRef.current, {
-                ...assistantMessage,
-                pending: false,
-              })
-              const updatedSessions = sessionsRef.current.map((session) =>
-                session.id === sessionId ? { ...session, updatedAt } : session,
-              )
-              applySnapshot(updatedSessions, updatedMessages)
+              forceAssistantUpdate()
             } catch (error) {
               console.warn('解析非流式响应失败', error)
               throw error
             }
-            return
-          }
-          if (!response.body) {
-            throw new Error('响应体为空')
-          }
-          const reader = response.body.getReader()
-          const decoder = new TextDecoder('utf-8')
-          let buffer = ''
-          let done = false
-          while (!done) {
-            const { value, done: readerDone } = await reader.read()
-            if (readerDone) {
-              break
+          } else {
+            if (!response.body) {
+              throw new Error('响应体为空')
             }
-            buffer += decoder.decode(value, { stream: true })
-            const events = buffer.split('\n\n')
-            buffer = events.pop() ?? ''
-            for (const event of events) {
-              const data = event
-                .split('\n')
-                .map((line) => line.trim())
-                .filter((line) => line.startsWith('data:'))
-                .map((line) => line.replace(/^data:\s*/, ''))
-                .join('\n')
-              if (!data) {
-                continue
-              }
-              if (data === '[DONE]') {
-                done = true
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder('utf-8')
+            let buffer = ''
+            let done = false
+            while (!done) {
+              const { value, done: readerDone } = await reader.read()
+              if (readerDone) {
                 break
               }
-              try {
-                const payload = JSON.parse(data)
-                const deltaPayload = payload?.choices?.[0]?.delta ?? {}
-                const delta = typeof deltaPayload?.content === 'string' ? deltaPayload.content : ''
-                if (payload?.model) {
-                  actualModel = payload.model
+              buffer += decoder.decode(value, { stream: true })
+              const events = buffer.split('\n\n')
+              buffer = events.pop() ?? ''
+              for (const event of events) {
+                const data = event
+                  .split('\n')
+                  .map((line) => line.trim())
+                  .filter((line) => line.startsWith('data:'))
+                  .map((line) => line.replace(/^data:\s*/, ''))
+                  .join('\n')
+                if (!data) {
+                  continue
                 }
-                const explicitReasoning =
-                  typeof deltaPayload?.reasoning === 'string' && deltaPayload.reasoning.length > 0
-                    ? deltaPayload.reasoning
-                    : ''
-                if (explicitReasoning) {
-                  appendReasoningDelta(explicitReasoning, 'reasoning')
-                  scheduleFlush()
+                if (data === '[DONE]') {
+                  done = true
+                  break
                 }
-                const deltaReasoning = collectReasoningFromObject(
-                  deltaPayload as Record<string, unknown>,
-                )
-                if (deltaReasoning.text && deltaReasoning.text !== explicitReasoning) {
-                  appendReasoningDelta(deltaReasoning.text, deltaReasoning.type)
-                  scheduleFlush()
-                }
-                if (delta) {
-                  const { contentChunk, reasoningChunk } = splitReasoningFromContent(delta)
-                  if (contentChunk) {
-                    pendingDelta += contentChunk
+                try {
+                  const payload = JSON.parse(data)
+                  const deltaPayload = payload?.choices?.[0]?.delta ?? {}
+                  const delta = typeof deltaPayload?.content === 'string' ? deltaPayload.content : ''
+                  if (payload?.model) {
+                    actualModel = payload.model
                   }
-                  if (reasoningChunk) {
-                    appendReasoningDelta(reasoningChunk, 'thinking')
+                  const deltaToolCalls = (deltaPayload as { tool_calls?: unknown })?.tool_calls
+                  if (Array.isArray(deltaToolCalls)) {
+                    for (const item of deltaToolCalls) {
+                      if (!item || typeof item !== 'object') {
+                        continue
+                      }
+                      const candidate = item as {
+                        index?: unknown
+                        id?: unknown
+                        function?: { name?: unknown; arguments?: unknown }
+                      }
+                      const slotIndex =
+                        typeof candidate.index === 'number' ? candidate.index : roundToolCalls.length
+                      while (roundToolCalls.length <= slotIndex) {
+                        roundToolCalls.push({ id: undefined, name: '', argumentsText: '' })
+                      }
+                      const slot = roundToolCalls[slotIndex]
+                      if (typeof candidate.id === 'string' && candidate.id) {
+                        slot.id = candidate.id
+                      }
+                      if (typeof candidate.function?.name === 'string' && candidate.function.name && !slot.name) {
+                        slot.name = candidate.function.name
+                      }
+                      if (typeof candidate.function?.arguments === 'string') {
+                        slot.argumentsText += candidate.function.arguments
+                      }
+                    }
                   }
-                  scheduleFlush()
+                  const explicitReasoning =
+                    typeof deltaPayload?.reasoning === 'string' && deltaPayload.reasoning.length > 0
+                      ? deltaPayload.reasoning
+                      : ''
+                  if (explicitReasoning) {
+                    appendReasoningDelta(explicitReasoning, 'reasoning')
+                    scheduleFlush()
+                  }
+                  const deltaReasoning = collectReasoningFromObject(
+                    deltaPayload as Record<string, unknown>,
+                  )
+                  if (deltaReasoning.text && deltaReasoning.text !== explicitReasoning) {
+                    appendReasoningDelta(deltaReasoning.text, deltaReasoning.type)
+                    scheduleFlush()
+                  }
+                  if (delta) {
+                    const { contentChunk, reasoningChunk } = splitReasoningFromContent(delta)
+                    if (contentChunk) {
+                      pendingDelta += contentChunk
+                    }
+                    if (reasoningChunk) {
+                      appendReasoningDelta(reasoningChunk, 'thinking')
+                    }
+                    scheduleFlush()
+                  }
+                } catch (error) {
+                  console.warn('解析流式响应失败', error)
                 }
-              } catch (error) {
-                console.warn('解析流式响应失败', error)
               }
             }
+
+            if (flushTimer !== null) {
+              window.clearTimeout(flushTimer)
+              flushTimer = null
+            }
+            flushPending()
           }
 
-          if (flushTimer !== null) {
-            window.clearTimeout(flushTimer)
-            flushTimer = null
+            const executableToolCalls = roundToolCalls.filter((call) => call.name)
+            if (!includeTools || executableToolCalls.length === 0) {
+              break
+            }
+
+            // 把本轮 assistant 输出与工具结果追加进上下文，再请求模型，直至产出普通回复。
+            toolRounds += 1
+            const roundContent = assistantContent.slice(contentLengthAtRoundStart)
+            const normalizedCalls = executableToolCalls.map((call, index) => ({
+              id: call.id ?? `call_${toolRounds}_${index}`,
+              name: call.name,
+              argumentsText: call.argumentsText || '{}',
+            }))
+            loopMessages.push({
+              role: 'assistant',
+              content: roundContent,
+              tool_calls: normalizedCalls.map((call) => ({
+                id: call.id,
+                type: 'function',
+                function: { name: call.name, arguments: call.argumentsText },
+              })),
+            })
+            for (const call of normalizedCalls) {
+              const statusEntry: ChatToolCallStatus = { name: call.name, status: 'running' }
+              toolStatuses.push(statusEntry)
+              forceAssistantUpdate()
+              const result = await callMcpTool({ accessToken, anonKey }, call.name, call.argumentsText)
+              statusEntry.status = result.ok ? 'done' : 'error'
+              forceAssistantUpdate()
+              loopMessages.push({
+                role: 'tool',
+                tool_call_id: call.id,
+                content: result.text,
+              })
+            }
           }
-          flushPending()
 
           const { message: assistantMessage, updatedAt } = await addRemoteMessage(
             sessionId,

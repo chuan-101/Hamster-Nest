@@ -18,6 +18,9 @@
 # exposure profile is unchanged by this setting.
 project_id = "crfhiumxzmaszkapanrb"
 
+[functions.hamster-mcp]
+verify_jwt = false
+
 [functions.memory-extract]
 verify_jwt = false
 

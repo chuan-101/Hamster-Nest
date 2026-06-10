@@ -2,8 +2,10 @@ import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 type OpenAiMessage = {
-  role: 'user' | 'assistant' | 'system'
+  role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
+  tool_calls?: unknown
+  tool_call_id?: string
 }
 
 type OpenRouterPayload = {
@@ -15,6 +17,8 @@ type OpenRouterPayload = {
   top_p?: number
   max_tokens?: number
   reasoning?: boolean | Record<string, unknown>
+  tools?: unknown[]
+  tool_choice?: unknown
   stream?: boolean
   module?: 'snack-feed' | 'syzygy-feed' | 'bubble-chat' | 'rp-room' | string
   rpKeepRecentMessages?: number
@@ -148,6 +152,8 @@ type BuildProviderRequestOptions = {
   top_p: number | undefined
   max_tokens: number | undefined
   reasoning: OpenRouterPayload['reasoning']
+  tools?: unknown[]
+  tool_choice?: unknown
   stream: boolean
 }
 
@@ -220,7 +226,7 @@ const buildProviderRequestPayload = (
   provider: RuntimeProviderConfig,
   options: BuildProviderRequestOptions,
 ): Record<string, unknown> => {
-  const { resolvedModelId, messages, temperature, top_p, max_tokens, reasoning, stream } = options
+  const { resolvedModelId, messages, temperature, top_p, max_tokens, reasoning, tools, tool_choice, stream } = options
   const normalizedProviderName = normalizeProviderName(provider.provider)
   const isOpenRouter = normalizedProviderName === 'openrouter'
   const isAiHubMix = normalizedProviderName === 'aihubmix'
@@ -247,7 +253,7 @@ const buildProviderRequestPayload = (
       .map((message) => message.content)
       .filter((content) => content.length > 0)
     outgoingMessages = messages.filter(
-      (message) => message.role === 'user' || message.role === 'assistant',
+      (message) => message.role === 'user' || message.role === 'assistant' || message.role === 'tool',
     )
     if (systemContents.length > 0) {
       topLevelSystem = systemContents.join('\n')
@@ -294,6 +300,13 @@ const buildProviderRequestPayload = (
     if (reasoningPayload) {
       basePayload.reasoning = reasoningPayload
     }
+  }
+
+  if (tools !== undefined) {
+    basePayload.tools = tools
+  }
+  if (tool_choice !== undefined) {
+    basePayload.tool_choice = tool_choice
   }
 
   if (topLevelSystem !== null) {
@@ -1177,7 +1190,7 @@ serve(async (req) => {
     })
   }
 
-  const { temperature, top_p, max_tokens, reasoning } = payload
+  const { temperature, top_p, max_tokens, reasoning, tools, tool_choice } = payload
   const stream = payload.stream ?? true
   const isForumModule = payload.module === 'forum'
   if (isForumModule) {
@@ -1252,6 +1265,8 @@ serve(async (req) => {
           top_p,
           max_tokens,
           reasoning,
+          tools,
+          tool_choice,
           stream,
         }),
       ),
