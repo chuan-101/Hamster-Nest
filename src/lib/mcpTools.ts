@@ -32,6 +32,24 @@ const buildEndpoint = () => `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/h
 
 let requestSequence = 0
 
+// AbortSignal.any 在较旧浏览器（如 Safari < 17.4）中不存在，缺失时手动桥接两个信号，
+// 避免 fetch 前抛 TypeError 导致工具被静默禁用。
+const combineSignals = (signal: AbortSignal, timeoutSignal: AbortSignal): AbortSignal => {
+  if (typeof AbortSignal.any === 'function') {
+    return AbortSignal.any([signal, timeoutSignal])
+  }
+  if (signal.aborted) {
+    return signal
+  }
+  if (timeoutSignal.aborted) {
+    return timeoutSignal
+  }
+  const controller = new AbortController()
+  signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
+  timeoutSignal.addEventListener('abort', () => controller.abort(timeoutSignal.reason), { once: true })
+  return controller.signal
+}
+
 const parseJsonRpcResponse = async (response: Response, requestId: number): Promise<JsonRpcResponse> => {
   const contentType = response.headers.get('content-type') ?? ''
   if (contentType.includes('text/event-stream')) {
@@ -80,7 +98,7 @@ const sendJsonRpc = async (
       method,
       ...(params ? { params } : {}),
     }),
-    signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+    signal: signal ? combineSignals(signal, timeoutSignal) : timeoutSignal,
   })
   if (!response.ok) {
     const errorText = await response.text()
