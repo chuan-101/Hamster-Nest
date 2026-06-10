@@ -66,6 +66,7 @@ export type UserSettings = {
   bubbleChatSystemPrompt: string
   bubbleChatMaxTokens: number
   bubbleChatTemperature: number
+  loungeScenePrompt: string
   updatedAt: string
 }
 
@@ -458,4 +459,30 @@ export type NovelChapter = {
   status: NovelChapterStatus
   createdAt: string
   updatedAt: string
+}
+
+export type LoungeSofa = {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type LoungeMessage = {
+  id: string
+  sofaId: string
+  sender: string
+  content: string
+  mentions: string[]
+  meta: Record<string, unknown>
+  createdAt: string
+  pending?: boolean
+  streaming?: boolean
+}
+
+export type LoungeMember = {
+  sender: string
+  displayName: string
+  emoji: string
+  color: string
 }

@@ -26,6 +26,7 @@ import {
   saveSyzygyReplySystemPrompt,
   saveLetterReplySystemPrompt,
   saveBubbleChatSettings,
+  saveLoungeScenePrompt,
   updateUserSettings,
 } from './storage/userSettings'
 import { formatLocalTimestamp } from './utils/time'
@@ -72,6 +73,8 @@ import AgentCouncilPage from './pages/AgentCouncilPage'
 import WalletPage from './pages/WalletPage'
 import WikiPage from './pages/WikiPage'
 import NovelPage from './pages/NovelPage'
+import LoungePage from './pages/LoungePage'
+import LoungeRoomPage, { type LoungeAiConfig } from './pages/LoungeRoomPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -416,6 +419,17 @@ const App = () => {
     ...feedAiConfigBase,
     model: resolveModelId('syzygy', { defaultModelId }),
   }), [defaultModelId, feedAiConfigBase])
+  // 客厅复用日常聊天的默认模型与人格 Prompt：客厅里的 Syzygy 必须是同一个 Syzygy。
+  const loungeAiConfig = useMemo<LoungeAiConfig>(() => ({
+    model: resolveModelId('chitchat', { defaultModelId }),
+    systemPrompt: activeSettings.systemPrompt,
+    loungeScenePrompt: activeSettings.loungeScenePrompt,
+    temperature: activeSettings.temperature,
+    topP: activeSettings.topP,
+    maxTokens: activeSettings.maxTokens,
+    reasoningEnabled: activeSettings.chatReasoningEnabled,
+    highThinkingEnabled: activeSettings.chatHighThinkingEnabled,
+  }), [activeSettings, defaultModelId])
   const bubbleChatConfig = useMemo(() => ({
     model: activeSettings.bubbleChatModel?.trim() || resolveModelId('snack', { defaultModelId }),
     systemPrompt: resolveBubbleChatPrompt(activeSettings.bubbleChatSystemPrompt),
@@ -1743,6 +1757,22 @@ const App = () => {
     setUserSettings(nextSettings)
   }, [user])
 
+  const handleSaveLoungeScenePrompt = useCallback(async (nextPrompt: string) => {
+    if (!user) {
+      return
+    }
+    const nextSettings = {
+      ...(settingsRef.current ?? createDefaultSettings(user.id)),
+      userId: user.id,
+      loungeScenePrompt: nextPrompt,
+      updatedAt: new Date().toISOString(),
+    }
+    if (supabase) {
+      await saveLoungeScenePrompt(user.id, nextPrompt)
+    }
+    setUserSettings(nextSettings)
+  }, [user])
+
   const handleToggleMemoryAutoExtract = useCallback(async (enabled: boolean) => {
     if (!user) {
       return
@@ -2115,6 +2145,26 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <AgentCouncilPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/lounge"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <LoungePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/lounge/:sofaId"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <LoungeRoomPage
+                user={user}
+                aiConfig={loungeAiConfig}
+                onSaveLoungeScenePrompt={handleSaveLoungeScenePrompt}
+              />
             </RequireAuth>
           }
         />
