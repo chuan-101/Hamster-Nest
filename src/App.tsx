@@ -487,11 +487,15 @@ const App = () => {
     }
     setSyncing(true)
     try {
-      const remoteSessions = await fetchRemoteSessions(user.id)
+      const [remoteSessions, remoteMessages] = await Promise.all([
+        fetchRemoteSessions(user.id),
+        fetchRemoteMessages(user.id),
+      ])
       const nextSessions = sortSessions(remoteSessions)
-      applySnapshot(nextSessions, messagesRef.current)
+      const nextMessages = mergeMessages(messagesRef.current, remoteMessages)
+      applySnapshot(nextSessions, nextMessages)
     } catch (error) {
-      console.warn('无法加载 Supabase 会话数据', error)
+      console.warn('无法加载 Supabase 会话/消息数据', error)
     } finally {
       setSyncing(false)
     }
@@ -610,6 +614,45 @@ const App = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [refreshRemoteSessions, user])
+
+  useEffect(() => {
+    const client = supabase
+    if (!client || !user) {
+      return
+    }
+
+    const channel = client
+      .channel(`daily-chat-sync-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sessions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          void refreshRemoteSessions()
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          void refreshRemoteSessions()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void client.removeChannel(channel)
     }
   }, [refreshRemoteSessions, user])
 
