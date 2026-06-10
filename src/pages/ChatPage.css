@@ -358,6 +358,63 @@
   border-radius: 999px;
 }
 
+.tool-call-panel {
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: rgba(209, 213, 219, 0.25);
+  font-size: 12px;
+  color: #374151;
+}
+
+.tool-call-panel summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.tool-call-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-call-panel ul {
+  margin: 6px 0 2px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-call-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-call-name {
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.tool-call-status {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.tool-call-item--running .tool-call-status {
+  color: #926a00;
+}
+
+.tool-call-item--done .tool-call-status {
+  color: #15803d;
+}
+
+.tool-call-item--error .tool-call-status {
+  color: #b91c1c;
+}
+
 .message.out .model-tag {
   color: #fbcfe8;
   background: rgba(251, 207, 232, 0.2);

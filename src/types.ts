@@ -9,6 +9,11 @@ export type ChatSession = {
   overrideReasoning?: boolean | null
 }
 
+export type ChatToolCallStatus = {
+  name: string
+  status: 'running' | 'done' | 'error'
+}
+
 export type ChatMessage = {
   id: string
   sessionId: string
@@ -24,6 +29,7 @@ export type ChatMessage = {
     reasoning?: string
     reasoning_text?: string
     reasoning_type?: 'reasoning' | 'thinking'
+    toolCalls?: ChatToolCallStatus[]
     params?: {
       temperature?: number
       top_p?: number
