@@ -244,13 +244,17 @@
 
 /* ── Chat room ────────────────────────────────── */
 
+/* 错误条等子元素是条件渲染的，固定 grid 行模板会让输入区掉进 1fr 行被拉伸；
+   改用 flex 列布局：消息区独占剩余空间，输入区贴底保持内容高度。 */
 .lounge-room {
-  grid-template-rows: auto auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   height: 100dvh;
   min-height: 0;
 }
 
 .lounge-message-list {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -348,13 +352,20 @@
   box-shadow: 0 8px 18px rgba(255, 214, 231, 0.2);
 }
 
-/* 点名抽屉：从输入框上方弹出的成员下拉菜单 */
+/* 浮层的定位参照：包住点名菜单与输入行，菜单从输入行上沿向上弹出 */
+.lounge-input-anchor {
+  position: relative;
+}
+
+/* 点名抽屉：锚定在输入行正上方的成员下拉菜单 */
 .lounge-mention-menu {
   position: absolute;
   bottom: calc(100% + 8px);
-  left: 10px;
+  left: 0;
   z-index: 20;
   min-width: 200px;
+  max-width: 100%;
+  box-sizing: border-box;
   max-height: 260px;
   overflow-y: auto;
   display: grid;
