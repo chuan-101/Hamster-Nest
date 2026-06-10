@@ -561,63 +561,65 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
       </section>
 
       <footer className="lounge-composer" ref={composerRef}>
-        {mentionMenuOpen && members.length > 0 ? (
-          <div className="lounge-mention-menu" role="menu">
-            {members.map((member) => (
-              <button
-                key={member.sender}
-                type="button"
-                role="menuitem"
-                className="lounge-mention-option"
-                onClick={() => {
-                  handleInsertMention(member)
-                  setMentionMenuOpen(false)
-                }}
-              >
-                <span className="lounge-mention-emoji" aria-hidden="true">{member.emoji}</span>
-                <span className="lounge-mention-name">@{member.displayName}</span>
-                <span
-                  className="lounge-mention-dot"
-                  style={{ backgroundColor: member.color }}
-                  aria-hidden="true"
-                />
-              </button>
-            ))}
+        <div className="lounge-input-anchor">
+          {mentionMenuOpen && members.length > 0 ? (
+            <div className="lounge-mention-menu" role="menu">
+              {members.map((member) => (
+                <button
+                  key={member.sender}
+                  type="button"
+                  role="menuitem"
+                  className="lounge-mention-option"
+                  onClick={() => {
+                    handleInsertMention(member)
+                    setMentionMenuOpen(false)
+                  }}
+                >
+                  <span className="lounge-mention-emoji" aria-hidden="true">{member.emoji}</span>
+                  <span className="lounge-mention-name">@{member.displayName}</span>
+                  <span
+                    className="lounge-mention-dot"
+                    style={{ backgroundColor: member.color }}
+                    aria-hidden="true"
+                  />
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="lounge-input-row">
+            <button
+              type="button"
+              className={`lounge-mention-toggle ${mentionMenuOpen ? 'lounge-mention-toggle--open' : ''}`}
+              onClick={() => setMentionMenuOpen((prev) => !prev)}
+              disabled={members.length === 0}
+              title="@点名成员"
+              aria-haspopup="menu"
+              aria-expanded={mentionMenuOpen}
+            >
+              @
+            </button>
+            <textarea
+              ref={inputRef}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  void handleSend()
+                }
+              }}
+              placeholder="在沙发上说点什么…（@成员 可以点名）"
+              rows={2}
+            />
+            <button
+              type="button"
+              className="lounge-send-btn"
+              onClick={() => void handleSend()}
+              disabled={sending || draft.trim().length === 0}
+            >
+              发送
+            </button>
           </div>
-        ) : null}
-        <div className="lounge-input-row">
-          <button
-            type="button"
-            className={`lounge-mention-toggle ${mentionMenuOpen ? 'lounge-mention-toggle--open' : ''}`}
-            onClick={() => setMentionMenuOpen((prev) => !prev)}
-            disabled={members.length === 0}
-            title="@点名成员"
-            aria-haspopup="menu"
-            aria-expanded={mentionMenuOpen}
-          >
-            @
-          </button>
-          <textarea
-            ref={inputRef}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault()
-                void handleSend()
-              }
-            }}
-            placeholder="在沙发上说点什么…（@成员 可以点名）"
-            rows={2}
-          />
-          <button
-            type="button"
-            className="lounge-send-btn"
-            onClick={() => void handleSend()}
-            disabled={sending || draft.trim().length === 0}
-          >
-            发送
-          </button>
         </div>
       </footer>
 
