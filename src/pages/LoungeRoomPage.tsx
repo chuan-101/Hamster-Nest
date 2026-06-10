@@ -93,11 +93,13 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
   const [sceneEditorOpen, setSceneEditorOpen] = useState(false)
   const [sceneDraft, setSceneDraft] = useState('')
   const [savingScene, setSavingScene] = useState(false)
+  const [mentionMenuOpen, setMentionMenuOpen] = useState(false)
   const messagesRef = useRef<LoungeMessage[]>([])
   const membersRef = useRef<LoungeMember[]>([])
   const streamControllerRef = useRef<AbortController | null>(null)
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
+  const composerRef = useRef<HTMLElement | null>(null)
 
   const memberMap = useMemo(
     () => new Map(members.map((member) => [member.sender, member])),
@@ -194,6 +196,24 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
       streamControllerRef.current?.abort()
     }
   }, [])
+
+  // 点名抽屉点击外部时收起。
+  useEffect(() => {
+    if (!mentionMenuOpen) {
+      return
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (target && composerRef.current?.contains(target)) {
+        return
+      }
+      setMentionMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [mentionMenuOpen])
 
   const appendMessage = useCallback((message: LoungeMessage) => {
     // 同步更新 ref：发送后会立即用 messagesRef 构建模型上下文，不能等 React 刷新。
@@ -479,11 +499,7 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
   const renderAvatar = (sender: string) => {
     const member = memberMap.get(sender)
     return (
-      <span
-        className="lounge-avatar"
-        style={{ backgroundColor: member?.color ?? '#cbd5e1' }}
-        aria-hidden="true"
-      >
+      <span className="lounge-avatar" aria-hidden="true">
         {member?.emoji ?? '❔'}
       </span>
     )
@@ -544,23 +560,43 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
         <div ref={listEndRef} />
       </section>
 
-      <footer className="lounge-composer">
-        {members.length > 0 ? (
-          <div className="lounge-mention-row">
+      <footer className="lounge-composer" ref={composerRef}>
+        {mentionMenuOpen && members.length > 0 ? (
+          <div className="lounge-mention-menu" role="menu">
             {members.map((member) => (
               <button
                 key={member.sender}
                 type="button"
-                className="lounge-mention-chip"
-                style={{ borderColor: member.color }}
-                onClick={() => handleInsertMention(member)}
+                role="menuitem"
+                className="lounge-mention-option"
+                onClick={() => {
+                  handleInsertMention(member)
+                  setMentionMenuOpen(false)
+                }}
               >
-                <span aria-hidden="true">{member.emoji}</span> @{member.displayName}
+                <span className="lounge-mention-emoji" aria-hidden="true">{member.emoji}</span>
+                <span className="lounge-mention-name">@{member.displayName}</span>
+                <span
+                  className="lounge-mention-dot"
+                  style={{ backgroundColor: member.color }}
+                  aria-hidden="true"
+                />
               </button>
             ))}
           </div>
         ) : null}
         <div className="lounge-input-row">
+          <button
+            type="button"
+            className={`lounge-mention-toggle ${mentionMenuOpen ? 'lounge-mention-toggle--open' : ''}`}
+            onClick={() => setMentionMenuOpen((prev) => !prev)}
+            disabled={members.length === 0}
+            title="@点名成员"
+            aria-haspopup="menu"
+            aria-expanded={mentionMenuOpen}
+          >
+            @
+          </button>
           <textarea
             ref={inputRef}
             value={draft}
