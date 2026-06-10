@@ -23,6 +23,7 @@ type JsonRpcResponse = {
 }
 
 const TOOLS_CACHE_TTL_MS = 5 * 60 * 1000
+const REQUEST_TIMEOUT_MS = 30 * 1000
 
 let cachedTools: McpToolDefinition[] | null = null
 let cachedToolsAt = 0
@@ -60,9 +61,11 @@ const sendJsonRpc = async (
   auth: McpAuth,
   method: string,
   params?: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<Record<string, unknown>> => {
   requestSequence += 1
   const requestId = requestSequence
+  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const response = await fetch(buildEndpoint(), {
     method: 'POST',
     headers: {
@@ -77,6 +80,7 @@ const sendJsonRpc = async (
       method,
       ...(params ? { params } : {}),
     }),
+    signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
   if (!response.ok) {
     const errorText = await response.text()
@@ -110,11 +114,11 @@ const toOpenAiTool = (tool: Record<string, unknown>): McpToolDefinition | null =
 }
 
 /** 动态获取 hamster-mcp 工具列表（OpenAI function calling 格式），带 5 分钟缓存。 */
-export const listMcpTools = async (auth: McpAuth): Promise<McpToolDefinition[]> => {
+export const listMcpTools = async (auth: McpAuth, signal?: AbortSignal): Promise<McpToolDefinition[]> => {
   if (cachedTools && Date.now() - cachedToolsAt < TOOLS_CACHE_TTL_MS) {
     return cachedTools
   }
-  const result = await sendJsonRpc(auth, 'tools/list')
+  const result = await sendJsonRpc(auth, 'tools/list', undefined, signal)
   const rawTools = Array.isArray(result.tools) ? (result.tools as Array<Record<string, unknown>>) : []
   const tools = rawTools
     .map(toOpenAiTool)
@@ -149,13 +153,15 @@ export type McpToolCallResult = {
 }
 
 /**
- * 执行单个工具调用。任何错误（参数解析失败、网络失败、工具自身 isError）
+ * 执行单个工具调用。任何错误（参数解析失败、网络失败、超时、工具自身 isError）
  * 都以文本形式返回给模型，不抛出，保证工具循环不中断。
+ * 唯一例外：调用方通过 signal 主动中止（用户点停止）时原样抛出，让循环立即终止。
  */
 export const callMcpTool = async (
   auth: McpAuth,
   name: string,
   argumentsText: string,
+  signal?: AbortSignal,
 ): Promise<McpToolCallResult> => {
   let parsedArguments: Record<string, unknown> = {}
   if (argumentsText.trim()) {
@@ -169,16 +175,27 @@ export const callMcpTool = async (
     }
   }
   try {
-    const result = await sendJsonRpc(auth, 'tools/call', {
-      name,
-      arguments: parsedArguments,
-    })
+    const result = await sendJsonRpc(
+      auth,
+      'tools/call',
+      {
+        name,
+        arguments: parsedArguments,
+      },
+      signal,
+    )
     const text = flattenToolResultContent(result.content)
     if (result.isError) {
       return { ok: false, text: `工具执行报错: ${text || '未知错误'}` }
     }
     return { ok: true, text: text || '(工具执行完成，无输出)' }
   } catch (error) {
+    if (signal?.aborted) {
+      throw error
+    }
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      return { ok: false, text: `工具调用超时（${REQUEST_TIMEOUT_MS / 1000} 秒无响应）` }
+    }
     return {
       ok: false,
       text: `工具调用失败: ${error instanceof Error ? error.message : String(error)}`,

@@ -72,7 +72,6 @@ import AgentCouncilPage from './pages/AgentCouncilPage'
 import WalletPage from './pages/WalletPage'
 import WikiPage from './pages/WikiPage'
 import NovelPage from './pages/NovelPage'
-import KnowledgeLibraryPage from './pages/KnowledgeLibraryPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -84,7 +83,7 @@ import {
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
 import { buildMemoInjectionBlock, buildMemoInjectionFromToggle } from './utils/memoRetrieval'
 import { resolveTimelineFromToggle } from './utils/timelineManualRetrieval'
-import { callMcpTool, listMcpTools, type McpToolDefinition } from './lib/mcpTools'
+import { callMcpTool, listMcpTools, type McpToolCallResult, type McpToolDefinition } from './lib/mcpTools'
 
 const sortSessions = (sessions: ChatSession[]) =>
   [...sessions].sort(
@@ -154,6 +153,8 @@ const AUTO_EXTRACT_PENDING_LIMIT = 50
 const TIMELINE_MANUAL_DEBUG = import.meta.env.DEV
 
 const GameModeShell = lazy(() => import('./game/GameModeShell'))
+// 知识图谱页携带 react-force-graph-2d（d3 系），按需加载避免进主包。
+const KnowledgeLibraryPage = lazy(() => import('./pages/KnowledgeLibraryPage'))
 
 const updateMessage = (messages: ChatMessage[], next: ChatMessage) =>
   sortMessages(
@@ -1154,7 +1155,7 @@ const App = () => {
           let mcpTools: McpToolDefinition[] | null = null
           if (!toolsUnsupportedModels.has(effectiveModel)) {
             try {
-              mcpTools = await listMcpTools({ accessToken, anonKey })
+              mcpTools = await listMcpTools({ accessToken, anonKey }, controller.signal)
             } catch (error) {
               console.warn('获取 MCP 工具列表失败，本次对话不附带工具', error)
             }
@@ -1190,6 +1191,8 @@ const App = () => {
           const loopMessages: Array<Record<string, unknown>> = [...messagesPayload]
           let toolsEnabled = Boolean(mcpTools && mcpTools.length > 0)
           let toolRounds = 0
+          // 同名工具连续失败 2 次即熔断：后续轮次不再附带 tools，让模型直接收尾。
+          const toolFailureStreaks = new Map<string, number>()
 
           while (true) {
             const includeTools = toolsEnabled && toolRounds < MAX_TOOL_LOOP_ROUNDS
@@ -1429,9 +1432,31 @@ const App = () => {
               const statusEntry: ChatToolCallStatus = { name: call.name, status: 'running' }
               toolStatuses.push(statusEntry)
               forceAssistantUpdate()
-              const result = await callMcpTool({ accessToken, anonKey }, call.name, call.argumentsText)
+              let result: McpToolCallResult
+              try {
+                result = await callMcpTool(
+                  { accessToken, anonKey },
+                  call.name,
+                  call.argumentsText,
+                  controller.signal,
+                )
+              } catch (error) {
+                // 用户主动中止：先把状态标为失败再抛出，避免持久化的状态条停留在"执行中"。
+                statusEntry.status = 'error'
+                forceAssistantUpdate()
+                throw error
+              }
               statusEntry.status = result.ok ? 'done' : 'error'
               forceAssistantUpdate()
+              if (result.ok) {
+                toolFailureStreaks.delete(call.name)
+              } else {
+                const failures = (toolFailureStreaks.get(call.name) ?? 0) + 1
+                toolFailureStreaks.set(call.name, failures)
+                if (failures >= 2) {
+                  toolsEnabled = false
+                }
+              }
               loopMessages.push({
                 role: 'tool',
                 tool_call_id: call.id,
@@ -2145,7 +2170,9 @@ const App = () => {
           path="/knowledge"
           element={
             <RequireAuth ready={authReady} user={user}>
-              <KnowledgeLibraryPage />
+              <Suspense fallback={null}>
+                <KnowledgeLibraryPage />
+              </Suspense>
             </RequireAuth>
           }
         />
