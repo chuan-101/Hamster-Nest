@@ -283,7 +283,8 @@
   place-items: center;
   font-size: 18px;
   border-radius: 12px;
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+  background: #f6f8fa;
+  border: 1px solid #e8ecf0;
 }
 
 .lounge-message-body {
@@ -337,6 +338,7 @@
 /* ── Composer ─────────────────────────────────── */
 
 .lounge-composer {
+  position: relative;
   display: grid;
   gap: 8px;
   padding: 10px;
@@ -346,22 +348,90 @@
   box-shadow: 0 8px 18px rgba(255, 214, 231, 0.2);
 }
 
-.lounge-mention-row {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
+/* 点名抽屉：从输入框上方弹出的成员下拉菜单 */
+.lounge-mention-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 10px;
+  z-index: 20;
+  min-width: 200px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 214, 231, 0.9);
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(63, 51, 64, 0.16);
 }
 
-.lounge-mention-chip {
+.lounge-mention-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #4b3a47;
+  padding: 8px 10px;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lounge-mention-option:hover {
+  background: #fff0f7;
+}
+
+.lounge-mention-emoji {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  border-radius: 9px;
+  background: #f6f8fa;
+  border: 1px solid #e8ecf0;
+}
+
+.lounge-mention-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lounge-mention-dot {
+  width: 8px;
+  height: 8px;
   flex-shrink: 0;
   border-radius: 999px;
-  border: 1px solid;
+}
+
+.lounge-mention-toggle {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid #ffd6e7;
   background: #fff;
-  color: #6b5563;
-  padding: 4px 10px;
-  font-size: 12px;
-  white-space: nowrap;
+  color: #b27f98;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.lounge-mention-toggle--open {
+  background: linear-gradient(180deg, #ffeef6 0%, #ffe1ef 100%);
+  color: #7d5d70;
+}
+
+.lounge-mention-toggle:disabled {
+  opacity: 0.4;
 }
 
 .lounge-input-row {
