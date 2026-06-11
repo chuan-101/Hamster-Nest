@@ -856,16 +856,23 @@ export const fetchRemoteSessions = async (userId: string): Promise<ChatSession[]
   return (data ?? []).map(mapSessionRow)
 }
 
-export const fetchRemoteMessages = async (userId: string): Promise<ChatMessage[]> => {
+export const fetchRemoteMessages = async (
+  userId: string,
+  sessionId?: string,
+): Promise<ChatMessage[]> => {
   if (!supabase) {
     return []
   }
-  const { data, error } = await supabase
+  let query = supabase
     .from('messages')
     .select('id,session_id,user_id,role,content,created_at,client_id,client_created_at,meta')
     .eq('user_id', userId)
-    .order('client_created_at', { ascending: true })
-    .order('created_at', { ascending: true })
+
+  if (sessionId) {
+    query = query.eq('session_id', sessionId)
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: true })
   if (error) {
     throw error
   }

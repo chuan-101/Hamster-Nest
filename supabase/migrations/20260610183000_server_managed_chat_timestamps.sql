@@ -3,6 +3,7 @@
 create or replace function public.set_sessions_updated_at_now()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();
