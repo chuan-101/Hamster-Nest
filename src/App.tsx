@@ -96,9 +96,9 @@ const sortSessions = (sessions: ChatSession[]) =>
 const sortMessages = (messages: ChatMessage[]) =>
   [...messages].sort(
     (a, b) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() ||
       new Date(a.clientCreatedAt ?? a.createdAt).getTime() -
-        new Date(b.clientCreatedAt ?? b.createdAt).getTime() ||
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        new Date(b.clientCreatedAt ?? b.createdAt).getTime(),
   )
 
 const selectMostRecentSession = (sessions: ChatSession[]) => {
@@ -250,9 +250,9 @@ const buildRecentExtractionMessages = (
     .filter((message) => message.sessionId === sessionId && message.content.trim().length > 0)
     .sort(
       (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() ||
         new Date(a.clientCreatedAt ?? a.createdAt).getTime() -
-          new Date(b.clientCreatedAt ?? b.createdAt).getTime() ||
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          new Date(b.clientCreatedAt ?? b.createdAt).getTime(),
     )
   return scoped.slice(-limit).map((message) => ({ role: message.role, content: message.content }))
 }
@@ -500,6 +500,27 @@ const App = () => {
       setSyncing(false)
     }
   }, [applySnapshot, user])
+
+  const refreshRemoteSessionMessages = useCallback(async (sessionId: string) => {
+    if (!user || !supabase) {
+      return
+    }
+    setSyncing(true)
+    try {
+      const remoteMessages = await fetchRemoteMessages(user.id, sessionId)
+      const nextMessages = mergeMessages(messagesRef.current, remoteMessages)
+      applySnapshot(sessionsRef.current, nextMessages)
+    } catch (error) {
+      console.warn('无法加载 Supabase 会话消息数据', error)
+    } finally {
+      setSyncing(false)
+    }
+  }, [applySnapshot, user])
+
+  const handleActiveSessionChange = useCallback((sessionId: string) => {
+    setActiveChatSessionId(sessionId)
+    void refreshRemoteSessionMessages(sessionId)
+  }, [refreshRemoteSessionMessages])
 
   useEffect(() => {
     if (!supabase) {
@@ -2065,7 +2086,7 @@ const App = () => {
                 defaultReasoning={activeSettings.chatReasoningEnabled}
                 onSelectReasoning={handleSessionReasoningOverrideChange}
                 onArchiveSession={handleSessionArchiveStateChange}
-                onActiveSessionChange={setActiveChatSessionId}
+                onActiveSessionChange={handleActiveSessionChange}
                 user={user}
                 onReturnToGame={isChatOpenedFromGameMode ? handleReturnToGameFromChat : undefined}
                 chatTheme={isChatOpenedFromGameMode ? 'pixel' : 'ios'}
@@ -2416,9 +2437,9 @@ const ChatRoute = ({
       .filter((message) => message.sessionId === sessionId)
       .sort(
         (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() ||
           new Date(a.clientCreatedAt ?? a.createdAt).getTime() -
-            new Date(b.clientCreatedAt ?? b.createdAt).getTime() ||
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+            new Date(b.clientCreatedAt ?? b.createdAt).getTime(),
       )
   }, [messages, sessionId])
 

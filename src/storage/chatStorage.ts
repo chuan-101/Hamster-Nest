@@ -77,9 +77,9 @@ const sortSessions = (sessions: ChatSession[]) =>
 const sortMessages = (messages: ChatMessage[]) =>
   [...messages].sort(
     (a, b) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() ||
       new Date(a.clientCreatedAt ?? a.createdAt).getTime() -
-        new Date(b.clientCreatedAt ?? b.createdAt).getTime() ||
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        new Date(b.clientCreatedAt ?? b.createdAt).getTime(),
   )
 
 export const loadSnapshot = (): StorageSnapshot => {
