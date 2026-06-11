@@ -11,6 +11,7 @@ import {
 import { supabase } from '../supabase/client'
 import { buildMemoInjectionBlock } from '../utils/memoRetrieval'
 import { isGpt5Auto } from '../utils/modelResolver'
+import { extractLlmUsage, logLlmUsage } from '../utils/llmUsage'
 import { DEFAULT_LOUNGE_SCENE_PROMPT } from '../constants/aiOverlays'
 import type { LoungeMember, LoungeMessage, LoungeSofa } from '../types'
 import './LoungePage.css'
@@ -281,6 +282,7 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
       streamControllerRef.current = controller
       let assistantContent = ''
       let actualModel = aiConfig.model
+      let usagePayload: Record<string, unknown> | null = null
 
       const updateStreaming = () => {
         setStreamingMessage({
@@ -387,6 +389,8 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
                 if (payload?.model) {
                   actualModel = payload.model
                 }
+                // OpenRouter 在流末尾的 chunk 携带 usage。
+                usagePayload = extractLlmUsage(payload) ?? usagePayload
                 const delta = payload?.choices?.[0]?.delta?.content
                 if (typeof delta === 'string' && delta.length > 0) {
                   assistantContent += delta
@@ -402,6 +406,7 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
           if (typeof payload?.model === 'string') {
             actualModel = payload.model
           }
+          usagePayload = extractLlmUsage(payload)
           const choice = (payload as { choices?: unknown[] })?.choices?.[0] as
             | Record<string, unknown>
             | undefined
@@ -411,6 +416,8 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
           }
           updateStreaming()
         }
+
+        logLlmUsage({ module: 'chitchat', conversationId: null, model: actualModel }, usagePayload)
 
         const finalContent = stripThinkSegments(assistantContent).trim()
         if (finalContent.length > 0) {

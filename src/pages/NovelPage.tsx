@@ -6,6 +6,7 @@ import { supabase } from '../supabase/client'
 import MarkdownRenderer from '../components/MarkdownRenderer'
 import type { NovelBook, NovelChapter, NovelCharacterCard, NovelModelConfig } from '../types'
 import { createNovelBook, createNovelChapter, listNovelBooks, listNovelChaptersByBookId, updateNovelBookMeta, updateNovelBookModelConfig, updateNovelChapter } from '../storage/supabaseSync'
+import { extractLlmUsage, logLlmUsage } from '../utils/llmUsage'
 import './NovelPage.css'
 
 const GLOBAL_CONFIG_TITLE = '__global_config__'
@@ -220,6 +221,16 @@ const NovelPage = ({ user }: { user: User | null }) => {
 
     const data = parseResponseJson()
     if (!data) return responseText.trim()
+
+    // 小说模块的请求体未携带 module 参数，写表时用固定标识便于区分。
+    logLlmUsage(
+      {
+        module: 'novel',
+        conversationId: null,
+        model: typeof data.model === 'string' ? data.model : model,
+      },
+      extractLlmUsage(data),
+    )
 
     const choice = Array.isArray(data.choices) ? data.choices[0] : null
     const message = (choice as Record<string, unknown> | null)?.message ?? choice ?? {}

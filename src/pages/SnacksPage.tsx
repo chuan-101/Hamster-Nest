@@ -26,6 +26,7 @@ import {
 } from '../constants/aiOverlays'
 import './SnacksPage.css'
 import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
+import { extractLlmUsage, logLlmUsage } from '../utils/llmUsage'
 
 type SnacksPageProps = {
   user: User | null
@@ -452,6 +453,14 @@ const SnacksPage = ({ user, snackAiConfig, entryMode = 'phone' }: SnacksPageProp
     }
 
     const payload = (await response.json()) as Record<string, unknown>
+    logLlmUsage(
+      {
+        module: 'snack-feed',
+        conversationId: null,
+        model: typeof payload.model === 'string' ? payload.model : snackAiConfig.model,
+      },
+      extractLlmUsage(payload),
+    )
     const choice = (payload?.choices as unknown[] | undefined)?.[0] as
       | Record<string, unknown>
       | undefined

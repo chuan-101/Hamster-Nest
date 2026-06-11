@@ -15,6 +15,7 @@ import { fetchActiveProviderModelConfig } from '../storage/llmProviders'
 import { formatLocalTimestamp } from '../utils/time'
 import './LettersPage.css'
 import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
+import { extractLlmUsage, logLlmUsage } from '../utils/llmUsage'
 
 const PREVIEW_LIMIT = 30
 const LETTER_MEMORY_LIMIT = 20
@@ -261,6 +262,14 @@ const LettersPage = ({
         throw new Error(await response.text())
       }
       const payload = (await response.json()) as Record<string, unknown>
+      logLlmUsage(
+        {
+          module: 'letter',
+          conversationId: null,
+          model: typeof payload.model === 'string' ? payload.model : modelId,
+        },
+        extractLlmUsage(payload),
+      )
       const choice = (payload.choices as Record<string, unknown>[] | undefined)?.[0]
       const message = (choice?.message as Record<string, unknown> | undefined) ?? choice
       const content =

@@ -24,6 +24,7 @@ import { fetchBubbleMessages } from "../storage/supabaseSync";
 import BubbleChatHistoryModal from "./ui/BubbleChatHistoryModal";
 import { buildMemoInjectionBlock } from "../utils/memoRetrieval";
 import { maybeInjectTimelineContext } from "../utils/timelineAutoInject";
+import { extractLlmUsage, logLlmUsage } from "../utils/llmUsage";
 import "./gameHud.css";
 
 type SharedSnackAiConfig = {
@@ -254,6 +255,14 @@ const GameModeShell = ({
       }
 
       const payload = await response.json();
+      logLlmUsage(
+        {
+          module: 'bubble-chat',
+          conversationId: null,
+          model: typeof payload?.model === 'string' ? payload.model : bubbleChatConfig.model,
+        },
+        extractLlmUsage(payload),
+      );
       const choice = payload?.choices?.[0];
       const message = choice?.message ?? choice ?? {};
       const content = typeof message?.content === 'string' ? message.content : '';

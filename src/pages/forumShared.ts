@@ -4,6 +4,7 @@ import type { MemoryEntry } from '../types'
 import { ensureUserSettings } from '../storage/userSettings'
 import { maybeInjectTimelineContext } from '../utils/timelineAutoInject'
 import { fetchActiveProviderModelConfig } from '../storage/llmProviders'
+import { extractLlmUsage, logLlmUsage } from '../utils/llmUsage'
 
 export const FORUM_AI_SLOTS = [1, 2, 3] as const
 export const FORUM_USER_DISPLAY_NAME = '串串'
@@ -705,6 +706,14 @@ export async function requestForumAiContent({
   }
 
   const payload = (await response.json()) as Record<string, unknown>
+  logLlmUsage(
+    {
+      module: 'forum',
+      conversationId: null,
+      model: typeof payload.model === 'string' ? payload.model : resolvedModel,
+    },
+    extractLlmUsage(payload),
+  )
   if (FORUM_AI_DEBUG) {
     console.info('[Forum AI] openrouter-chat payload', payload)
   }
