@@ -879,14 +879,11 @@ export const createRemoteSession = async (
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
-  const now = new Date().toISOString()
   const { data, error } = await supabase
     .from('sessions')
     .insert({
       user_id: userId,
       title,
-      created_at: now,
-      updated_at: now,
     })
     .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
     .single()
@@ -1352,10 +1349,9 @@ export const renameRemoteSession = async (
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
-  const now = new Date().toISOString()
   const { data, error } = await supabase
     .from('sessions')
-    .update({ title, updated_at: now })
+    .update({ title })
     .eq('id', sessionId)
     .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
     .single()
@@ -1372,10 +1368,9 @@ export const updateRemoteSessionOverride = async (
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
-  const now = new Date().toISOString()
   const { data, error } = await supabase
     .from('sessions')
-    .update({ override_model: overrideModel, updated_at: now })
+    .update({ override_model: overrideModel })
     .eq('id', sessionId)
     .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
     .single()
@@ -1392,10 +1387,9 @@ export const updateRemoteSessionReasoningOverride = async (
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
-  const now = new Date().toISOString()
   const { data, error } = await supabase
     .from('sessions')
-    .update({ override_reasoning: overrideReasoning, updated_at: now })
+    .update({ override_reasoning: overrideReasoning })
     .eq('id', sessionId)
     .select('id,user_id,title,created_at,updated_at,override_model,override_reasoning,is_archived,archived_at')
     .single()
@@ -1463,7 +1457,6 @@ export const addRemoteMessage = async (
     throw new Error('Supabase 客户端未配置')
   }
   const safeMeta = meta ?? {}
-  const now = new Date().toISOString()
   const { data, error } = await supabase
     .from('messages')
     .insert({
@@ -1471,7 +1464,6 @@ export const addRemoteMessage = async (
       user_id: userId,
       role,
       content,
-      created_at: now,
       client_id: clientId,
       client_created_at: clientCreatedAt,
       meta: safeMeta,
@@ -1481,15 +1473,16 @@ export const addRemoteMessage = async (
   if (error || !data) {
     throw error ?? new Error('发送消息失败')
   }
-  const { error: sessionError } = await supabase
+  const { data: sessionData, error: sessionError } = await supabase
     .from('sessions')
-    .update({ updated_at: now })
+    .select('updated_at')
     .eq('id', sessionId)
-  if (sessionError) {
-    throw sessionError
+    .single()
+  if (sessionError || !sessionData) {
+    throw sessionError ?? new Error('刷新会话时间失败')
   }
   const message = mapMessageRow(data as MessageRow)
-  return { message, updatedAt: now }
+  return { message, updatedAt: (sessionData as Pick<SessionRow, 'updated_at'>).updated_at }
 }
 
 export const deleteRemoteMessage = async (messageId: string) => {

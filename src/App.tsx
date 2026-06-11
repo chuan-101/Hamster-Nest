@@ -2402,6 +2402,7 @@ const ChatRoute = ({
 }) => {
   const { sessionId } = useParams()
   const navigate = useNavigate()
+  const [pendingCreatedSessionId, setPendingCreatedSessionId] = useState<string | null>(null)
 
   const activeSession = sessions.find((session) => session.id === sessionId)
 
@@ -2423,6 +2424,7 @@ const ChatRoute = ({
 
   const handleCreateSession = useCallback(async () => {
     const newSession = await onCreateSession()
+    setPendingCreatedSessionId(newSession.id)
     navigate(`/chat/${newSession.id}`)
     onCloseDrawer()
   }, [navigate, onCloseDrawer, onCreateSession])
@@ -2457,13 +2459,17 @@ const ChatRoute = ({
   )
 
   useEffect(() => {
-    if (!activeSession && sessions.length > 0) {
-      const targetSession = selectMostRecentSession(sessions)
-      if (targetSession) {
-        navigate(`/chat/${targetSession.id}`, { replace: true })
-      }
+    if (activeSession || sessions.length === 0) {
+      return
     }
-  }, [activeSession, navigate, sessions])
+    if (sessionId && sessionId === pendingCreatedSessionId) {
+      return
+    }
+    const targetSession = selectMostRecentSession(sessions)
+    if (targetSession) {
+      navigate(`/chat/${targetSession.id}`, { replace: true })
+    }
+  }, [activeSession, navigate, pendingCreatedSessionId, sessionId, sessions])
 
   useEffect(() => {
     if (activeSession || syncing || !sessionsReady || sessions.length > 0) {
