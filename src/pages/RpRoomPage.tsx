@@ -8,6 +8,7 @@ import ReasoningPanel from '../components/ReasoningPanel'
 import { useEnabledModels } from '../hooks/useEnabledModels'
 import { stripSpeakerPrefix } from '../utils/rpMessage'
 import { isGpt5Auto } from '../utils/modelResolver'
+import { extractLlmUsage, logLlmUsage } from '../utils/llmUsage'
 import { supabase } from '../supabase/client'
 import {
   createRpMessage,
@@ -446,6 +447,14 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, rpHighThinkingEna
     const isEventStream = contentType.includes('text/event-stream')
     if (!isEventStream) {
       const openRouterPayload = (await response.json()) as Record<string, unknown>
+      logLlmUsage(
+        {
+          module: 'rp-room',
+          conversationId: payload.conversationId,
+          model: typeof openRouterPayload.model === 'string' ? openRouterPayload.model : payload.modelId,
+        },
+        extractLlmUsage(openRouterPayload),
+      )
       const choice = (openRouterPayload?.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined
       const message = ((choice?.message as Record<string, unknown>) ?? choice ?? {}) as Record<string, unknown>
       const content =
@@ -474,6 +483,7 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, rpHighThinkingEna
     let finalContent = ''
     let finalReasoning = ''
     let actualModel = payload.modelId
+    let streamUsage: Record<string, unknown> | null = null
     let done = false
 
     while (!done) {
@@ -505,6 +515,8 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, rpHighThinkingEna
           if (typeof payloadLine.model === 'string') {
             actualModel = payloadLine.model
           }
+          // OpenRouter 在流末尾的 chunk 携带 usage。
+          streamUsage = extractLlmUsage(payloadLine) ?? streamUsage
           const choice = ((payloadLine.choices as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined) ?? {}
           const delta = (choice.delta as Record<string, unknown> | undefined) ?? {}
           const contentDelta = typeof delta.content === 'string' ? delta.content : ''
@@ -526,6 +538,11 @@ const RpRoomPage = ({ user, mode = 'chat', rpReasoningEnabled, rpHighThinkingEna
         }
       }
     }
+
+    logLlmUsage(
+      { module: 'rp-room', conversationId: payload.conversationId, model: actualModel },
+      streamUsage,
+    )
 
     return {
       content: finalContent || '（空回复）',

@@ -84,6 +84,7 @@ import {
   resolveBubbleChatPrompt,
 } from './constants/aiOverlays'
 import { isGpt5Auto, resolveModelId } from './utils/modelResolver'
+import { extractLlmUsage, logLlmUsage } from './utils/llmUsage'
 import { buildMemoInjectionBlock, buildMemoInjectionFromToggle } from './utils/memoRetrieval'
 import { resolveTimelineFromToggle } from './utils/timelineManualRetrieval'
 import { callMcpTool, listMcpTools, type McpToolCallResult, type McpToolDefinition } from './lib/mcpTools'
@@ -1308,6 +1309,7 @@ const App = () => {
             }
 
             const roundToolCalls: Array<{ id?: string; name: string; argumentsText: string }> = []
+            let roundUsage: Record<string, unknown> | null = null
             flushPending()
             const contentLengthAtRoundStart = assistantContent.length
 
@@ -1319,6 +1321,7 @@ const App = () => {
               if (typeof payload?.model === 'string') {
                 actualModel = payload.model
               }
+              roundUsage = extractLlmUsage(payload)
               const choice = (payload as { choices?: unknown[] })?.choices?.[0] as
                 | Record<string, unknown>
                 | undefined
@@ -1418,6 +1421,8 @@ const App = () => {
                   if (payload?.model) {
                     actualModel = payload.model
                   }
+                  // OpenRouter 在流末尾的 chunk 携带 usage。
+                  roundUsage = extractLlmUsage(payload) ?? roundUsage
                   const deltaToolCalls = (deltaPayload as { tool_calls?: unknown })?.tool_calls
                   if (Array.isArray(deltaToolCalls)) {
                     for (const item of deltaToolCalls) {
@@ -1483,6 +1488,11 @@ const App = () => {
             }
             flushPending()
           }
+
+            logLlmUsage(
+              { module: 'chitchat', conversationId: sessionId, model: actualModel },
+              roundUsage,
+            )
 
             const executableToolCalls = roundToolCalls.filter((call) => call.name)
             if (!includeTools || executableToolCalls.length === 0) {
