@@ -228,6 +228,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const [expandedCommandId, setExpandedCommandId] = useState<string | null>(null)
   const [commandsLoading, setCommandsLoading] = useState(false)
   const [expandedSection, setExpandedSection] = useState('mini-control')
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    mini: true,
+    wechat: true,
+    v3: true,
+  })
   const [codexControlRow, setCodexControlRow] = useState<CodexControlRow | null>(null)
   const [codexActionLoading, setCodexActionLoading] = useState<'wake' | 'sleep' | null>(null)
 
@@ -663,6 +668,10 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     setExpandedSection((current) => (current === sectionId ? '' : sectionId))
   }
 
+  const toggleGroup = (groupId: 'mini' | 'wechat' | 'v3') => {
+    setExpandedGroups((current) => ({ ...current, [groupId]: !current[groupId] }))
+  }
+
   return (
     <div className="hamster-console-page">
       <header className="hamster-console-page__header">
@@ -705,11 +714,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
           </section>
           <main className="hamster-console-accordion">
           <section className="hamster-console-card glass-card" aria-label="Mini 控制">
-            <button className="hamster-console-accordion__header" onClick={() => toggleSection('mini-control')}>
+            <button className="hamster-console-accordion__header" onClick={() => toggleGroup('mini')}>
               <h2>Mini 控制</h2>
-              <span>{expandedSection === 'mini-control' ? '▼' : '▶'}</span>
+              <span>{expandedGroups.mini ? '▼' : '▶'}</span>
             </button>
-            <div className={`hamster-console-accordion__content ${expandedSection === 'mini-control' ? 'expanded' : ''}`}>
+            <div className={`hamster-console-accordion__content ${expandedGroups.mini ? 'expanded' : ''}`}>
               <div className="hamster-console-accordion__inner">
                 <div className="hamster-console-codex-status">
                   <span className={`hamster-console-codex-dot ${codexControlState.tone}`} aria-hidden />
@@ -737,11 +746,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
 
           <section className="hamster-console-card glass-card hamster-console-group" aria-label="微信 API 配置">
-            <button className="hamster-console-accordion__header" onClick={() => toggleSection('wechat-api')}>
+            <button className="hamster-console-accordion__header" onClick={() => toggleGroup('wechat')}>
               <div><h2>微信 API 配置</h2><small>模型 / 主动消息 / 上下文 / Prompt</small></div>
-              <span>▼</span>
+              <span>{expandedGroups.wechat ? '▼' : '▶'}</span>
             </button>
-            <div className="hamster-console-accordion__content expanded">
+            <div className={`hamster-console-accordion__content ${expandedGroups.wechat ? 'expanded' : ''}`}>
               <div className="hamster-console-accordion__inner hamster-console-nested-stack">
           <section className="hamster-console-card glass-card" aria-label="模型切换">
             <button className="hamster-console-accordion__header" onClick={() => toggleSection('model-switching')}>
@@ -982,11 +991,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
           </section>
 
           <section className="hamster-console-card glass-card hamster-console-group" aria-label="V3.0 观测台">
-            <button className="hamster-console-accordion__header" onClick={() => toggleSection('v3-observatory')}>
+            <button className="hamster-console-accordion__header" onClick={() => toggleGroup('v3')}>
               <div><h2>V3.0 观测台</h2><small>执行记录 / 当前状态快照 / 打印胶囊 / 能力 / 周回顾 / 指令</small></div>
-              <span>▼</span>
+              <span>{expandedGroups.v3 ? '▼' : '▶'}</span>
             </button>
-            <div className="hamster-console-accordion__content expanded">
+            <div className={`hamster-console-accordion__content ${expandedGroups.v3 ? 'expanded' : ''}`}>
               <div className="hamster-console-accordion__inner hamster-console-nested-stack">
 
           <section className="hamster-console-card glass-card" aria-label="执行记录">

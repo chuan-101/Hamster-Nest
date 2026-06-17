@@ -571,3 +571,62 @@
     min-height: 108px;
   }
 }
+
+.hamster-console-page,
+.hamster-console-page *,
+.hamster-console-page *::before,
+.hamster-console-page *::after {
+  box-sizing: border-box;
+}
+
+.hamster-console-page__header {
+  padding-left: clamp(88px, 18vw, 128px);
+  padding-right: clamp(18px, 8vw, 128px);
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.hamster-console-page__header h1 {
+  line-height: 1.12;
+}
+
+.hamster-console-page__header > p {
+  width: 100%;
+  max-width: 430px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.hamster-console-card,
+.hamster-console-accordion,
+.hamster-console-accordion__inner,
+.hamster-console-nested-stack,
+.hamster-console-command-list,
+.hamster-console-channel-list {
+  min-width: 0;
+  width: 100%;
+}
+
+.hamster-console-card,
+.hamster-console-group,
+.hamster-console-nested-stack {
+  overflow: visible;
+}
+
+.hamster-console-accordion__header {
+  min-height: 58px;
+}
+
+@media (max-width: 560px) {
+  .hamster-console-page__header {
+    padding: 12px;
+    padding-top: 48px;
+  }
+
+  .hamster-console-page__back {
+    top: 10px;
+    left: 12px;
+    transform: none;
+  }
+}
