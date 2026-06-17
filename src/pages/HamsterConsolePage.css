@@ -390,3 +390,101 @@
     display: grid;
   }
 }
+
+.hamster-console-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.hamster-status-card,
+.hamster-mini-card,
+.hamster-v3-detail {
+  border: 1px solid rgba(255, 214, 231, 0.78);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 16px rgba(255, 214, 231, 0.16);
+}
+
+.hamster-status-card {
+  display: grid;
+  gap: 0.24rem;
+  padding: 0.72rem;
+  min-width: 0;
+}
+
+.hamster-status-card span,
+.hamster-status-card small,
+.hamster-mini-card small,
+.hamster-mini-card em,
+.hamster-v3-detail small {
+  color: #8b7284;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.hamster-status-card strong {
+  color: #68485e;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.hamster-filter {
+  max-width: 240px;
+}
+
+.hamster-digest-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.hamster-mini-card,
+.hamster-v3-detail {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.68rem;
+  color: #6f5164;
+}
+
+.hamster-mini-card p,
+.hamster-v3-detail p {
+  margin: 0;
+  color: #755d6f;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.hamster-mini-card em {
+  font-style: normal;
+}
+
+.hamster-v3-detail pre {
+  margin: 0;
+  background: #2a1f2b;
+  color: #fdf7fb;
+  border-radius: 10px;
+  padding: 0.55rem;
+  overflow: auto;
+  font-size: 0.74rem;
+}
+
+.hamster-command-status.completed,
+.hamster-command-status.printed,
+.hamster-command-status.queued { background: #e7fbf0; color: #1f7b4f; }
+.hamster-command-status.cancelled,
+.hamster-command-status.draft { background: #f0edf2; color: #6b6170; }
+
+@media (max-width: 760px) {
+  .hamster-console-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .hamster-console-status-grid,
+  .hamster-digest-grid {
+    grid-template-columns: 1fr;
+  }
+}

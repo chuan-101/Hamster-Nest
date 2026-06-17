@@ -33,6 +33,7 @@ type AgentSettingsRow = {
   wechat_context_summary_refresh_rounds: number | null
   wechat_memory_search_min_length: number | null
   wechat_memory_search_enabled: boolean | null
+  agent_mode?: 'active' | 'quiet' | 'paused' | string | null
 }
 
 type PromptTemplateRow = {
@@ -59,6 +60,81 @@ type ProviderModelRow = {
   enabled?: boolean | null
 }
 
+type WechatQueueSummary = {
+  pending: number
+  sending: number
+  failed: number
+  error: string | null
+}
+
+type AgentTaskRow = {
+  id: string
+  created_at: string | null
+  source: string | null
+  executor: string | null
+  command: string | null
+  status: string | null
+  result_summary: string | null
+  result_detail: unknown
+  error: string | null
+  payload_json: unknown
+  correlation_id: string | null
+  parent_task_id: string | null
+  started_at: string | null
+  completed_at: string | null
+}
+
+type ContextSnapshotRow = {
+  id: string
+  snapshot_type: string | null
+  summary_text: string | null
+  stale_after: string | null
+  created_at: string | null
+}
+
+type DailyDigestRow = {
+  id: string
+  period: string | null
+  summary_text: string | null
+  created_at: string | null
+}
+
+type PrintCapsuleRow = {
+  id: string
+  title: string | null
+  type: string | null
+  paper_size: string | null
+  status: string | null
+  trigger_reason: string | null
+  created_at: string | null
+  scheduled_print_week: string | null
+  sort_order: number | null
+  hidden_until_printed: boolean | null
+  content: string | null
+}
+
+type CapabilityRow = {
+  id: string
+  name: string | null
+  description: string | null
+  risk_level: string | null
+  enabled: boolean | null
+  requires_confirmation: boolean | null
+  output_channel: string | null
+  last_used_at: string | null
+  cooldown_until: string | null
+  usage_count: number | null
+  failure_count: number | null
+}
+
+type WeeklyDigestRow = {
+  id: string
+  week_start: string | null
+  week_end: string | null
+  highlights: unknown
+  digest_text: string | null
+}
+
 type CodexControlRow = {
   id: string
   action: 'wake' | 'sleep' | string
@@ -80,6 +156,8 @@ const categoryLabelMap: Record<string, string> = {
   style: '风格',
 }
 
+const formatJson = (value: unknown) => JSON.stringify(value ?? {}, null, 2)
+
 const formatDateTime = (value: string | null) => {
   if (!value) return '--'
   const date = new Date(value)
@@ -90,6 +168,22 @@ const formatDateTime = (value: string | null) => {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
+}
+
+const getTodayIsoRange = () => {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
+const getCurrentWeekStart = () => {
+  const now = new Date()
+  const day = now.getDay() || 7
+  now.setDate(now.getDate() - day + 1)
+  now.setHours(0, 0, 0, 0)
+  return now.toISOString().slice(0, 10)
 }
 
 const parseNumberField = (value: string, fallback: number | null = null) => {
@@ -109,6 +203,7 @@ const toCodexControlViewState = (row: CodexControlRow | null): CodexControlViewS
 const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const scopedUserId = user?.id ?? TARGET_USER_ID
   const [loading, setLoading] = useState(true)
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -132,15 +227,50 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const [commands, setCommands] = useState<SyzygyCommandRow[]>([])
   const [expandedCommandId, setExpandedCommandId] = useState<string | null>(null)
   const [commandsLoading, setCommandsLoading] = useState(false)
-  const [expandedSection, setExpandedSection] = useState('model-switching')
+  const [expandedSection, setExpandedSection] = useState('mini-control')
   const [codexControlRow, setCodexControlRow] = useState<CodexControlRow | null>(null)
   const [codexActionLoading, setCodexActionLoading] = useState<'wake' | 'sleep' | null>(null)
+
+  const [wechatQueueSummary, setWechatQueueSummary] = useState<WechatQueueSummary>({ pending: 0, sending: 0, failed: 0, error: null })
+  const [agentTasks, setAgentTasks] = useState<AgentTaskRow[]>([])
+  const [agentTasksError, setAgentTasksError] = useState<string | null>(null)
+  const [agentTaskStatusFilter, setAgentTaskStatusFilter] = useState('all')
+  const [expandedAgentTaskId, setExpandedAgentTaskId] = useState<string | null>(null)
+  const [contextSnapshot, setContextSnapshot] = useState<ContextSnapshotRow | null>(null)
+  const [contextSnapshotError, setContextSnapshotError] = useState<string | null>(null)
+  const [dailyDigests, setDailyDigests] = useState<DailyDigestRow[]>([])
+  const [printCapsules, setPrintCapsules] = useState<PrintCapsuleRow[]>([])
+  const [printCapsulesError, setPrintCapsulesError] = useState<string | null>(null)
+  const [capsuleStatusFilter, setCapsuleStatusFilter] = useState('all')
+  const [capsuleWeekFilter, setCapsuleWeekFilter] = useState(getCurrentWeekStart())
+  const [expandedCapsuleId, setExpandedCapsuleId] = useState<string | null>(null)
+  const [capabilities, setCapabilities] = useState<CapabilityRow[]>([])
+  const [capabilitiesError, setCapabilitiesError] = useState<string | null>(null)
+  const [weeklyDigest, setWeeklyDigest] = useState<WeeklyDigestRow | null>(null)
+  const [weeklyDigestError, setWeeklyDigestError] = useState<string | null>(null)
 
   const activeTemplate = useMemo(
     () => promptTemplates.find((item) => item.id === activeTemplateId) ?? null,
     [promptTemplates, activeTemplateId],
   )
   const codexControlState = useMemo(() => toCodexControlViewState(codexControlRow), [codexControlRow])
+
+  const agentModeLabel = agentSettings?.agent_mode === 'quiet' ? '静默模式' : agentSettings?.agent_mode === 'paused' ? '自动化暂停' : '正常运行'
+  const miniRunnerLabel = codexControlRow ? codexControlState.label : '等待接入'
+  const todayTaskSummary = useMemo(() => {
+    const counts = { completed: 0, failed: 0, running: 0 }
+    agentTasks.forEach((task) => {
+      if (task.status === 'completed') counts.completed += 1
+      if (task.status === 'failed') counts.failed += 1
+      if (task.status === 'running') counts.running += 1
+    })
+    return counts
+  }, [agentTasks])
+  const filteredAgentTasks = agentTaskStatusFilter === 'all' ? agentTasks : agentTasks.filter((task) => task.status === agentTaskStatusFilter)
+  const filteredCapsules = printCapsules.filter((item) => (capsuleStatusFilter === 'all' || item.status === capsuleStatusFilter) && (!capsuleWeekFilter || item.scheduled_print_week === capsuleWeekFilter))
+  const weeklyQueuedCount = printCapsules.filter((item) => item.scheduled_print_week === capsuleWeekFilter && item.status === 'queued').length
+  const weeklyPrintedCount = printCapsules.filter((item) => item.scheduled_print_week === capsuleWeekFilter && item.status === 'printed').length
+  const snapshotExpired = contextSnapshot?.stale_after ? new Date(contextSnapshot.stale_after).getTime() < nowMs : false
 
   const modelOptions = useMemo(() => {
     const merged = new Set<string>(availableModels)
@@ -190,9 +320,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     }
 
     setLoading(true)
+    setNowMs(Date.now())
     setErrorMessage(null)
 
-    const [channelRes, settingsRes, templateRes, commandsRes, modelRes, codexRes] = await Promise.all([
+    const { start: todayStart, end: todayEnd } = getTodayIsoRange()
+    const [channelRes, settingsRes, templateRes, commandsRes, modelRes, codexRes, wechatRes, taskRes, snapshotRes, digestRes, capsuleRes, capabilityRes, weeklyRes] = await Promise.all([
       supabase
         .from('channel_config')
         .select('user_id, channel_name, active_model')
@@ -201,7 +333,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       supabase
         .from('agent_settings')
         .select(
-          'user_id, checkin_enabled, day_mode_start_hour, day_mode_end_hour, day_min_interval_minutes, day_max_interval_minutes, night_mode_start_hour, night_mode_end_hour, night_min_interval_minutes, night_max_interval_minutes, quiet_hours_start_hour, quiet_hours_end_hour, cooldown_after_interaction_minutes, max_daily_checkins_day, max_daily_checkins_night, per_channel_schedule, wechat_context_summary_model, wechat_context_window_rounds, wechat_context_summary_trigger_rounds, wechat_context_summary_refresh_rounds, wechat_memory_search_min_length, wechat_memory_search_enabled',
+          'user_id, checkin_enabled, day_mode_start_hour, day_mode_end_hour, day_min_interval_minutes, day_max_interval_minutes, night_mode_start_hour, night_mode_end_hour, night_min_interval_minutes, night_max_interval_minutes, quiet_hours_start_hour, quiet_hours_end_hour, cooldown_after_interaction_minutes, max_daily_checkins_day, max_daily_checkins_night, per_channel_schedule, wechat_context_summary_model, wechat_context_window_rounds, wechat_context_summary_trigger_rounds, wechat_context_summary_refresh_rounds, wechat_memory_search_min_length, wechat_memory_search_enabled, agent_mode',
         )
         .eq('user_id', scopedUserId)
         .maybeSingle(),
@@ -229,6 +361,13 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase.from('pending_wechat_messages').select('status').eq('user_id', scopedUserId).in('status', ['pending', 'sending', 'failed']),
+      supabase.from('agent_tasks').select('id, created_at, source, executor, command, status, result_summary, result_detail, error, payload_json, correlation_id, parent_task_id, started_at, completed_at').gte('created_at', todayStart).lt('created_at', todayEnd).order('created_at', { ascending: false }).limit(50),
+      supabase.from('current_context_snapshot').select('id, snapshot_type, summary_text, stale_after, created_at').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('daily_status_digest').select('id, period, summary_text, created_at').gte('created_at', todayStart).lt('created_at', todayEnd),
+      supabase.from('print_capsules').select('id, title, type, paper_size, status, trigger_reason, created_at, scheduled_print_week, sort_order, hidden_until_printed, content').order('created_at', { ascending: false }).limit(80),
+      supabase.from('capabilities').select('id, name, description, risk_level, enabled, requires_confirmation, output_channel, last_used_at, cooldown_until, usage_count, failure_count').order('name', { ascending: true }),
+      supabase.from('weekly_digest').select('id, week_start, week_end, highlights, digest_text').order('week_start', { ascending: false }).limit(1).maybeSingle(),
     ])
 
     if (channelRes.error || settingsRes.error || templateRes.error || commandsRes.error || modelRes.error || codexRes.error) {
@@ -285,6 +424,24 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     setTemplateDraft(firstTemplate?.content ?? '')
 
     setCommands(commandsRes.data ?? [])
+
+    setWechatQueueSummary(wechatRes.error ? { pending: 0, sending: 0, failed: 0, error: wechatRes.error.message } : {
+      pending: (wechatRes.data ?? []).filter((item: { status: string }) => item.status === 'pending').length,
+      sending: (wechatRes.data ?? []).filter((item: { status: string }) => item.status === 'sending').length,
+      failed: (wechatRes.data ?? []).filter((item: { status: string }) => item.status === 'failed').length,
+      error: null,
+    })
+    setAgentTasks((taskRes.data ?? []) as AgentTaskRow[])
+    setAgentTasksError(taskRes.error?.message ?? null)
+    setContextSnapshot((snapshotRes.data as ContextSnapshotRow | null) ?? null)
+    setContextSnapshotError(snapshotRes.error?.message ?? digestRes.error?.message ?? null)
+    setDailyDigests((digestRes.data ?? []) as DailyDigestRow[])
+    setPrintCapsules((capsuleRes.data ?? []) as PrintCapsuleRow[])
+    setPrintCapsulesError(capsuleRes.error?.message ?? null)
+    setCapabilities((capabilityRes.data ?? []) as CapabilityRow[])
+    setCapabilitiesError(capabilityRes.error?.message ?? null)
+    setWeeklyDigest((weeklyRes.data as WeeklyDigestRow | null) ?? null)
+    setWeeklyDigestError(weeklyRes.error?.message ?? null)
 
     setLoading(false)
   }, [scopedUserId])
@@ -521,13 +678,20 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       {loading ? <div className="hamster-console-loading">正在加载仓鼠机面板...</div> : null}
 
       {!loading ? (
-        <main className="hamster-console-accordion">
-          <section className="hamster-console-card glass-card" aria-label="Codex 控制">
-            <button className="hamster-console-accordion__header" onClick={() => toggleSection('codex-control')}>
-              <h2>Codex 控制</h2>
-              <span>{expandedSection === 'codex-control' ? '▼' : '▶'}</span>
+        <>
+          <section className="hamster-console-status-grid" aria-label="V3.0 状态概览">
+            <article className="hamster-status-card"><span>Agent 模式</span><strong>{agentModeLabel}</strong><small>{agentSettings?.agent_mode ?? 'active'}</small></article>
+            <article className="hamster-status-card"><span>Mini Runner</span><strong>{miniRunnerLabel}</strong><small>{codexControlRow ? `最近：${formatDateTime(codexControlRow.created_at)}` : '等待接入'}</small></article>
+            <article className="hamster-status-card"><span>微信消息队列</span><strong>{wechatQueueSummary.error ? '暂无权限读取消息队列' : `${wechatQueueSummary.pending}/${wechatQueueSummary.sending}/${wechatQueueSummary.failed}`}</strong><small>{wechatQueueSummary.error ?? 'pending / sending / failed'}</small></article>
+            <article className="hamster-status-card"><span>今日任务状态</span><strong>{agentTasksError ? '当前前端无权限读取该表' : agentTasks.length ? `${todayTaskSummary.completed} 完成 · ${todayTaskSummary.failed} 失败 · ${todayTaskSummary.running} 运行` : '今日暂无任务'}</strong><small>{agentTasksError ?? 'agent_tasks'}</small></article>
+          </section>
+          <main className="hamster-console-accordion">
+          <section className="hamster-console-card glass-card" aria-label="Mini 控制">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('mini-control')}>
+              <h2>Mini 控制</h2>
+              <span>{expandedSection === 'mini-control' ? '▼' : '▶'}</span>
             </button>
-            <div className={`hamster-console-accordion__content ${expandedSection === 'codex-control' ? 'expanded' : ''}`}>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'mini-control' ? 'expanded' : ''}`}>
               <div className="hamster-console-accordion__inner">
                 <div className="hamster-console-codex-status">
                   <span className={`hamster-console-codex-dot ${codexControlState.tone}`} aria-hidden />
@@ -788,6 +952,51 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
             </div>
           </section>
 
+          <section className="hamster-console-card glass-card" aria-label="执行记录">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('agent-tasks')}><h2>执行记录</h2><span>{expandedSection === 'agent-tasks' ? '▼' : '▶'}</span></button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'agent-tasks' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
+              {agentTasksError ? <p className="hamster-console-card__hint">当前前端无权限读取该表：{agentTasksError}</p> : <>
+                <select className="input-glass hamster-filter" value={agentTaskStatusFilter} onChange={(event) => setAgentTaskStatusFilter(event.target.value)}>{['all','pending','running','completed','failed','cancelled'].map((status) => <option key={status} value={status}>{status === 'all' ? '全部状态' : status}</option>)}</select>
+                <div className="hamster-console-command-list">{filteredAgentTasks.map((task) => { const expanded = expandedAgentTaskId === task.id; return <article key={task.id} className="hamster-command-item"><button className="hamster-command-header" onClick={() => setExpandedAgentTaskId(expanded ? null : task.id)}><strong>{task.command ?? '(无指令)'}</strong><span className={`hamster-command-status ${task.status ?? ''}`}>{task.status ?? '--'}</span><span>{task.executor ?? task.source ?? '--'}</span><span>{formatDateTime(task.created_at)}</span></button>{expanded ? <div className="hamster-command-body"><p>{task.result_summary ?? task.error ?? '无摘要'}</p><h4>result_detail</h4><pre>{formatJson(task.result_detail)}</pre><h4>payload_json</h4><pre>{formatJson(task.payload_json)}</pre><p className="hamster-console-card__hint">correlation_id：{task.correlation_id ?? '--'} · parent_task_id：{task.parent_task_id ?? '--'} · started：{formatDateTime(task.started_at)} · completed：{formatDateTime(task.completed_at)}</p></div> : null}</article> })}</div>
+                {filteredAgentTasks.length === 0 ? <p className="hamster-console-card__hint">暂无执行记录。</p> : null}
+              </>}
+            </div></div>
+          </section>
+
+          <section className="hamster-console-card glass-card" aria-label="当前状态快照">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('context-snapshot')}><h2>当前状态快照</h2><span>{expandedSection === 'context-snapshot' ? '▼' : '▶'}</span></button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'context-snapshot' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
+              {contextSnapshotError ? <p className="hamster-console-card__hint">当前前端无权限读取该表：{contextSnapshotError}</p> : contextSnapshot ? <div className="hamster-v3-detail"><strong>{contextSnapshot.snapshot_type ?? 'snapshot'}</strong><p>{contextSnapshot.summary_text ?? '暂无摘要'}</p><small>{snapshotExpired ? '状态可能已过期 · ' : ''}stale_after：{formatDateTime(contextSnapshot.stale_after)} · created：{formatDateTime(contextSnapshot.created_at)}</small></div> : <p className="hamster-console-card__hint">CLI 小秘书还没有生成状态快照。</p>}
+              <div className="hamster-digest-grid">{['morning','afternoon','evening','night'].map((period) => { const item = dailyDigests.find((digest) => digest.period === period); return <article key={period} className="hamster-mini-card"><strong>{period}</strong><p>{item?.summary_text ?? '暂无摘要'}</p></article> })}</div>
+            </div></div>
+          </section>
+
+          <section className="hamster-console-card glass-card" aria-label="每周打印胶囊">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('print-capsules')}><h2>每周打印胶囊</h2><span>{expandedSection === 'print-capsules' ? '▼' : '▶'}</span></button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'print-capsules' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
+              {printCapsulesError ? <p className="hamster-console-card__hint">当前前端无权限读取该表：{printCapsulesError}</p> : <>
+                <div className="hamster-console-model-add"><input className="input-glass" value={capsuleWeekFilter} onChange={(event) => setCapsuleWeekFilter(event.target.value)} placeholder="scheduled_print_week" /><select className="input-glass" value={capsuleStatusFilter} onChange={(event) => setCapsuleStatusFilter(event.target.value)}>{['all','queued','printed','draft','cancelled'].map((status) => <option key={status} value={status}>{status === 'all' ? '全部状态' : status}</option>)}</select></div>
+                <p className="hamster-console-card__hint">本周 queued：{weeklyQueuedCount} · printed：{weeklyPrintedCount}</p>
+                <div className="hamster-console-command-list">{filteredCapsules.map((capsule) => { const expanded = expandedCapsuleId === capsule.id; const locked = capsule.hidden_until_printed && capsule.status !== 'printed'; return <article key={capsule.id} className="hamster-command-item"><button className="hamster-command-header" onClick={() => setExpandedCapsuleId(expanded ? null : capsule.id)}><strong>{capsule.title ?? '(无标题)'}</strong><span className={`hamster-command-status ${capsule.status ?? ''}`}>{capsule.status ?? '--'}</span><span>{capsule.paper_size ?? capsule.type ?? '--'}</span><span>{formatDateTime(capsule.created_at)}</span></button>{expanded ? <div className="hamster-command-body"><p className="hamster-console-card__hint">{capsule.trigger_reason ?? '无触发原因'} · week：{capsule.scheduled_print_week ?? '--'} · sort：{capsule.sort_order ?? '--'}</p><p>{locked ? '正文将在打印后解锁' : (capsule.content ?? '暂无正文')}</p></div> : null}</article> })}</div>
+                {filteredCapsules.length === 0 ? <p className="hamster-console-card__hint">本周还没有待打印纸条。</p> : null}
+              </>}
+            </div></div>
+          </section>
+
+          <section className="hamster-console-card glass-card" aria-label="能力编排器">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('capabilities')}><h2>能力编排器</h2><span>{expandedSection === 'capabilities' ? '▼' : '▶'}</span></button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'capabilities' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
+              {capabilitiesError ? <p className="hamster-console-card__hint">当前前端无权限读取该表：{capabilitiesError}</p> : capabilities.length ? capabilities.map((capability) => <article key={capability.id} className="hamster-mini-card"><strong>{capability.name}</strong><p>{capability.description ?? '暂无说明'}</p><small>{capability.enabled ? '已启用' : '已禁用'} · 风险：{capability.risk_level ?? '--'} · 确认：{capability.requires_confirmation ? '需要' : '不需要'} · 渠道：{capability.output_channel ?? '--'} · 使用/失败：{capability.usage_count ?? 0}/{capability.failure_count ?? 0} · 冷却至：{formatDateTime(capability.cooldown_until)} · 最近使用：{formatDateTime(capability.last_used_at)}</small><em>当前前端无权限修改</em></article>) : <p className="hamster-console-card__hint">暂无能力配置。</p>}
+            </div></div>
+          </section>
+
+          <section className="hamster-console-card glass-card" aria-label="周回顾入口">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('weekly-digest')}><h2>周回顾入口</h2><span>{expandedSection === 'weekly-digest' ? '▼' : '▶'}</span></button>
+            <div className={`hamster-console-accordion__content ${expandedSection === 'weekly-digest' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
+              {weeklyDigestError ? <p className="hamster-console-card__hint">当前前端无权限读取该表：{weeklyDigestError}</p> : weeklyDigest ? <div className="hamster-v3-detail"><strong>{weeklyDigest.week_start} → {weeklyDigest.week_end}</strong><pre>{formatJson(weeklyDigest.highlights)}</pre><p>{weeklyDigest.digest_text}</p></div> : <p className="hamster-console-card__hint">还没有生成周回顾。</p>}
+            </div></div>
+          </section>
+
           <section className="hamster-console-card glass-card" aria-label="指令记录">
             <button className="hamster-console-accordion__header" onClick={() => toggleSection('command-log')}>
               <h2>指令记录</h2>
@@ -831,7 +1040,8 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
               </div>
             </div>
           </section>
-        </main>
+          </main>
+        </>
       ) : null}
     </div>
   )
