@@ -257,6 +257,8 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
   const agentModeLabel = agentSettings?.agent_mode === 'quiet' ? '静默模式' : agentSettings?.agent_mode === 'paused' ? '自动化暂停' : '正常运行'
   const miniRunnerLabel = codexControlRow ? codexControlState.label : '等待接入'
+  const agentModeTone = agentSettings?.agent_mode === 'quiet' ? 'yellow' : agentSettings?.agent_mode === 'paused' ? 'gray' : 'green'
+  const wechatQueueHasFailed = wechatQueueSummary.failed > 0
   const todayTaskSummary = useMemo(() => {
     const counts = { completed: 0, failed: 0, running: 0 }
     agentTasks.forEach((task) => {
@@ -679,11 +681,27 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
       {!loading ? (
         <>
-          <section className="hamster-console-status-grid" aria-label="V3.0 状态概览">
-            <article className="hamster-status-card"><span>Agent 模式</span><strong>{agentModeLabel}</strong><small>{agentSettings?.agent_mode ?? 'active'}</small></article>
-            <article className="hamster-status-card"><span>Mini Runner</span><strong>{miniRunnerLabel}</strong><small>{codexControlRow ? `最近：${formatDateTime(codexControlRow.created_at)}` : '等待接入'}</small></article>
-            <article className="hamster-status-card"><span>微信消息队列</span><strong>{wechatQueueSummary.error ? '暂无权限读取消息队列' : `${wechatQueueSummary.pending}/${wechatQueueSummary.sending}/${wechatQueueSummary.failed}`}</strong><small>{wechatQueueSummary.error ?? 'pending / sending / failed'}</small></article>
-            <article className="hamster-status-card"><span>今日任务状态</span><strong>{agentTasksError ? '当前前端无权限读取该表' : agentTasks.length ? `${todayTaskSummary.completed} 完成 · ${todayTaskSummary.failed} 失败 · ${todayTaskSummary.running} 运行` : '今日暂无任务'}</strong><small>{agentTasksError ?? 'agent_tasks'}</small></article>
+          <section className="hamster-console-status-grid" aria-label="顶部状态仪表盘">
+            <article className="hamster-status-card hamster-status-card--agent">
+              <div className="hamster-status-card__topline"><span className={`hamster-console-codex-dot ${agentModeTone}`} aria-hidden /><span>Agent 模式</span><span className="hamster-status-card__icon" aria-hidden>●</span></div>
+              <strong>{agentModeLabel}</strong>
+              <small>{agentSettings?.agent_mode ?? 'active'}</small>
+            </article>
+            <article className="hamster-status-card hamster-status-card--runner">
+              <div className="hamster-status-card__topline"><span>Mini Runner</span><span className="hamster-status-card__icon" aria-hidden>⌘</span></div>
+              <strong>{miniRunnerLabel}</strong>
+              <small>{codexControlRow ? `最近：${formatDateTime(codexControlRow.created_at)}` : '等待接入'}</small>
+            </article>
+            <article className={`hamster-status-card hamster-status-card--queue ${wechatQueueHasFailed ? 'warning' : ''}`}>
+              <div className="hamster-status-card__topline"><span>微信消息队列</span><span className="hamster-status-card__icon" aria-hidden>✉</span></div>
+              <strong>{wechatQueueSummary.error ? '暂无权限读取消息队列' : `${wechatQueueSummary.pending} / ${wechatQueueSummary.sending} / ${wechatQueueSummary.failed}`}</strong>
+              <small>{wechatQueueSummary.error ?? 'pending / sending / failed'}</small>
+            </article>
+            <article className="hamster-status-card hamster-status-card--tasks">
+              <div className="hamster-status-card__topline"><span>今日任务状态</span><span className="hamster-status-card__icon" aria-hidden>✓</span></div>
+              <strong>{agentTasksError ? '当前前端无权限读取该表' : agentTasks.length ? `${todayTaskSummary.completed} completed · ${todayTaskSummary.failed} failed` : '今日暂无任务'}</strong>
+              <small>{agentTasksError ?? 'agent_tasks'}</small>
+            </article>
           </section>
           <main className="hamster-console-accordion">
           <section className="hamster-console-card glass-card" aria-label="Mini 控制">
@@ -717,6 +735,14 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
             </div>
           </section>
 
+
+          <section className="hamster-console-card glass-card hamster-console-group" aria-label="微信 API 配置">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('wechat-api')}>
+              <div><h2>微信 API 配置</h2><small>模型 / 主动消息 / 上下文 / Prompt</small></div>
+              <span>▼</span>
+            </button>
+            <div className="hamster-console-accordion__content expanded">
+              <div className="hamster-console-accordion__inner hamster-console-nested-stack">
           <section className="hamster-console-card glass-card" aria-label="模型切换">
             <button className="hamster-console-accordion__header" onClick={() => toggleSection('model-switching')}>
               <h2>模型切换</h2>
@@ -951,6 +977,17 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
               </div>
             </div>
           </section>
+              </div>
+            </div>
+          </section>
+
+          <section className="hamster-console-card glass-card hamster-console-group" aria-label="V3.0 观测台">
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('v3-observatory')}>
+              <div><h2>V3.0 观测台</h2><small>执行记录 / 当前状态快照 / 打印胶囊 / 能力 / 周回顾 / 指令</small></div>
+              <span>▼</span>
+            </button>
+            <div className="hamster-console-accordion__content expanded">
+              <div className="hamster-console-accordion__inner hamster-console-nested-stack">
 
           <section className="hamster-console-card glass-card" aria-label="执行记录">
             <button className="hamster-console-accordion__header" onClick={() => toggleSection('agent-tasks')}><h2>执行记录</h2><span>{expandedSection === 'agent-tasks' ? '▼' : '▶'}</span></button>
@@ -1037,6 +1074,9 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                   })}
                   {commands.length === 0 ? <p className="hamster-console-card__hint">暂无指令记录。</p> : null}
                 </div>
+              </div>
+            </div>
+          </section>
               </div>
             </div>
           </section>
