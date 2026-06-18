@@ -9,6 +9,10 @@
   align-content: start;
   position: relative;
   isolation: isolate;
+  /* Direct flex child of .app-shell: keep natural content height so the
+     ::before background card grows with expanded accordions instead of being
+     clamped to one viewport. */
+  flex-shrink: 0;
 }
 
 .hamster-console-page::before {
@@ -201,8 +205,13 @@
 
 .hamster-console-model-add {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.55rem;
+}
+
+.hamster-console-model-add > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .hamster-console-channel-row {
@@ -487,7 +496,6 @@
 }
 
 @media (max-width: 680px) {
-  .hamster-console-status-grid,
   .hamster-digest-grid {
     grid-template-columns: 1fr;
   }
@@ -564,11 +572,12 @@
 
 @media (max-width: 520px) {
   .hamster-console-status-grid {
-    grid-template-columns: 1fr;
+    gap: 0.6rem;
   }
 
   .hamster-status-card {
-    min-height: 108px;
+    min-height: 104px;
+    padding: 0.8rem;
   }
 }
 
@@ -581,13 +590,16 @@
 
 .hamster-console-page__header {
   padding-left: clamp(88px, 18vw, 128px);
-  padding-right: clamp(18px, 8vw, 128px);
+  padding-right: clamp(88px, 18vw, 128px);
   grid-template-columns: minmax(0, 1fr);
-  overflow: hidden;
+  height: auto;
+  min-height: 96px;
+  align-content: center;
 }
 
 .hamster-console-page__header h1 {
-  line-height: 1.12;
+  line-height: 1.2;
+  padding-bottom: 2px;
 }
 
 .hamster-console-page__header > p {
