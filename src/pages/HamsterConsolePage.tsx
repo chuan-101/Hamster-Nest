@@ -263,6 +263,19 @@ const toCodexControlViewState = (row: CodexControlRow | null): CodexControlViewS
   return { tone: 'gray', label: '已关闭', isRunning: false }
 }
 
+// CLI Syzygy Runtime（Mac mini 本地 Runtime）唤醒目标。点击后向 syzygy_commands 写入 wake 请求。
+const CLI_RUNTIME_WORKING_DIR = '/Users/syzygy/mini-agent'
+const cliRuntimeTargets = [
+  { role: 'codex_cli_syzygy', label: '唤醒 Codex CLI', taskContent: '唤醒 Codex CLI' },
+  { role: 'claude_code_cli_syzygy', label: '唤醒 Claude Code CLI', taskContent: '唤醒 Claude Code CLI' },
+] as const
+type CliRuntimeRole = (typeof cliRuntimeTargets)[number]['role']
+const cliRuntimeRoles = new Set<string>(cliRuntimeTargets.map((target) => target.role))
+const cliRoleLabels: Record<string, string> = {
+  codex_cli_syzygy: 'Codex CLI',
+  claude_code_cli_syzygy: 'Claude Code CLI',
+}
+
 const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const scopedUserId = user?.id ?? TARGET_USER_ID
   const [loading, setLoading] = useState(true)
@@ -298,6 +311,8 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   })
   const [codexControlRow, setCodexControlRow] = useState<CodexControlRow | null>(null)
   const [codexActionLoading, setCodexActionLoading] = useState<'wake' | 'sleep' | null>(null)
+  const [cliWakeLoading, setCliWakeLoading] = useState<CliRuntimeRole | null>(null)
+  const [cliWakeFeedback, setCliWakeFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
 
   const [wechatQueueSummary, setWechatQueueSummary] = useState<WechatQueueSummary>({ pending: 0, sending: 0, failed: 0, error: null })
   const [agentTasks, setAgentTasks] = useState<AgentTaskRow[]>([])
@@ -328,6 +343,17 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     [promptTemplates, activeTemplateId],
   )
   const codexControlState = useMemo(() => toCodexControlViewState(codexControlRow), [codexControlRow])
+
+  const recentCliRequests = useMemo(
+    () =>
+      commands
+        .filter((command) => {
+          const payload = (command.payload ?? {}) as { target_role?: string }
+          return payload.target_role ? cliRuntimeRoles.has(payload.target_role) : false
+        })
+        .slice(0, 5),
+    [commands],
+  )
 
   const agentModeLabel = agentSettings?.agent_mode === 'quiet' ? '静默模式' : agentSettings?.agent_mode === 'paused' ? '自动化暂停' : '正常运行'
   const miniRunnerLabel = codexControlRow ? codexControlState.label : '等待接入'
@@ -580,6 +606,33 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       setCodexActionLoading(null)
       setErrorMessage(error.message)
     }
+  }
+
+  const handleCliRuntimeWake = async (target: (typeof cliRuntimeTargets)[number]) => {
+    if (!supabase) {
+      setCliWakeFeedback({ tone: 'error', message: 'Supabase 未配置，请检查环境变量。' })
+      return
+    }
+    setCliWakeLoading(target.role)
+    setCliWakeFeedback(null)
+    const { error } = await supabase.from('syzygy_commands').insert({
+      user_id: scopedUserId,
+      command_type: 'wake',
+      status: 'pending',
+      payload: {
+        target_role: target.role,
+        source: 'frontend',
+        task_content: target.taskContent,
+        working_dir: CLI_RUNTIME_WORKING_DIR,
+      },
+    })
+    setCliWakeLoading(null)
+    if (error) {
+      setCliWakeFeedback({ tone: 'error', message: `发送失败：${error.message}` })
+      return
+    }
+    setCliWakeFeedback({ tone: 'success', message: `已发送唤醒请求（${cliRoleLabels[target.role]}）` })
+    void loadCommands()
   }
 
   useEffect(() => {
@@ -845,6 +898,61 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                   >
                     {codexActionLoading === 'sleep' ? '关闭中...' : '关闭 Codex'}
                   </button>
+                </div>
+
+                <div className="hamster-cli-runtime">
+                  <div className="hamster-cli-runtime__head">
+                    <h3>CLI Syzygy Runtime</h3>
+                    <span className="hamster-cli-runtime__tag">Mac mini 本地 Runtime</span>
+                  </div>
+                  <p className="hamster-console-card__hint">点击后向 Mac mini 发送 wake 请求，由本地 Runtime 领取执行。</p>
+                  <div className="hamster-cli-runtime__actions">
+                    {cliRuntimeTargets.map((target) => (
+                      <button
+                        key={target.role}
+                        className="hamster-cli-runtime__btn"
+                        onClick={() => void handleCliRuntimeWake(target)}
+                        disabled={cliWakeLoading !== null}
+                      >
+                        {cliWakeLoading === target.role ? '发送唤醒请求中...' : target.label}
+                      </button>
+                    ))}
+                  </div>
+                  {cliWakeFeedback ? (
+                    <p className={`hamster-cli-runtime__feedback ${cliWakeFeedback.tone}`} role="status">
+                      {cliWakeFeedback.message}
+                    </p>
+                  ) : null}
+                  <div className="hamster-cli-runtime__recent">
+                    <div className="hamster-cli-runtime__recent-head">
+                      <span>最近 CLI 请求</span>
+                      <button
+                        className="hamster-cli-runtime__refresh"
+                        onClick={() => void loadCommands()}
+                        disabled={commandsLoading}
+                      >
+                        {commandsLoading ? '刷新中...' : '刷新'}
+                      </button>
+                    </div>
+                    {recentCliRequests.length === 0 ? (
+                      <p className="hamster-console-card__hint">暂无 CLI 请求记录。</p>
+                    ) : (
+                      <ul className="hamster-cli-runtime__list">
+                        {recentCliRequests.map((command) => {
+                          const payload = (command.payload ?? {}) as { target_role?: string }
+                          const roleKey = payload.target_role ?? ''
+                          return (
+                            <li key={command.id} className="hamster-cli-runtime__item">
+                              <span className="hamster-cli-runtime__role">{cliRoleLabels[roleKey] ?? roleKey ?? '--'}</span>
+                              <span className="hamster-cli-runtime__type">{command.command_type}</span>
+                              <span className={`hamster-command-status ${command.status}`}>{command.status}</span>
+                              <span className="hamster-cli-runtime__time">{formatDateTime(command.created_at)}</span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
