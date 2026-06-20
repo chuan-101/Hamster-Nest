@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -17,8 +17,10 @@ import {
   detectLoungeMentions,
   resolveLoungeMemberView,
   resolveLoungeMentionEntry,
+  resolveLoungeViewByTargetRole,
   type LoungeMemberView,
 } from '../constants/loungeRoles'
+import { useLoungeReplyStatus, type LoungeReplyStatus } from '../hooks/useLoungeReplyStatus'
 import type { LoungeMember, LoungeMessage, LoungeSofa } from '../types'
 import './LoungePage.css'
 
@@ -85,6 +87,9 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
     () => new Map(members.map((member) => [member.sender, member])),
     [members],
   )
+
+  // 被 @ 角色的「正在回复 / 失败 / 卡住」状态，按原消息 id 分组（读 syzygy_commands）。
+  const replyStatusByMessage = useLoungeReplyStatus(sofaId, user?.id)
 
   useEffect(() => {
     messagesRef.current = messages
@@ -488,6 +493,39 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
     </span>
   )
 
+  // 原消息下方的轻量状态：正在回复（三点跳动）/ 失败 / 卡住。头像与颜色复用 E-3 角色映射。
+  const renderReplyIndicator = (indicator: LoungeReplyStatus) => {
+    const view = resolveLoungeViewByTargetRole(indicator.targetRole)
+    const label =
+      indicator.phase === 'failed'
+        ? `${view.shortName} 回复失败，可稍后再试。`
+        : indicator.phase === 'timeout'
+          ? `${view.shortName} 可能卡住了，稍后可再试。`
+          : `${view.shortName} 正在回复…`
+    return (
+      <div
+        key={indicator.commandId}
+        className={`lounge-reply-status lounge-reply-status--${indicator.phase}`}
+      >
+        <span
+          className="lounge-avatar lounge-avatar--sm"
+          style={{ borderColor: view.color }}
+          aria-hidden="true"
+        >
+          {view.emoji}
+        </span>
+        <span className="lounge-reply-status-text">{label}</span>
+        {indicator.phase === 'processing' ? (
+          <span className="lounge-typing" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
     <div className="lounge-page lounge-room">
       <header className="lounge-header">
@@ -518,24 +556,32 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
         {renderedMessages.map((message) => {
           const isUser = message.sender === USER_SENDER
           const view = resolveLoungeMemberView(message, memberMap.get(message.sender) ?? null)
+          // 不假设只有串串的消息会触发回复：模型 @ 模型同样命中这里（按原消息 id 取状态）。
+          const indicators = replyStatusByMessage.get(message.id) ?? []
           return (
-            <article
-              key={message.id}
-              className={`lounge-message ${isUser ? 'lounge-message--out' : 'lounge-message--in'}`}
-            >
-              {!isUser ? renderAvatar(view) : null}
-              <div className="lounge-message-body">
-                {!isUser ? (
-                  <span className="lounge-message-name">{view.displayName}</span>
-                ) : null}
-                <div className={`lounge-bubble ${message.streaming ? 'lounge-bubble--streaming' : ''}`}>
-                  {message.content.length > 0 ? message.content : '…'}
+            <Fragment key={message.id}>
+              <article
+                className={`lounge-message ${isUser ? 'lounge-message--out' : 'lounge-message--in'}`}
+              >
+                {!isUser ? renderAvatar(view) : null}
+                <div className="lounge-message-body">
+                  {!isUser ? (
+                    <span className="lounge-message-name">{view.displayName}</span>
+                  ) : null}
+                  <div className={`lounge-bubble ${message.streaming ? 'lounge-bubble--streaming' : ''}`}>
+                    {message.content.length > 0 ? message.content : '…'}
+                  </div>
+                  <span className="lounge-message-time">
+                    {message.streaming ? '正在输入…' : formatMessageTime(message.createdAt)}
+                  </span>
                 </div>
-                <span className="lounge-message-time">
-                  {message.streaming ? '正在输入…' : formatMessageTime(message.createdAt)}
-                </span>
-              </div>
-            </article>
+              </article>
+              {indicators.length > 0 ? (
+                <div className="lounge-reply-status-group">
+                  {indicators.map((indicator) => renderReplyIndicator(indicator))}
+                </div>
+              ) : null}
+            </Fragment>
           )
         })}
         <div ref={listEndRef} />

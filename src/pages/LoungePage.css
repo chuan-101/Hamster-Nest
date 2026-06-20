@@ -339,6 +339,115 @@
   padding: 0 2px;
 }
 
+/* ── 正在回复状态（E-4A）──────────────────────── */
+
+/* 一条原消息可能同时点名多个角色，纵向堆叠各自的状态。 */
+.lounge-reply-status-group {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 86%;
+  margin-top: -4px;
+  padding-left: 2px;
+}
+
+.lounge-reply-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
+  border-radius: 14px;
+  border-top-left-radius: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px dashed rgba(255, 214, 231, 0.9);
+  font-size: 12px;
+  color: #8a6178;
+  animation: lounge-status-in 0.2s ease;
+}
+
+.lounge-reply-status--failed {
+  border-style: solid;
+  border-color: rgba(230, 111, 81, 0.4);
+  background: rgba(230, 111, 81, 0.08);
+  color: #b9543b;
+}
+
+.lounge-reply-status--timeout {
+  border-color: rgba(195, 155, 174, 0.6);
+  color: #9a7c8c;
+}
+
+.lounge-reply-status-text {
+  line-height: 1.4;
+}
+
+.lounge-avatar--sm {
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+  border-radius: 9px;
+}
+
+/* 三点跳动 —— 轻量、不抢视线。 */
+.lounge-typing {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding-bottom: 1px;
+}
+
+.lounge-typing span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+  animation: lounge-typing-bounce 1.2s ease-in-out infinite;
+}
+
+.lounge-typing span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.lounge-typing span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes lounge-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 0.9;
+  }
+}
+
+@keyframes lounge-status-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lounge-typing span {
+    animation: none;
+    opacity: 0.7;
+  }
+  .lounge-reply-status {
+    animation: none;
+  }
+}
+
 /* ── Composer ─────────────────────────────────── */
 
 .lounge-composer {

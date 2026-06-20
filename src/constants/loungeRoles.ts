@@ -147,6 +147,10 @@ export const findLoungeRoleBySender = (sender: string): LoungeRoleDef | null =>
   roleByMentionSender.get(sender) ??
   null
 
+/** 按 target_role（syzygy_commands.payload.target_role）查角色。 */
+export const findLoungeRoleByTargetRole = (targetRole: string): LoungeRoleDef | null =>
+  roleByTargetRole.get(targetRole) ?? roleByTargetRole.get(targetRole.toLowerCase()) ?? null
+
 export type LoungeMemberView = {
   displayName: string
   shortName: string
@@ -205,6 +209,18 @@ export const resolveLoungeMemberView = (
     }
   }
   return { ...DEFAULT_VIEW, displayName: message.sender, shortName: message.sender }
+}
+
+/**
+ * 由 target_role 解析「正在回复」动画用的展示信息（名字 / 头像 / 颜色）。
+ * 未命中映射时退回兜底仓鼠头像，绝不出问号。
+ */
+export const resolveLoungeViewByTargetRole = (targetRole: string): LoungeMemberView => {
+  const role = findLoungeRoleByTargetRole(targetRole)
+  if (role) {
+    return toView(role)
+  }
+  return { ...DEFAULT_VIEW, displayName: targetRole, shortName: targetRole }
 }
 
 // 名字延续字符：命中 @token 后若紧跟这些字符，说明名字还没结束
