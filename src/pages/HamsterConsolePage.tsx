@@ -1213,9 +1213,17 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
               <div className="hamster-console-accordion__inner hamster-console-nested-stack">
 
           <section className="hamster-console-card glass-card" aria-label="Syzygy Feed">
-            <button className="hamster-console-accordion__header" onClick={() => toggleSection('syzygy-feed')}><h2>Syzygy Feed / 今日卡片</h2><span>{expandedSection === 'syzygy-feed' ? '▼' : '▶'}</span></button>
+            <button className="hamster-console-accordion__header" onClick={() => toggleSection('syzygy-feed')}><h2>Syzygy Feed（已迁移 · 管理视图）</h2><span>{expandedSection === 'syzygy-feed' ? '▼' : '▶'}</span></button>
             <div className={`hamster-console-accordion__content ${expandedSection === 'syzygy-feed' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
-              <p className="hamster-console-card__hint">读取 agent_feed_items：CLI / Syzygy 生成内容的持久化卡片入口。</p>
+              <div className="hamster-feed-moved-banner">
+                <span aria-hidden="true">📮</span>
+                <div>
+                  <strong>Syzygy Feed 已搬到首页 Page 3</strong>
+                  <p>晨间分享、状态卡、小纸条和周回顾现在是独立的生活前台。仓鼠机这里仅保留只读管理视图。</p>
+                </div>
+                <Link to="/feed" className="btn-primary hamster-feed-moved-banner__link">前往 Feed →</Link>
+              </div>
+              <p className="hamster-console-card__hint">读取 agent_feed_items：CLI / Syzygy 生成内容的持久化卡片（管理用途）。</p>
               {agentFeedError ? <p className="hamster-console-alert">当前前端暂时没有权限读取 Syzygy Feed，请检查 Supabase session / RLS。{agentFeedError.includes('状态更新失败') ? `（${agentFeedError}）` : ''}</p> : null}
               <div className="hamster-feed-filter-row" role="tablist" aria-label="Syzygy Feed 筛选">
                 {[

@@ -30,7 +30,7 @@ export type AppIconConfig =
       imageDataUrl?: string
     }
 
-export type HomeLayoutPageId = 'page1' | 'page2'
+export type HomeLayoutPageId = 'page1' | 'page2' | 'page3'
 
 export type HomePageLayoutState = {
   iconOrder: string[]
@@ -78,6 +78,14 @@ const DEFAULT_PAGE_LAYOUTS: Record<HomeLayoutPageId, HomePageLayoutState> = {
   page2: {
     iconOrder: ['forum', 'letters', 'memo', 'timeline', 'wiki', 'novels', 'council', 'hamster-wallet', 'hamster-console'],
     widgetOrder: ['widget-checkin'],
+    widgets: [],
+    checkinSize: '1x1',
+    showEmptySlots: false,
+    appIconConfigs: {},
+  },
+  page3: {
+    iconOrder: ['syzygy-feed'],
+    widgetOrder: [],
     widgets: [],
     checkinSize: '1x1',
     showEmptySlots: false,
@@ -293,6 +301,7 @@ const parseHomeSettings = (raw: string | null): HomeSettingsState | null => {
         DEFAULT_PAGE_LAYOUTS.page1,
       ),
       page2: normalizePageLayout(rawPageLayouts?.page2, DEFAULT_PAGE_LAYOUTS.page2),
+      page3: normalizePageLayout(rawPageLayouts?.page3, DEFAULT_PAGE_LAYOUTS.page3),
     }
 
     return {
@@ -354,6 +363,14 @@ export const saveHomeSettings = (state: HomeSettingsState) => {
           size: widget.size ?? '1x1',
         })),
         checkinSize: pageLayouts.page2.checkinSize ?? '1x1',
+      },
+      page3: {
+        ...pageLayouts.page3,
+        widgets: pageLayouts.page3.widgets.map((widget) => ({
+          ...widget,
+          size: widget.size ?? '1x1',
+        })),
+        checkinSize: pageLayouts.page3.checkinSize ?? '1x1',
       },
     },
   }

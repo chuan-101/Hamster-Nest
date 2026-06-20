@@ -801,6 +801,47 @@
   }
 }
 
+.hamster-feed-moved-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.75rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  background: linear-gradient(180deg, rgba(255, 245, 250, 0.95) 0%, rgba(255, 233, 244, 0.95) 100%);
+}
+
+.hamster-feed-moved-banner > span {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.hamster-feed-moved-banner div {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.hamster-feed-moved-banner strong {
+  display: block;
+  color: #68485e;
+  font-size: 0.95rem;
+}
+
+.hamster-feed-moved-banner p {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #8a6a7d;
+}
+
+.hamster-feed-moved-banner__link {
+  flex-shrink: 0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .hamster-feed-filter-row {
   display: flex;
   flex-wrap: wrap;

@@ -36,6 +36,12 @@
   padding-bottom: 0.25rem;
 }
 
+.home-feature-stage {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
 .phone-shell {
   width: min(420px, 100%);
   height: 100%;
