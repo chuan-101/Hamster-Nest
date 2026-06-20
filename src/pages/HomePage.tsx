@@ -26,6 +26,7 @@ import {
   type HomeLayoutPageId,
   type HomePageLayoutState,
 } from "../storage/homeLayout";
+import SyzygyFeedEntryCard from "../components/SyzygyFeedEntryCard";
 import "./HomePage.css";
 
 type HomePageProps = {
@@ -64,7 +65,8 @@ const DEFAULT_ICON_ORDER = [
   "export",
 ];
 const DEFAULT_PAGE2_ICON_ORDER = ["forum", "letters", "memo", "timeline", "todo", "knowledge", "wiki", "novels", "council", "lounge", "hamster-wallet", "hamster-console"];
-const PAGE_IDS: HomeLayoutPageId[] = ["page1", "page2"];
+const DEFAULT_PAGE3_ICON_ORDER = ["syzygy-feed"];
+const PAGE_IDS: HomeLayoutPageId[] = ["page1", "page2", "page3"];
 const CORE_WIDGET_ID = "widget-checkin";
 const MAX_WIDGETS = 6;
 const DEFAULT_ICON_TILE_BG_COLOR = "#ffffff";
@@ -76,6 +78,7 @@ const IMAGE_WIDGET_QUALITY = 0.84;
 const PAGE_LABELS: Record<HomeLayoutPageId, string> = {
   page1: "Page 1",
   page2: "Page 2",
+  page3: "Page 3",
 };
 const createDefaultPageLayouts = (): Record<HomeLayoutPageId, HomePageLayoutState> => ({
   page1: {
@@ -88,6 +91,14 @@ const createDefaultPageLayouts = (): Record<HomeLayoutPageId, HomePageLayoutStat
   },
   page2: {
     iconOrder: DEFAULT_PAGE2_ICON_ORDER,
+    widgetOrder: [],
+    widgets: [],
+    checkinSize: "1x1",
+    showEmptySlots: false,
+    appIconConfigs: {},
+  },
+  page3: {
+    iconOrder: DEFAULT_PAGE3_ICON_ORDER,
     widgetOrder: [],
     widgets: [],
     checkinSize: "1x1",
@@ -275,6 +286,7 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
       { id: "lounge", defaultEmoji: "🛋️", label: "仓鼠客厅", route: "/lounge" },
       { id: "hamster-wallet", defaultEmoji: "💰", label: "仓鼠钱包", route: "/wallet" },
       { id: "hamster-console", defaultEmoji: "🎛️", label: "仓鼠机", route: "/hamster-console" },
+      { id: "syzygy-feed", defaultEmoji: "📮", label: "Syzygy Feed", route: "/feed" },
     ],
     [onOpenChat],
   );
@@ -527,6 +539,14 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
         {
           forum: defaultAppIconConfigs.forum,
           letters: defaultAppIconConfigs.letters,
+        },
+        false,
+      ),
+      page3: normalizePage(
+        pageLayoutsFromCache?.page3,
+        DEFAULT_PAGE3_ICON_ORDER,
+        {
+          "syzygy-feed": defaultAppIconConfigs["syzygy-feed"],
         },
         false,
       ),
@@ -1399,6 +1419,11 @@ const HomePage = ({ user, onOpenChat, hasUnreadLetters = false, mode = "default"
           {showPreviewPanel ? (
             <div className="home-page__content app-shell__content">
               <div className="home-layout">
+                {activePage === "page3" ? (
+                  <section className="home-feature-stage" aria-label="Syzygy Feed 入口">
+                    <SyzygyFeedEntryCard user={user} />
+                  </section>
+                ) : null}
                 <section
                   className="widget-grid home-widget-stage"
                   aria-label="Widgets"

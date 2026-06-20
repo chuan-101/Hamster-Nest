@@ -52,6 +52,7 @@ import './App.css'
 import SettingsPage from './pages/SettingsPage'
 import SnacksPage from './pages/SnacksPage'
 import SyzygyFeedPage from './pages/SyzygyFeedPage'
+import AgentFeedPage from './pages/AgentFeedPage'
 import MemoryVaultPage from './pages/MemoryVaultPage'
 import CheckinPage from './pages/CheckinPage'
 import ExportPage from './pages/ExportPage'
@@ -2203,6 +2204,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <SyzygyFeedPage user={user} snackAiConfig={syzygyAiConfig} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/feed"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <AgentFeedPage user={user} />
             </RequireAuth>
           }
         />
