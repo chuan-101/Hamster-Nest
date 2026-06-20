@@ -198,6 +198,164 @@
   gap: 0.55rem;
 }
 
+/* CLI Syzygy Runtime 区域：与上方 Codex 按钮用分隔线和柔色边框区分，避免串串误点 */
+.hamster-cli-runtime {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px dashed rgba(255, 198, 222, 0.7);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.hamster-cli-runtime__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.hamster-cli-runtime__head h3 {
+  margin: 0;
+  font-size: 0.98rem;
+  color: #74596c;
+}
+
+.hamster-cli-runtime__tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #a87fa0;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 240, 248, 0.85);
+  border: 1px solid rgba(255, 214, 231, 0.65);
+}
+
+.hamster-cli-runtime__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.hamster-cli-runtime__btn {
+  flex: 1 1 auto;
+  min-width: 140px;
+  padding: 0.55rem 0.9rem;
+  border-radius: 16px;
+  border: 1px solid rgba(214, 170, 224, 0.7);
+  background: linear-gradient(135deg, #fde6f4 0%, #ece4fb 100%);
+  color: #6a4f78;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.hamster-cli-runtime__btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(206, 162, 224, 0.35);
+}
+
+.hamster-cli-runtime__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.hamster-cli-runtime__feedback {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.42rem 0.65rem;
+  border-radius: 12px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.hamster-cli-runtime__feedback.success {
+  color: #1f7b4f;
+  background: #e7fbf0;
+  border: 1px solid rgba(38, 182, 115, 0.3);
+}
+
+.hamster-cli-runtime__feedback.error {
+  color: #b13f4d;
+  background: #ffe6ea;
+  border: 1px solid rgba(177, 63, 77, 0.3);
+}
+
+.hamster-cli-runtime__recent {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.hamster-cli-runtime__recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #74596c;
+}
+
+.hamster-cli-runtime__refresh {
+  border: none;
+  background: transparent;
+  color: #a87fa0;
+  font-weight: 600;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.hamster-cli-runtime__refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.hamster-cli-runtime__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.hamster-cli-runtime__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(255, 245, 250, 0.76);
+  border: 1px solid rgba(255, 214, 231, 0.56);
+  font-size: 0.8rem;
+}
+
+.hamster-cli-runtime__role {
+  font-weight: 700;
+  color: #6a4f78;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hamster-cli-runtime__type {
+  color: #9a8aa2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hamster-cli-runtime__time {
+  color: #9a8aa2;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .hamster-cli-runtime__item {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .hamster-console-channel-list {
   display: grid;
   gap: 0.6rem;
