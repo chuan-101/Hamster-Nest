@@ -13,6 +13,12 @@ import { buildMemoInjectionBlock } from '../utils/memoRetrieval'
 import { isGpt5Auto } from '../utils/modelResolver'
 import { extractLlmUsage, logLlmUsage } from '../utils/llmUsage'
 import { DEFAULT_LOUNGE_SCENE_PROMPT } from '../constants/aiOverlays'
+import {
+  detectLoungeMentions,
+  resolveLoungeMemberView,
+  resolveLoungeMentionEntry,
+  type LoungeMemberView,
+} from '../constants/loungeRoles'
 import type { LoungeMember, LoungeMessage, LoungeSofa } from '../types'
 import './LoungePage.css'
 
@@ -44,33 +50,6 @@ const createLocalId = () =>
 // 流式过程中把 <think>…</think> 段落（含未闭合的尾部）从展示与落库内容中剥掉。
 const stripThinkSegments = (text: string) =>
   text.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*$/, '')
-
-// @token 命中后要求下一个字符不是名字的延续（如「@Syzygy·GPT」不能算点到「@Syzygy」）。
-const containsMentionToken = (content: string, token: string) => {
-  const needle = `@${token}`
-  let index = content.indexOf(needle)
-  while (index !== -1) {
-    const next = content[index + needle.length]
-    if (next === undefined || !/[A-Za-z0-9_·]/.test(next)) {
-      return true
-    }
-    index = content.indexOf(needle, index + 1)
-  }
-  return false
-}
-
-const detectMentions = (content: string, members: LoungeMember[]): string[] => {
-  const mentions: string[] = []
-  for (const member of members) {
-    if (
-      containsMentionToken(content, member.displayName) ||
-      containsMentionToken(content, member.sender)
-    ) {
-      mentions.push(member.sender)
-    }
-  }
-  return mentions
-}
 
 const formatMessageTime = (value: string) =>
   new Date(value).toLocaleString([], {
@@ -451,8 +430,8 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
     setSending(true)
     setError(null)
     try {
-      // mentions 本期仅解析写入，CLI 唤醒监听属后续任务。
-      const mentions = detectMentions(content, membersRef.current)
+      // 把多种 @ 写法归一为 Runtime 已识别的 mention sender（如 claude_cli / codex_cli）。
+      const mentions = detectLoungeMentions(content, membersRef.current)
       const saved = await addLoungeMessage(sofaId, USER_SENDER, content, mentions)
       appendMessage(saved)
       setDraft('')
@@ -469,10 +448,10 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
     }
   }, [appendMessage, draft, runSyzygyReply, sending, sofaId])
 
-  const handleInsertMention = useCallback((member: LoungeMember) => {
+  const handleInsertMention = useCallback((mentionName: string) => {
     setDraft((prev) => {
       const needsSpace = prev.length > 0 && !prev.endsWith(' ')
-      return `${prev}${needsSpace ? ' ' : ''}@${member.displayName} `
+      return `${prev}${needsSpace ? ' ' : ''}@${mentionName} `
     })
     inputRef.current?.focus()
   }, [])
@@ -503,14 +482,11 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
     [messages, streamingMessage],
   )
 
-  const renderAvatar = (sender: string) => {
-    const member = memberMap.get(sender)
-    return (
-      <span className="lounge-avatar" aria-hidden="true">
-        {member?.emoji ?? '❔'}
-      </span>
-    )
-  }
+  const renderAvatar = (view: LoungeMemberView) => (
+    <span className="lounge-avatar" style={{ borderColor: view.color }} aria-hidden="true">
+      {view.emoji}
+    </span>
+  )
 
   return (
     <div className="lounge-page lounge-room">
@@ -541,18 +517,16 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
         ) : null}
         {renderedMessages.map((message) => {
           const isUser = message.sender === USER_SENDER
-          const member = memberMap.get(message.sender)
+          const view = resolveLoungeMemberView(message, memberMap.get(message.sender) ?? null)
           return (
             <article
               key={message.id}
               className={`lounge-message ${isUser ? 'lounge-message--out' : 'lounge-message--in'}`}
             >
-              {!isUser ? renderAvatar(message.sender) : null}
+              {!isUser ? renderAvatar(view) : null}
               <div className="lounge-message-body">
                 {!isUser ? (
-                  <span className="lounge-message-name">
-                    {member?.displayName ?? message.sender}
-                  </span>
+                  <span className="lounge-message-name">{view.displayName}</span>
                 ) : null}
                 <div className={`lounge-bubble ${message.streaming ? 'lounge-bubble--streaming' : ''}`}>
                   {message.content.length > 0 ? message.content : '…'}
@@ -571,26 +545,29 @@ const LoungeRoomPage = ({ user, aiConfig, onSaveLoungeScenePrompt }: LoungeRoomP
         <div className="lounge-input-anchor">
           {mentionMenuOpen && members.length > 0 ? (
             <div className="lounge-mention-menu" role="menu">
-              {members.map((member) => (
-                <button
-                  key={member.sender}
-                  type="button"
-                  role="menuitem"
-                  className="lounge-mention-option"
-                  onClick={() => {
-                    handleInsertMention(member)
-                    setMentionMenuOpen(false)
-                  }}
-                >
-                  <span className="lounge-mention-emoji" aria-hidden="true">{member.emoji}</span>
-                  <span className="lounge-mention-name">@{member.displayName}</span>
-                  <span
-                    className="lounge-mention-dot"
-                    style={{ backgroundColor: member.color }}
-                    aria-hidden="true"
-                  />
-                </button>
-              ))}
+              {members.map((member) => {
+                const entry = resolveLoungeMentionEntry(member)
+                return (
+                  <button
+                    key={member.sender}
+                    type="button"
+                    role="menuitem"
+                    className="lounge-mention-option"
+                    onClick={() => {
+                      handleInsertMention(entry.mentionName)
+                      setMentionMenuOpen(false)
+                    }}
+                  >
+                    <span className="lounge-mention-emoji" aria-hidden="true">{entry.emoji}</span>
+                    <span className="lounge-mention-name">@{entry.mentionName}</span>
+                    <span
+                      className="lounge-mention-dot"
+                      style={{ backgroundColor: entry.color }}
+                      aria-hidden="true"
+                    />
+                  </button>
+                )
+              })}
             </div>
           ) : null}
           <div className="lounge-input-row">
