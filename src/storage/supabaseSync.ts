@@ -1,4 +1,8 @@
 import type {
+  Archive,
+  ArchiveCategory,
+  ArchiveImportance,
+  ArchiveScope,
   BubbleMessage,
   BubbleSession,
   ChatMessage,
@@ -3426,3 +3430,253 @@ export const updateNovelBookMeta = async (bookId:string, updates:{ title?: strin
 export const listNovelChaptersByBookId = async (bookId: string): Promise<NovelChapter[]> => { if (!supabase) return []; const {data,error}=await supabase.from('novel_chapters').select('*').eq('book_id',bookId).order('chapter_number',{ascending:true}); if(error) throw error; return (data??[] as NovelChapterRow[]).map((r)=>mapNovelChapterRow(r as NovelChapterRow)) }
 export const createNovelChapter = async (payload:{ bookId:string; chapterNumber:number; title:string; content:string; directorNote:string; summary:string }): Promise<NovelChapter> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const now=new Date().toISOString(); const {data,error}=await supabase.from('novel_chapters').insert({book_id:payload.bookId,chapter_number:payload.chapterNumber,title:payload.title,content:payload.content,director_note:payload.directorNote,summary:payload.summary,created_at:now,updated_at:now}).select('*').single(); if(error||!data) throw error ?? new Error('创建章节失败'); return mapNovelChapterRow(data as NovelChapterRow) }
 export const updateNovelChapter = async (chapterId:string, updates:{ content?:string; directorNote?:string; summary?:string; status?:'draft'|'published' }): Promise<NovelChapter> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const patch: Record<string, unknown> = {updated_at:new Date().toISOString()}; if(typeof updates.content !== 'undefined') patch.content = updates.content; if(typeof updates.directorNote !== 'undefined') patch.director_note = updates.directorNote; if(typeof updates.summary !== 'undefined') patch.summary = updates.summary; if(typeof updates.status !== 'undefined') patch.status = updates.status; const {data,error}=await supabase.from('novel_chapters').update(patch).eq('id',chapterId).select('*').single(); if(error||!data) throw error ?? new Error('更新章节失败'); return mapNovelChapterRow(data as NovelChapterRow) }
+
+
+// ── System Archive (系统档案) ─────────────────────────────
+
+type ArchiveCategoryRow = {
+  id: string
+  user_id: string
+  parent_id: string | null
+  scope: string
+  name: string
+  sort_order: number | null
+  created_at: string
+  updated_at: string
+}
+
+type ArchiveRow = {
+  id: string
+  user_id: string
+  category_id: string
+  title: string
+  content: string
+  keywords: string[] | null
+  aliases: string[] | null
+  importance: string | null
+  source: string | null
+  is_deleted: boolean | null
+  created_at: string
+  updated_at: string
+}
+
+const ARCHIVE_IMPORTANCE_VALUES: ArchiveImportance[] = ['low', 'normal', 'high', 'critical']
+
+const normalizeArchiveScope = (scope: string): ArchiveScope =>
+  scope === 'syzygy' ? 'syzygy' : 'chuanchuan'
+
+const normalizeArchiveImportance = (importance: string | null): ArchiveImportance =>
+  (ARCHIVE_IMPORTANCE_VALUES as string[]).includes(importance ?? '')
+    ? (importance as ArchiveImportance)
+    : 'normal'
+
+const mapArchiveCategoryRow = (row: ArchiveCategoryRow): ArchiveCategory => ({
+  id: row.id,
+  userId: row.user_id,
+  parentId: row.parent_id,
+  scope: normalizeArchiveScope(row.scope),
+  name: row.name,
+  sortOrder: row.sort_order ?? 0,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapArchiveRow = (row: ArchiveRow): Archive => ({
+  id: row.id,
+  userId: row.user_id,
+  categoryId: row.category_id,
+  title: row.title,
+  content: row.content ?? '',
+  keywords: Array.isArray(row.keywords) ? row.keywords : [],
+  aliases: Array.isArray(row.aliases) ? row.aliases : [],
+  importance: normalizeArchiveImportance(row.importance),
+  source: row.source ?? 'manual',
+  isDeleted: row.is_deleted ?? false,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const ARCHIVE_CATEGORY_COLUMNS = 'id,user_id,parent_id,scope,name,sort_order,created_at,updated_at'
+const ARCHIVE_COLUMNS =
+  'id,user_id,category_id,title,content,keywords,aliases,importance,source,is_deleted,created_at,updated_at'
+
+export const listArchiveCategories = async (scope: ArchiveScope): Promise<ArchiveCategory[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('archive_categories')
+    .select(ARCHIVE_CATEGORY_COLUMNS)
+    .eq('user_id', userId)
+    .eq('scope', scope)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapArchiveCategoryRow(row as ArchiveCategoryRow))
+}
+
+export const createArchiveCategory = async (payload: {
+  scope: ArchiveScope
+  name: string
+  parentId: string | null
+  sortOrder?: number
+}): Promise<ArchiveCategory> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('archive_categories')
+    .insert({
+      user_id: userId,
+      scope: payload.scope,
+      name: payload.name,
+      parent_id: payload.parentId,
+      sort_order: payload.sortOrder ?? 0,
+    })
+    .select(ARCHIVE_CATEGORY_COLUMNS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('创建目录失败')
+  }
+  return mapArchiveCategoryRow(data as ArchiveCategoryRow)
+}
+
+export const renameArchiveCategory = async (categoryId: string, name: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('archive_categories')
+    .update({ name, updated_at: new Date().toISOString() })
+    .eq('id', categoryId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+// Hard delete: DB cascades to child categories and their archives.
+export const deleteArchiveCategory = async (categoryId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('archive_categories')
+    .delete()
+    .eq('id', categoryId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}
+
+export const listArchives = async (categoryId: string): Promise<Archive[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('archives')
+    .select(ARCHIVE_COLUMNS)
+    .eq('user_id', userId)
+    .eq('category_id', categoryId)
+    .eq('is_deleted', false)
+    .order('updated_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapArchiveRow(row as ArchiveRow))
+}
+
+export const createArchive = async (payload: {
+  categoryId: string
+  title: string
+  content: string
+  keywords: string[]
+  aliases: string[]
+  importance: ArchiveImportance
+  source?: string
+}): Promise<Archive> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('archives')
+    .insert({
+      user_id: userId,
+      category_id: payload.categoryId,
+      title: payload.title,
+      content: payload.content,
+      keywords: payload.keywords,
+      aliases: payload.aliases,
+      importance: payload.importance,
+      source: payload.source ?? 'manual',
+    })
+    .select(ARCHIVE_COLUMNS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('创建档案失败')
+  }
+  return mapArchiveRow(data as ArchiveRow)
+}
+
+export const updateArchive = async (
+  archiveId: string,
+  payload: {
+    categoryId?: string
+    title: string
+    content: string
+    keywords: string[]
+    aliases: string[]
+    importance: ArchiveImportance
+  },
+): Promise<Archive> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const patch: Record<string, unknown> = {
+    title: payload.title,
+    content: payload.content,
+    keywords: payload.keywords,
+    aliases: payload.aliases,
+    importance: payload.importance,
+    updated_at: new Date().toISOString(),
+  }
+  if (typeof payload.categoryId !== 'undefined') {
+    patch.category_id = payload.categoryId
+  }
+  const { data, error } = await supabase
+    .from('archives')
+    .update(patch)
+    .eq('id', archiveId)
+    .eq('user_id', userId)
+    .select(ARCHIVE_COLUMNS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('更新档案失败')
+  }
+  return mapArchiveRow(data as ArchiveRow)
+}
+
+export const softDeleteArchive = async (archiveId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase
+    .from('archives')
+    .update({ is_deleted: true, updated_at: new Date().toISOString() })
+    .eq('id', archiveId)
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+}

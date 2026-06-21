@@ -486,3 +486,32 @@ export type LoungeMember = {
   emoji: string
   color: string
 }
+
+export type ArchiveScope = 'chuanchuan' | 'syzygy'
+export type ArchiveImportance = 'low' | 'normal' | 'high' | 'critical'
+
+export type ArchiveCategory = {
+  id: string
+  userId: string
+  parentId: string | null
+  scope: ArchiveScope
+  name: string
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type Archive = {
+  id: string
+  userId: string
+  categoryId: string
+  title: string
+  content: string
+  keywords: string[]
+  aliases: string[]
+  importance: ArchiveImportance
+  source: string
+  isDeleted: boolean
+  createdAt: string
+  updatedAt: string
+}

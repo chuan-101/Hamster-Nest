@@ -71,6 +71,7 @@ import TimelinePage from './pages/TimelinePage'
 import TodoPage from './pages/TodoPage'
 import HamsterConsolePage from './pages/HamsterConsolePage'
 import AgentCouncilPage from './pages/AgentCouncilPage'
+import ArchivePage from './pages/ArchivePage'
 import WalletPage from './pages/WalletPage'
 import WikiPage from './pages/WikiPage'
 import NovelPage from './pages/NovelPage'
@@ -2228,6 +2229,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <AgentCouncilPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/archive"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <ArchivePage />
             </RequireAuth>
           }
         />
