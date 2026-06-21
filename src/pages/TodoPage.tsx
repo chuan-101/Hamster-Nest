@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { TodoCategory, TodoCreatedBy, TodoItem } from '../types'
+import type { TodoCategory, TodoCreatedBy, TodoItem, TodoStatus, TodoType } from '../types'
 import {
   createTodoCategory,
   createTodoItem,
   deleteTodoCategory,
   deleteTodoItem,
   listTodoCategoriesByDate,
+  listTodoDashboard,
   listTodosByDate,
   listTodosByMonth,
   updateTodoItem,
   updateTodoItemStatus,
+  type TodoDashboardData,
 } from '../storage/supabaseSync'
 import './TimelinePage.css'
 import './TodoPage.css'
+
+type TodoView = 'calendar' | 'dashboard'
 
 type TodoEditorState = {
   mode: 'create' | 'edit'
@@ -22,6 +26,8 @@ type TodoEditorState = {
   title: string
   notes: string
   createdBy: TodoCreatedBy
+  todoType: TodoType
+  eventDate: string
 }
 
 type CalendarTodoMeta = {
@@ -33,6 +39,31 @@ type CalendarTodoMeta = {
 const CREATED_BY_META: Record<TodoCreatedBy, { emoji: string; label: string }> = {
   串串: { emoji: '🐹', label: '串串' },
   syzygy: { emoji: '💙', label: 'syzygy' },
+}
+
+// 点击状态按钮时的循环顺序：未完成 → 进行中 → 已完成 → 未完成。
+const STATUS_CYCLE: Record<TodoStatus, TodoStatus> = {
+  pending: 'in_progress',
+  in_progress: 'completed',
+  completed: 'pending',
+}
+
+const STATUS_GLYPH: Record<TodoStatus, string> = {
+  pending: '',
+  in_progress: '◐',
+  completed: '✓',
+}
+
+const STATUS_LABEL: Record<TodoStatus, string> = {
+  pending: '未完成',
+  in_progress: '进行中',
+  completed: '已完成',
+}
+
+const STATUS_NOTICE: Record<TodoStatus, string> = {
+  pending: '已恢复为未完成',
+  in_progress: '已标记进行中',
+  completed: '已完成待办',
 }
 
 const toLocalDateKey = (value: Date) => {
@@ -57,6 +88,7 @@ const getMonthRange = (anchorDate: Date) => {
 const TodoPage = () => {
   const navigate = useNavigate()
   const today = useMemo(() => getTodayDate(), [])
+  const [view, setView] = useState<TodoView>('calendar')
   const [monthCursor, setMonthCursor] = useState(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
@@ -65,8 +97,10 @@ const TodoPage = () => {
   const [monthTodos, setMonthTodos] = useState<TodoItem[]>([])
   const [categories, setCategories] = useState<TodoCategory[]>([])
   const [dayTodos, setDayTodos] = useState<TodoItem[]>([])
+  const [dashboard, setDashboard] = useState<TodoDashboardData>({ nearTermOpen: [], longTerm: [] })
   const [monthLoading, setMonthLoading] = useState(true)
   const [dayLoading, setDayLoading] = useState(true)
+  const [dashboardLoading, setDashboardLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [categoryName, setCategoryName] = useState('')
   const [showCategoryForm, setShowCategoryForm] = useState(false)
@@ -108,9 +142,23 @@ const TodoPage = () => {
     }
   }, [selectedDate])
 
+  const refreshDashboard = useCallback(async () => {
+    setDashboardLoading(true)
+    try {
+      const data = await listTodoDashboard()
+      setDashboard(data)
+      setError(null)
+    } catch (loadError) {
+      console.warn('加载待办仪表盘失败', loadError)
+      setError('加载待办仪表盘失败，请稍后重试')
+    } finally {
+      setDashboardLoading(false)
+    }
+  }, [])
+
   const refreshAll = useCallback(async () => {
-    await Promise.all([refreshMonth(), refreshSelectedDate()])
-  }, [refreshMonth, refreshSelectedDate])
+    await Promise.all([refreshMonth(), refreshSelectedDate(), refreshDashboard()])
+  }, [refreshMonth, refreshSelectedDate, refreshDashboard])
 
   useEffect(() => {
     void refreshMonth()
@@ -119,6 +167,19 @@ const TodoPage = () => {
   useEffect(() => {
     void refreshSelectedDate()
   }, [refreshSelectedDate])
+
+  useEffect(() => {
+    void refreshDashboard()
+  }, [refreshDashboard])
+
+  const dashboardPending = useMemo(
+    () => dashboard.nearTermOpen.filter((todo) => todo.status === 'pending'),
+    [dashboard],
+  )
+  const dashboardInProgress = useMemo(
+    () => dashboard.nearTermOpen.filter((todo) => todo.status === 'in_progress'),
+    [dashboard],
+  )
 
   const todosByDate = useMemo(() => {
     const groups = new Map<string, CalendarTodoMeta>()
@@ -201,7 +262,15 @@ const TodoPage = () => {
   }
 
   const openCreateTodo = (categoryId: string) => {
-    setEditor({ mode: 'create', categoryId, title: '', notes: '', createdBy: '串串' })
+    setEditor({
+      mode: 'create',
+      categoryId,
+      title: '',
+      notes: '',
+      createdBy: '串串',
+      todoType: 'short_term',
+      eventDate: '',
+    })
   }
 
   const openEditTodo = (todo: TodoItem) => {
@@ -212,6 +281,8 @@ const TodoPage = () => {
       title: todo.title,
       notes: todo.notes ?? '',
       createdBy: todo.createdBy,
+      todoType: todo.todoType,
+      eventDate: todo.eventDate ?? '',
     })
   }
 
@@ -226,6 +297,7 @@ const TodoPage = () => {
       setError('待办标题不能为空')
       return
     }
+    const eventDate = editor.todoType === 'long_term' ? editor.eventDate || null : null
     setSaving(true)
     try {
       if (editor.mode === 'create') {
@@ -237,10 +309,18 @@ const TodoPage = () => {
           notes: notes || null,
           createdBy: editor.createdBy,
           sortOrder: categoryTodos.length,
+          todoType: editor.todoType,
+          eventDate,
         })
         setNotice('待办已创建')
       } else if (editor.todoId) {
-        await updateTodoItem(editor.todoId, { title, notes: notes || null, createdBy: editor.createdBy })
+        await updateTodoItem(editor.todoId, {
+          title,
+          notes: notes || null,
+          createdBy: editor.createdBy,
+          todoType: editor.todoType,
+          eventDate,
+        })
         setNotice('待办已更新')
       }
       setEditor(null)
@@ -297,11 +377,12 @@ const TodoPage = () => {
     }
   }
 
-  const handleToggleStatus = async (todo: TodoItem) => {
+  const handleAdvanceStatus = async (todo: TodoItem) => {
+    const nextStatus = STATUS_CYCLE[todo.status]
     setSaving(true)
     try {
-      await updateTodoItemStatus(todo.id, todo.status === 'completed' ? 'pending' : 'completed')
-      setNotice(todo.status === 'completed' ? '已恢复待办' : '已完成待办')
+      await updateTodoItemStatus(todo.id, nextStatus)
+      setNotice(STATUS_NOTICE[nextStatus])
       setError(null)
       await refreshAll()
     } catch (saveError) {
@@ -310,6 +391,38 @@ const TodoPage = () => {
     } finally {
       setSaving(false)
     }
+  }
+
+  const renderDashboardTodo = (todo: TodoItem) => {
+    const creator = CREATED_BY_META[todo.createdBy] ?? CREATED_BY_META.串串
+    const completed = todo.status === 'completed'
+    const inProgress = todo.status === 'in_progress'
+    const meta =
+      todo.todoType === 'long_term'
+        ? `🎯 ${todo.eventDate ?? '未定目标日期'}`
+        : `📅 ${todo.date}`
+    return (
+      <article
+        className={['todo-item', completed && 'todo-item--completed', inProgress && 'todo-item--in-progress'].filter(Boolean).join(' ')}
+        key={todo.id}
+      >
+        <button
+          type="button"
+          className={`todo-item__status todo-item__status--${todo.status}`}
+          onClick={() => handleAdvanceStatus(todo)}
+          aria-label={`当前${STATUS_LABEL[todo.status]}，点击切换为${STATUS_LABEL[STATUS_CYCLE[todo.status]]}`}
+          title={STATUS_LABEL[todo.status]}
+          disabled={saving}
+        >
+          {STATUS_GLYPH[todo.status]}
+        </button>
+        <button type="button" className="todo-item__content" onClick={() => openEditTodo(todo)}>
+          <span className="todo-item__title">{todo.title}</span>
+          <span className="todo-item__meta">{meta}</span>
+        </button>
+        <span className="todo-item__creator" title={creator.label}>{creator.emoji}</span>
+      </article>
+    )
   }
 
   return (
@@ -322,11 +435,35 @@ const TodoPage = () => {
           <p className="timeline-kicker">To do</p>
           <h1 className="ui-title">待办小窝</h1>
         </div>
-        <button type="button" className="timeline-create-btn" onClick={() => setShowCategoryForm(true)}>
-          + 类目
-        </button>
+        {view === 'calendar' ? (
+          <button type="button" className="timeline-create-btn" onClick={() => setShowCategoryForm(true)}>
+            + 类目
+          </button>
+        ) : null}
       </header>
 
+      <div className="todo-view-switch" role="tablist" aria-label="待办视图切换">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'calendar'}
+          className={['todo-view-switch__btn', view === 'calendar' && 'is-active'].filter(Boolean).join(' ')}
+          onClick={() => setView('calendar')}
+        >
+          📅 日历
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'dashboard'}
+          className={['todo-view-switch__btn', view === 'dashboard' && 'is-active'].filter(Boolean).join(' ')}
+          onClick={() => setView('dashboard')}
+        >
+          📊 仪表盘
+        </button>
+      </div>
+
+      {view === 'calendar' ? (
       <section className="timeline-calendar" aria-label="待办月份日历">
         <div className="timeline-calendar__dot" aria-hidden="true" />
         <div className="timeline-calendar__top">
@@ -372,10 +509,12 @@ const TodoPage = () => {
         </div>
         {monthLoading ? <p className="todo-calendar-loading">月历提示加载中…</p> : null}
       </section>
+      ) : null}
 
       {notice ? <p className="timeline-notice">{notice}</p> : null}
       {error ? <p className="timeline-error">{error}</p> : null}
 
+      {view === 'calendar' ? (
       <section className="timeline-list todo-detail" aria-label="当天待办">
         <div className="todo-detail__top">
           <div>
@@ -440,19 +579,27 @@ const TodoPage = () => {
                       {categoryTodos.map((todo) => {
                         const creator = CREATED_BY_META[todo.createdBy] ?? CREATED_BY_META.串串
                         const completed = todo.status === 'completed'
+                        const inProgress = todo.status === 'in_progress'
                         return (
-                          <article className={['todo-item', completed && 'todo-item--completed'].filter(Boolean).join(' ')} key={todo.id}>
+                          <article
+                            className={['todo-item', completed && 'todo-item--completed', inProgress && 'todo-item--in-progress'].filter(Boolean).join(' ')}
+                            key={todo.id}
+                          >
                             <button
                               type="button"
-                              className="todo-item__status"
-                              onClick={() => handleToggleStatus(todo)}
-                              aria-label={completed ? '恢复为待办' : '标记完成'}
+                              className={`todo-item__status todo-item__status--${todo.status}`}
+                              onClick={() => handleAdvanceStatus(todo)}
+                              aria-label={`当前${STATUS_LABEL[todo.status]}，点击切换为${STATUS_LABEL[STATUS_CYCLE[todo.status]]}`}
+                              title={STATUS_LABEL[todo.status]}
                               disabled={saving}
                             >
-                              {completed ? '✓' : ''}
+                              {STATUS_GLYPH[todo.status]}
                             </button>
                             <button type="button" className="todo-item__content" onClick={() => openEditTodo(todo)}>
                               <span className="todo-item__title">{todo.title}</span>
+                              {todo.todoType === 'long_term' ? (
+                                <span className="todo-item__badge">长期{todo.eventDate ? ` · ${todo.eventDate}` : ''}</span>
+                              ) : null}
                               {todo.notes ? <span className="todo-item__notes">{todo.notes}</span> : null}
                             </button>
                             <div className="todo-item__actions">
@@ -479,6 +626,50 @@ const TodoPage = () => {
           </div>
         ) : null}
       </section>
+      ) : null}
+
+      {view === 'dashboard' ? (
+        <section className="todo-dashboard" aria-label="待办仪表盘">
+          {dashboardLoading ? <p className="tips">加载中…</p> : null}
+          <div className="todo-dashboard__columns">
+            <article className="todo-dashboard__col">
+              <header className="todo-dashboard__col-head">
+                <h3>未完成</h3>
+                <span className="todo-dashboard__count">{dashboardPending.length}</span>
+              </header>
+              {dashboardPending.length === 0 ? (
+                <p className="todo-dashboard__empty">没有未完成的近期待办</p>
+              ) : (
+                <div className="todo-dashboard__list">{dashboardPending.map(renderDashboardTodo)}</div>
+              )}
+            </article>
+
+            <article className="todo-dashboard__col">
+              <header className="todo-dashboard__col-head">
+                <h3>进行中</h3>
+                <span className="todo-dashboard__count">{dashboardInProgress.length}</span>
+              </header>
+              {dashboardInProgress.length === 0 ? (
+                <p className="todo-dashboard__empty">还没有进行中的待办</p>
+              ) : (
+                <div className="todo-dashboard__list">{dashboardInProgress.map(renderDashboardTodo)}</div>
+              )}
+            </article>
+
+            <article className="todo-dashboard__col">
+              <header className="todo-dashboard__col-head">
+                <h3>长期待办</h3>
+                <span className="todo-dashboard__count">{dashboard.longTerm.length}</span>
+              </header>
+              {dashboard.longTerm.length === 0 ? (
+                <p className="todo-dashboard__empty">还没有长期待办</p>
+              ) : (
+                <div className="todo-dashboard__list">{dashboard.longTerm.map(renderDashboardTodo)}</div>
+              )}
+            </article>
+          </div>
+        </section>
+      ) : null}
 
       {editor ? (
         <div className="timeline-editor-backdrop" role="dialog" aria-modal="true">
@@ -512,6 +703,26 @@ const TodoPage = () => {
                 <option value="syzygy">💙 syzygy</option>
               </select>
             </label>
+            <label>
+              待办类型
+              <select
+                value={editor.todoType}
+                onChange={(event) => setEditor({ ...editor, todoType: event.target.value as TodoType })}
+              >
+                <option value="short_term">近期待办</option>
+                <option value="long_term">长期待办</option>
+              </select>
+            </label>
+            {editor.todoType === 'long_term' ? (
+              <label>
+                目标日期
+                <input
+                  type="date"
+                  value={editor.eventDate}
+                  onChange={(event) => setEditor({ ...editor, eventDate: event.target.value })}
+                />
+              </label>
+            ) : null}
             <div className="timeline-editor__actions">
               <button type="button" className="secondary" onClick={() => setEditor(null)} disabled={saving}>
                 取消

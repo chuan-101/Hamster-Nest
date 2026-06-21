@@ -316,12 +316,91 @@
   flex-shrink: 0;
 }
 
+.timeline-card__body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
 .timeline-card__summary {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
   color: #4f3f4a;
   line-height: 1.45;
+}
+
+.timeline-card__source {
+  justify-self: start;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8a6b7d;
+  background: #fff3f8;
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  border-radius: 999px;
+  padding: 2px 9px;
+  line-height: 1.4;
+}
+
+/* ── Source statistics ────────────────────────── */
+
+.timeline-source-stats {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 214, 231, 0.88);
+  border-radius: 16px;
+  background: #fff;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+  box-shadow: 0 6px 14px rgba(255, 214, 231, 0.16);
+}
+
+.timeline-source-stats__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #76556c;
+}
+
+.timeline-source-stats__empty {
+  font-size: 12px;
+  color: #9c7b8e;
+}
+
+.timeline-source-stats__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.timeline-source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6a4459;
+  background: #fff5f9;
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.timeline-source-chip em {
+  font-style: normal;
+  font-weight: 700;
+  color: #fff;
+  background: #f29cc3;
+  border-radius: 999px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
 }
 
 /* ── Editor modal ─────────────────────────────── */

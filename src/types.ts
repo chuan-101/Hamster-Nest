@@ -331,7 +331,8 @@ export type TimelineEntry = {
 }
 
 export type TodoCreatedBy = '串串' | 'syzygy'
-export type TodoStatus = 'pending' | 'completed'
+export type TodoStatus = 'pending' | 'in_progress' | 'completed'
+export type TodoType = 'short_term' | 'long_term'
 
 export type TodoCategory = {
   id: string
@@ -350,6 +351,8 @@ export type TodoItem = {
   title: string
   notes: string | null
   status: TodoStatus
+  todoType: TodoType
+  eventDate: string | null
   createdBy: TodoCreatedBy
   sortOrder: number
   createdAt: string
