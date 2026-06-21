@@ -2943,6 +2943,16 @@ export const createAgentCouncilMessage = async (payload: {
   }
 }
 
+export const deleteAgentCouncilTopic = async (topic: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('agent_council').delete().eq('topic', topic)
+  if (error) {
+    throw error
+  }
+}
+
 const assertRpcSuccess = (rpcName: string, payload: unknown) => {
   const result =
     payload && typeof payload === 'object' && 'success' in payload

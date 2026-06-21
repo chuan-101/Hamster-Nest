@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createAgentCouncilMessage, listAgentCouncilMessages } from '../storage/supabaseSync'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { createAgentCouncilMessage, deleteAgentCouncilTopic, listAgentCouncilMessages } from '../storage/supabaseSync'
 import type { AgentCouncilMessage, AgentCouncilSpeaker } from '../types'
 import './AgentCouncilPage.css'
 
@@ -24,6 +25,8 @@ const AgentCouncilPage = () => {
   const [newTopic, setNewTopic] = useState('')
   const [newMessage, setNewMessage] = useState('')
   const [replyMessage, setReplyMessage] = useState('')
+  const [pendingDeleteTopic, setPendingDeleteTopic] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -119,6 +122,29 @@ const AgentCouncilPage = () => {
     }
   }
 
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteTopic) {
+      return
+    }
+    const topic = pendingDeleteTopic
+    setDeleting(true)
+    try {
+      await deleteAgentCouncilTopic(topic)
+      if (activeTopic === topic) {
+        setActiveTopic(null)
+      }
+      setPendingDeleteTopic(null)
+      setNotice('议题已删除')
+      setError(null)
+      await refresh()
+    } catch (deleteError) {
+      console.warn('删除议题失败', deleteError)
+      setError('删除议题失败，请稍后重试')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="council-page">
       <header className="council-header">
@@ -139,15 +165,27 @@ const AgentCouncilPage = () => {
         {!loading && topicSummaries.length === 0 ? <p className="council-empty">暂时还没有议题。</p> : null}
         <div className="topic-list">
           {topicSummaries.map((summary) => (
-            <button
+            <div
               key={summary.topic}
-              type="button"
               className={`topic-item ${activeTopic === summary.topic ? 'active' : ''}`}
-              onClick={() => setActiveTopic(summary.topic)}
             >
-              <strong>{summary.topic}</strong>
-              <span>{SPEAKER_META[summary.latest.speaker].label} · {formatTime(summary.latest.createdAt)}</span>
-            </button>
+              <button
+                type="button"
+                className="topic-item__select"
+                onClick={() => setActiveTopic(summary.topic)}
+              >
+                <strong>{summary.topic}</strong>
+                <span>{SPEAKER_META[summary.latest.speaker].label} · {formatTime(summary.latest.createdAt)}</span>
+              </button>
+              <button
+                type="button"
+                className="topic-item__delete"
+                onClick={() => setPendingDeleteTopic(summary.topic)}
+                aria-label={`删除议题 ${summary.topic}`}
+              >
+                删除
+              </button>
+            </div>
           ))}
         </div>
       </section>
@@ -185,6 +223,18 @@ const AgentCouncilPage = () => {
           <p className="council-empty">请先从上方选择一个议题。</p>
         )}
       </section>
+
+      <ConfirmDialog
+        open={pendingDeleteTopic !== null}
+        title="删除议题"
+        description={pendingDeleteTopic ? `确定要删除议题「${pendingDeleteTopic}」吗？该议题下的全部发言都会一并删除，且无法恢复。` : undefined}
+        confirmLabel={deleting ? '删除中…' : '删除'}
+        cancelLabel="取消"
+        confirmDisabled={deleting}
+        cancelDisabled={deleting}
+        onConfirm={() => void handleConfirmDelete()}
+        onCancel={() => setPendingDeleteTopic(null)}
+      />
     </div>
   )
 }

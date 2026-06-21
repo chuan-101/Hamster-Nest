@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { Link } from 'react-router-dom'
-import MarkdownRenderer from '../components/MarkdownRenderer'
 import { supabase } from '../supabase/client'
 import './HamsterConsolePage.css'
 
@@ -128,47 +127,12 @@ type CapabilityRow = {
   failure_count: number | null
 }
 
-type WeeklyDigestRow = {
-  id: string
-  week_start: string | null
-  week_end: string | null
-  highlights: unknown
-  digest_text: string | null
-}
-
 type CodexControlRow = {
   id: string
   action: 'wake' | 'sleep' | string
   status: 'pending' | 'executed' | string
   created_at: string
 }
-
-type AgentFeedStatus = 'unread' | 'read' | 'archived' | 'expired' | string
-type AgentFeedPriority = 'low' | 'normal' | 'high' | 'urgent' | string
-type AgentFeedItemRow = {
-  id: string
-  user_id: string
-  type: string | null
-  title: string | null
-  summary: string | null
-  content: string | null
-  content_format: 'markdown' | 'plain' | 'json' | string | null
-  priority: AgentFeedPriority | null
-  status: AgentFeedStatus | null
-  source: string | null
-  created_by: string | null
-  visible_from: string | null
-  expires_at: string | null
-  read_at: string | null
-  pinned: boolean | null
-  related_table: string | null
-  related_id: string | null
-  metadata: unknown
-  created_at: string | null
-  updated_at: string | null
-}
-
-type AgentFeedFilter = 'visible' | 'unread' | 'high' | 'read' | 'archived'
 
 type CodexControlViewState = {
   tone: 'green' | 'gray' | 'yellow'
@@ -183,41 +147,6 @@ const categoryLabelMap: Record<string, string> = {
   scenario: '场景',
   style: '风格',
 }
-
-const agentFeedTypeLabels: Record<string, string> = {
-  morning_share: '晨间分享',
-  reading_assist: '阅读辅助',
-  daily_card: '每日卡片',
-  system_notice: '系统提示',
-  syzygy_note: 'Syzygy 小纸条',
-  weekly_card: '周回顾',
-  reminder_card: '提醒',
-  print_card: '打印胶囊',
-  dev_log: '开发记录',
-  other: '其他',
-}
-
-const agentFeedPriorityLabels: Record<string, string> = {
-  urgent: '紧急',
-  high: '高优先级',
-  normal: '普通',
-  low: '低优先级',
-}
-
-const agentFeedStatusLabels: Record<string, string> = {
-  unread: '未读',
-  read: '已读',
-  archived: '已归档',
-  expired: '已过期',
-}
-
-const agentFeedPriorityRank: Record<string, number> = { urgent: 4, high: 3, normal: 2, low: 1 }
-
-const isAgentFeedExpired = (item: AgentFeedItemRow, now = Date.now()) => {
-  if (item.status === 'expired') return true
-  return item.expires_at ? new Date(item.expires_at).getTime() <= now : false
-}
-
 
 const formatJson = (value: unknown) => JSON.stringify(value ?? {}, null, 2)
 
@@ -329,15 +258,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const [expandedCapsuleId, setExpandedCapsuleId] = useState<string | null>(null)
   const [capabilities, setCapabilities] = useState<CapabilityRow[]>([])
   const [capabilitiesError, setCapabilitiesError] = useState<string | null>(null)
-  const [weeklyDigest, setWeeklyDigest] = useState<WeeklyDigestRow | null>(null)
-  const [weeklyDigestError, setWeeklyDigestError] = useState<string | null>(null)
-  const [agentFeedItems, setAgentFeedItems] = useState<AgentFeedItemRow[]>([])
-  const [agentFeedError, setAgentFeedError] = useState<string | null>(null)
-  const [agentFeedFilter, setAgentFeedFilter] = useState<AgentFeedFilter>('unread')
-  const [expandedFeedIds, setExpandedFeedIds] = useState<Record<string, boolean>>({})
-  const [expandedFeedMetadataIds, setExpandedFeedMetadataIds] = useState<Record<string, boolean>>({})
-  const [updatingFeedId, setUpdatingFeedId] = useState<string | null>(null)
-
   const activeTemplate = useMemo(
     () => promptTemplates.find((item) => item.id === activeTemplateId) ?? null,
     [promptTemplates, activeTemplateId],
@@ -373,17 +293,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const weeklyQueuedCount = printCapsules.filter((item) => item.scheduled_print_week === capsuleWeekFilter && item.status === 'queued').length
   const weeklyPrintedCount = printCapsules.filter((item) => item.scheduled_print_week === capsuleWeekFilter && item.status === 'printed').length
   const snapshotExpired = contextSnapshot?.stale_after ? new Date(contextSnapshot.stale_after).getTime() < nowMs : false
-  const filteredAgentFeedItems = useMemo(() => {
-    const activeItems = agentFeedItems.filter((item) => !isAgentFeedExpired(item, nowMs))
-    const baseItems = agentFeedFilter === 'visible' ? agentFeedItems : agentFeedFilter === 'unread' ? activeItems.filter((item) => (item.status ?? 'unread') === 'unread') : agentFeedFilter === 'high' ? activeItems.filter((item) => ['urgent', 'high'].includes(item.priority ?? 'normal')) : agentFeedItems.filter((item) => item.status === agentFeedFilter)
-    return [...baseItems].sort((left, right) => {
-      const pinnedDelta = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned))
-      if (pinnedDelta) return pinnedDelta
-      const priorityDelta = (agentFeedPriorityRank[right.priority ?? 'normal'] ?? 0) - (agentFeedPriorityRank[left.priority ?? 'normal'] ?? 0)
-      if (priorityDelta) return priorityDelta
-      return new Date(right.created_at ?? 0).getTime() - new Date(left.created_at ?? 0).getTime()
-    })
-  }, [agentFeedFilter, agentFeedItems, nowMs])
 
   const modelOptions = useMemo(() => {
     const merged = new Set<string>(availableModels)
@@ -437,7 +346,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     setErrorMessage(null)
 
     const { start: todayStart, end: todayEnd } = getTodayIsoRange()
-    const [channelRes, settingsRes, templateRes, commandsRes, modelRes, codexRes, wechatRes, taskRes, snapshotRes, digestRes, capsuleRes, capabilityRes, weeklyRes, feedRes] = await Promise.all([
+    const [channelRes, settingsRes, templateRes, commandsRes, modelRes, codexRes, wechatRes, taskRes, snapshotRes, digestRes, capsuleRes, capabilityRes] = await Promise.all([
       supabase
         .from('channel_config')
         .select('user_id, channel_name, active_model')
@@ -480,15 +389,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       supabase.from('daily_status_digest').select('id, period, summary_text, created_at').gte('created_at', todayStart).lt('created_at', todayEnd),
       supabase.from('print_capsules').select('id, title, type, paper_size, status, trigger_reason, created_at, scheduled_print_week, sort_order, hidden_until_printed, content').order('created_at', { ascending: false }).limit(80),
       supabase.from('capabilities').select('id, name, description, risk_level, enabled, requires_confirmation, output_channel, last_used_at, cooldown_until, usage_count, failure_count').order('name', { ascending: true }),
-      supabase.from('weekly_digest').select('id, week_start, week_end, highlights, digest_text').order('week_start', { ascending: false }).limit(1).maybeSingle(),
-      supabase
-        .from('agent_feed_items')
-        .select('id, user_id, type, title, summary, content, content_format, priority, status, source, created_by, visible_from, expires_at, read_at, pinned, related_table, related_id, metadata, created_at, updated_at')
-        .eq('user_id', scopedUserId)
-        .or(`visible_from.is.null,visible_from.lte.${new Date().toISOString()}`)
-        .order('pinned', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(80),
     ])
 
     if (channelRes.error || settingsRes.error || templateRes.error || commandsRes.error || modelRes.error || codexRes.error) {
@@ -561,10 +461,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     setPrintCapsulesError(capsuleRes.error?.message ?? null)
     setCapabilities((capabilityRes.data ?? []) as CapabilityRow[])
     setCapabilitiesError(capabilityRes.error?.message ?? null)
-    setWeeklyDigest((weeklyRes.data as WeeklyDigestRow | null) ?? null)
-    setWeeklyDigestError(weeklyRes.error?.message ?? null)
-    setAgentFeedItems((feedRes.data ?? []) as AgentFeedItemRow[])
-    setAgentFeedError(feedRes.error?.message ?? null)
 
     setLoading(false)
   }, [scopedUserId])
@@ -805,22 +701,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       current.map((item) => (item.id === activeTemplate.id ? { ...item, content: templateDraft } : item)),
     )
     showToast(`Prompt 已保存：${activeTemplate.name}`)
-  }
-
-
-  const handleUpdateFeedStatus = async (item: AgentFeedItemRow, status: 'read' | 'archived') => {
-    if (!supabase) return
-    setUpdatingFeedId(item.id)
-    setAgentFeedError(null)
-    const patch = status === 'read' ? { status, read_at: new Date().toISOString() } : { status }
-    const { error } = await supabase.from('agent_feed_items').update(patch).eq('id', item.id).eq('user_id', scopedUserId)
-    setUpdatingFeedId(null)
-    if (error) {
-      setAgentFeedError(`状态更新失败，已降级为只读展示：${error.message}`)
-      return
-    }
-    setAgentFeedItems((current) => current.map((feedItem) => (feedItem.id === item.id ? { ...feedItem, ...patch } : feedItem)))
-    showToast(status === 'read' ? '已标记为已读' : '已归档卡片')
   }
 
   const toggleSection = (sectionId: string) => {
@@ -1206,77 +1086,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
           <section className="hamster-console-card glass-card hamster-console-group" aria-label="V3.0 观测台">
             <button className="hamster-console-accordion__header" onClick={() => toggleGroup('v3')}>
-              <div><h2>V3.0 观测台</h2><small>执行记录 / 当前状态快照 / 打印胶囊 / 能力 / 周回顾 / 指令</small></div>
+              <div><h2>V3.0 观测台</h2><small>执行记录 / 当前状态快照 / 打印胶囊 / 能力 / 指令</small></div>
               <span>{expandedGroups.v3 ? '▼' : '▶'}</span>
             </button>
             <div className={`hamster-console-accordion__content ${expandedGroups.v3 ? 'expanded' : ''}`}>
               <div className="hamster-console-accordion__inner hamster-console-nested-stack">
-
-          <section className="hamster-console-card glass-card" aria-label="Syzygy Feed">
-            <button className="hamster-console-accordion__header" onClick={() => toggleSection('syzygy-feed')}><h2>Syzygy Feed（已迁移 · 管理视图）</h2><span>{expandedSection === 'syzygy-feed' ? '▼' : '▶'}</span></button>
-            <div className={`hamster-console-accordion__content ${expandedSection === 'syzygy-feed' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
-              <div className="hamster-feed-moved-banner">
-                <span aria-hidden="true">📮</span>
-                <div>
-                  <strong>Syzygy Feed 已搬到首页 Page 3</strong>
-                  <p>晨间分享、状态卡、小纸条和周回顾现在是独立的生活前台。仓鼠机这里仅保留只读管理视图。</p>
-                </div>
-                <Link to="/feed" className="btn-primary hamster-feed-moved-banner__link">前往 Feed →</Link>
-              </div>
-              <p className="hamster-console-card__hint">读取 agent_feed_items：CLI / Syzygy 生成内容的持久化卡片（管理用途）。</p>
-              {agentFeedError ? <p className="hamster-console-alert">当前前端暂时没有权限读取 Syzygy Feed，请检查 Supabase session / RLS。{agentFeedError.includes('状态更新失败') ? `（${agentFeedError}）` : ''}</p> : null}
-              <div className="hamster-feed-filter-row" role="tablist" aria-label="Syzygy Feed 筛选">
-                {[
-                  ['visible', '全部可见'],
-                  ['unread', '未读'],
-                  ['high', '高优先级'],
-                  ['read', '已读'],
-                  ['archived', '已归档'],
-                ].map(([value, label]) => <button key={value} className={`hamster-feed-filter ${agentFeedFilter === value ? 'active' : ''}`} onClick={() => setAgentFeedFilter(value as AgentFeedFilter)}>{label}</button>)}
-              </div>
-              <div className="hamster-feed-list">
-                {filteredAgentFeedItems.map((item) => {
-                  const expanded = Boolean(expandedFeedIds[item.id])
-                  const metadataExpanded = Boolean(expandedFeedMetadataIds[item.id])
-                  const expired = isAgentFeedExpired(item, nowMs)
-                  const status = expired ? 'expired' : (item.status ?? 'unread')
-                  const priority = item.priority ?? 'normal'
-                  return (
-                    <article key={item.id} className={`hamster-feed-card ${status} priority-${priority} ${item.pinned ? 'pinned' : ''}`}>
-                      <button className="hamster-feed-card__header" onClick={() => setExpandedFeedIds((current) => ({ ...current, [item.id]: !expanded }))}>
-                        <div className="hamster-feed-card__title-block">
-                          <div className="hamster-feed-card__title-row"><strong>{item.title ?? '(无标题卡片)'}</strong>{item.pinned ? <span className="hamster-feed-pill pinned">置顶</span> : null}</div>
-                          <p>{item.summary ?? '暂无摘要。'}</p>
-                        </div>
-                        <span>{expanded ? '收起' : '展开'}</span>
-                      </button>
-                      <div className="hamster-feed-meta-row">
-                        <span className="hamster-feed-pill type">{agentFeedTypeLabels[item.type ?? 'other'] ?? item.type ?? '其他'}</span>
-                        <span className={`hamster-feed-pill priority ${priority}`}>{agentFeedPriorityLabels[priority] ?? priority}</span>
-                        <span className={`hamster-feed-pill status ${status}`}>{agentFeedStatusLabels[status] ?? status}</span>
-                        <span>{item.created_by ?? item.source ?? 'unknown'}</span>
-                        <span>{formatDateTime(item.created_at)}</span>
-                        {item.expires_at ? <span>过期：{formatDateTime(item.expires_at)}</span> : null}
-                      </div>
-                      {expanded ? <div className="hamster-feed-card__body">
-                        <div className="hamster-feed-content">
-                          {item.content_format === 'markdown' ? <MarkdownRenderer content={item.content ?? '暂无正文。'} /> : item.content_format === 'json' ? <pre>{item.content ?? '暂无正文。'}</pre> : <p>{item.content ?? '暂无正文。'}</p>}
-                        </div>
-                        {(item.related_table || item.related_id) ? <p className="hamster-console-card__hint">关联记录：{item.related_table ?? '--'} / {item.related_id ?? '--'}</p> : null}
-                        <button className="btn-secondary" onClick={() => setExpandedFeedMetadataIds((current) => ({ ...current, [item.id]: !metadataExpanded }))}>{metadataExpanded ? '收起 metadata' : '查看 metadata'}</button>
-                        {metadataExpanded ? <pre className="hamster-feed-metadata">{formatJson(item.metadata)}</pre> : null}
-                        <div className="hamster-feed-actions">
-                          {(item.status ?? 'unread') === 'unread' && !expired ? <button className="btn-primary" onClick={() => void handleUpdateFeedStatus(item, 'read')} disabled={updatingFeedId === item.id}>{updatingFeedId === item.id ? '更新中...' : '标记已读'}</button> : null}
-                          {item.status !== 'archived' ? <button className="btn-secondary" onClick={() => void handleUpdateFeedStatus(item, 'archived')} disabled={updatingFeedId === item.id}>{updatingFeedId === item.id ? '更新中...' : '归档'}</button> : null}
-                        </div>
-                      </div> : null}
-                    </article>
-                  )
-                })}
-              </div>
-              {!agentFeedError && filteredAgentFeedItems.length === 0 ? <p className="hamster-console-card__hint">{agentFeedFilter === 'unread' && agentFeedItems.some((item) => item.status === 'read') ? '新卡片都读完啦。' : '今天小窝里还没有新卡片。'}</p> : null}
-            </div></div>
-          </section>
 
           <section className="hamster-console-card glass-card" aria-label="执行记录">
             <button className="hamster-console-accordion__header" onClick={() => toggleSection('agent-tasks')}><h2>执行记录</h2><span>{expandedSection === 'agent-tasks' ? '▼' : '▶'}</span></button>
@@ -1313,13 +1127,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
             <button className="hamster-console-accordion__header" onClick={() => toggleSection('capabilities')}><h2>能力编排器</h2><span>{expandedSection === 'capabilities' ? '▼' : '▶'}</span></button>
             <div className={`hamster-console-accordion__content ${expandedSection === 'capabilities' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
               {capabilitiesError ? <p className="hamster-console-card__hint">当前前端无权限读取该表：{capabilitiesError}</p> : capabilities.length ? capabilities.map((capability) => <article key={capability.id} className="hamster-mini-card"><strong>{capability.name}</strong><p>{capability.description ?? '暂无说明'}</p><small>{capability.enabled ? '已启用' : '已禁用'} · 风险：{capability.risk_level ?? '--'} · 确认：{capability.requires_confirmation ? '需要' : '不需要'} · 渠道：{capability.output_channel ?? '--'} · 使用/失败：{capability.usage_count ?? 0}/{capability.failure_count ?? 0} · 冷却至：{formatDateTime(capability.cooldown_until)} · 最近使用：{formatDateTime(capability.last_used_at)}</small><em>当前前端无权限修改</em></article>) : <p className="hamster-console-card__hint">暂无能力配置。</p>}
-            </div></div>
-          </section>
-
-          <section className="hamster-console-card glass-card" aria-label="周回顾入口">
-            <button className="hamster-console-accordion__header" onClick={() => toggleSection('weekly-digest')}><h2>周回顾入口</h2><span>{expandedSection === 'weekly-digest' ? '▼' : '▶'}</span></button>
-            <div className={`hamster-console-accordion__content ${expandedSection === 'weekly-digest' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
-              {weeklyDigestError ? <p className="hamster-console-card__hint">当前前端无权限读取该表：{weeklyDigestError}</p> : weeklyDigest ? <div className="hamster-v3-detail"><strong>{weeklyDigest.week_start} → {weeklyDigest.week_end}</strong><pre>{formatJson(weeklyDigest.highlights)}</pre><p>{weeklyDigest.digest_text}</p></div> : <p className="hamster-console-card__hint">还没有生成周回顾。</p>}
             </div></div>
           </section>
 
