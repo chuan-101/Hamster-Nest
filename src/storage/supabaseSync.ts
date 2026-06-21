@@ -32,10 +32,12 @@ import type {
   SyzygyReply,
   TimelineEntry,
   TimelineRecorder,
+  TimelineSource,
   TodoCategory,
   TodoCreatedBy,
   TodoItem,
   TodoStatus,
+  TodoType,
   WalletBalance,
   WalletQuest,
   WalletQuestCreator,
@@ -182,6 +184,8 @@ type TodoItemRow = {
   title: string
   notes: string | null
   status: TodoStatus
+  todo_type: TodoType | null
+  event_date: string | null
   created_by: TodoCreatedBy | 'chuan'
   sort_order: number | null
   created_at: string
@@ -496,6 +500,9 @@ const mapTodoItemRow = (row: TodoItemRow): TodoItem => ({
   title: row.title,
   notes: row.notes,
   status: row.status,
+  // 旧数据 todo_type 可能为空，前端统一按 short_term（近期）处理。
+  todoType: row.todo_type === 'long_term' ? 'long_term' : 'short_term',
+  eventDate: row.event_date,
   createdBy: normalizeTodoCreatedBy(row.created_by),
   sortOrder: row.sort_order ?? 0,
   createdAt: row.created_at,
@@ -2613,6 +2620,7 @@ export const createTimelineEntry = async (payload: {
   eventDate: string
   summary: string
   recorder: TimelineRecorder
+  source?: TimelineSource
 }): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
@@ -2623,7 +2631,8 @@ export const createTimelineEntry = async (payload: {
     event_date: payload.eventDate,
     summary: payload.summary,
     recorder: payload.recorder,
-    source: 'user',
+    // 仓鼠窝前端手动写入默认标记来源为 frontend。
+    source: payload.source ?? 'frontend',
   })
   if (error) {
     throw error
@@ -2636,6 +2645,7 @@ export const updateTimelineEntry = async (
     eventDate: string
     summary: string
     recorder: TimelineRecorder
+    source?: TimelineSource
   },
 ): Promise<void> => {
   if (!supabase) {
@@ -2647,6 +2657,7 @@ export const updateTimelineEntry = async (
       event_date: payload.eventDate,
       summary: payload.summary,
       recorder: payload.recorder,
+      ...(payload.source ? { source: payload.source } : {}),
     })
     .eq('id', entryId)
   if (error) {
@@ -2675,7 +2686,7 @@ export const listTodosByMonth = async (
   const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('todos')
-    .select('id,user_id,category_id,date,title,notes,status,created_by,sort_order,created_at,completed_at')
+    .select('id,user_id,category_id,date,title,notes,status,todo_type,event_date,created_by,sort_order,created_at,completed_at')
     .eq('user_id', userId)
     .gte('date', monthStart)
     .lte('date', monthEnd)
@@ -2713,7 +2724,7 @@ export const listTodosByDate = async (date: string): Promise<TodoItem[]> => {
   const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('todos')
-    .select('id,user_id,category_id,date,title,notes,status,created_by,sort_order,created_at,completed_at')
+    .select('id,user_id,category_id,date,title,notes,status,todo_type,event_date,created_by,sort_order,created_at,completed_at')
     .eq('user_id', userId)
     .eq('date', date)
     .order('sort_order', { ascending: true })
@@ -2722,6 +2733,50 @@ export const listTodosByDate = async (date: string): Promise<TodoItem[]> => {
     throw error
   }
   return (data ?? []).map((row) => mapTodoItemRow(row as TodoItemRow))
+}
+
+export type TodoDashboardData = {
+  // 近期待办（todo_type=short_term 或空），尚未完成的项目，前端再按 status 拆成未完成 / 进行中。
+  nearTermOpen: TodoItem[]
+  // 长期待办（todo_type=long_term），按 event_date 升序，空目标日期排在最后。
+  longTerm: TodoItem[]
+}
+
+export const listTodoDashboard = async (): Promise<TodoDashboardData> => {
+  if (!supabase) {
+    return { nearTermOpen: [], longTerm: [] }
+  }
+  const userId = await requireAuthenticatedUserId()
+  const columns =
+    'id,user_id,category_id,date,title,notes,status,todo_type,event_date,created_by,sort_order,created_at,completed_at'
+  const [nearTermRes, longTermRes] = await Promise.all([
+    supabase
+      .from('todos')
+      .select(columns)
+      .eq('user_id', userId)
+      .neq('status', 'completed')
+      .or('todo_type.eq.short_term,todo_type.is.null')
+      .order('date', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('todos')
+      .select(columns)
+      .eq('user_id', userId)
+      .eq('todo_type', 'long_term')
+      .order('event_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true }),
+  ])
+  if (nearTermRes.error) {
+    throw nearTermRes.error
+  }
+  if (longTermRes.error) {
+    throw longTermRes.error
+  }
+  return {
+    nearTermOpen: (nearTermRes.data ?? []).map((row) => mapTodoItemRow(row as TodoItemRow)),
+    longTerm: (longTermRes.data ?? []).map((row) => mapTodoItemRow(row as TodoItemRow)),
+  }
 }
 
 export const createTodoCategory = async (payload: {
@@ -2751,11 +2806,14 @@ export const createTodoItem = async (payload: {
   notes: string | null
   createdBy: TodoCreatedBy
   sortOrder: number
+  todoType?: TodoType
+  eventDate?: string | null
 }): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
   const userId = await requireAuthenticatedUserId()
+  const todoType = payload.todoType ?? 'short_term'
   const { error } = await supabase.from('todos').insert({
     user_id: userId,
     category_id: payload.categoryId,
@@ -2763,6 +2821,9 @@ export const createTodoItem = async (payload: {
     title: payload.title,
     notes: payload.notes,
     status: 'pending',
+    todo_type: todoType,
+    // 仅长期待办保留目标日期，近期待办不写 event_date。
+    event_date: todoType === 'long_term' ? payload.eventDate ?? null : null,
     created_by: payload.createdBy,
     sort_order: payload.sortOrder,
   })
@@ -2773,15 +2834,30 @@ export const createTodoItem = async (payload: {
 
 export const updateTodoItem = async (
   todoId: string,
-  payload: { title: string; notes: string | null; createdBy: TodoCreatedBy },
+  payload: {
+    title: string
+    notes: string | null
+    createdBy: TodoCreatedBy
+    todoType?: TodoType
+    eventDate?: string | null
+  },
 ): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
   const userId = await requireAuthenticatedUserId()
+  const patch: Record<string, unknown> = {
+    title: payload.title,
+    notes: payload.notes,
+    created_by: payload.createdBy,
+  }
+  if (payload.todoType) {
+    patch.todo_type = payload.todoType
+    patch.event_date = payload.todoType === 'long_term' ? payload.eventDate ?? null : null
+  }
   const { error } = await supabase
     .from('todos')
-    .update({ title: payload.title, notes: payload.notes, created_by: payload.createdBy })
+    .update(patch)
     .eq('id', todoId)
     .eq('user_id', userId)
   if (error) {

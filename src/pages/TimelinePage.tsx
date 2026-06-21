@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { TimelineEntry, TimelineRecorder } from '../types'
+import type { TimelineEntry, TimelineRecorder, TimelineSource } from '../types'
 import {
   createTimelineEntry,
   deleteTimelineEntry,
@@ -15,12 +15,44 @@ type TimelineEditorState = {
   eventDate: string
   summary: string
   recorder: TimelineRecorder
+  source: TimelineSource
 }
 
 const RECORDER_META: Record<TimelineRecorder, { emoji: string; label: string }> = {
   chuanchuan: { emoji: '🐹', label: '串串' },
   syzygy: { emoji: '🩵', label: 'Syzygy' },
 }
+
+const DEFAULT_SOURCE: TimelineSource = 'frontend'
+
+// 来源端标签：source 表示写入端，和 recorder（记录者）区分。
+const SOURCE_META: Record<string, { label: string }> = {
+  frontend: { label: '仓鼠窝前端' },
+  wechat_api: { label: '微信' },
+  client_gpt: { label: '客户端 GPT' },
+  client_claude: { label: '客户端 Claude' },
+  codex_cli: { label: 'Codex CLI' },
+  claude_code_cli: { label: 'Claude Code CLI' },
+  system: { label: '系统' },
+  // 历史数据里已存在的旧来源值，保留可读标签。
+  claude: { label: 'Claude' },
+  gpt: { label: 'GPT' },
+  gemini: { label: 'Gemini' },
+  user: { label: '手动' },
+}
+
+// 新建 / 编辑表单可选来源（前端约定的来源端）。
+const SOURCE_OPTIONS: TimelineSource[] = [
+  'frontend',
+  'wechat_api',
+  'client_gpt',
+  'client_claude',
+  'codex_cli',
+  'claude_code_cli',
+  'system',
+]
+
+const getSourceLabel = (source: string) => SOURCE_META[source]?.label ?? source
 
 const getTodayDate = () => {
   const date = new Date()
@@ -54,6 +86,7 @@ const buildEditorState = (entry?: TimelineEntry): TimelineEditorState => ({
   eventDate: entry?.eventDate ?? getTodayDate(),
   summary: entry?.summary ?? '',
   recorder: entry?.recorder ?? 'chuanchuan',
+  source: entry?.source ?? DEFAULT_SOURCE,
 })
 
 const TimelinePage = () => {
@@ -126,6 +159,15 @@ const TimelinePage = () => {
     return Array.from(entriesByDate.entries()).sort((a, b) => b[0].localeCompare(a[0]))
   }, [entriesByDate])
 
+  // 来源统计：本地聚合当前月份各来源端写入数量。
+  const sourceStats = useMemo(() => {
+    const counts = new Map<string, number>()
+    entries.forEach((entry) => {
+      counts.set(entry.source, (counts.get(entry.source) ?? 0) + 1)
+    })
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])
+  }, [entries])
+
   const selectedEntries = useMemo(() => {
     if (!selectedDate) {
       return []
@@ -173,6 +215,7 @@ const TimelinePage = () => {
           eventDate: editor.eventDate,
           summary,
           recorder: editor.recorder,
+          source: editor.source,
         })
         setNotice('时间轴已创建')
       } else if (editor.entryId) {
@@ -180,6 +223,7 @@ const TimelinePage = () => {
           eventDate: editor.eventDate,
           summary,
           recorder: editor.recorder,
+          source: editor.source,
         })
         setNotice('时间轴已更新')
       }
@@ -274,6 +318,22 @@ const TimelinePage = () => {
         </div>
       </section>
 
+      <section className="timeline-source-stats" aria-label="来源统计">
+        <p className="timeline-source-stats__title">本月来源统计</p>
+        {sourceStats.length === 0 ? (
+          <span className="timeline-source-stats__empty">暂无记录</span>
+        ) : (
+          <div className="timeline-source-stats__chips">
+            {sourceStats.map(([source, count]) => (
+              <span key={source} className={`timeline-source-chip timeline-source--${source}`}>
+                {getSourceLabel(source)}
+                <em>{count}</em>
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
+
       {notice ? <p className="timeline-notice">{notice}</p> : null}
       {error ? <p className="timeline-error">{error}</p> : null}
 
@@ -301,7 +361,15 @@ const TimelinePage = () => {
                         <span className="timeline-card__recorder" title={recorderMeta.label}>
                           {recorderMeta.emoji}
                         </span>
-                        <p className="timeline-card__summary">{entry.summary}</p>
+                        <div className="timeline-card__body">
+                          <p className="timeline-card__summary">{entry.summary}</p>
+                          <span
+                            className={`timeline-card__source timeline-source--${entry.source}`}
+                            title={`来源：${getSourceLabel(entry.source)}`}
+                          >
+                            {getSourceLabel(entry.source)}
+                          </span>
+                        </div>
                       </button>
                     )
                   })}
@@ -342,6 +410,23 @@ const TimelinePage = () => {
               >
                 <option value="chuanchuan">{RECORDER_META.chuanchuan.emoji} {RECORDER_META.chuanchuan.label}</option>
                 <option value="syzygy">{RECORDER_META.syzygy.emoji} {RECORDER_META.syzygy.label}</option>
+              </select>
+            </label>
+            <label>
+              来源端
+              <select
+                value={editor.source}
+                onChange={(event) => setEditor({ ...editor, source: event.target.value as TimelineSource })}
+              >
+                {/* 编辑旧记录时，若来源不在标准选项内，补一个当前值方便保留 */}
+                {!SOURCE_OPTIONS.includes(editor.source) ? (
+                  <option value={editor.source}>{getSourceLabel(editor.source)}</option>
+                ) : null}
+                {SOURCE_OPTIONS.map((source) => (
+                  <option key={source} value={source}>
+                    {getSourceLabel(source)}
+                  </option>
+                ))}
               </select>
             </label>
 
