@@ -1232,9 +1232,10 @@ const App = () => {
           streamingControllerRef.current = controller
           setIsStreaming(true)
 
-          // hamster-mcp 工具列表：动态获取（带缓存），失败则本次对话不附带工具。
+          // hamster-mcp 工具列表：仅在用户点亮「工具」按钮时注入（方案 A：单次生效）。
+          // 工具定义有 40+ 条且每轮全量发送、绕过历史压缩，默认不注入可显著降低费用。
           let mcpTools: McpToolDefinition[] | null = null
-          if (!toolsUnsupportedModels.has(effectiveModel)) {
+          if (injectionOptions?.toolsEnabled && !toolsUnsupportedModels.has(effectiveModel)) {
             try {
               mcpTools = await listMcpTools({ accessToken, anonKey }, controller.signal)
             } catch (error) {

@@ -14,6 +14,7 @@ import './ChatPage.css'
 export type ChatInjectionOptions = {
   memoEnabled?: boolean
   timelineEnabled?: boolean
+  toolsEnabled?: boolean
 }
 
 export type ChatPageProps = {
@@ -74,6 +75,7 @@ const ChatPage = ({
   const [draft, setDraft] = useState('')
   const [memoToggle, setMemoToggle] = useState(false)
   const [timelineToggle, setTimelineToggle] = useState(false)
+  const [toolsToggle, setToolsToggle] = useState(false)
   const [openActionsId, setOpenActionsId] = useState<string | null>(null)
   const [actionsMenuPosition, setActionsMenuPosition] = useState<{ top: number; left: number } | null>(null)
   const [openHeaderMenu, setOpenHeaderMenu] = useState(false)
@@ -96,9 +98,11 @@ const ChatPage = ({
     const options: ChatInjectionOptions = {
       memoEnabled: memoToggle,
       timelineEnabled: timelineToggle,
+      toolsEnabled: toolsToggle,
     }
     setMemoToggle(false)
     setTimelineToggle(false)
+    setToolsToggle(false)
     await onSendMessage(trimmed, options)
     setDraft('')
   }
@@ -666,6 +670,14 @@ const ChatPage = ({
             aria-pressed={timelineToggle}
           >
             时间轴
+          </button>
+          <button
+            type="button"
+            className={`injection-toggle${toolsToggle ? ' injection-toggle--active' : ''}`}
+            onClick={() => setToolsToggle((current) => !current)}
+            aria-pressed={toolsToggle}
+          >
+            工具
           </button>
         </div>
         <div className="composer-row">
