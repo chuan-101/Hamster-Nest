@@ -653,43 +653,114 @@
   color: var(--text-subtle);
 }
 
-.injection-toggles {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.injection-toggle {
+.injection-trigger {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 14px;
-  min-height: 28px;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
   border-radius: 999px;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
-  font-size: 12px;
-  font-weight: 600;
   color: var(--text-subtle);
   cursor: pointer;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   user-select: none;
 }
 
-.injection-toggle:hover {
+.injection-trigger:hover {
   background: rgba(255, 255, 255, 0.35);
   color: var(--text-main);
 }
 
-.injection-toggle--active {
-  background: color-mix(in srgb, var(--accent) 38%, #ffffff 62%);
-  border-color: color-mix(in srgb, var(--accent-strong) 45%, var(--glass-border) 55%);
-  color: var(--text-main);
-  box-shadow: 0 2px 8px rgba(249, 168, 212, 0.22);
+.injection-trigger__icon {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 400;
+  transition: transform 200ms ease;
 }
 
-.injection-toggle--active:hover {
-  background: color-mix(in srgb, var(--accent) 48%, #ffffff 52%);
+.injection-trigger--open {
+  background: rgba(255, 255, 255, 0.4);
+  color: var(--text-main);
+}
+
+.injection-trigger--open .injection-trigger__icon {
+  transform: rotate(45deg);
+}
+
+.injection-trigger--active {
+  border-color: color-mix(in srgb, var(--accent-strong) 45%, var(--glass-border) 55%);
+  color: var(--text-main);
+}
+
+.injection-trigger__badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-strong) 70%, #f472b6 30%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(249, 168, 212, 0.4);
+}
+
+.injection-menu {
+  position: fixed;
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 132px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(12px);
+}
+
+.injection-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.injection-menu__item:hover {
+  background: #f3f4f6;
+}
+
+.injection-menu__item--active {
+  background: color-mix(in srgb, var(--accent) 30%, #ffffff 70%);
+  color: var(--text-main);
+}
+
+.injection-menu__item--active:hover {
+  background: color-mix(in srgb, var(--accent) 40%, #ffffff 60%);
+}
+
+.injection-menu__check {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-strong);
 }
 
 .composer-row {
@@ -754,10 +825,13 @@
     padding: 0 10px;
   }
 
-  .injection-toggle {
-    min-height: 26px;
-    padding: 3px 12px;
-    font-size: 12px;
+  .injection-trigger {
+    width: 38px;
+    height: 38px;
+  }
+
+  .injection-trigger__icon {
+    font-size: 20px;
   }
 
   .chip-value {
@@ -1118,31 +1192,49 @@
   background: linear-gradient(180deg, #fffbf5 0%, #f6d7d4 100%);
 }
 
-.chat-page--pixel .injection-toggle {
+.chat-page--pixel .injection-trigger {
   border: 2px solid var(--pixel-border);
   background: linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%);
   color: var(--pixel-subtle);
+  border-radius: 12px;
   box-shadow:
     inset 0 1px 0 #fffdf9,
     inset 0 -2px 0 rgba(134, 130, 125, 0.4);
 }
 
-.chat-page--pixel .injection-toggle:hover {
+.chat-page--pixel .injection-trigger:hover,
+.chat-page--pixel .injection-trigger--open {
   background: linear-gradient(180deg, #fffbf5 0%, #f6d7d4 100%);
   color: var(--pixel-text);
 }
 
-.chat-page--pixel .injection-toggle--active {
-  background: linear-gradient(180deg, #f6d7d4 0%, #efc2bc 100%);
+.chat-page--pixel .injection-trigger--active {
   border-color: #86827d;
   color: var(--pixel-text);
-  box-shadow:
-    inset 0 1px 0 #fffdf9,
-    inset 0 -2px 0 rgba(134, 130, 125, 0.4);
 }
 
-.chat-page--pixel .injection-toggle--active:hover {
-  background: linear-gradient(180deg, #efc2bc 0%, #e8b0a8 100%);
+.chat-page--pixel .injection-menu {
+  background: linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%);
+  border: 3px solid var(--pixel-border);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 0 2px #fffdf9,
+    inset 0 0 0 6px rgba(246, 215, 212, 0.18),
+    inset 0 -6px 0 rgba(134, 130, 125, 0.22),
+    0 12px 22px rgba(90, 85, 81, 0.14);
+}
+
+.chat-page--pixel .injection-menu__item {
+  color: var(--pixel-text);
+  font-weight: 700;
+}
+
+.chat-page--pixel .injection-menu__item:hover {
+  background: rgba(246, 215, 212, 0.5);
+}
+
+.chat-page--pixel .injection-menu__item--active {
+  background: linear-gradient(180deg, #f6d7d4 0%, #efc2bc 100%);
 }
 
 .chat-page--pixel .composer-toggle input {

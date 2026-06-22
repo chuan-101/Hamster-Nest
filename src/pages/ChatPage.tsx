@@ -80,6 +80,8 @@ const ChatPage = ({
   const [actionsMenuPosition, setActionsMenuPosition] = useState<{ top: number; left: number } | null>(null)
   const [openHeaderMenu, setOpenHeaderMenu] = useState(false)
   const [headerMenuPosition, setHeaderMenuPosition] = useState({ top: 0, right: 0 })
+  const [openInjectionMenu, setOpenInjectionMenu] = useState(false)
+  const [injectionMenuPosition, setInjectionMenuPosition] = useState({ bottom: 0, left: 0 })
   const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null)
   const [letters, setLetters] = useState<LetterEntry[]>([])
   const bottomRef = useRef<HTMLDivElement | null>(null)
@@ -87,6 +89,8 @@ const ChatPage = ({
   const actionTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const injectionMenuRef = useRef<HTMLDivElement | null>(null)
+  const injectionButtonRef = useRef<HTMLButtonElement | null>(null)
   const { handleTtsClick, ttsStates, ttsTextLimit } = useTtsPlayback()
   const navigate = useNavigate()
 
@@ -138,6 +142,19 @@ const ChatPage = ({
   const actionsLabel = useMemo(() => {
     return openActionsId ? '关闭操作菜单' : '打开操作菜单'
   }, [openActionsId])
+
+  const injectionOptions = [
+    { key: 'memo', label: '备忘录', active: memoToggle, toggle: () => setMemoToggle((current) => !current) },
+    { key: 'timeline', label: '时间轴', active: timelineToggle, toggle: () => setTimelineToggle((current) => !current) },
+    { key: 'tools', label: '工具', active: toolsToggle, toggle: () => setToolsToggle((current) => !current) },
+  ] as const
+
+  const activeInjectionCount = injectionOptions.filter((option) => option.active).length
+
+  const handleInjectionSelect = (toggle: () => void) => {
+    toggle()
+    setOpenInjectionMenu(false)
+  }
 
   const sessionOverride = session.overrideModel?.trim() || null
   const selectedModel = sessionOverride ?? defaultModel
@@ -318,6 +335,42 @@ const ChatPage = ({
       document.removeEventListener('click', handleClick)
     }
   }, [openHeaderMenu])
+
+  useEffect(() => {
+    if (!openInjectionMenu) {
+      return
+    }
+
+    const updateInjectionMenuPosition = () => {
+      const triggerRect = injectionButtonRef.current?.getBoundingClientRect()
+      if (!triggerRect) {
+        return
+      }
+      setInjectionMenuPosition({
+        bottom: Math.max(window.innerHeight - triggerRect.top + POPOVER_GAP, VIEWPORT_MARGIN),
+        left: Math.max(triggerRect.left, VIEWPORT_MARGIN),
+      })
+    }
+
+    updateInjectionMenuPosition()
+    window.addEventListener('resize', updateInjectionMenuPosition)
+    window.addEventListener('scroll', updateInjectionMenuPosition, true)
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (injectionButtonRef.current?.contains(target) || injectionMenuRef.current?.contains(target)) {
+        return
+      }
+      setOpenInjectionMenu(false)
+    }
+    document.addEventListener('click', handleClick)
+
+    return () => {
+      window.removeEventListener('resize', updateInjectionMenuPosition)
+      window.removeEventListener('scroll', updateInjectionMenuPosition, true)
+      document.removeEventListener('click', handleClick)
+    }
+  }, [openInjectionMenu])
 
   return (
     <div
@@ -654,33 +707,30 @@ const ChatPage = ({
           当前模型：{selectedModel}
           {hasOverride ? '（会话覆盖）' : '（默认）'}
         </span>
-        <div className="injection-toggles">
-          <button
-            type="button"
-            className={`injection-toggle${memoToggle ? ' injection-toggle--active' : ''}`}
-            onClick={() => setMemoToggle((current) => !current)}
-            aria-pressed={memoToggle}
-          >
-            备忘录
-          </button>
-          <button
-            type="button"
-            className={`injection-toggle${timelineToggle ? ' injection-toggle--active' : ''}`}
-            onClick={() => setTimelineToggle((current) => !current)}
-            aria-pressed={timelineToggle}
-          >
-            时间轴
-          </button>
-          <button
-            type="button"
-            className={`injection-toggle${toolsToggle ? ' injection-toggle--active' : ''}`}
-            onClick={() => setToolsToggle((current) => !current)}
-            aria-pressed={toolsToggle}
-          >
-            工具
-          </button>
-        </div>
         <div className="composer-row">
+          <button
+            ref={injectionButtonRef}
+            type="button"
+            className={`injection-trigger${openInjectionMenu ? ' injection-trigger--open' : ''}${
+              activeInjectionCount > 0 ? ' injection-trigger--active' : ''
+            }`}
+            aria-label="更多选项"
+            aria-haspopup="menu"
+            aria-expanded={openInjectionMenu}
+            onClick={(event) => {
+              event.stopPropagation()
+              setOpenInjectionMenu((current) => !current)
+            }}
+          >
+            <span className="injection-trigger__icon" aria-hidden="true">
+              +
+            </span>
+            {activeInjectionCount > 0 ? (
+              <span className="injection-trigger__badge" aria-hidden="true">
+                {activeInjectionCount}
+              </span>
+            ) : null}
+          </button>
           <textarea
             className="textarea-glass"
             placeholder="输入你的消息"
@@ -702,6 +752,35 @@ const ChatPage = ({
           </button>
         </div>
       </form>
+      {openInjectionMenu
+        ? createPortal(
+            <div
+              className="injection-menu"
+              role="menu"
+              ref={injectionMenuRef}
+              style={{ bottom: `${injectionMenuPosition.bottom}px`, left: `${injectionMenuPosition.left}px` }}
+            >
+              {injectionOptions.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={option.active}
+                  className={`injection-menu__item${option.active ? ' injection-menu__item--active' : ''}`}
+                  onClick={() => handleInjectionSelect(option.toggle)}
+                >
+                  <span className="injection-menu__label">{option.label}</span>
+                  {option.active ? (
+                    <span className="injection-menu__check" aria-hidden="true">
+                      ✓
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
       <ConfirmDialog
         open={pendingDelete !== null}
         title="删除这条消息？"
