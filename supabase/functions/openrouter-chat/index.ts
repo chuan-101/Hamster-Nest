@@ -300,6 +300,9 @@ const buildProviderRequestPayload = (
     if (reasoningPayload) {
       basePayload.reasoning = reasoningPayload
     }
+    // 开启 OpenRouter usage 会计，让流末尾的 chunk 带上缓存命中明细
+    // （cached/cache read/write tokens），便于核对 prompt caching 的实际节省。
+    basePayload.usage = { include: true }
   }
 
   if (tools !== undefined) {

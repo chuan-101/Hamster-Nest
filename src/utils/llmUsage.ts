@@ -37,6 +37,26 @@ export const logLlmUsage = (
       return
     }
     const promptDetails = asRecord(usage.prompt_tokens_details)
+    // 缓存命中 token：兼容 OpenRouter（cached_tokens / cache_write_tokens）
+    // 与 Anthropic 原生（cache_read_input_tokens / cache_creation_input_tokens）两种命名。
+    const cachedTokens =
+      toInteger(promptDetails?.cached_tokens)
+      ?? toInteger(usage.cached_tokens)
+      ?? toInteger(usage.cache_read_input_tokens)
+    const cacheWriteTokens =
+      toInteger(promptDetails?.cache_write_tokens)
+      ?? toInteger(usage.cache_write_tokens)
+      ?? toInteger(usage.cache_creation_input_tokens)
+    if (cachedTokens || cacheWriteTokens) {
+      // 便于上线后在控制台快速核对 prompt caching 的实际命中情况。
+      console.info('[llm-usage] prompt cache', {
+        module: context.module ?? null,
+        model: context.model ?? null,
+        prompt_tokens: toInteger(usage.prompt_tokens),
+        cached_tokens: cachedTokens,
+        cache_write_tokens: cacheWriteTokens,
+      })
+    }
     void supabase
       .from('llm_usage')
       .insert({
@@ -46,9 +66,8 @@ export const logLlmUsage = (
         prompt_tokens: toInteger(usage.prompt_tokens),
         completion_tokens: toInteger(usage.completion_tokens),
         total_tokens: toInteger(usage.total_tokens),
-        cached_tokens: toInteger(promptDetails?.cached_tokens) ?? toInteger(usage.cached_tokens),
-        cache_write_tokens:
-          toInteger(promptDetails?.cache_write_tokens) ?? toInteger(usage.cache_write_tokens),
+        cached_tokens: cachedTokens,
+        cache_write_tokens: cacheWriteTokens,
         cost_usd: toNumber(usage.cost),
         raw: usage,
       })
