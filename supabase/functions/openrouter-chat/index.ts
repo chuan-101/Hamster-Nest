@@ -300,6 +300,9 @@ const buildProviderRequestPayload = (
     if (reasoningPayload) {
       basePayload.reasoning = reasoningPayload
     }
+    // 开启 OpenRouter usage 会计，让流末尾的 chunk 带上缓存命中明细
+    // （cached/cache read/write tokens），便于核对 prompt caching 的实际节省。
+    basePayload.usage = { include: true }
   }
 
   if (tools !== undefined) {
@@ -313,7 +316,54 @@ const buildProviderRequestPayload = (
     basePayload.system = topLevelSystem
   }
 
+  // Anthropic prompt caching: mark the stable request prefix (tool definitions +
+  // system prompt) with `cache_control` so repeated rounds in a session reuse the
+  // cached tokens at a fraction of the input cost. Only Claude models honor this;
+  // other providers ignore the extra field. Anthropic caches everything up to a
+  // breakpoint, so one breakpoint on the last tool covers the whole tools block,
+  // and one on the system prompt covers the system text.
+  if (isClaudeModel) {
+    applyAnthropicPromptCaching(basePayload)
+  }
+
   return basePayload
+}
+
+const EPHEMERAL_CACHE_CONTROL = { type: 'ephemeral' } as const
+
+const withCacheControlText = (text: string) => [
+  { type: 'text', text, cache_control: EPHEMERAL_CACHE_CONTROL },
+]
+
+const applyAnthropicPromptCaching = (payload: Record<string, unknown>): void => {
+  // 1) Tool definitions: a single breakpoint on the last tool caches the entire
+  //    tools block. Idempotent — re-applying the same marker is harmless.
+  const tools = payload.tools
+  if (Array.isArray(tools) && tools.length > 0) {
+    const lastTool = tools[tools.length - 1]
+    if (lastTool && typeof lastTool === 'object') {
+      ;(lastTool as Record<string, unknown>).cache_control = EPHEMERAL_CACHE_CONTROL
+    }
+  }
+
+  // 2) System prompt, two shapes depending on provider path:
+  //    - top-level `system` string (Anthropic-native / AiHubMix hoist)
+  //    - a `role: "system"` message (OpenRouter pass-through)
+  //    The `typeof … === 'string'` guards keep this safe to call more than once
+  //    (already-wrapped content is an array and is skipped).
+  if (typeof payload.system === 'string' && payload.system.length > 0) {
+    payload.system = withCacheControlText(payload.system)
+    return
+  }
+  const messages = payload.messages
+  if (Array.isArray(messages)) {
+    const systemMessage = messages.find(
+      (message) => (message as Record<string, unknown>)?.role === 'system',
+    ) as Record<string, unknown> | undefined
+    if (systemMessage && typeof systemMessage.content === 'string' && systemMessage.content.length > 0) {
+      systemMessage.content = withCacheControlText(systemMessage.content)
+    }
+  }
 }
 
 const flattenOpenRouterTextParts = (value: unknown): string => {
