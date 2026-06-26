@@ -5,6 +5,9 @@
 }
 
 .rp-rooms-shell {
+  /* Fill the available width (the page root is a flex column, where `margin: 0 auto`
+     alone would otherwise collapse this to its content width and over-center it). */
+  width: 100%;
   max-width: 760px;
   height: 100%;
   margin: 0 auto;
