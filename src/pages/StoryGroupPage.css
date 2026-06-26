@@ -31,6 +31,9 @@
 }
 
 .story-group-content {
+  /* Fill the available width (the page root is a flex column, where `margin: 0 auto`
+     alone would otherwise collapse this to its content width and over-center it). */
+  width: 100%;
   max-width: 720px;
   margin: 0 auto;
   padding: 16px;
