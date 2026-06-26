@@ -10,7 +10,6 @@ import {
   fetchRpSessions,
   renameRpSession,
   updateRpSessionArchiveState,
-  updateRpSessionTileColor,
 } from '../storage/supabaseSync'
 import type { RpSession } from '../types'
 import './RpRoomsPage.css'
@@ -29,29 +28,10 @@ type DeleteAction = {
   sessionId: string
 }
 
-const TILE_COLOR_PALETTE = [
-  '#F88FA4', '#F9A49A', '#F6B58A', '#F4C39A',
-  '#F3C2CC', '#E9BEDA', '#DAB9F2', '#C7C0F6',
-  '#BFD0F8', '#B7DEE8', '#BFD9C8', '#CFD4DF',
-  '#B8BECF', '#D9CED8', '#A4A9B8', '#8A90A1',
-]
-
-const COLOR_POPOVER_WIDTH = 196
-const COLOR_POPOVER_HEIGHT = 214
-const COLOR_POPOVER_GAP = 8
+const ACTIONS_POPOVER_GAP = 8
 const ACTIONS_POPOVER_WIDTH = 140
 const ACTIONS_POPOVER_HEIGHT = 124
 const VIEWPORT_MARGIN = 8
-const TILE_COLOR_DEBOUNCE_MS = 320
-
-const resolveRoomTileColor = (room: RpSession) => {
-  const color = room.tileColor?.trim()
-  if (color && /^#[0-9a-fA-F]{6}$/.test(color)) {
-    return color
-  }
-  const hash = Array.from(room.id).reduce((acc, char) => acc + char.charCodeAt(0), 0)
-  return TILE_COLOR_PALETTE[hash % TILE_COLOR_PALETTE.length]
-}
 
 const formatRoomTime = (session: RpSession) => {
   const timestamp = session.updatedAt ?? session.createdAt
@@ -62,15 +42,6 @@ const formatRoomTime = (session: RpSession) => {
     minute: '2-digit',
   })
 }
-
-const normalizeHexColor = (value: string) => {
-  const trimmed = value.trim()
-  if (!/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
-    return null
-  }
-  return trimmed.toUpperCase()
-}
-
 
 const isAbortError = (error: unknown) => (
   error instanceof DOMException && error.name === 'AbortError'
@@ -94,16 +65,10 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null)
   const [roomMessageCounts, setRoomMessageCounts] = useState<Record<string, number>>({})
   const [countsLoading, setCountsLoading] = useState(false)
-  const [openPaletteRoomId, setOpenPaletteRoomId] = useState<string | null>(null)
   const [openActionsRoomId, setOpenActionsRoomId] = useState<string | null>(null)
-  const [palettePosition, setPalettePosition] = useState<{ top: number; left: number } | null>(null)
   const [actionsPosition, setActionsPosition] = useState<{ top: number; left: number } | null>(null)
-  const paletteTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const actionsTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
-  const palettePopoverRef = useRef<HTMLDivElement | null>(null)
   const actionsPopoverRef = useRef<HTMLDivElement | null>(null)
-  const pendingTileColorTimeoutsRef = useRef<Record<string, number>>({})
-  const tileColorRequestControllersRef = useRef<Record<string, AbortController>>({})
 
   const isArchivedView = tab === 'archived'
   const isMutating = Boolean(savingRoomId || deletingRoomId || updatingArchive)
@@ -171,92 +136,21 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   }, [rooms, user])
 
   useEffect(() => {
-    return () => {
-      Object.values(pendingTileColorTimeoutsRef.current).forEach((timerId) => {
-        window.clearTimeout(timerId)
-      })
-      pendingTileColorTimeoutsRef.current = {}
-
-      Object.values(tileColorRequestControllersRef.current).forEach((controller) => {
-        controller.abort()
-      })
-      tileColorRequestControllersRef.current = {}
-    }
-  }, [])
-
-  useEffect(() => {
     const closeMenus = (event: PointerEvent) => {
       const target = event.target as Node | null
       if (!target) {
         return
       }
 
-      if (palettePopoverRef.current?.contains(target)) {
-        return
-      }
       if (actionsPopoverRef.current?.contains(target)) {
         return
       }
 
-      setOpenPaletteRoomId(null)
       setOpenActionsRoomId(null)
     }
     document.addEventListener('pointerdown', closeMenus)
     return () => document.removeEventListener('pointerdown', closeMenus)
   }, [])
-
-  useEffect(() => {
-    if (!openPaletteRoomId) {
-      setPalettePosition(null)
-      return
-    }
-
-    let frameId: number | null = null
-
-    const updatePalettePosition = () => {
-      frameId = null
-      const trigger = paletteTriggerRefs.current[openPaletteRoomId]
-      if (!trigger) {
-        setPalettePosition(null)
-        return
-      }
-
-      const triggerRect = trigger.getBoundingClientRect()
-      const viewportWidth = window.innerWidth
-      const viewportHeight = window.innerHeight
-
-      let left = triggerRect.right - COLOR_POPOVER_WIDTH
-      left = Math.max(VIEWPORT_MARGIN, Math.min(left, viewportWidth - COLOR_POPOVER_WIDTH - VIEWPORT_MARGIN))
-
-      let top = triggerRect.bottom + COLOR_POPOVER_GAP
-      const wouldOverflowBottom = top + COLOR_POPOVER_HEIGHT > viewportHeight - VIEWPORT_MARGIN
-      if (wouldOverflowBottom) {
-        top = triggerRect.top - COLOR_POPOVER_HEIGHT - COLOR_POPOVER_GAP
-      }
-      top = Math.max(VIEWPORT_MARGIN, Math.min(top, viewportHeight - COLOR_POPOVER_HEIGHT - VIEWPORT_MARGIN))
-
-      setPalettePosition({ top, left })
-    }
-
-    const scheduleUpdatePalettePosition = () => {
-      if (frameId !== null) {
-        return
-      }
-      frameId = window.requestAnimationFrame(updatePalettePosition)
-    }
-
-    updatePalettePosition()
-    window.addEventListener('resize', scheduleUpdatePalettePosition)
-    window.addEventListener('scroll', scheduleUpdatePalettePosition, true)
-
-    return () => {
-      window.removeEventListener('resize', scheduleUpdatePalettePosition)
-      window.removeEventListener('scroll', scheduleUpdatePalettePosition, true)
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId)
-      }
-    }
-  }, [openPaletteRoomId])
 
   useEffect(() => {
     if (!openActionsRoomId) {
@@ -281,10 +175,10 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
       let left = triggerRect.right - ACTIONS_POPOVER_WIDTH
       left = Math.max(VIEWPORT_MARGIN, Math.min(left, viewportWidth - ACTIONS_POPOVER_WIDTH - VIEWPORT_MARGIN))
 
-      let top = triggerRect.bottom + COLOR_POPOVER_GAP
+      let top = triggerRect.bottom + ACTIONS_POPOVER_GAP
       const wouldOverflowBottom = top + ACTIONS_POPOVER_HEIGHT > viewportHeight - VIEWPORT_MARGIN
       if (wouldOverflowBottom) {
-        top = triggerRect.top - ACTIONS_POPOVER_HEIGHT - COLOR_POPOVER_GAP
+        top = triggerRect.top - ACTIONS_POPOVER_HEIGHT - ACTIONS_POPOVER_GAP
       }
       top = Math.max(VIEWPORT_MARGIN, Math.min(top, viewportHeight - ACTIONS_POPOVER_HEIGHT - VIEWPORT_MARGIN))
 
@@ -330,49 +224,6 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
     } finally {
       setCreating(false)
     }
-  }
-
-  const handleTileColorSelect = (roomId: string, color: string) => {
-    const normalizedColor = normalizeHexColor(color)
-    if (!normalizedColor) {
-      return
-    }
-
-    setRooms((current) => current.map((room) => (room.id === roomId ? { ...room, tileColor: normalizedColor } : room)))
-
-    const existingTimeoutId = pendingTileColorTimeoutsRef.current[roomId]
-    if (typeof existingTimeoutId !== 'undefined') {
-      window.clearTimeout(existingTimeoutId)
-      delete pendingTileColorTimeoutsRef.current[roomId]
-    }
-
-    const existingController = tileColorRequestControllersRef.current[roomId]
-    if (existingController) {
-      existingController.abort()
-      delete tileColorRequestControllersRef.current[roomId]
-    }
-
-    pendingTileColorTimeoutsRef.current[roomId] = window.setTimeout(() => {
-      const controller = new AbortController()
-      tileColorRequestControllersRef.current[roomId] = controller
-      delete pendingTileColorTimeoutsRef.current[roomId]
-
-      void (async () => {
-        try {
-          await updateRpSessionTileColor(roomId, normalizedColor, controller.signal)
-        } catch (updateError) {
-          if (isAbortError(updateError)) {
-            return
-          }
-          console.warn('更新 RP 房间颜色失败', updateError)
-          setNotice('颜色已本地更新，云端保存失败。')
-        } finally {
-          if (tileColorRequestControllersRef.current[roomId] === controller) {
-            delete tileColorRequestControllersRef.current[roomId]
-          }
-        }
-      })()
-    }, TILE_COLOR_DEBOUNCE_MS)
   }
 
   const handleToggleArchive = async () => {
@@ -461,22 +312,16 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
   }
 
   const tabTitle = useMemo(() => (isArchivedView ? '已归档房间' : '活跃房间'), [isArchivedView])
-  const activePaletteColor = useMemo(() => {
-    if (!openPaletteRoomId) {
-      return '#F88FA4'
-    }
-    const room = rooms.find((item) => item.id === openPaletteRoomId)
-    return room ? resolveRoomTileColor(room).toUpperCase() : '#F88FA4'
-  }, [openPaletteRoomId, rooms])
 
   return (
     <div className="rp-rooms-page app-shell">
       <div className="rp-rooms-shell">
         <section className="rp-rooms-top app-shell__header">
           <header className="rp-rooms-header">
-            <div>
+            <div className="rp-rooms-heading">
+              <p className="rp-kicker">ROLEPLAY · 滚轮放映厅</p>
               <h1 className="ui-title">跑跑滚轮区 🎡🐹</h1>
-              <p>管理 RP 房间，给每段剧情留好场记与分镜。</p>
+              <p className="rp-rooms-subtitle">管理 RP 房间，给每段剧情留好场记与分镜。</p>
             </div>
             <div className="rp-header-actions">
               <button type="button" className="rp-back-btn" onClick={() => navigate('/rp/story-groups')}>
@@ -489,7 +334,8 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
           </header>
 
           <section className="rp-create-card">
-            <h2 className="ui-title">新建房间</h2>
+            <p className="rp-kicker rp-create-kicker">NEW ROOM · 新建房间</p>
+            <h2 className="ui-title">开一间新房间</h2>
             <div className="rp-create-row">
               <input
                 value={newTitle}
@@ -531,7 +377,12 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
             {notice ? <p className="tips">{notice}</p> : null}
             {error ? <p className="error">{error}</p> : null}
 
-            <h2 className="ui-title">{tabTitle}</h2>
+            <div className="rp-list-title-row">
+              <h2 className="ui-title">{tabTitle}</h2>
+              {!loading && rooms.length > 0 ? (
+                <span className="rp-room-count">{rooms.length} 间</span>
+              ) : null}
+            </div>
             {loading ? <p className="tips">加载中…</p> : null}
             {!loading && rooms.length === 0 ? (
               <p className="tips">{isArchivedView ? '还没有归档房间。' : '还没有房间，先新建一个吧。'}</p>
@@ -543,31 +394,14 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                 const isSaving = savingRoomId === room.id
                 const isDeleting = deletingRoomId === room.id
                 const isBusy = isMutating || isSaving || isDeleting
-                const tileColor = resolveRoomTileColor(room)
 
                 return (
                   <li
                     key={room.id}
                     className="rp-room-tile"
-                    style={{ backgroundColor: tileColor }}
                   >
                     <div className="rp-room-tile-top">
-                      <button
-                        type="button"
-                        className="rp-tile-icon-btn"
-                        aria-label="更改房间颜色"
-                        ref={(element) => {
-                          paletteTriggerRefs.current[room.id] = element
-                        }}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setOpenActionsRoomId(null)
-                          setOpenPaletteRoomId((current) => (current === room.id ? null : room.id))
-                        }}
-                      >
-                        🎨
-                      </button>
-
+                      <span className="rp-tile-tag">RP</span>
                       <button
                         type="button"
                         className="rp-tile-icon-btn"
@@ -577,7 +411,6 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
                         }}
                         onClick={(event) => {
                           event.stopPropagation()
-                          setOpenPaletteRoomId(null)
                           setOpenActionsRoomId((current) => (current === room.id ? null : room.id))
                         }}
                       >
@@ -624,46 +457,6 @@ const RpRoomsPage = ({ user }: RpRoomsPageProps) => {
           </section>
         </section>
       </div>
-
-      {openPaletteRoomId && palettePosition
-        ? createPortal(
-            <div
-              className="rp-color-popover rp-color-popover-portal"
-              role="menu"
-              style={{ top: palettePosition.top, left: palettePosition.left }}
-              ref={palettePopoverRef}
-              onPointerDownCapture={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {TILE_COLOR_PALETTE.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  className="rp-color-swatch"
-                  style={{ backgroundColor: color }}
-                  onClick={() => void handleTileColorSelect(openPaletteRoomId, color)}
-                  aria-label={`使用颜色 ${color}`}
-                />
-              ))}
-              <label className="rp-color-custom" htmlFor="rp-custom-tile-color">
-                自定义
-                <input
-                  id="rp-custom-tile-color"
-                  type="color"
-                  value={activePaletteColor}
-                  onInput={(event) => void handleTileColorSelect(openPaletteRoomId, event.currentTarget.value)}
-                  onChange={(event) => void handleTileColorSelect(openPaletteRoomId, event.target.value)}
-                  aria-label="选择自定义颜色"
-                />
-                <span>{activePaletteColor}</span>
-              </label>
-              <button type="button" className="rp-color-close-btn" onClick={() => setOpenPaletteRoomId(null)}>
-                完成
-              </button>
-            </div>,
-            document.body,
-          )
-        : null}
 
       {openActionsRoomId && actionsPosition
         ? createPortal(
