@@ -183,6 +183,138 @@
   background: rgba(255, 246, 251, 0.95);
 }
 
+/* ── Monthly overview ─────────────────────────── */
+
+.feed-overview {
+  position: relative;
+  border: 1px solid rgba(255, 214, 231, 0.9);
+  border-radius: 20px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 224, 238, 0.6), transparent 46%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(255, 246, 251, 0.97) 100%);
+  box-shadow: 0 10px 22px rgba(255, 196, 222, 0.2);
+  overflow: hidden;
+  display: grid;
+  gap: 12px;
+}
+
+.feed-overview__dot {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 214, 231, 0.5) 1.1px, transparent 1.1px);
+  background-size: 18px 18px;
+  opacity: 0.22;
+}
+
+.feed-overview__head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.feed-overview__mark {
+  color: #f29cc3;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.feed-overview__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #68485e;
+}
+
+.feed-overview__month {
+  margin-left: auto;
+  font-size: 12px;
+  color: #b27f98;
+  letter-spacing: 0.04em;
+}
+
+.feed-overview__empty {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9a7b8c;
+  border: 1px dashed rgba(242, 156, 195, 0.6);
+  border-radius: 14px;
+  background: rgba(255, 246, 251, 0.85);
+  padding: 14px 14px;
+  text-align: center;
+}
+
+.feed-overview__themes {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+}
+
+.feed-overview__theme {
+  display: grid;
+  gap: 7px;
+}
+
+.feed-overview__theme-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #76556c;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed rgba(242, 156, 195, 0.55);
+}
+
+.feed-overview__items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.feed-overview__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #5a4a54;
+}
+
+.feed-overview__bullet {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: #ff9ec4;
+  box-shadow: 0 0 0 3px rgba(255, 214, 231, 0.4);
+}
+
+.feed-overview__text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.feed-overview__flag {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #9a8390;
+  background: #f4eef1;
+  border: 1px solid rgba(255, 214, 231, 0.7);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
 /* ── Calendar ─────────────────────────────────── */
 
 .feed-calendar {

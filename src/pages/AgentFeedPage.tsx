@@ -2,12 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useNavigate } from 'react-router-dom'
 import MarkdownRenderer from '../components/MarkdownRenderer'
+import MonthlyOverview from '../components/MonthlyOverview'
 import {
   agentFeedPriorityLabels,
   agentFeedStatusLabels,
   agentFeedTypeOptions,
   computeAgentFeedStats,
   fetchAgentFeedItems,
+  fetchMonthlyOverview,
+  getCurrentMonthKey,
   isAgentFeedExpired,
   resolveAgentFeedStatus,
   sortAgentFeedItems,
@@ -16,6 +19,7 @@ import {
   typeLabel,
   updateAgentFeedStatus,
   type AgentFeedItem,
+  type MonthlyOverviewContent,
 } from '../lib/agentFeed'
 import './AgentFeedPage.css'
 
@@ -53,7 +57,13 @@ const getMonthRange = (anchor: Date) => {
 const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
   const navigate = useNavigate()
   const today = useMemo(() => getTodayKey(), [])
+  const overviewMonthLabel = useMemo(() => {
+    const [year, month] = getCurrentMonthKey().split('-')
+    return `${year}年${Number(month)}月`
+  }, [])
   const [items, setItems] = useState<AgentFeedItem[]>([])
+  const [overview, setOverview] = useState<MonthlyOverviewContent | null>(null)
+  const [overviewLoading, setOverviewLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -72,6 +82,7 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
     setLoading(true)
     setError(null)
     setNowMs(Date.now())
+    setOverviewLoading(true)
     try {
       const data = await fetchAgentFeedItems(user.id)
       setItems(data)
@@ -80,6 +91,16 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
       setError('暂时读不到 Syzygy Feed，请检查登录状态后重试。')
     } finally {
       setLoading(false)
+    }
+    // 月度概览单独读取，失败时静默降级为空状态，不影响其它 Feed 卡片。
+    try {
+      const overviewData = await fetchMonthlyOverview(user.id)
+      setOverview(overviewData)
+    } catch (overviewError) {
+      console.warn('加载月度概览失败', overviewError)
+      setOverview(null)
+    } finally {
+      setOverviewLoading(false)
     }
   }, [user])
 
@@ -225,6 +246,8 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
 
       {error ? <p className="feed-alert">{error}</p> : null}
       {actionError ? <p className="feed-alert feed-alert--soft">{actionError}</p> : null}
+
+      <MonthlyOverview data={overview} loading={overviewLoading} monthLabel={overviewMonthLabel} />
 
       <section className="feed-calendar" aria-label="按日期浏览">
         <div className="feed-calendar__dot" aria-hidden="true" />

@@ -133,6 +133,110 @@ export const fetchAgentFeedItems = async (userId: string): Promise<AgentFeedItem
   return (data ?? []) as AgentFeedItem[]
 }
 
+// ── 月度概览（monthly_overview）────────────────────────────────
+// Feed 页面顶部的“本月概览”板块：按主题展示当月持续进行的事项。
+// 数据来源同样是 agent_feed_items，但 type=monthly_overview，content 为 JSON。
+
+export type MonthlyOverviewEntry = {
+  text: string
+  source_feed_ids: string[]
+  archive_candidate: boolean
+}
+
+export type MonthlyOverviewTheme = {
+  theme: string
+  items: MonthlyOverviewEntry[]
+}
+
+export type MonthlyOverviewContent = {
+  month: string | null
+  themes: MonthlyOverviewTheme[]
+}
+
+// 当前月份键（本地时区），形如 2026-06。
+export const getCurrentMonthKey = (now: Date = new Date()): string => {
+  const year = now.getFullYear()
+  const month = `${now.getMonth() + 1}`.padStart(2, '0')
+  return `${year}-${month}`
+}
+
+const asString = (value: unknown): string | null => (typeof value === 'string' ? value : null)
+
+// 容错解析 monthly_overview 的 content（JSON 字符串或已解析对象）。
+// 任何结构异常都不抛错，返回 null 以便上层降级为空状态，不影响其它 Feed 卡片。
+export const parseMonthlyOverviewContent = (item: AgentFeedItem): MonthlyOverviewContent | null => {
+  if (!item.content) return null
+  let raw: unknown = item.content
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (!raw || typeof raw !== 'object') return null
+  const record = raw as Record<string, unknown>
+  const rawThemes = Array.isArray(record.themes) ? record.themes : []
+  const themes: MonthlyOverviewTheme[] = []
+  rawThemes.forEach((themeEntry) => {
+    if (!themeEntry || typeof themeEntry !== 'object') return
+    const themeRecord = themeEntry as Record<string, unknown>
+    const themeName = asString(themeRecord.theme)?.trim()
+    const rawItems = Array.isArray(themeRecord.items) ? themeRecord.items : []
+    const items: MonthlyOverviewEntry[] = []
+    rawItems.forEach((itemEntry) => {
+      if (!itemEntry || typeof itemEntry !== 'object') return
+      const itemRecord = itemEntry as Record<string, unknown>
+      const text = asString(itemRecord.text)?.trim()
+      if (!text) return
+      const sourceIds = Array.isArray(itemRecord.source_feed_ids)
+        ? itemRecord.source_feed_ids.filter((id): id is string => typeof id === 'string')
+        : []
+      items.push({
+        text,
+        source_feed_ids: sourceIds,
+        archive_candidate: itemRecord.archive_candidate === true,
+      })
+    })
+    if (!themeName || items.length === 0) return
+    themes.push({ theme: themeName, items })
+  })
+  return { month: asString(record.month), themes }
+}
+
+// 读取当前月份、active 的月度概览记录（取最新一条）。
+// 失败时返回 null，调用方据此降级为空状态，绝不影响其它 Feed 内容。
+export const fetchMonthlyOverview = async (
+  userId: string,
+  month: string = getCurrentMonthKey(),
+): Promise<MonthlyOverviewContent | null> => {
+  if (!supabase) return null
+  const nowIso = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('agent_feed_items')
+    .select(AGENT_FEED_COLUMNS)
+    .eq('user_id', userId)
+    .eq('type', 'monthly_overview')
+    .or(`visible_from.is.null,visible_from.lte.${nowIso}`)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (error) {
+    console.warn('加载月度概览失败', error)
+    return null
+  }
+
+  const candidates = (data ?? []) as AgentFeedItem[]
+  for (const item of candidates) {
+    const meta = (item.metadata ?? {}) as Record<string, unknown>
+    if (asString(meta.month) !== month) continue
+    if (asString(meta.status) !== 'active') continue
+    const parsed = parseMonthlyOverviewContent(item)
+    if (parsed && parsed.themes.length > 0) return parsed
+  }
+  return null
+}
+
 export const updateAgentFeedStatus = async (
   userId: string,
   itemId: string,
