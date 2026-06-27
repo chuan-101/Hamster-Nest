@@ -151,7 +151,18 @@ export type MonthlyOverviewTheme = {
 export type MonthlyOverviewContent = {
   month: string | null
   themes: MonthlyOverviewTheme[]
+  // 当 content 不是 JSON 主题结构（markdown / plain）时，保留原文用于直接渲染。
+  raw: string | null
+  format: 'markdown' | 'plain' | 'json' | string | null
+  title: string | null
 }
+
+// 普通 Feed 列表里需要排除的页面级类型：monthly_overview 是「本月概览」板块的数据，
+// 不应作为日常 Feed 卡片渲染。
+export const PAGE_LEVEL_FEED_TYPES = new Set(['monthly_overview'])
+
+export const isPageLevelFeedType = (type: string | null): boolean =>
+  type ? PAGE_LEVEL_FEED_TYPES.has(type) : false
 
 // 当前月份键（本地时区），形如 2026-06。
 export const getCurrentMonthKey = (now: Date = new Date()): string => {
@@ -162,19 +173,45 @@ export const getCurrentMonthKey = (now: Date = new Date()): string => {
 
 const asString = (value: unknown): string | null => (typeof value === 'string' ? value : null)
 
-// 容错解析 monthly_overview 的 content（JSON 字符串或已解析对象）。
-// 任何结构异常都不抛错，返回 null 以便上层降级为空状态，不影响其它 Feed 卡片。
-export const parseMonthlyOverviewContent = (item: AgentFeedItem): MonthlyOverviewContent | null => {
-  if (!item.content) return null
+// 从任意时间字符串推断所属月份（本地时区），形如 2026-06。
+const monthKeyFromDate = (value: string | null): string | null => {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}`
+}
+
+// 从标题里兜底解析月份，形如「2026年6月 月度概览」「2026-06」「2026/6」。
+const monthKeyFromTitle = (title: string | null): string | null => {
+  if (!title) return null
+  const match = title.match(/(\d{4})\s*[年\-/.]\s*(\d{1,2})/)
+  if (!match) return null
+  return `${match[1]}-${match[2].padStart(2, '0')}`
+}
+
+// 解析一条 monthly_overview 归属的月份：metadata.month 优先，其次标题，最后 created_at。
+const resolveOverviewMonth = (item: AgentFeedItem): string | null => {
+  const meta = (item.metadata ?? {}) as Record<string, unknown>
+  return (
+    asString(meta.month) ??
+    monthKeyFromTitle(item.title) ??
+    monthKeyFromDate(item.created_at)
+  )
+}
+
+// 容错解析 monthly_overview content 里的 JSON 主题结构（JSON 字符串或已解析对象）。
+// content 不是合法 JSON、或结构不符合预期时返回空数组，上层据此降级为 markdown/纯文本渲染。
+export const parseMonthlyOverviewThemes = (item: AgentFeedItem): MonthlyOverviewTheme[] => {
+  if (!item.content) return []
   let raw: unknown = item.content
   if (typeof raw === 'string') {
     try {
       raw = JSON.parse(raw)
     } catch {
-      return null
+      return []
     }
   }
-  if (!raw || typeof raw !== 'object') return null
+  if (!raw || typeof raw !== 'object') return []
   const record = raw as Record<string, unknown>
   const rawThemes = Array.isArray(record.themes) ? record.themes : []
   const themes: MonthlyOverviewTheme[] = []
@@ -201,11 +238,25 @@ export const parseMonthlyOverviewContent = (item: AgentFeedItem): MonthlyOvervie
     if (!themeName || items.length === 0) return
     themes.push({ theme: themeName, items })
   })
-  return { month: asString(record.month), themes }
+  return themes
 }
 
-// 读取当前月份、active 的月度概览记录（取最新一条）。
-// 失败时返回 null，调用方据此降级为空状态，绝不影响其它 Feed 内容。
+// 把一条 monthly_overview 记录转成「本月概览」板块所需的展示数据。
+// 既支持 JSON 主题结构，也支持 markdown / 纯文本（保留原文给上层直接渲染）。
+const buildMonthlyOverviewContent = (item: AgentFeedItem): MonthlyOverviewContent => {
+  const themes = parseMonthlyOverviewThemes(item)
+  return {
+    month: resolveOverviewMonth(item),
+    themes,
+    raw: asString(item.content),
+    format: item.content_format ?? null,
+    title: item.title ?? null,
+  }
+}
+
+// 读取当前月份的月度概览记录（取最新一条，按 updated_at / created_at 倒序）。
+// 只要查到归属当前月份的 monthly_overview 就返回；查不到才返回 null（上层显示空状态）。
+// 不再要求 content 必须是 JSON，也不再强制 metadata.status=active，兼容 markdown / plain。
 export const fetchMonthlyOverview = async (
   userId: string,
   month: string = getCurrentMonthKey(),
@@ -218,6 +269,7 @@ export const fetchMonthlyOverview = async (
     .eq('user_id', userId)
     .eq('type', 'monthly_overview')
     .or(`visible_from.is.null,visible_from.lte.${nowIso}`)
+    .order('updated_at', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(20)
 
@@ -227,14 +279,9 @@ export const fetchMonthlyOverview = async (
   }
 
   const candidates = (data ?? []) as AgentFeedItem[]
-  for (const item of candidates) {
-    const meta = (item.metadata ?? {}) as Record<string, unknown>
-    if (asString(meta.month) !== month) continue
-    if (asString(meta.status) !== 'active') continue
-    const parsed = parseMonthlyOverviewContent(item)
-    if (parsed && parsed.themes.length > 0) return parsed
-  }
-  return null
+  const matched = candidates.find((item) => resolveOverviewMonth(item) === month)
+  if (!matched) return null
+  return buildMonthlyOverviewContent(matched)
 }
 
 export const updateAgentFeedStatus = async (
