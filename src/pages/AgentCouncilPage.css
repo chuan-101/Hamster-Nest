@@ -36,4 +36,70 @@
 .speaker-gpt { background:#ecfdf5; color:#2f7d5a; }
 .speaker-gemini { background:#fff6e8; color:#9a5f1f; }
 .speaker-chuanchuan { background:#ffe8f1; color:#9c3f69; }
-.message-item p { margin:0; white-space:pre-wrap; }
+.speaker-codex { background:#eef0ff; color:#4b4fa3; }
+.speaker-claude-code { background:#f0ebff; color:#6b4fa3; }
+.speaker-unknown { background:#f1f1f4; color:#6b6b76; }
+.message-item p { margin:0; white-space:pre-wrap; word-break:break-word; }
+
+/* 表单字段 */
+.council-field { display:grid; gap:4px; font-size:12px; color:#7d5d70; }
+.council-field span { font-size:12px; color:#8a6b7d; }
+.council-field select { border:1px solid #ffd6e7; border-radius:12px; padding:8px 10px; font:inherit; background:#fff; color:#1f2937; }
+.council-field-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.council-form select { width:100%; }
+
+/* 状态 / 态度标签 */
+.status-tag { border-radius:999px; padding:3px 9px; font-size:11px; font-weight:600; white-space:nowrap; }
+.status-open { background:#eef2f7; color:#5a6675; }
+.status-approved { background:#e7f7ec; color:#2f8a52; }
+.status-rejected { background:#ffe9ec; color:#b13f4d; }
+.status-deferred { background:#fff4e0; color:#9a6a1f; }
+.status-plan { background:#e9f0ff; color:#3f5fb1; }
+.status-decision { background:#fbeafd; color:#8a3f9c; }
+.vote-tag { border-radius:999px; padding:2px 8px; font-size:11px; font-weight:600; }
+.vote-support { background:#e7f7ec; color:#2f8a52; }
+.vote-neutral { background:#eef2f7; color:#5a6675; }
+.vote-against { background:#ffe9ec; color:#b13f4d; }
+.meta-chip { border-radius:999px; padding:2px 8px; font-size:11px; background:#fff2f8; border:1px solid rgba(255,214,231,.7); color:#8a6b7d; }
+
+/* 提案列表 */
+.proposal-list { display:grid; gap:10px; }
+.proposal-item { display:flex; align-items:stretch; gap:8px; border:1px solid rgba(255,214,231,.7); border-radius:14px; background:#fff7fb; padding:8px 8px 8px 10px; }
+.proposal-item.active { border-color:#f29cc3; background:linear-gradient(180deg,#ffeef6 0%,#ffe1ef 100%); }
+.proposal-item__select { flex:1; min-width:0; text-align:left; border:none; background:transparent; padding:4px 2px; display:grid; gap:6px; font:inherit; color:inherit; cursor:pointer; }
+.proposal-item__head { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+.proposal-item__head strong { word-break:break-word; }
+.proposal-item__summary { margin:0; font-size:13px; color:#6b5566; word-break:break-word; }
+.proposal-item__meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.proposal-item__time { display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:#9a7f8d; }
+.proposal-item__delete { align-self:flex-start; flex-shrink:0; border-radius:999px; border:1px solid rgba(255,181,192,.7); background:#fff; color:#b13f4d; padding:5px 11px; font-size:12px; cursor:pointer; }
+.proposal-item__delete:hover { background:#ffe8ec; }
+.proposal-item__delete:disabled { opacity:.6; cursor:default; }
+
+/* 提案详情 */
+.proposal-detail { gap:14px; }
+.detail-proposal { border:1px solid rgba(255,214,231,.65); border-radius:14px; padding:12px; background:#fff8fb; display:grid; gap:8px; }
+.detail-proposal__body { margin:0; white-space:pre-wrap; word-break:break-word; color:#3b3340; }
+.detail-section { display:grid; gap:8px; border-top:1px dashed rgba(255,214,231,.8); padding-top:12px; }
+.detail-section h3 { margin:0; font-size:14px; color:#68485e; }
+.message-meta__right { display:flex; align-items:center; gap:8px; }
+.decision-item { background:#fdf4ff; border-color:rgba(232,200,240,.7); }
+
+/* 拍板 */
+.decision-box { display:grid; gap:8px; border:1px solid rgba(255,214,231,.7); border-radius:14px; padding:10px; background:#fff; }
+.decision-box textarea { width:100%; border:1px solid #ffd6e7; border-radius:12px; padding:9px 10px; font:inherit; background:#fff; color:#1f2937; }
+.decision-hint { margin:0; font-size:11px; color:#9a7f8d; line-height:1.5; }
+.decision-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.decision-btn { border-radius:999px; border:1px solid transparent; padding:7px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+.decision-btn:disabled { opacity:.6; cursor:default; }
+.decision-approved { background:linear-gradient(180deg,#d9f5e2 0%,#c4eed3 100%); color:#2f7d52; border-color:rgba(126,211,167,.6); }
+.decision-rejected { background:#fff; color:#b13f4d; border-color:rgba(255,181,192,.7); }
+.decision-deferred { background:#fff7e6; color:#9a6a1f; border-color:rgba(247,210,150,.7); }
+
+/* 历史消息 */
+.legacy-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.legacy-toggle { border-radius:999px; border:1px solid #ffd6e7; background:#fff; color:#7d5d70; padding:5px 12px; font-size:12px; cursor:pointer; }
+.legacy-list { display:grid; gap:12px; }
+.legacy-topic { display:grid; gap:8px; border:1px solid rgba(255,214,231,.6); border-radius:12px; padding:10px; background:rgba(255,250,253,.9); }
+.legacy-topic__head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.legacy-topic__head strong { word-break:break-word; }

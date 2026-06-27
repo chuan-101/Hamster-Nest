@@ -9,6 +9,10 @@ import type {
   ChatSession,
   AgentCouncilMessage,
   AgentCouncilSpeaker,
+  AgentCouncilEntryType,
+  AgentCouncilProposalStatus,
+  AgentCouncilVote,
+  AgentCouncilMetadata,
   CheckinEntry,
   ForumAiProfile,
   ForumReply,
@@ -350,6 +354,12 @@ type AgentCouncilRow = {
   topic: string
   message: string
   created_at: string
+  updated_at: string | null
+  parent_id: string | null
+  entry_type: string | null
+  proposal_status: string | null
+  vote: string | null
+  metadata: Record<string, unknown> | null
 }
 
 
@@ -395,12 +405,35 @@ const mapSyzygyReplyRow = (row: SyzygyReplyRow): SyzygyReply => ({
   modelId: row.model_id ?? null,
 })
 
+const AGENT_COUNCIL_ENTRY_TYPES: AgentCouncilEntryType[] = ['proposal', 'review', 'decision']
+const AGENT_COUNCIL_PROPOSAL_STATUSES: AgentCouncilProposalStatus[] = [
+  'open',
+  'approved',
+  'rejected',
+  'deferred',
+  'plan_generated',
+]
+const AGENT_COUNCIL_VOTES: AgentCouncilVote[] = ['support', 'neutral', 'against']
+
+const AGENT_COUNCIL_SELECT_FIELDS =
+  'id,speaker,topic,message,created_at,updated_at,parent_id,entry_type,proposal_status,vote,metadata'
+
+// 旧数据的 entry_type / proposal_status / vote 可能为空或不在白名单内，统一归一化为 null，避免前端崩溃。
+const normalizeAgentCouncilEnum = <T extends string>(value: string | null, allowed: T[]): T | null =>
+  value && (allowed as string[]).includes(value) ? (value as T) : null
+
 const mapAgentCouncilRow = (row: AgentCouncilRow): AgentCouncilMessage => ({
   id: row.id,
   speaker: row.speaker,
   topic: row.topic,
   message: row.message,
   createdAt: row.created_at,
+  updatedAt: row.updated_at ?? null,
+  parentId: row.parent_id ?? null,
+  entryType: normalizeAgentCouncilEnum(row.entry_type, AGENT_COUNCIL_ENTRY_TYPES),
+  proposalStatus: normalizeAgentCouncilEnum(row.proposal_status, AGENT_COUNCIL_PROPOSAL_STATUSES),
+  vote: normalizeAgentCouncilEnum(row.vote, AGENT_COUNCIL_VOTES),
+  metadata: (row.metadata ?? {}) as AgentCouncilMetadata,
 })
 
 const mapMemoryEntryRow = (row: MemoryEntryRow): MemoryEntry => ({
@@ -2998,7 +3031,7 @@ export const listAgentCouncilMessages = async (): Promise<AgentCouncilMessage[]>
   }
   const { data, error } = await supabase
     .from('agent_council')
-    .select('id,speaker,topic,message,created_at')
+    .select(AGENT_COUNCIL_SELECT_FIELDS)
     .order('created_at', { ascending: true })
   if (error) {
     throw error
@@ -3006,23 +3039,114 @@ export const listAgentCouncilMessages = async (): Promise<AgentCouncilMessage[]>
   return (data ?? []).map((row) => mapAgentCouncilRow(row as AgentCouncilRow))
 }
 
-export const createAgentCouncilMessage = async (payload: {
+// 发起一条正式主提案（parent_id 为空、entry_type=proposal、初始状态 open）。
+export const createAgentCouncilProposal = async (payload: {
   topic: string
   message: string
+  speaker?: AgentCouncilSpeaker
+  metadata?: AgentCouncilMetadata
+}): Promise<AgentCouncilMessage> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('agent_council')
+    .insert({
+      user_id: userId,
+      speaker: payload.speaker ?? 'chuanchuan',
+      topic: payload.topic,
+      message: payload.message,
+      entry_type: 'proposal',
+      proposal_status: 'open',
+      parent_id: null,
+      metadata: payload.metadata ?? {},
+    })
+    .select(AGENT_COUNCIL_SELECT_FIELDS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('发起提案失败')
+  }
+  return mapAgentCouncilRow(data as AgentCouncilRow)
+}
+
+// 给某条主提案添加一条评估回复（entry_type=review），并记录态度 vote。
+export const createAgentCouncilReview = async (payload: {
+  parentId: string
+  topic: string
+  message: string
+  vote: AgentCouncilVote
+  speaker?: AgentCouncilSpeaker
 }): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const userId = await requireAuthenticatedUserId()
   const { error } = await supabase.from('agent_council').insert({
-    speaker: 'chuanchuan',
+    user_id: userId,
+    speaker: payload.speaker ?? 'chuanchuan',
     topic: payload.topic,
     message: payload.message,
+    entry_type: 'review',
+    parent_id: payload.parentId,
+    vote: payload.vote,
   })
   if (error) {
     throw error
   }
 }
 
+// 串串拍板：更新主提案 proposal_status，并插入一条 entry_type=decision 的记录保留拍板说明。
+// approved 仅代表“允许生成本地执行方案”，不代表自动执行；真正的执行案由 Mac mini 监听脚本生成。
+export const decideAgentCouncilProposal = async (payload: {
+  proposalId: string
+  topic: string
+  status: 'approved' | 'rejected' | 'deferred'
+  note?: string
+  speaker?: AgentCouncilSpeaker
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const nowIso = new Date().toISOString()
+  const { error: updateError } = await supabase
+    .from('agent_council')
+    .update({ proposal_status: payload.status, updated_at: nowIso })
+    .eq('id', payload.proposalId)
+  if (updateError) {
+    throw updateError
+  }
+  const statusLabel =
+    payload.status === 'approved' ? '已拍板' : payload.status === 'rejected' ? '已拒绝' : '暂缓'
+  const note = payload.note?.trim()
+  const message = note ? note : `串串拍板：${statusLabel}`
+  const { error: insertError } = await supabase.from('agent_council').insert({
+    user_id: userId,
+    speaker: payload.speaker ?? 'chuanchuan',
+    topic: payload.topic,
+    message,
+    entry_type: 'decision',
+    parent_id: payload.proposalId,
+    metadata: { decision_status: payload.status },
+  })
+  if (insertError) {
+    throw insertError
+  }
+}
+
+// 删除一条主提案；其下的评估/拍板记录通过外键 ON DELETE CASCADE 一并删除。
+export const deleteAgentCouncilProposal = async (proposalId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('agent_council').delete().eq('id', proposalId)
+  if (error) {
+    throw error
+  }
+}
+
+// 删除整条 topic 下的全部消息（用于清理旧版历史消息）。
 export const deleteAgentCouncilTopic = async (topic: string): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')

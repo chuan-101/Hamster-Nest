@@ -270,7 +270,30 @@ export type RpStoryGroup = {
   updatedAt: string | null
 }
 
-export type AgentCouncilSpeaker = 'claude' | 'gpt' | 'gemini' | 'chuanchuan'
+export type AgentCouncilSpeaker =
+  | 'claude'
+  | 'gpt'
+  | 'gemini'
+  | 'chuanchuan'
+  | 'codex_cli'
+  | 'claude_code_cli'
+
+export type AgentCouncilEntryType = 'proposal' | 'review' | 'decision'
+
+export type AgentCouncilProposalStatus =
+  | 'open'
+  | 'approved'
+  | 'rejected'
+  | 'deferred'
+  | 'plan_generated'
+
+export type AgentCouncilVote = 'support' | 'neutral' | 'against'
+
+export type AgentCouncilMetadata = {
+  risk_level?: string
+  target_module?: string
+  [key: string]: unknown
+}
 
 export type AgentCouncilMessage = {
   id: string
@@ -278,6 +301,12 @@ export type AgentCouncilMessage = {
   topic: string
   message: string
   createdAt: string
+  updatedAt: string | null
+  parentId: string | null
+  entryType: AgentCouncilEntryType | null
+  proposalStatus: AgentCouncilProposalStatus | null
+  vote: AgentCouncilVote | null
+  metadata: AgentCouncilMetadata
 }
 
 export type RpSessionGroup = {
