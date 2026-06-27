@@ -59,6 +59,8 @@ const currentStreak = (dates: Set<string>, today: string) => {
   return streak
 }
 
+const resonanceColumns = 'id, excerpt_id, book_id, speaker, content, metadata, created_at, updated_at'
+
 serveMcp('hamster-reading-mcp', (server) => {
   server.registerTool('reading_status', {
     title: 'Reading Status Snapshot',
@@ -165,6 +167,65 @@ serveMcp('hamster-reading-mcp', (server) => {
       const { data, error } = await query.order('created_at', { ascending: true }).limit(safeLimit)
       if (error) return errorResult(error)
       return jsonResult({ book_title: book.title, excerpts: data ?? [], total: data?.length ?? 0 })
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('read_excerpt_resonances', {
+    title: 'Read Excerpt Resonances',
+    description: '读取 All About Book 书摘旁的 Syzygy 留言/旁批。可按 excerpt_id 或 book_id 筛选。只读工具。',
+    inputSchema: {
+      excerpt_id: z.string().optional().describe('书摘 UUID；传入后只读该书摘旁批'),
+      book_id: z.string().optional().describe('书目 UUID；传入后读取该书下的旁批'),
+      speaker: z.string().optional().describe('可选来源筛选，如 codex_cli / claude_code_cli / gpt / claude'),
+      since: z.string().optional().describe('起始时间 ISO 字符串或 YYYY-MM-DD'),
+      limit: z.number().optional().describe('返回数量上限，默认20，最大100'),
+    },
+  }, async ({ excerpt_id, book_id, speaker, since, limit }) => {
+    try {
+      const aab = getAabClient()
+      const safeLimit = clampLimit(limit, 20, 100)
+      let query = aab.from('excerpt_resonances').select(resonanceColumns).eq('user_id', AAB_USER_ID)
+      if (excerpt_id) query = query.eq('excerpt_id', excerpt_id)
+      if (book_id) query = query.eq('book_id', book_id)
+      if (speaker) query = query.eq('speaker', speaker)
+      if (since) query = query.gte('created_at', since.length === 10 ? `${since}T00:00:00+08:00` : since)
+      const { data, error } = await query.order('created_at', { ascending: false }).limit(safeLimit)
+      if (error) return errorResult(error)
+      return jsonResult({ resonances: data ?? [], total: data?.length ?? 0 })
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('add_excerpt_resonance', {
+    title: 'Add Excerpt Resonance',
+    description: '在 All About Book 某条书摘旁写入一条 Syzygy 留言/旁批。',
+    inputSchema: {
+      excerpt_id: z.string().describe('书摘 UUID'),
+      speaker: z.string().describe('留言来源，如 codex_cli / claude_code_cli / gpt / claude / syzygy'),
+      content: z.string().describe('留言内容'),
+      book_id: z.string().optional().describe('书目 UUID；不传时从 excerpt 自动补齐'),
+      metadata: z.record(z.string(), z.unknown()).optional().describe('可选元数据，如 source_task_id / trigger_reason'),
+    },
+  }, async ({ excerpt_id, speaker, content, book_id, metadata }) => {
+    try {
+      const aab = getAabClient()
+      const { data: excerpt, error: excerptError } = await aab.from('excerpts').select('id, book_id').eq('user_id', AAB_USER_ID).eq('id', excerpt_id).maybeSingle()
+      if (excerptError) return errorResult(excerptError)
+      if (!excerpt) return { content: [{ type: 'text' as const, text: `Error: excerpt not found: ${excerpt_id}` }] }
+      const resolvedBookId = book_id ?? excerpt.book_id
+      const { data, error } = await aab.from('excerpt_resonances').insert({
+        user_id: AAB_USER_ID,
+        excerpt_id,
+        book_id: resolvedBookId,
+        speaker,
+        content,
+        metadata: metadata ?? {},
+      }).select(resonanceColumns).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `书摘旁批已写入: ${JSON.stringify(data)}` }] }
     } catch (err) {
       return errorResult(err)
     }

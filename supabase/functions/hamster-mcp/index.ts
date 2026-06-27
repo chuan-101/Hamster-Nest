@@ -5,7 +5,8 @@ const FEED_LIST_COLUMNS = 'id, type, title, summary, priority, status, source, c
 const FEED_DETAIL_COLUMNS = 'id, type, title, summary, content, content_format, priority, status, source, created_by, visible_from, expires_at, related_table, related_id, metadata, created_at, updated_at'
 const DEFAULT_FEED_STATUSES = ['unread', 'read']
 const FEED_PRIORITY_RANK: Record<string, number> = { low: 1, normal: 2, high: 3, urgent: 4 }
-const FEED_TYPE_SCHEMA = z.enum(['morning_share', 'reading_assist', 'daily_card', 'system_notice', 'syzygy_note', 'weekly_card', 'reminder_card', 'print_card', 'dev_log', 'other'])
+const FEED_TYPE_SCHEMA = z.enum(['morning_share', 'reading_assist', 'daily_card', 'system_notice', 'syzygy_note', 'weekly_card', 'reminder_card', 'print_card', 'dev_log', 'monthly_overview', 'other'])
+const TIMELINE_SOURCE_SCHEMA = z.enum(['claude', 'gpt', 'user', 'gemini', 'wechat', 'codex_cli', 'claude_code_cli', 'api'])
 
 const shanghaiDateString = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -17,6 +18,8 @@ const shanghaiDateString = (date = new Date()) => {
   const value = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
   return `${value('year')}-${value('month')}-${value('day')}`
 }
+
+const shanghaiMonthString = (date = new Date()) => shanghaiDateString(date).slice(0, 7)
 
 const addDays = (dateString: string, days: number) => {
   const [year, month, day] = dateString.split('-').map(Number)
@@ -122,7 +125,7 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('get_syzygy_feed_by_type', {
     title: 'Get Syzygy Feed By Type',
-    description: '按类型读取 Syzygy Feed 摘要列表，如 morning_share、reading_assist、syzygy_note、weekly_card、daily_card。默认不返回 archived/expired，不返回完整 content。只读工具。',
+    description: '按类型读取 Syzygy Feed 摘要列表，如 morning_share、reading_assist、syzygy_note、weekly_card、daily_card、monthly_overview。默认不返回 archived/expired，不返回完整 content。只读工具。',
     inputSchema: {
       type: FEED_TYPE_SCHEMA.describe('Feed 类型'),
       limit: z.number().optional().describe('返回数量上限，默认5，最大10'),
@@ -136,6 +139,28 @@ serveMcp('hamster-mcp', (server) => {
       const { data, error } = await supabase.from('agent_feed_items').select(FEED_LIST_COLUMNS).eq('user_id', USER_ID).eq('type', type).in('status', DEFAULT_FEED_STATUSES).lte('visible_from', new Date().toISOString()).gte('visible_from', since).order('pinned', { ascending: false }).order('visible_from', { ascending: false }).order('created_at', { ascending: false }).limit(Math.max(safeLimit * 4, 20))
       if (error) return errorResult(error)
       return feedListResult(data as Record<string, unknown>[] | null, safeLimit)
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('get_monthly_overview', {
+    title: 'Get Monthly Overview',
+    description: '读取指定月份的 Feed 月度概览完整内容。默认读取当前月 metadata.status=active 的 monthly_overview。只读工具。',
+    inputSchema: {
+      month: z.string().optional().describe('月份 YYYY-MM；默认当前上海月份'),
+      include_archived: z.boolean().optional().describe('是否允许读取 archived/expired 的 Feed 记录，默认 false'),
+    },
+  }, async ({ month, include_archived }) => {
+    try {
+      const targetMonth = month ?? shanghaiMonthString()
+      let query = supabase.from('agent_feed_items').select(FEED_DETAIL_COLUMNS).eq('user_id', USER_ID).eq('type', 'monthly_overview').eq('metadata->>month', targetMonth).lte('visible_from', new Date().toISOString()).order('updated_at', { ascending: false }).limit(5)
+      if (!include_archived) query = query.in('status', DEFAULT_FEED_STATUSES).eq('metadata->>status', 'active')
+      const { data, error } = await query
+      if (error) return errorResult(error)
+      const item = data?.[0] ?? null
+      if (!item) return { content: [{ type: 'text' as const, text: `Error: monthly_overview not found for ${targetMonth}` }] }
+      return jsonResult(item)
     } catch (err) {
       return errorResult(err)
     }
@@ -191,7 +216,7 @@ serveMcp('hamster-mcp', (server) => {
       event_date: z.string().describe('事件日期 YYYY-MM-DD'),
       summary: z.string().describe('事件摘要'),
       recorder: z.string().optional().describe('记录者: chuanchuan 或 syzygy，默认syzygy'),
-      source: z.string().optional().describe('来源: claude / gpt / user / gemini，默认claude'),
+      source: TIMELINE_SOURCE_SCHEMA.optional().describe('来源: claude / gpt / user / gemini / wechat / codex_cli / claude_code_cli / api，默认claude'),
     },
   }, async ({ event_date, summary, recorder, source }) => {
     const { data, error } = await supabase.from('timeline_entries').insert({
