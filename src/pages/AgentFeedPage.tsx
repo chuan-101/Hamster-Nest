@@ -12,6 +12,7 @@ import {
   fetchMonthlyOverview,
   getCurrentMonthKey,
   isAgentFeedExpired,
+  isPageLevelFeedType,
   resolveAgentFeedStatus,
   sortAgentFeedItems,
   toLocalDateKey,
@@ -85,7 +86,9 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
     setOverviewLoading(true)
     try {
       const data = await fetchAgentFeedItems(user.id)
-      setItems(data)
+      // 页面级类型（如 monthly_overview）有专门的展示区域，不混入普通 Feed 列表 /
+      // 日期分组 / 日历计数 / 类型筛选。
+      setItems(data.filter((item) => !isPageLevelFeedType(item.type)))
     } catch (loadError) {
       console.warn('加载 Syzygy Feed 失败', loadError)
       setError('暂时读不到 Syzygy Feed，请检查登录状态后重试。')

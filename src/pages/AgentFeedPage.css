@@ -236,6 +236,37 @@
   letter-spacing: 0.04em;
 }
 
+.feed-overview__toggle {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #b27f98;
+  background: rgba(255, 246, 251, 0.9);
+  border: 1px solid rgba(255, 214, 231, 0.9);
+  border-radius: 999px;
+  padding: 2px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.feed-overview__toggle:hover {
+  background: rgba(255, 224, 238, 0.9);
+  color: #76556c;
+}
+
+.feed-overview__raw {
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #5a4a54;
+  word-break: break-word;
+}
+
+.feed-overview__plain {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .feed-overview__empty {
   position: relative;
   z-index: 1;
