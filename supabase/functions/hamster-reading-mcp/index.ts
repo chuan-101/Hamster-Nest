@@ -60,6 +60,9 @@ const currentStreak = (dates: Set<string>, today: string) => {
 }
 
 const resonanceColumns = 'id, excerpt_id, book_id, speaker, content, metadata, created_at, updated_at'
+const questionColumns = 'id, book_id, question, status, metadata, created_at, updated_at'
+const answerColumns = 'id, question_id, book_id, answered_by, content, metadata, created_at, updated_at'
+const answerers = ['chuanchuan', 'syzygy-claude', 'syzygy-gpt', 'cli_reading_assist'] as const
 
 serveMcp('hamster-reading-mcp', (server) => {
   server.registerTool('reading_status', {
@@ -226,6 +229,113 @@ serveMcp('hamster-reading-mcp', (server) => {
       }).select(resonanceColumns).single()
       if (error) return errorResult(error)
       return { content: [{ type: 'text' as const, text: `书摘旁批已写入: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('read_book_questions', {
+    title: 'Read Book Questions',
+    description: '读取 All About Book 中的书籍问题，可按状态、书目和创建时间筛选。只读工具。',
+    inputSchema: {
+      status: z.enum(['open', 'answered', 'all']).optional().describe('筛选问题状态，默认 open；all 返回全部状态'),
+      book_id: z.string().optional().describe('书目 UUID；传入后只读该书的问题'),
+      since: z.string().optional().describe('起始时间 ISO 字符串或 YYYY-MM-DD'),
+      limit: z.number().optional().describe('返回数量上限，默认20，最大100'),
+      include_answers: z.boolean().optional().describe('是否同时返回每个问题已有回答，默认 false'),
+    },
+  }, async ({ status, book_id, since, limit, include_answers }) => {
+    try {
+      const aab = getAabClient()
+      const normalizedStatus = status ?? 'open'
+      const safeLimit = clampLimit(limit, 20, 100)
+      let query = aab.from('book_questions').select(questionColumns, { count: 'exact' }).eq('user_id', AAB_USER_ID)
+      if (normalizedStatus !== 'all') query = query.eq('status', normalizedStatus)
+      if (book_id) query = query.eq('book_id', book_id)
+      if (since) query = query.gte('created_at', since.length === 10 ? `${since}T00:00:00+08:00` : since)
+      const { data: questions, error, count } = await query.order('created_at', { ascending: false }).limit(safeLimit)
+      if (error) return errorResult(error)
+
+      let answersByQuestion: Record<string, unknown[]> = {}
+      if (include_answers && questions?.length) {
+        const questionIds = questions.map((question) => question.id)
+        const { data: answers, error: answersError } = await aab.from('book_answers').select(answerColumns).eq('user_id', AAB_USER_ID).in('question_id', questionIds).order('created_at', { ascending: true })
+        if (answersError) return errorResult(answersError)
+        answersByQuestion = (answers ?? []).reduce<Record<string, unknown[]>>((acc, answer) => {
+          const questionId = String(answer.question_id)
+          acc[questionId] = [...(acc[questionId] ?? []), answer]
+          return acc
+        }, {})
+      }
+
+      return jsonResult({
+        questions: (questions ?? []).map((question) => ({
+          ...question,
+          ...(include_answers ? { answers: answersByQuestion[String(question.id)] ?? [] } : {}),
+        })),
+        total: count ?? questions?.length ?? 0,
+      })
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('add_book_question', {
+    title: 'Add Book Question',
+    description: '向 All About Book 某本书写入一个问题。写入前会校验 book_id 属于当前 AAB 用户。',
+    inputSchema: {
+      book_id: z.string().describe('书目 UUID'),
+      question: z.string().min(1).describe('问题内容'),
+      status: z.enum(['open', 'answered']).optional().describe('问题状态，默认 open'),
+      metadata: z.record(z.string(), z.unknown()).optional().describe('可选元数据，如 source_task_id / trigger_reason'),
+    },
+  }, async ({ book_id, question, status, metadata }) => {
+    try {
+      const aab = getAabClient()
+      const { data: book, error: bookError } = await aab.from('books').select('id').eq('user_id', AAB_USER_ID).eq('id', book_id).maybeSingle()
+      if (bookError) return errorResult(bookError)
+      if (!book) return { content: [{ type: 'text' as const, text: `Error: book not found: ${book_id}` }] }
+      const { data, error } = await aab.from('book_questions').insert({
+        user_id: AAB_USER_ID,
+        book_id,
+        question,
+        status: status ?? 'open',
+        metadata: metadata ?? {},
+      }).select(questionColumns).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `书籍问题已写入: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('add_book_answer', {
+    title: 'Add Book Answer',
+    description: '向 All About Book 某个问题写入回答。写入前会校验 question_id 属于当前 AAB 用户，并默认将问题状态更新为 answered。',
+    inputSchema: {
+      question_id: z.string().describe('问题 UUID'),
+      answered_by: z.enum(answerers).describe('回答来源，只能为 chuanchuan / syzygy-claude / syzygy-gpt / cli_reading_assist'),
+      content: z.string().min(1).describe('回答内容'),
+      metadata: z.record(z.string(), z.unknown()).optional().describe('可选元数据，如 source_task_id / trigger_reason'),
+    },
+  }, async ({ question_id, answered_by, content, metadata }) => {
+    try {
+      const aab = getAabClient()
+      const { data: question, error: questionError } = await aab.from('book_questions').select('id, book_id').eq('user_id', AAB_USER_ID).eq('id', question_id).maybeSingle()
+      if (questionError) return errorResult(questionError)
+      if (!question) return { content: [{ type: 'text' as const, text: `Error: question not found: ${question_id}` }] }
+      const { data, error } = await aab.from('book_answers').insert({
+        user_id: AAB_USER_ID,
+        question_id,
+        book_id: question.book_id,
+        answered_by,
+        content,
+        metadata: metadata ?? {},
+      }).select(answerColumns).single()
+      if (error) return errorResult(error)
+      const { error: updateError } = await aab.from('book_questions').update({ status: 'answered' }).eq('user_id', AAB_USER_ID).eq('id', question_id)
+      if (updateError) return errorResult(updateError)
+      return { content: [{ type: 'text' as const, text: `书籍问题回答已写入: ${JSON.stringify(data)}` }] }
     } catch (err) {
       return errorResult(err)
     }
