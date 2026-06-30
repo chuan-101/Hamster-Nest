@@ -317,6 +317,11 @@ export const computeAgentFeedStats = (items: AgentFeedItem[], now = Date.now()):
   let lastUpdated: number | null = null
 
   items.forEach((item) => {
+    // 页面级类型（如 monthly_overview / 本月概览）有专门的展示区域，
+    // 不参与未读 / 已读与高优先级统计，避免在入口小组件里一直显示一条“未读”。
+    if (isPageLevelFeedType(item.type)) {
+      return
+    }
     const status = resolveAgentFeedStatus(item, now)
     if (status === 'unread') {
       unread += 1
