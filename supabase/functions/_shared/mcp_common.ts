@@ -60,9 +60,17 @@ export const jsonResult = (value: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }],
 })
 
-export const errorResult = (err: unknown) => ({
-  content: [{ type: 'text' as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
-})
+export const errorResult = (err: unknown) => {
+  let msg: string
+  if (err instanceof Error) {
+    msg = err.message
+  } else if (typeof err === 'object' && err !== null) {
+    msg = (err as Record<string, unknown>).message as string ?? JSON.stringify(err, null, 2)
+  } else {
+    msg = String(err)
+  }
+  return { content: [{ type: 'text' as const, text: `Error: ${msg}` }] }
+}
 
 export const clampLimit = (limit: number | undefined, fallback: number, max: number) =>
   Math.min(Math.max(limit ?? fallback, 1), max)
