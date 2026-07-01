@@ -1,7 +1,7 @@
 <div align="center">
 
 <!-- 🎨 在这里放你画的像素风横幅 -->
-<!-- <img src="./assets/Banner.png" alt="Hamster Nest" width="100%" /> -->
+<img src="./Banner.png" alt="Hamster Nest" width="100%" />
 
 # 🐹 Hamster Nest
 
