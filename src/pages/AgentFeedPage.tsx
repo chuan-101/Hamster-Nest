@@ -9,8 +9,7 @@ import {
   agentFeedTypeOptions,
   computeAgentFeedStats,
   fetchAgentFeedItems,
-  fetchMonthlyOverview,
-  getCurrentMonthKey,
+  fetchMonthlyOverviews,
   isAgentFeedExpired,
   isPageLevelFeedType,
   resolveAgentFeedStatus,
@@ -52,18 +51,18 @@ const formatUpdatedLabel = (iso: string | null) => {
 const getMonthRange = (anchor: Date) => {
   const year = anchor.getFullYear()
   const month = anchor.getMonth()
-  return { monthLabel: `${year}年${month + 1}月` }
+  return {
+    monthKey: `${year}-${`${month + 1}`.padStart(2, '0')}`,
+    monthLabel: `${year}年${month + 1}月`,
+  }
 }
 
 const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
   const navigate = useNavigate()
   const today = useMemo(() => getTodayKey(), [])
-  const overviewMonthLabel = useMemo(() => {
-    const [year, month] = getCurrentMonthKey().split('-')
-    return `${year}年${Number(month)}月`
-  }, [])
   const [items, setItems] = useState<AgentFeedItem[]>([])
-  const [overview, setOverview] = useState<MonthlyOverviewContent | null>(null)
+  // 所有月份的「本月概览」一次读入，按 YYYY-MM 归桶，随日历游标切换即时展示。
+  const [overviews, setOverviews] = useState<Map<string, MonthlyOverviewContent>>(() => new Map())
   const [overviewLoading, setOverviewLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -97,11 +96,11 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
     }
     // 月度概览单独读取，失败时静默降级为空状态，不影响其它 Feed 卡片。
     try {
-      const overviewData = await fetchMonthlyOverview(user.id)
-      setOverview(overviewData)
+      const overviewMap = await fetchMonthlyOverviews(user.id)
+      setOverviews(overviewMap)
     } catch (overviewError) {
       console.warn('加载月度概览失败', overviewError)
-      setOverview(null)
+      setOverviews(new Map())
     } finally {
       setOverviewLoading(false)
     }
@@ -212,6 +211,8 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
   }
 
   const monthRange = getMonthRange(monthCursor)
+  // 「本月概览」跟随日历游标：切到哪个月就展示哪个月，查不到则由子组件显示空状态。
+  const overview = overviews.get(monthRange.monthKey) ?? null
 
   return (
     <div className="feed-page">
@@ -250,7 +251,7 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
       {error ? <p className="feed-alert">{error}</p> : null}
       {actionError ? <p className="feed-alert feed-alert--soft">{actionError}</p> : null}
 
-      <MonthlyOverview data={overview} loading={overviewLoading} monthLabel={overviewMonthLabel} />
+      <MonthlyOverview data={overview} loading={overviewLoading} monthLabel={monthRange.monthLabel} />
 
       <section className="feed-calendar" aria-label="按日期浏览">
         <div className="feed-calendar__dot" aria-hidden="true" />

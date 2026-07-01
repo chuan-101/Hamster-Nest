@@ -254,14 +254,15 @@ const buildMonthlyOverviewContent = (item: AgentFeedItem): MonthlyOverviewConten
   }
 }
 
-// 读取当前月份的月度概览记录（取最新一条，按 updated_at / created_at 倒序）。
-// 只要查到归属当前月份的 monthly_overview 就返回；查不到才返回 null（上层显示空状态）。
-// 不再要求 content 必须是 JSON，也不再强制 metadata.status=active，兼容 markdown / plain。
-export const fetchMonthlyOverview = async (
+// 一次性读取全部月度概览记录，按月份键（YYYY-MM）归桶，每月保留最新一条
+// （按 updated_at / created_at 倒序，故每月首次出现的即为最新）。
+// 供 Feed 页在日历切换月份时即时切换「本月概览」，无需逐月往返查询。
+// 不要求 content 必须是 JSON，也不强制 metadata.status=active，兼容 markdown / plain。
+export const fetchMonthlyOverviews = async (
   userId: string,
-  month: string = getCurrentMonthKey(),
-): Promise<MonthlyOverviewContent | null> => {
-  if (!supabase) return null
+): Promise<Map<string, MonthlyOverviewContent>> => {
+  const result = new Map<string, MonthlyOverviewContent>()
+  if (!supabase) return result
   const nowIso = new Date().toISOString()
   const { data, error } = await supabase
     .from('agent_feed_items')
@@ -271,17 +272,29 @@ export const fetchMonthlyOverview = async (
     .or(`visible_from.is.null,visible_from.lte.${nowIso}`)
     .order('updated_at', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(20)
+    .limit(60)
 
   if (error) {
     console.warn('加载月度概览失败', error)
-    return null
+    return result
   }
 
   const candidates = (data ?? []) as AgentFeedItem[]
-  const matched = candidates.find((item) => resolveOverviewMonth(item) === month)
-  if (!matched) return null
-  return buildMonthlyOverviewContent(matched)
+  candidates.forEach((item) => {
+    const month = resolveOverviewMonth(item)
+    if (!month || result.has(month)) return
+    result.set(month, buildMonthlyOverviewContent(item))
+  })
+  return result
+}
+
+// 读取指定月份（默认当前月）的月度概览记录；查不到返回 null（上层显示空状态）。
+export const fetchMonthlyOverview = async (
+  userId: string,
+  month: string = getCurrentMonthKey(),
+): Promise<MonthlyOverviewContent | null> => {
+  const overviews = await fetchMonthlyOverviews(userId)
+  return overviews.get(month) ?? null
 }
 
 export const updateAgentFeedStatus = async (
