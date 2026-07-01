@@ -61,7 +61,7 @@ const currentStreak = (dates: Set<string>, today: string) => {
 
 const resonanceColumns = 'id, excerpt_id, book_id, speaker, content, metadata, created_at, updated_at'
 const questionColumns = 'id, book_id, question, status, metadata, created_at, updated_at'
-const answerColumns = 'id, question_id, book_id, answered_by, content, metadata, created_at, updated_at'
+const answerColumns = 'id, question_id, book_id, answered_by, answer, metadata, created_at, updated_at'
 const answerers = ['chuanchuan', 'syzygy-claude', 'syzygy-gpt', 'cli_reading_assist'] as const
 
 serveMcp('hamster-reading-mcp', (server) => {
