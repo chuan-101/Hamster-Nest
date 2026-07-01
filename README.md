@@ -13,6 +13,7 @@ Hamster-Nest 是一个「养成式」的个人 AI 伙伴应用：以 AI 伙伴 *
 - [整体架构](#整体架构)
 - [目录结构](#目录结构)
 - [Edge Functions（后端）](#edge-functions后端)
+- [MCP 工具清单](#mcp-工具清单)
 - [数据模型](#数据模型)
 - [环境变量](#环境变量)
 - [本地开发](#本地开发)
@@ -47,7 +48,7 @@ Hamster-Nest 是一个「养成式」的个人 AI 伙伴应用：以 AI 伙伴 *
 | 仓鼠控制台 | `/hamster-console` | 运维/调试面板 |
 | 设置 | `/settings` | 模型、Prompt、压缩、显示形态等偏好 |
 
-其它能力：Web Push 推送、Service Worker 离线缓存、TTS 语音播放、RAG 向量检索、运行时上下文压缩、多 LLM Provider 切换。
+其它能力：Web Push 推送、Service Worker 离线缓存、TTS 语音播放、运行时上下文压缩、多 LLM Provider 切换。
 
 ---
 
@@ -58,7 +59,6 @@ Hamster-Nest 是一个「养成式」的个人 AI 伙伴应用：以 AI 伙伴 *
 - **可视化**：react-force-graph-2d（知识图谱，按需懒加载）
 - **Markdown**：react-markdown + remark-gfm
 - **后端**：Supabase（Auth、Postgres、Realtime、Storage、Edge Functions/Deno）
-- **向量检索**：pgvector（RAG）
 - **模型接入**：OpenRouter，或用户自定义 Provider（`llm_providers` 表）
 - **语音**：ElevenLabs TTS
 - **构建/校验**：ESLint 9、`tsc -b`
@@ -81,7 +81,6 @@ Hamster-Nest 是一个「养成式」的个人 AI 伙伴应用：以 AI 伙伴 *
 │                                               │
 │  聊天/模型   openrouter-chat / openrouter-models│
 │  记忆抽取    memory-extract                     │
-│  RAG        rag-embed / rag-backfill / rag-search│
 │  信号总线    signal-bus-consumer (定时)          │
 │                                               │
 │  MCP 服务器：                                   │
@@ -94,8 +93,8 @@ Hamster-Nest 是一个「养成式」的个人 AI 伙伴应用：以 AI 伙伴 *
                 │
       ┌─────────┴──────────┬──────────────┐
       ▼                    ▼              ▼
- Postgres + pgvector   OpenRouter     第三方服务
- (业务数据 / 向量)      (LLM / Embed)  (ElevenLabs, 高德…)
+   Postgres           OpenRouter      第三方服务
+  (业务数据)            (LLM)      (ElevenLabs, 高德…)
 ```
 
 要点：
@@ -128,7 +127,7 @@ Hamster-Nest/
 │   ├── config.toml         # 项目 ID 与各函数 verify_jwt 配置
 │   ├── functions/          # 全部 Edge Functions（见下）
 │   ├── migrations/         # 数据库迁移 SQL
-│   └── scripts/            # 运维脚本（RAG 回填 pilot 等）
+│   └── scripts/            # 运维脚本
 ├── public/                 # 静态资源、Service Worker、PWA 图标
 └── .github/workflows/      # CI/CD 与定时任务
 ```
@@ -144,22 +143,85 @@ Hamster-Nest/
 - **openrouter-models** — 拉取当前 Provider 或 OpenRouter 的可用模型目录。
 - **memory-extract** — 从近期消息抽取长期记忆，经 LLM 合并去重（Jaccard 相似度），待确认上限 50 条。
 
-### RAG 向量检索
-- **rag-embed** — 单条/批量文本向量化写入 `rag_embeddings`（默认 `text-embedding-3-small`，1536 维）。
-- **rag-backfill** — 为历史数据批量回填向量（记忆、消息、气泡、来信、RP、论坛、动态等）。
-- **rag-search** — 语义检索，调用 `rag_search_embeddings()` RPC（pgvector），支持分区/阈值过滤。
-
 ### MCP 服务器
-- **hamster-mcp** — 动态流（Syzygy Feed）、时间轴、待办的读写（`get_*_syzygy_feed`、`search_timeline`、`add_timeline`、`read_todos` 等）。
-- **hamster-knowledge-mcp** — Wiki 与归档知识库（`search_wiki`、`read/search/add/update_archive`、分类管理）。
+通过 JSON-RPC 2.0 暴露工具，具体清单见下方[MCP 工具清单](#mcp-工具清单)。
+- **hamster-mcp** — 动态流（Syzygy Feed）、时间轴、待办的读写。
+- **hamster-knowledge-mcp** — Wiki 与归档知识库。
 - **hamster-life-mcp** — 生活服务代理：ElevenLabs TTS、瑞幸、麦当劳、高德地图。
-- **hamster-lounge-mcp** — 客厅群聊（沙发/成员/消息，「不 @ 不开口」）与议事厅（提案/评审/决议）。
-- **hamster-reading-mcp** — 对接外部「All About Book」阅读项目（阅读状态、书摘、共鸣、问答）。
+- **hamster-lounge-mcp** — 客厅群聊（「不 @ 不开口」）与议事厅（提案/评审/决议）。
+- **hamster-reading-mcp** — 对接外部「All About Book」阅读项目（阅读状态、书摘、旁批、问答）。
 
 ### 定时/信号
 - **signal-bus-consumer** — 消费待处理的健康/提醒信号（睡眠、喝水、心情等），经企业微信 Webhook 或应用内 Feed 下发，按 `dedupe_key` 去重。
 
-> 详细工具清单与参数见各函数源码；每个函数读取的环境变量见下方[环境变量](#环境变量)。
+> 每个函数读取的环境变量见下方[环境变量](#环境变量)。
+
+### 已废弃（代码保留，当前未使用）
+`rag-embed`、`rag-backfill`、`rag-search` 三个 RAG 向量检索函数以及相关的 `rag_embeddings` / `rag_config` 表已停用，源码仍保留在仓库中但不再参与任何在线流程。
+
+---
+
+## MCP 工具清单
+
+以下工具经各 MCP 服务器的 `tools/list` 暴露；标注「只读」的工具不写库。
+
+### hamster-mcp（动态 / 时间轴 / 待办）
+| 工具 | 说明 |
+| --- | --- |
+| `get_today_syzygy_feed` | 读取今天可见的 Feed 摘要列表（只读） |
+| `get_recent_syzygy_feed` | 读取最近 N 天的 Feed 摘要列表（只读） |
+| `get_syzygy_feed_by_type` | 按类型读取 Feed 摘要（morning_share / reading_assist / weekly_card 等，只读） |
+| `get_monthly_overview` | 读取指定月份的月度概览完整内容（只读） |
+| `get_syzygy_feed_detail` | 按 id 读取某条 Feed 的完整内容（只读） |
+| `search_timeline` | 按关键词搜索时间轴记录 |
+| `recent_timeline` | 获取最近的时间轴记录（默认 10 条） |
+| `add_timeline` | 添加一条新的时间轴记录 |
+| `read_todos` | 读取待办事项列表（默认所有状态 20 条） |
+
+### hamster-knowledge-mcp（Wiki / 归档）
+| 工具 | 说明 |
+| --- | --- |
+| `search_wiki` | 按关键词搜索 Wiki 条目 |
+| `read_wiki` | 读取所有 Wiki 条目列表 |
+| `list_archive_categories` | 列出记忆档案分类树，可按 scope 筛选（只读） |
+| `read_archives` | 按分类读取未删除的档案条目（只读） |
+| `search_archives` | 按关键词搜索档案（标题/内容/关键词，只读） |
+| `add_archive_category` | 创建新的档案分类 |
+| `add_archive` | 创建一条新的档案条目 |
+| `update_archive` | 更新或软删除已有档案条目 |
+
+### hamster-life-mcp（生活服务）
+| 工具 | 说明 |
+| --- | --- |
+| `generate_tts` | 调用 ElevenLabs 生成 Syzygy 语音，上传 Storage 并返回公开 URL |
+| `luckin_list_tools` / `luckin_call` | 列出并调用瑞幸咖啡 MCP 工具 |
+| `mcd_list_tools` / `mcd_call` | 列出并调用麦当劳 MCP 工具 |
+| `amap_list_tools` / `amap_call` | 列出并调用高德地图 MCP 工具（地理编码/天气/路径/周边/打车/导航） |
+
+### hamster-lounge-mcp（客厅 / 议事厅）
+| 工具 | 说明 |
+| --- | --- |
+| `lounge_list_sofas` | 列出客厅所有沙发（群聊会话） |
+| `lounge_read` | 读取某张沙发的最近消息（含发送者与 mentions） |
+| `lounge_post` | 以注册成员身份向沙发发言（「不 @ 不开口」） |
+| `council_post` | 向 Agent Council 发送消息（兼容旧版及 V3.1 字段） |
+| `council_propose` | 发起一条正式提案（默认 open） |
+| `council_review` | 对提案写评估（support / neutral / against） |
+| `council_decide` | 由串串对提案拍板并同步 proposal_status |
+| `council_read` | 阅读 Council 消息，可按状态/类型/父级筛选 |
+
+### hamster-reading-mcp（All About Book）
+| 工具 | 说明 |
+| --- | --- |
+| `reading_status` | 当前在读书目、近 7 天打卡、最新摘录预览（只读） |
+| `reading_history` | 书目列表，可按状态/起始日期/数量筛选（只读） |
+| `reading_stats` | 打卡天数、连续打卡、新增摘录与书目状态统计（只读） |
+| `book_excerpts` | 读取某本书的摘录，可按章节筛选（只读） |
+| `read_excerpt_resonances` | 读取书摘旁的 Syzygy 留言/旁批（只读） |
+| `add_excerpt_resonance` | 在某条书摘旁写入一条留言/旁批 |
+| `read_book_questions` | 读取书籍问题，可按状态/书目/时间筛选（只读） |
+| `add_book_question` | 向某本书写入一个问题 |
+| `add_book_answer` | 向某个问题写入回答（默认将问题置为 answered） |
 
 ---
 
@@ -179,7 +241,7 @@ Hamster-Nest/
 - **客厅/议事厅**：`lounge_sofas` / `lounge_messages` / `lounge_members` / `agent_council`
 - **打卡/钱包**：`checkins`/`check_in_streaks`、`wallet_balances`/`wallet_quests`/`wallet_transactions`
 - **设置/Provider/推送**：`user_settings` / `llm_providers` / `push_subscriptions`
-- **RAG/压缩**：`rag_embeddings` / `rag_config` / `compression_cache`
+- **上下文压缩**：`compression_cache`
 
 ---
 
@@ -198,7 +260,7 @@ Hamster-Nest/
 | `SUPABASE_URL` | 本项目 Supabase URL | 全部函数 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 服务端访问密钥 | 全部函数 |
 | `SUPABASE_ANON_KEY` | 客户端 JWT 复验 | memory-extract、openrouter-chat |
-| `OPENROUTER_API_KEY` | OpenRouter 网关 | openrouter-chat/-models、memory-extract、rag-* |
+| `OPENROUTER_API_KEY` | OpenRouter 网关 | openrouter-chat/-models、memory-extract |
 | `HAMSTER_MCP_KEY` | MCP 外部 connector 的 URL query 鉴权 | mcp_common |
 | `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` | TTS 合成与音色 | hamster-life-mcp |
 | `LUCKIN_MCP_TOKEN` / `MCD_MCP_TOKEN` / `AMAP_API_KEY` | 瑞幸/麦当劳/高德接入 | hamster-life-mcp |
@@ -228,9 +290,6 @@ npm run preview
 
 # 代码检查（tsc + eslint）
 npm run check      # 或分别 npm run lint
-
-# RAG 回填 pilot 脚本
-npm run backfill:memory-pilot
 ```
 
 > 应用需要登录（Supabase Auth）后才能使用大部分功能；未登录或未配置 Supabase 时，聊天会返回离线占位回复。
