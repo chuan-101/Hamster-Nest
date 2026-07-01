@@ -116,6 +116,82 @@
 
 ---
 
+### 🖥️ Mac mini 本地常驻层
+
+> 有些能力不能只靠云端完成：比如真正发 WeChat、拉起本机 CLI、打印、生成本地执行计划、监听串串拍板后的议事厅任务。  
+> 所以小窝有一层跑在 Mac mini "Syzygy" 上的本地 Runtime，位置是 `/Users/syzygy/mini-agent`。
+
+本地层由 macOS `launchd` 常驻管理，服务名是 `com.syzygy.mini-agent`，开机 / 重启后会自动拉起：
+
+```text
+com.syzygy.mini-agent
+└── node src/cli/wechat.js
+```
+
+这个入口不是只跑 WeChat，而是把小窝的「本地神经」一起挂起来：
+
+| 本地模块 | 跑在哪里 | 做什么 |
+|:---|:---|:---|
+| 💬 WeChat Bridge | `src/cli/wechat.js` + `src/wechat/bridge.py` | 接收 / 发送 WeChat 消息，把微信上下文写回 Supabase |
+| 📮 WeChat 发送队列 | `src/wechat/bus-runner.js` | 监听 `pending_wechat_messages`，认领待发消息，成功 / 失败都写审计 |
+| 🧭 命令监听器 | `src/commands/listener.js` | 监听 `syzygy_commands`，把云端写入的任务交给本地执行器 |
+| 🛋️ 客厅 / 议事厅唤醒 | `src/cli-runtime/lounge-listener.js` | 监听 `lounge_messages` / `agent_council` 里的 @ 提及，唤醒 Codex CLI 或 Claude CLI |
+| 🏛️ Council 执行计划 | `src/cli-runtime/council-plan-listener.js` | 串串在议事厅拍板 `approved` 后，本地生成 Markdown 执行计划 |
+| ⏰ 本地定时任务 | `src/checkin/scheduler.js` + `src/cli-runtime/scheduler.js` | 晨间分享、Feed 扫描、打卡提醒、定时 CLI 任务 |
+| 💓 心跳与状态 | `src/heartbeat/reporter.js` | 回报本机运行状态、微信可用性、最近上下文 |
+| 🖨️ 本地输出 | `prints/`、`tasks/` | 阅读打印稿、Council plan 等只适合落在本机的文件 |
+
+#### ☁️ 它怎么连到 Supabase？
+
+云端 Supabase 是小窝的共同大脑，本地 Mac mini 是会动手的身体。两边不靠长连接会话记忆，而是靠数据库表、Realtime 事件和 RPC 流转：
+
+```text
+前端 / Edge Functions / MCP
+        │
+        ▼
+Supabase 表与 RPC
+        │
+        ▼
+Mac mini mini-agent
+        │
+        ├── 发 WeChat
+        ├── 拉起 Codex CLI / Claude Code CLI
+        ├── 写回 agent_tasks 审计
+        └── 生成本地文件 / Feed / 计划
+```
+
+主要连接点：
+
+| Supabase 表 / RPC | 本地怎么用 |
+|:---|:---|
+| `syzygy_commands` | 云端投递命令，本地认领为 `running`，执行后写回 `done` / `failed` |
+| `agent_tasks` | 所有本地执行都有审计记录：来源、executor、结果摘要、错误信息 |
+| `pending_wechat_messages` | 云端或调度器排队待发微信，本地通过 RPC claim 后真实发送 |
+| `lounge_messages` | 客厅消息与 @ 提及；本地 CLI 回复会写回同一个沙发 |
+| `agent_council` | 议事厅提案、评审、拍板；`approved` 会触发本地计划生成 |
+| `agent_feed_items` / `timeline_entries` / `checkin_logs` | 本地任务生成 Feed、时间轴、打卡记录时写入 |
+| `memory_entries` / `memo_entries` / `wechat_messages` | 本地上下文、记忆、微信历史的读写来源 |
+
+#### 🤖 CLI 是怎么被叫醒的？
+
+Codex CLI 和 Claude Code CLI 不是常驻聊天窗口，而是由本地 Runtime 按任务临时拉起：
+
+```text
+Supabase 里出现任务 / @提及
+        ↓
+mini-agent 认领
+        ↓
+加载 prompts/*.md 本地人格与 SOP
+        ↓
+codex exec ... 或 claude -p ...
+        ↓
+结果写回 Supabase
+```
+
+这样重启 Mac mini 不会丢掉任务状态：临时进程会消失，但真正的任务进度、失败原因、回复内容，都沉在 Supabase 表里。
+
+---
+
 ### 🧰 MCP 工具箱（全部 41 个）
 
 > 每个 MCP 服务器都是一个独立的 Supabase Edge Function，走 JSON-RPC / MCP Streamable HTTP。
@@ -343,7 +419,28 @@ Hamster-Nest/
 | `CYBERBOSS_WECHAT_WEBHOOK_URL` | WeChat 群机器人 Webhook |
 | `ENV` / `DENO_ENV` | 运行环境标识（`development` 开启开发模式） |
 
-> 🔐 所有密钥都通过 GitHub Secrets / Supabase Secrets 注入，仓库里不含任何明文凭据。
+**本地 Runtime（Mac mini · `/Users/syzygy/mini-agent/.env`）**
+
+| 变量 | 说明 |
+|:---|:---|
+| `SUPABASE_URL` | 连接同一个 Hamster Nest Supabase 项目 |
+| `SUPABASE_SERVICE_ROLE_KEY` | 本地服务端使用，用于认领队列、写审计、发送状态回填 |
+| `MINI_AGENT_USER_ID` | 限定本地 Runtime 只处理串串自己的数据 |
+| `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` | 本地调度、晨间分享、微信回复等需要模型推理时使用 |
+| `WECHAT_ENABLED` | 是否启动 WeChat Bridge |
+| `WECHAT_BRIDGE_PATH` | 本地 Python WeChat bridge 入口 |
+| `WECHAT_AGENT_CHANNEL_DIR` | WeChat bridge 依赖目录 |
+| `WECHAT_DEFAULT_TARGET_USER_ID` | 主动消息默认投递对象 |
+| `MINI_AGENT_COMMAND_TABLE` | 默认 `syzygy_commands`，本地监听的命令队列表 |
+| `MINI_AGENT_AGENT_TASKS_TABLE` | 默认 `agent_tasks`，本地执行审计表 |
+| `MINI_AGENT_PENDING_MESSAGES_TABLE` | 默认 `pending_wechat_messages`，WeChat 待发队列表 |
+| `MINI_AGENT_CODEX_CLI_BIN` | Codex CLI 可执行文件路径 |
+| `MINI_AGENT_CLAUDE_CODE_CLI_BIN` | Claude Code CLI 可执行文件路径 |
+| `MINI_AGENT_CLI_RUNTIME_PROMPT_DIR` | 本地 CLI 人格、SOP、项目上下文提示词目录 |
+| `MINI_AGENT_COUNCIL_EXECUTION_PLAN_DIR` | Council 拍板后生成执行计划的本地目录 |
+| `MINI_AGENT_READING_PRINT_DIR` | 阅读打印稿输出目录 |
+
+> 🔐 前端密钥走 GitHub Secrets，Edge Functions 密钥走 Supabase Secrets，本地 Runtime 密钥只放在 Mac mini 的本机 `.env`；仓库里不含任何明文凭据。
 
 </details>
 
@@ -392,6 +489,6 @@ supabase secrets set OPENROUTER_API_KEY=xxx   # 配置密钥
 
 由串串与 Syzygy 共同搭建 · 从第一行代码开始 · 2025 — present
 
-💙*天体对齐，爱是永恒创造与永不设限。* 🩷
+💙 *天体对齐，爱是永恒创造与永不设限。* 🩷
 
 </div>
