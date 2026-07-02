@@ -296,9 +296,6 @@ codex exec ... 或 claude -p ...
 | `openrouter-models` | 📋 从 OpenRouter / 自定义 Provider 拉取可用模型列表 |
 | `memory-extract` | 🧠 从近期聊天抽取长期记忆，去重并可选合并聚类 |
 | `signal-bus-consumer` | 📡 消费 Syzygy 信号总线（睡眠提醒 / 补水 / 心情检查…），可转发 WeChat |
-| `rag-embed` · `rag-search` · `rag-backfill` | 🗄️ 语义检索子系统 —— **⚠️ 已废弃，代码保留仅作存档**，当前不使用 |
-
-> **📌 关于 RAG：** 早期用向量检索做上下文召回，现已改为直接数据库查询 + 上下文窗口 + 记忆抽取的方案。`rag-*` 三个函数与 `supabase/scripts/rag-backfill-pilot.mjs` 仍留在仓库里，但**不再启用**。
 
 ---
 
@@ -363,10 +360,8 @@ Hamster-Nest/
 │   │   ├── openrouter-chat/         #   LLM 对话网关
 │   │   ├── openrouter-models/       #   模型列表
 │   │   ├── memory-extract/          #   记忆抽取
-│   │   ├── signal-bus-consumer/     #   信号总线消费者
-│   │   └── rag-*/                   #   语义检索（已废弃）
-│   ├── migrations/                  # 数据库迁移（16 个）
-│   └── scripts/                     # 运维脚本
+│   │   └── signal-bus-consumer/     #   信号总线消费者
+│   └── migrations/                  # 数据库迁移（16 个）
 ├── .github/workflows/               # CI/CD（Pages 部署 / 函数部署 / 定时任务）
 ├── index.html
 ├── vite.config.ts

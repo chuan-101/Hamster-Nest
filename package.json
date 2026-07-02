@@ -8,8 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "check": "tsc -b && eslint .",
-    "preview": "vite preview",
-    "backfill:memory-pilot": "node supabase/scripts/rag-backfill-pilot.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
