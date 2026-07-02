@@ -34,15 +34,36 @@ type ConsumePayload = {
 const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]
 
 const isAllowedOrigin = (origin: string | null) => {
-  if (!origin) return true
+  if (!origin) return false
   return allowedOrigins.some((pattern) =>
     typeof pattern === 'string' ? pattern === origin : pattern.test(origin),
   )
 }
 
+const timingSafeEqual = (a: string, b: string) => {
+  const encoder = new TextEncoder()
+  const aBytes = encoder.encode(a)
+  const bBytes = encoder.encode(b)
+  if (aBytes.length !== bBytes.length) return false
+
+  let diff = 0
+  for (let i = 0; i < aBytes.length; i += 1) diff |= aBytes[i] ^ bBytes[i]
+  return diff === 0
+}
+
+const isAuthorizedSignalBusRequest = (req: Request) => {
+  const expectedSecret = Deno.env.get('SIGNAL_BUS_SECRET')?.trim() ?? ''
+  if (!expectedSecret) return false
+
+  const providedSecret = req.headers.get('x-signal-bus-secret')?.trim() ?? ''
+  if (!providedSecret) return false
+
+  return timingSafeEqual(providedSecret, expectedSecret)
+}
+
 const buildCorsHeaders = (origin: string | null) => ({
-  'Access-Control-Allow-Origin': origin ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  ...(origin && isAllowedOrigin(origin) ? { 'Access-Control-Allow-Origin': origin } : {}),
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-signal-bus-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Max-Age': '86400',
   Vary: 'Origin',
@@ -290,7 +311,7 @@ const claimSignal = async (
 
 serve(async (req) => {
   const origin = req.headers.get('origin')
-  if (!isAllowedOrigin(origin)) {
+  if (origin && !isAllowedOrigin(origin)) {
     return jsonResponse({ error: 'Origin not allowed' }, 403, origin)
   }
 
@@ -303,6 +324,10 @@ serve(async (req) => {
 
   if (req.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed' }, 405, origin)
+  }
+
+  if (!isAuthorizedSignalBusRequest(req)) {
+    return jsonResponse({ error: 'Unauthorized' }, 401, origin)
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
