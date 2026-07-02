@@ -135,6 +135,8 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
     return groups
   }, [items])
 
+  const monthRange = useMemo(() => getMonthRange(monthCursor), [monthCursor])
+
   const calendarCells = useMemo(() => {
     const year = monthCursor.getFullYear()
     const month = monthCursor.getMonth()
@@ -156,23 +158,27 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
     return cells
   }, [itemsByDate, monthCursor, nowMs])
 
-  // 默认选中：今天（若有内容）否则最近有内容的一天。
+  // 选中日期始终跟随日历月份：切换月份后落到该月日期，
+  // 这样月度概览与“当前浏览月份”保持一致，不再依赖某天是否有月总结记录。
   useEffect(() => {
-    if (items.length === 0) {
-      setSelectedDate(null)
-      return
-    }
+    const year = monthCursor.getFullYear()
+    const month = monthCursor.getMonth()
+    const monthKey = `${year}-${`${month + 1}`.padStart(2, '0')}`
+    const firstDayOfMonth = `${monthKey}-01`
+
     setSelectedDate((current) => {
-      if (current && itemsByDate.has(current)) {
+      if (current?.startsWith(monthKey)) {
         return current
       }
-      if (itemsByDate.has(today)) {
+      if (today.startsWith(monthKey)) {
         return today
       }
-      const latest = Array.from(itemsByDate.keys()).sort((a, b) => b.localeCompare(a))[0]
-      return latest ?? null
+      const latestInMonth = Array.from(itemsByDate.keys())
+        .filter((dateKey) => dateKey.startsWith(monthKey))
+        .sort((a, b) => b.localeCompare(a))[0]
+      return latestInMonth ?? firstDayOfMonth
     })
-  }, [items, itemsByDate, today])
+  }, [itemsByDate, monthCursor, today])
 
   const selectedItems = useMemo(() => {
     if (!selectedDate) return []
@@ -210,7 +216,6 @@ const AgentFeedPage = ({ user }: AgentFeedPageProps) => {
     return null
   }
 
-  const monthRange = getMonthRange(monthCursor)
   // 「本月概览」跟随日历游标：切到哪个月就展示哪个月，查不到则由子组件显示空状态。
   const overview = overviews.get(monthRange.monthKey) ?? null
 
