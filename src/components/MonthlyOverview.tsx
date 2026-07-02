@@ -28,55 +28,58 @@ const MonthlyOverview = ({ data, loading, monthLabel }: MonthlyOverviewProps) =>
         <span className="feed-overview__mark" aria-hidden="true">◆</span>
         <h2 className="feed-overview__title">本月概览</h2>
         <span className="feed-overview__month">{monthLabel}</span>
-        {hasContent ? (
-          <button
-            type="button"
-            className="feed-overview__toggle"
-            onClick={() => setCollapsed((current) => !current)}
-            aria-expanded={!collapsed}
-          >
-            {collapsed ? '展开' : '收起'}
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="feed-overview__toggle"
+          onClick={() => setCollapsed((current) => !current)}
+          aria-expanded={!collapsed}
+          aria-controls="feed-monthly-overview-body"
+        >
+          {collapsed ? '展开' : '收起'}
+        </button>
       </header>
 
-      {loading && !hasContent ? (
-        <p className="feed-overview__empty">正在整理这个月的持续事项…</p>
-      ) : null}
+      {!collapsed ? (
+        <div id="feed-monthly-overview-body" className="feed-overview__body">
+          {loading && !hasContent ? (
+            <p className="feed-overview__empty">正在整理这个月的持续事项…</p>
+          ) : null}
 
-      {!loading && !hasContent ? (
-        <p className="feed-overview__empty">这个月还没有持续追踪的事项，攒一攒就有了。</p>
-      ) : null}
+          {!loading && !hasContent ? (
+            <p className="feed-overview__empty">这个月还没有持续追踪的事项，攒一攒就有了。</p>
+          ) : null}
 
-      {hasContent && !collapsed ? (
-        hasThemes ? (
-          <div className="feed-overview__themes">
-            {data!.themes.map((theme, themeIndex) => (
-              <article className="feed-overview__theme" key={`${theme.theme}-${themeIndex}`}>
-                <h3 className="feed-overview__theme-title">{theme.theme}</h3>
-                <ul className="feed-overview__items">
-                  {theme.items.map((entry, entryIndex) => (
-                    <li className="feed-overview__item" key={entryIndex}>
-                      <span className="feed-overview__bullet" aria-hidden="true" />
-                      <span className="feed-overview__text">{entry.text}</span>
-                      {entry.archive_candidate ? (
-                        <span className="feed-overview__flag" title="可沉淀进档案">待沉淀</span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="feed-overview__raw">
-            {data!.format === 'markdown' ? (
-              <MarkdownRenderer content={rawText} />
+          {hasContent ? (
+            hasThemes ? (
+              <div className="feed-overview__themes">
+                {data!.themes.map((theme, themeIndex) => (
+                  <article className="feed-overview__theme" key={`${theme.theme}-${themeIndex}`}>
+                    <h3 className="feed-overview__theme-title">{theme.theme}</h3>
+                    <ul className="feed-overview__items">
+                      {theme.items.map((entry, entryIndex) => (
+                        <li className="feed-overview__item" key={entryIndex}>
+                          <span className="feed-overview__bullet" aria-hidden="true" />
+                          <span className="feed-overview__text">{entry.text}</span>
+                          {entry.archive_candidate ? (
+                            <span className="feed-overview__flag" title="可沉淀进档案">待沉淀</span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
+              </div>
             ) : (
-              <p className="feed-overview__plain">{rawText}</p>
-            )}
-          </div>
-        )
+              <div className="feed-overview__raw">
+                {data!.format === 'markdown' ? (
+                  <MarkdownRenderer content={rawText} />
+                ) : (
+                  <p className="feed-overview__plain">{rawText}</p>
+                )}
+              </div>
+            )
+          ) : null}
+        </div>
       ) : null}
     </section>
   )
