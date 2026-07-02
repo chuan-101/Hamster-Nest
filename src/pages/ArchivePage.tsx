@@ -147,6 +147,7 @@ const ArchivePage = () => {
   const [archives, setArchives] = useState<Archive[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
+  const [expandedArchiveIds, setExpandedArchiveIds] = useState<Set<string>>(() => new Set())
   const [search, setSearch] = useState('')
 
   const [loadingCategories, setLoadingCategories] = useState(true)
@@ -216,6 +217,7 @@ const ArchivePage = () => {
 
   useEffect(() => {
     setSearch('')
+    setExpandedArchiveIds(new Set())
     void refreshArchives(selectedCategoryId)
   }, [selectedCategoryId, refreshArchives])
 
@@ -263,6 +265,18 @@ const ArchivePage = () => {
     setCategories([])
     setArchives([])
     setScope(next)
+  }
+
+  const toggleArchiveExpanded = (archiveId: string) => {
+    setExpandedArchiveIds((current) => {
+      const next = new Set(current)
+      if (next.has(archiveId)) {
+        next.delete(archiveId)
+      } else {
+        next.add(archiveId)
+      }
+      return next
+    })
   }
 
   const toggleCollapse = (categoryId: string) => {
@@ -620,32 +634,97 @@ const ArchivePage = () => {
           <p className="archive-empty">{search.trim() ? '没有匹配的档案。' : '该目录下还没有档案条目。'}</p>
         ) : (
           <div className="archive-list">
-            {filteredArchives.map((archive) => (
-              <button
-                key={archive.id}
-                type="button"
-                className="archive-card"
-                onClick={() => openEditArchive(archive)}
-              >
-                <div className="archive-card__top">
-                  <span className="archive-card__title">{archive.title}</span>
-                  <span className={`archive-importance archive-importance--${archive.importance}`}>
-                    {IMPORTANCE_META[archive.importance].label}
-                  </span>
-                </div>
-                {archive.content ? (
-                  <p className="archive-card__excerpt">{archive.content}</p>
-                ) : null}
-                <div className="archive-card__meta">
-                  {archive.keywords.slice(0, 4).map((keyword) => (
-                    <span key={keyword} className="archive-card__chip">
-                      #{keyword}
-                    </span>
-                  ))}
-                  <time>{formatTime(archive.updatedAt)}</time>
-                </div>
-              </button>
-            ))}
+            {filteredArchives.map((archive) => {
+              const isExpanded = expandedArchiveIds.has(archive.id)
+              return (
+                <article
+                  key={archive.id}
+                  className={`archive-card ${isExpanded ? 'archive-card--expanded' : ''}`}
+                >
+                  <button
+                    type="button"
+                    className="archive-card__toggle"
+                    onClick={() => toggleArchiveExpanded(archive.id)}
+                    aria-expanded={isExpanded}
+                    title={isExpanded ? '收起' : '展开查看全文'}
+                  >
+                    <div className="archive-card__top">
+                      <span className="archive-card__title">{archive.title}</span>
+                      <span className={`archive-importance archive-importance--${archive.importance}`}>
+                        {IMPORTANCE_META[archive.importance].label}
+                      </span>
+                      <span className="archive-card__chevron" aria-hidden="true">
+                        ▾
+                      </span>
+                    </div>
+                    {!isExpanded ? (
+                      <>
+                        {archive.content ? (
+                          <p className="archive-card__excerpt">{archive.content}</p>
+                        ) : null}
+                        <div className="archive-card__meta">
+                          {archive.keywords.slice(0, 4).map((keyword) => (
+                            <span key={keyword} className="archive-card__chip">
+                              #{keyword}
+                            </span>
+                          ))}
+                          <time>{formatTime(archive.updatedAt)}</time>
+                        </div>
+                      </>
+                    ) : null}
+                  </button>
+                  {isExpanded ? (
+                    <div className="archive-card__detail">
+                      <p
+                        className={`archive-card__content ${
+                          archive.content ? '' : 'archive-card__content--empty'
+                        }`}
+                      >
+                        {archive.content || '（这条档案还没有正文）'}
+                      </p>
+                      {archive.keywords.length > 0 || archive.aliases.length > 0 ? (
+                        <div className="archive-card__tags">
+                          {archive.keywords.map((keyword) => (
+                            <span key={`kw-${keyword}`} className="archive-card__chip">
+                              #{keyword}
+                            </span>
+                          ))}
+                          {archive.aliases.map((alias) => (
+                            <span
+                              key={`alias-${alias}`}
+                              className="archive-card__chip archive-card__chip--alias"
+                            >
+                              @{alias}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="archive-card__footer">
+                        <span className="archive-card__footinfo">
+                          来源：{archive.source || 'manual'} · 更新于 {formatTime(archive.updatedAt)}
+                        </span>
+                        <div className="archive-card__footactions">
+                          <button
+                            type="button"
+                            className="archive-mini-btn"
+                            onClick={() => openEditArchive(archive)}
+                          >
+                            ✎ 编辑
+                          </button>
+                          <button
+                            type="button"
+                            className="archive-mini-btn archive-mini-btn--ghost"
+                            onClick={() => toggleArchiveExpanded(archive.id)}
+                          >
+                            收起 ▴
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </article>
+              )
+            })}
           </div>
         )}
       </section>
