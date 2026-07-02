@@ -401,6 +401,7 @@ Hamster-Nest/
 | `AAB_SUPABASE_SERVICE_ROLE_KEY` | AAB 实例 Service Role 密钥 |
 | `AAB_USER_ID` | AAB 用户 ID |
 | `CYBERBOSS_WECHAT_WEBHOOK_URL` | WeChat 群机器人 Webhook |
+| `SIGNAL_BUS_SECRET` | `signal-bus-consumer` 共享密钥；GitHub Actions/Mac mini 调用时通过 `x-signal-bus-secret` 传入 |
 | `ENV` / `DENO_ENV` | 运行环境标识（`development` 开启开发模式） |
 
 **本地 Runtime（Mac mini · `/Users/syzygy/mini-agent/.env`）**
@@ -409,6 +410,7 @@ Hamster-Nest/
 |:---|:---|
 | `SUPABASE_URL` | 连接同一个 Hamster Nest Supabase 项目 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 本地服务端使用，用于认领队列、写审计、发送状态回填 |
+| `SIGNAL_BUS_SECRET` | 调用远端 `signal-bus-consumer` 时写入 `x-signal-bus-secret` 的共享密钥 |
 | `MINI_AGENT_USER_ID` | 限定本地 Runtime 只处理串串自己的数据 |
 | `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` | 本地调度、晨间分享、微信回复等需要模型推理时使用 |
 | `WECHAT_ENABLED` | 是否启动 WeChat Bridge |

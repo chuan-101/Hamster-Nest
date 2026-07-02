@@ -14,6 +14,6 @@ jobs:
           curl --fail --show-error --silent \
             --request POST \
             --url 'https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/signal-bus-consumer' \
-            --header 'Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}' \
+            --header 'x-signal-bus-secret: ${{ secrets.SIGNAL_BUS_SECRET }}' \
             --header 'Content-Type: application/json' \
             --data '{"limit":20}'
