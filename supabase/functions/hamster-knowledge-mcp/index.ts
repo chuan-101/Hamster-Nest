@@ -70,7 +70,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
   }, async ({ query, scope, limit }) => {
     try {
       const safeLimit = clampLimit(limit, 10, 50)
-      let q = supabase.from('archives').select('id, category_id, title, content, keywords, aliases, importance, source, created_at, updated_at, archive_categories!inner(scope, name)').eq('user_id', USER_ID).eq('is_deleted', false).or(`title.ilike.%${query}%,content.ilike.%${query}%,keywords.cs.{${query}}`).order('updated_at', { ascending: false }).limit(safeLimit)
+      let q = supabase.from('archives').select('id, category_id, title, content, keywords, aliases, importance, source, created_at, updated_at, archive_categories!archives_category_id_fkey!inner(scope, name)').eq('user_id', USER_ID).eq('is_deleted', false).or(`title.ilike.%${query}%,content.ilike.%${query}%,keywords.cs.{${query}}`).order('updated_at', { ascending: false }).limit(safeLimit)
       if (scope && scope !== 'all') q = q.eq('archive_categories.scope', scope)
       const { data, error } = await q
       if (error) return errorResult(error)
