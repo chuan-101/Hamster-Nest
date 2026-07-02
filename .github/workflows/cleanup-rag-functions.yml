@@ -1,0 +1,22 @@
+# One-off cleanup: delete the retired rag-* Edge Functions from Supabase.
+# Safe to remove this workflow after it has run successfully.
+name: Cleanup RAG Functions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Delete retired rag-* functions
+        run: |
+          supabase functions delete rag-embed --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+          supabase functions delete rag-search --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+          supabase functions delete rag-backfill --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
