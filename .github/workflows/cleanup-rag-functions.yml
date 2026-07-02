@@ -3,6 +3,11 @@
 name: Cleanup RAG Functions
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/cleanup-rag-functions.yml'
   workflow_dispatch:
 
 jobs:
