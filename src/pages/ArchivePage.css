@@ -360,30 +360,51 @@
 
 .archive-card {
   display: grid;
-  gap: 6px;
   text-align: left;
   border: 1px solid var(--arc-soft);
   border-radius: 14px;
   background: #fff;
-  padding: 10px 12px;
-  cursor: pointer;
   box-shadow: 0 2px 8px var(--arc-soft-faint);
-  transition: background 140ms ease, border-color 140ms ease;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+  overflow: hidden;
 }
 
 .archive-card:hover {
-  background: var(--arc-tile);
   border-color: var(--arc-accent-strong);
+}
+
+.archive-card--expanded {
+  border-color: var(--arc-accent-strong);
+  box-shadow: 0 6px 16px var(--arc-soft-faint);
+}
+
+.archive-card__toggle {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 10px 12px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background 140ms ease;
+}
+
+.archive-card__toggle:hover {
+  background: var(--arc-tile);
 }
 
 .archive-card__top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
 }
 
 .archive-card__title {
+  flex: 1;
   font-size: 14px;
   font-weight: 700;
   color: var(--arc-heading);
@@ -391,6 +412,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.archive-card--expanded .archive-card__title {
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.archive-card__chevron {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--arc-accent-strong);
+  transform: rotate(-90deg);
+  transition: transform 180ms ease;
+}
+
+.archive-card--expanded .archive-card__chevron {
+  transform: rotate(0deg);
 }
 
 .archive-card__excerpt {
@@ -427,6 +468,69 @@
   background: var(--arc-tile);
   padding: 1px 8px;
   color: var(--arc-heading);
+}
+
+/* ── Expanded card detail ─────────────────────── */
+
+.archive-card__detail {
+  display: grid;
+  gap: 10px;
+  padding: 0 14px 12px;
+}
+
+.archive-card__content {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--arc-accent);
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: var(--arc-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.archive-card__content--empty {
+  color: #9a8b94;
+}
+
+.archive-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.archive-card__chip--alias {
+  background: #fff;
+  color: var(--arc-kicker);
+  border-style: dashed;
+}
+
+.archive-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--arc-soft-faint);
+}
+
+.archive-card__footinfo {
+  font-size: 11px;
+  color: #9a8b94;
+}
+
+.archive-card__footactions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.archive-mini-btn--ghost {
+  background: #fff;
+  border-color: var(--arc-soft);
+  font-weight: 500;
 }
 
 /* ── Importance badge ─────────────────────────── */
