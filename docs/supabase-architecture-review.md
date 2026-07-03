@@ -31,12 +31,15 @@
 | # | 事项 | 现状 | 目标 | 涉及对象 | 校验方式 |
 |:---:|:---|:---|:---|:---|:---|
 | 0-1 | **`device_status` 经纬度对 anon 可读** | 策略 `Allow select for anon by user`（role=anon）+ 该表在 `supabase_realtime` 发布中 → 任何人凭公开 anon key 可实时订阅 GPS | 经纬度移出 anon 可读路径；免登录展示改走脱敏视图 / `security definer` 只读 RPC，只暴露非敏感字段 | `public.device_status` 策略、`supabase_realtime` publication | 用 anon key 直查 `device_status` 应查不到 lat/long |
-| 0-2 | **`device_status` 可被 anon 伪造写入** | `Allow insert for anon` `WITH CHECK (true)` → 任何人可注入假位置/电量，且会被 `wechat-reply` 当上下文喂给模型 | 收回 anon 写入；设备上报改由服务端密钥或 authenticated 通道 | `public.device_status` INSERT 策略 | 用 anon key INSERT 应被拒 |
+| 0-2 | ⚠️ **`device_status` 可被 anon 伪造写入** | `Allow insert for anon` `WITH CHECK (true)` → 任何人可注入假位置/电量，且会被 `wechat-reply` 当上下文喂给模型 | 收回 anon 写入；设备上报改由服务端密钥或 authenticated 通道 | `public.device_status` INSERT 策略 | **前置**：先确认上报方（iOS 快捷指令 / Mac mini 脚本）持有的 key——若用 anon key，须先把上报切到带共享密钥的 Edge Function 或 service key 再删策略，否则上报会断。删后用 anon key INSERT 应被拒 |
 | 0-3 | **`tts-generate` 完全无鉴权** | `Deno.serve` 直接处理，任何人可调用刷 ElevenLabs 额度；产物桶 `tts-audio` 为 public | 补 JWT 复验（对齐 `openrouter-chat` 的做法） | `supabase/functions/tts-generate/index.ts` | 无 token 调用应返回 401 |
 | 0-4 | **letter / wechat 弱鉴权兜底** | `verifyAuth` 内 `if (token.startsWith('eyJ') && token.length > 100) return true` → 任何像 JWT 的串都放行 | 删除该兜底分支，改真正验签或共享密钥 fail-closed | `letter-generate`、`wechat-reply` | 伪造长串 token 调用应返回 401 |
-| 0-5 | **收敛其余 anon 只读表** | `agent_tasks`(1163) / `current_context_snapshot` / `daily_status_digest` / `weekly_digest` / `ideas` / `print_capsules` / `scheduled_wakeup` 均 role=anon 公网可读 | 逐张判断：真需免登录展示的→脱敏视图；否则策略角色 anon→authenticated | 上述 7 张表的 `frontend_read_*` 策略 | 用 anon key 直查应受限 |
+| 0-5 | **收敛其余 anon 只读表** | `agent_tasks`(1163) / `current_context_snapshot` / `daily_status_digest` / `weekly_digest` / `ideas` / `print_capsules` / `scheduled_wakeup` / `capabilities` 均 role=anon 公网可读 | 逐张判断：真需免登录展示的→脱敏视图；否则策略角色 anon→authenticated | 上述表的 `frontend_read_*` 策略 | 用 anon key 直查应受限 |
+| 0-6 | ⚠️ **其余对 anon 敞开的 INSERT 策略** | `checkin_logs·Allow service insert`、`outbound_messages·Allow insert messages`、`rp_messages·rp_messages_insert`、`rp_npc_cards·rp_npc_cards_insert`、`rp_sessions·rp_sessions_insert` 均 `{public}` INSERT `WITH CHECK (true)` → anon 可写 | service_role 天然绕过 RLS，不需要这些策略（同 `20260702100000` migration 思路）；删除即堵住 anon 写入 | 上述 5 条 INSERT 策略 | **前置**：同 0-2，先确认各表外部写入方持有的 key。`outbound_messages` 最要紧——若有桥接程序消费它发消息，anon 可写 = 任何人能借你的通道发消息 |
 
 > 注：0-1 与 0-5 若都要保留「免登录首页展示」，建议统一成**一个 `public_dashboard` 只读视图 / RPC**，把「该对公网暴露什么」集中到一处，别散在各表策略里。
+>
+> **重要发现（关联 0-3 / 0-4 / P1）**：鉴权最弱的 4 个函数 `letter-generate`、`letter-check`、`wechat-reply`、`tts-generate` **只存在于云端——git 仓库 `supabase/functions/` 里没有源码，`config.toml` 也未登记**。改它们前先把源码收编进仓库并走 CI（见 2-7），否则改动无版本管理、易回退丢失。另：`letter-generate` 鉴权失败时会 `console.error` 打印 `serviceKeyPrefix`（service key 前缀），修 0-4 时顺手删掉这行日志。
 
 ---
 
@@ -61,6 +64,7 @@
 | 2-4 | **路由 / 跳转协议** | 全站 hash 路由 `/#/letters`，push `data.url='/letters'` 依赖它 | RN 无 hash 路由 | push payload 现在就改结构化 `{screen, params}`，Web + 原生共用一份跳转协议；换 React Navigation / Expo Router |
 | 2-5 | **环境变量** | `import.meta.env.VITE_*` | Vite 专有 | 迁 `process.env.EXPO_PUBLIC_*` / `app.config`；注意 anon 可读敏感表在原生同样公网可读（P0 先收敛） |
 | 2-6 | **CORS 依赖复核** | `_shared/mcp_common.ts` 靠 Origin 判断，原生无 Origin「恰好放行」 | 原生端访问控制全落在 JWT 复验上 | 确认 P0/P1 鉴权补齐后，原生路径才安全 |
+| 2-7 | ⚠️ **云端孤儿函数收编进仓库** | `letter-generate`、`letter-check`、`wechat-reply`、`tts-generate` 只在云端，git 与 `config.toml` 均无 | 拉回源码入 `supabase/functions/`、登记 `config.toml`、走与其他函数相同的 CI 部署 | 本次最弱鉴权（0-3/0-4）恰好全在这 4 个脱管函数里，修它们前必须先收编，否则改动无版本管理。验收：`supabase/functions/` 与云端 `list_edge_functions` 一一对应 |
 
 ---
 
