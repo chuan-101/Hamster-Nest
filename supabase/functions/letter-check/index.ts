@@ -1,24 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { verifyAuth } from '../_shared/auth.ts'
+import { getBeijingDate } from '../_shared/time.ts'
 
 const buildServiceClient = () => {
   const url = Deno.env.get('SUPABASE_URL')!
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   return createClient(url, key)
-}
-
-const getBeijingDate = () => {
-  const now = new Date()
-  const bjOffset = 8 * 60
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000
-  const bjDate = new Date(utcMs + bjOffset * 60000)
-  return {
-    month: bjDate.getMonth() + 1,
-    day: bjDate.getDate(),
-    hour: bjDate.getHours(),
-    minute: bjDate.getMinutes(),
-    dateStr: bjDate.toISOString().slice(0, 10),
-    fullDate: bjDate,
-  }
 }
 
 const isInActiveHours = (currentHour: number, start: number, end: number): boolean => {
@@ -27,18 +14,6 @@ const isInActiveHours = (currentHour: number, start: number, end: number): boole
   }
   // 跨午夜的情况，如 22:00 - 06:00
   return currentHour >= start || currentHour < end
-}
-
-const verifyAuth = (req: Request): boolean => {
-  const authHeader = req.headers.get('authorization')
-  if (!authHeader) return false
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim()
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')?.trim()
-  if (serviceKey && token === serviceKey) return true
-  if (anonKey && token === anonKey) return true
-  if (token.startsWith('eyJ') && token.length > 100) return true
-  return false
 }
 
 const callLetterGenerate = async (userId: string, triggerType: string, triggerReason: string) => {
@@ -69,15 +44,7 @@ const callLetterGenerate = async (userId: string, triggerType: string, triggerRe
 }
 
 Deno.serve(async (req: Request) => {
-  if (!verifyAuth(req)) {
-    const authHeader = req.headers.get('authorization')
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    console.error('Auth failed', {
-      hasAuthHeader: !!authHeader,
-      authHeaderPrefix: authHeader?.substring(0, 30),
-      hasServiceKey: !!serviceKey,
-      serviceKeyPrefix: serviceKey?.substring(0, 30),
-    })
+  if (!(await verifyAuth(req))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
   }
 

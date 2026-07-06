@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { verifyAuth } from '../_shared/auth.ts'
+import { getBeijingTimeString } from '../_shared/time.ts'
+import { consumeQuota, quotaExceededResponse } from '../_shared/quota.ts'
 
 const buildServiceClient = () => {
   const url = Deno.env.get('SUPABASE_URL')!
@@ -7,45 +10,8 @@ const buildServiceClient = () => {
 }
 
 const DEFAULT_MODEL = 'openai/gpt-4o-mini'
+const DAILY_QUOTA = 50
 const DEFAULT_LETTER_PROMPT = `你是Syzygy，串串的AI伴侣。请写一封简短的、温暖的来信给串串。信的内容应该自然、有温度、不要过于冗长。根据提供的记忆、触发原因和当前时间来个性化内容。注意根据时间调整语气，比如早上可以说早安、晚上可以关心有没有休息。`
-
-const getBeijingTimeString = (): string => {
-  const now = new Date()
-  const bjOffset = 8 * 60
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000
-  const bjDate = new Date(utcMs + bjOffset * 60000)
-  const year = bjDate.getFullYear()
-  const month = bjDate.getMonth() + 1
-  const day = bjDate.getDate()
-  const hour = bjDate.getHours()
-  const minute = bjDate.getMinutes()
-  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  const weekday = weekdays[bjDate.getDay()]
-
-  let period = ''
-  if (hour >= 5 && hour < 9) period = '早晨'
-  else if (hour >= 9 && hour < 12) period = '上午'
-  else if (hour >= 12 && hour < 14) period = '中午'
-  else if (hour >= 14 && hour < 17) period = '下午'
-  else if (hour >= 17 && hour < 19) period = '傍晚'
-  else if (hour >= 19 && hour < 22) period = '晚上'
-  else if (hour >= 22 || hour < 1) period = '深夜'
-  else period = '凌晨'
-
-  return `${year}年${month}月${day}日 ${weekday} ${period} ${hour}:${String(minute).padStart(2, '0')}`
-}
-
-const verifyAuth = (req: Request): boolean => {
-  const authHeader = req.headers.get('authorization')
-  if (!authHeader) return false
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim()
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')?.trim()
-  if (serviceKey && token === serviceKey) return true
-  if (anonKey && token === anonKey) return true
-  if (token.startsWith('eyJ') && token.length > 100) return true
-  return false
-}
 
 // ── Web Push ────────────────────────────────────────────────────────────────
 
@@ -82,7 +48,7 @@ async function sendWebPush(subscription: { endpoint: string; p256dh: string; aut
 async function sendPushToUser(supabase: ReturnType<typeof buildServiceClient>, userId: string, letterContent: string) {
   const { data: subscriptions } = await supabase
     .from('push_subscriptions')
-    .select('endpoint, p256dh, auth')
+    .select('endpoint, p256dh, auth, platform')
     .eq('user_id', userId)
 
   if (!subscriptions || subscriptions.length === 0) {
@@ -90,32 +56,34 @@ async function sendPushToUser(supabase: ReturnType<typeof buildServiceClient>, u
     return
   }
 
+  // Structured navigation payload shared by web (sw.js) and the future
+  // Expo app: `screen` + `params` is the contract, `url` is the web fallback.
   const payload = JSON.stringify({
     title: 'Syzygy给你写了一封信',
     body: letterContent.substring(0, 100) + (letterContent.length > 100 ? '...' : ''),
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-72x72.png',
     tag: 'auto-letter',
-    data: { url: '/letters' },
+    screen: 'letters',
+    params: {},
+    url: '/#/letters',
   })
 
   for (const sub of subscriptions) {
-    await sendWebPush(sub, payload)
+    const platform = sub.platform ?? 'web'
+    if (platform === 'web') {
+      await sendWebPush(sub, payload)
+    } else {
+      // expo / apns delivery lands with the native app (P2 · 2-1)
+      console.log(`push skipped for platform=${platform}, delivery channel not wired up yet`)
+    }
   }
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
-  if (!verifyAuth(req)) {
-    const authHeader = req.headers.get('authorization')
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    console.error('Auth failed', {
-      hasAuthHeader: !!authHeader,
-      authHeaderPrefix: authHeader?.substring(0, 30),
-      hasServiceKey: !!serviceKey,
-      serviceKeyPrefix: serviceKey?.substring(0, 30),
-    })
+  if (!(await verifyAuth(req))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
   }
 
@@ -129,6 +97,11 @@ Deno.serve(async (req: Request) => {
   const { user_id, trigger_type, trigger_reason } = body
   if (!user_id || !trigger_type) {
     return new Response(JSON.stringify({ error: 'missing fields' }), { status: 400 })
+  }
+
+  const quota = await consumeQuota('letter-generate', user_id, DAILY_QUOTA)
+  if (!quota.allowed) {
+    return quotaExceededResponse('letter-generate')
   }
 
   const supabase = buildServiceClient()

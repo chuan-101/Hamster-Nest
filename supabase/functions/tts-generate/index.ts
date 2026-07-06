@@ -1,10 +1,15 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { verifyAuth } from "../_shared/auth.ts";
+import { consumeQuota, quotaExceededResponse } from "../_shared/quota.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+const USER_ID = "94dd24be-e136-45bb-836b-6820c09c4292";
+const DAILY_QUOTA = 200;
 
 // Syzygy-1 voice defaults
 const DEFAULTS = {
@@ -21,6 +26,18 @@ const DEFAULTS = {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (!(await verifyAuth(req))) {
+    return new Response(
+      JSON.stringify({ error: "unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const quota = await consumeQuota("tts-generate", USER_ID, DAILY_QUOTA);
+  if (!quota.allowed) {
+    return quotaExceededResponse("tts-generate", corsHeaders);
   }
 
   try {

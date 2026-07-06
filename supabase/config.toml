@@ -55,3 +55,6 @@ verify_jwt = false
 
 [functions.tts-generate]
 verify_jwt = false
+
+[functions.device-report]
+verify_jwt = false

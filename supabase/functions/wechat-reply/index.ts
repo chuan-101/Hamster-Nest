@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { verifyAuth } from '../_shared/auth.ts'
+import { getBeijingTimeString, formatBeijingClock } from '../_shared/time.ts'
+import { consumeQuota, quotaExceededResponse } from '../_shared/quota.ts'
 
 const buildServiceClient = () => {
   const url = Deno.env.get('SUPABASE_URL')!
@@ -8,8 +11,10 @@ const buildServiceClient = () => {
 
 const DEFAULT_MODEL = 'openai/gpt-4o-mini'
 const USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
+const DAILY_QUOTA = 500
 
 const MODEL_IDENTITY_MAP: Record<string, string> = {
+  'anthropic/claude-fable-5': '你的底层模型是Claude Fable 5，由Anthropic开发。',
   'anthropic/claude-sonnet-4.6': '你的底层模型是Claude Sonnet 4.6，由Anthropic开发。',
   'anthropic/claude-opus-4.6': '你的底层模型是Claude Opus 4.6，由Anthropic开发。',
   'openai/gpt-4o': '你的底层模型是GPT-4o，由OpenAI开发。',
@@ -27,39 +32,6 @@ const getModelIdentity = (model: string): string => {
   return `你的底层模型是${model}。`
 }
 
-const verifyAuth = (req: Request): boolean => {
-  const authHeader = req.headers.get('authorization')
-  if (!authHeader) return false
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim()
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')?.trim()
-  if (serviceKey && token === serviceKey) return true
-  if (anonKey && token === anonKey) return true
-  if (token.startsWith('eyJ') && token.length > 100) return true
-  return false
-}
-
-const getBeijingTimeString = (): string => {
-  const now = new Date()
-  const bjOffset = 8 * 60
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000
-  const bjDate = new Date(utcMs + bjOffset * 60000)
-  const hour = bjDate.getHours()
-  const minute = bjDate.getMinutes()
-  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  const weekday = weekdays[bjDate.getDay()]
-  let period = ''
-  if (hour >= 5 && hour < 9) period = '早晨'
-  else if (hour >= 9 && hour < 12) period = '上午'
-  else if (hour >= 12 && hour < 14) period = '中午'
-  else if (hour >= 14 && hour < 17) period = '下午'
-  else if (hour >= 17 && hour < 19) period = '傍晚'
-  else if (hour >= 19 && hour < 22) period = '晚上'
-  else if (hour >= 22 || hour < 1) period = '深夜'
-  else period = '凌晨'
-  return `${bjDate.getFullYear()}年${bjDate.getMonth()+1}月${bjDate.getDate()}日 ${weekday} ${period} ${hour}:${String(minute).padStart(2, '0')}`
-}
-
 Deno.serve(async (req: Request) => {
   // CORS
   if (req.method === 'OPTIONS') {
@@ -73,7 +45,7 @@ Deno.serve(async (req: Request) => {
     })
   }
 
-  if (!verifyAuth(req)) {
+  if (!(await verifyAuth(req))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
   }
 
@@ -87,6 +59,11 @@ Deno.serve(async (req: Request) => {
   const { message } = body
   if (!message?.trim()) {
     return new Response(JSON.stringify({ error: 'empty message' }), { status: 400 })
+  }
+
+  const quota = await consumeQuota('wechat-reply', USER_ID, DAILY_QUOTA)
+  if (!quota.allowed) {
+    return quotaExceededResponse('wechat-reply')
   }
 
   const supabase = buildServiceClient()
@@ -138,11 +115,7 @@ Deno.serve(async (req: Request) => {
     }
     if (deviceStatus.steps != null && deviceStatus.steps > 0) parts.push(`今日步数：${deviceStatus.steps}`)
     if (deviceStatus.created_at) {
-      const reportTime = new Date(deviceStatus.created_at)
-      const bjOffset = 8 * 60
-      const utcMs = reportTime.getTime() + reportTime.getTimezoneOffset() * 60000
-      const bjReport = new Date(utcMs + bjOffset * 60000)
-      parts.push(`上报时间：${bjReport.getHours()}:${String(bjReport.getMinutes()).padStart(2, '0')}`)
+      parts.push(`上报时间：${formatBeijingClock(new Date(deviceStatus.created_at))}`)
     }
     if (parts.length > 0) {
       deviceContext = `串串的设备状态：${parts.join('，')}`

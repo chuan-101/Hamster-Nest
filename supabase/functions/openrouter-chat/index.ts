@@ -1,5 +1,8 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { consumeQuota } from '../_shared/quota.ts'
+
+const DAILY_QUOTA = 1000
 
 type OpenAiMessage = {
   role: 'user' | 'assistant' | 'system' | 'tool'
@@ -1208,6 +1211,19 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
     })
+  }
+
+  if (userId) {
+    const quota = await consumeQuota('openrouter-chat', userId, DAILY_QUOTA)
+    if (!quota.allowed) {
+      return new Response(JSON.stringify({ error: '今日调用额度已用完' }), {
+        status: 429,
+        headers: {
+          ...buildCorsHeaders(origin),
+          'Content-Type': 'application/json',
+        },
+      })
+    }
   }
 
   let payload: OpenRouterPayload
