@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { buildEdgeAuthHeaders } from '../lib/edgeAuth'
 
 const TTS_GENERATE_ENDPOINT = 'https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/tts-generate'
 export const TTS_TEXT_LIMIT = 2000
@@ -97,9 +98,14 @@ export const useTtsPlayback = () => {
     setTtsState(id, 'loading')
 
     try {
+      const authHeaders = await buildEdgeAuthHeaders()
+      if (!authHeaders) {
+        throw new Error('TTS requires an active session')
+      }
+
       const response = await fetch(TTS_GENERATE_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ text }),
         signal: controller.signal,
       })

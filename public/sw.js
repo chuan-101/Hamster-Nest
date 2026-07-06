@@ -10,6 +10,26 @@ const APP_SHELL_URLS = ['./', './index.html', './manifest.webmanifest']
 
 const resolveLettersUrl = () => new URL(LETTERS_PATH, self.location.origin).href
 
+// Push payloads carry a structured navigation contract shared with the
+// future native app: `screen` + `params` is authoritative, `url` is the
+// web-only fallback. Screens map to hash routes here; the native app maps
+// the same names to its own navigator.
+const SCREEN_ROUTES = {
+  letters: '/#/letters',
+}
+
+const resolveScreenUrl = (payload = {}) => {
+  if (typeof payload.screen === 'string' && SCREEN_ROUTES[payload.screen]) {
+    return new URL(SCREEN_ROUTES[payload.screen], self.location.origin).href
+  }
+
+  if (typeof payload.url === 'string' && payload.url.trim().length > 0) {
+    return new URL(payload.url, self.location.origin).href
+  }
+
+  return resolveLettersUrl()
+}
+
 const parsePushPayload = (event) => {
   if (!event.data) {
     return {}
@@ -25,10 +45,6 @@ const parsePushPayload = (event) => {
 }
 
 const buildNotificationOptions = (payload = {}) => {
-  const targetUrl = typeof payload.url === 'string' && payload.url.trim().length > 0
-    ? payload.url
-    : resolveLettersUrl()
-
   return {
     body: payload.body || DEFAULT_NOTIFICATION_BODY,
     icon: payload.icon || DEFAULT_NOTIFICATION_ICON,
@@ -38,7 +54,9 @@ const buildNotificationOptions = (payload = {}) => {
     renotify: Boolean(payload.renotify),
     requireInteraction: Boolean(payload.requireInteraction),
     data: {
-      url: targetUrl,
+      url: resolveScreenUrl(payload),
+      screen: typeof payload.screen === 'string' ? payload.screen : undefined,
+      params: payload.params && typeof payload.params === 'object' ? payload.params : undefined,
     },
   }
 }
