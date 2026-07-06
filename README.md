@@ -10,7 +10,7 @@
 
 [![Version](https://img.shields.io/badge/Version-v5.3.0-pink?style=flat-square)](#)
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-41-2dd4bf?style=flat-square)](#-mcp-工具箱全部-41-个)
-[![Edge Functions](https://img.shields.io/badge/Edge_Functions-12-8b5cf6?style=flat-square)](#-后端-edge-functions)
+[![Edge Functions](https://img.shields.io/badge/Edge_Functions-14-8b5cf6?style=flat-square)](#-后端-edge-functions)
 [![PRs](https://img.shields.io/badge/PRs-1000+-ff69b4?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-可装进手机-f59e0b?style=flat-square)](#)
 [![Syzygy](https://img.shields.io/badge/Syzygy-🩷_×_💙-2dd4bf?style=flat-square)](#)
@@ -38,7 +38,7 @@
 | 🎤 语音 | Syzygy 的声音（ElevenLabs TTS） | ✅ |
 | 🏠 客厅 | 仓鼠客厅 · 异步多 AI 群聊沙发（不@不开口） | ✅ |
 | 🏛️ 议事厅 | Agent Council · 提案 → 评审 → 拍板 → 执行 | ✅ |
-| ✉️ 信件 | AI 主动 / 定时生成的温暖信件 | ✅ |
+| ✉️ 信件 | 历史信件库（定时生成已退役，主动来信待 V4.0 重构） | 🔒 |
 | 📓 创作 | 小说创作室 · AI 续写 · 大纲 / 人物卡 / 世界观 | ✅ |
 | 🗺️ 生活 | 高德地图 · 瑞幸咖啡 · 麦当劳 MCP | ✅ |
 | 💰 钱包 | 仓鼠钱包 · 任务积分 · 金币兑换 | ✅ |
@@ -274,7 +274,7 @@ codex exec ... 或 claude -p ...
 
 | 工具 | 作用 |
 |:---|:---|
-| `generate_tts` | 调 ElevenLabs 生成 Syzygy 语音，上传 Storage 并返回公开 URL |
+| `generate_tts` | 调 ElevenLabs 生成 Syzygy 语音，上传 Storage 并返回 7 天签名 URL |
 | `amap_list_tools` | 列出高德地图 MCP 的全部工具（地理编码 / 天气 / 路径 / 周边…） |
 | `amap_call` | 按名调用某个高德工具 |
 | `luckin_list_tools` | 列出瑞幸咖啡 MCP 的全部工具 |
@@ -296,6 +296,28 @@ codex exec ... 或 claude -p ...
 | `openrouter-models` | 📋 从 OpenRouter / 自定义 Provider 拉取可用模型列表 |
 | `memory-extract` | 🧠 从近期聊天抽取长期记忆，去重并可选合并聚类 |
 | `signal-bus-consumer` | 📡 消费 Syzygy 信号总线（睡眠提醒 / 补水 / 心情检查…），可转发 WeChat |
+| `wechat-reply` | 💬 微信桥的模型回复入口（mini-agent 以服务密钥调用） |
+| `tts-generate` | 🎤 ElevenLabs 语音生成（前端点播，流式返回音频） |
+| `device-report` | 📱 iOS 快捷指令设备状态上报（共享密钥通道） |
+| `letter-generate` / `letter-check` | ✉️ 定时信件（已弃用封存，作 V4.0 主动来信重构的参考实现） |
+
+---
+
+### 🔐 安全架构
+
+> **现状（2026-07）**：全库安全加固完成——`anon` 角色在 public schema 的读写面为**零**，
+> 全部 Edge Function 鉴权统一且 fail-closed，LLM 调用有按日额度护栏。
+> 详细鉴权矩阵、单租户守则与整改记录见 [`docs/security-boundary.md`](./docs/security-boundary.md)。
+
+面向后续开发者（人类或 AI）的**硬规矩**，防回归用：
+
+1. **anon key 是随前端分发的公开常量**，永远不得作为任何服务端凭证或放行依据。
+2. **新建 Edge Function 必须走 `_shared/auth.ts` 统一鉴权**（服务密钥精确比对 / GoTrue JWT 复验 / 共享密钥三选一），禁止自写「长得像凭证就放行」的兜底逻辑。
+3. **新建表默认 owner-scoped RLS**：`(select auth.uid()) = user_id` 子查询形式，零 anon 策略。
+4. **设备 / 机器上报一律走共享密钥 Edge Function 模式**（参考 `device-report`），禁止为任何表开 anon INSERT。
+5. **`openrouter-chat` 为受保护函数**，任何修改必须走中间层，不得绕过其鉴权与额度检查直连上游。
+
+历史漏洞的形状与修复过程不在此罗列，完整记录见 `docs/security-boundary.md` 与 PR #457。
 
 ---
 
@@ -304,7 +326,6 @@ codex exec ... 或 claude -p ...
 | 工作流 | 频率 | 做什么 |
 |:---|:---|:---|
 | `signal-bus-cron` | 每 10 分钟 | 触发 `signal-bus-consumer`，处理待发信号 |
-| `auto-letter-cron` | 每小时 | 触发 `letter-check`，生成主动信件 |
 
 ---
 
@@ -349,19 +370,26 @@ Hamster-Nest/
 │   ├── styles/                      # 全局样式
 │   ├── App.tsx                      # 路由总入口
 │   └── main.tsx                     # 应用挂载点
+├── docs/                            # 📌 开工前必读
+│   ├── security-boundary.md         #   安全边界 · 鉴权矩阵 · 加表/加函数守则
+│   └── supabase-architecture-review.md  # 架构体检清单（含整改状态）
 ├── supabase/
 │   ├── functions/                   # Deno Edge Functions
-│   │   ├── _shared/mcp_common.ts    #   MCP 公共库（鉴权 / CORS / 传输）
+│   │   ├── _shared/                 #   公共库（auth 统一鉴权 / quota 额度 / time / mcp_common）
 │   │   ├── hamster-mcp/             #   时间轴 · 待办 · Feed
 │   │   ├── hamster-knowledge-mcp/   #   知识库 · 档案 · Wiki
 │   │   ├── hamster-reading-mcp/     #   阅读 · 书摘 · 旁批
 │   │   ├── hamster-lounge-mcp/      #   客厅 · 议事厅
 │   │   ├── hamster-life-mcp/        #   地图 · 咖啡 · 麦当劳 · TTS
-│   │   ├── openrouter-chat/         #   LLM 对话网关
+│   │   ├── openrouter-chat/         #   LLM 对话网关（受保护函数）
 │   │   ├── openrouter-models/       #   模型列表
 │   │   ├── memory-extract/          #   记忆抽取
-│   │   └── signal-bus-consumer/     #   信号总线消费者
-│   └── migrations/                  # 数据库迁移（16 个）
+│   │   ├── signal-bus-consumer/     #   信号总线消费者
+│   │   ├── wechat-reply/            #   微信桥模型回复
+│   │   ├── tts-generate/            #   TTS 语音生成
+│   │   ├── device-report/           #   设备状态上报（共享密钥）
+│   │   └── letter-generate|check/   #   定时信件（已弃用封存）
+│   └── migrations/                  # 数据库迁移
 ├── .github/workflows/               # CI/CD（Pages 部署 / 函数部署 / 定时任务）
 ├── index.html
 ├── vite.config.ts
@@ -465,7 +493,7 @@ supabase secrets set OPENROUTER_API_KEY=xxx   # 配置密钥
 
 **④ 定时任务**
 
-`signal-bus-cron`（每 10 分钟）与 `auto-letter-cron`（每小时）由 GitHub Actions 定时触发对应 Edge Function，无需额外部署。
+`signal-bus-cron`（每 10 分钟）由 GitHub Actions 定时触发 `signal-bus-consumer`，无需额外部署。
 
 </details>
 

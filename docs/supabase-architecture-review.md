@@ -3,7 +3,7 @@
 > 扫描日期：2026-07-03 · 范围：Supabase 生产项目（`crfhiumxzmaszkapanrb` / Hamster-Nest）+ GitHub 仓库全量
 > 目的：安全策略 / 功能短路径 / Expo 迁移准备 的分批整改清单。**本文件只记录待办，不含任何代码改动。**
 >
-> **整改状态（2026-07-06）**：P0 全部完成（0-2 余一步：快捷指令切换后删 anon INSERT 策略）；
+> **整改状态（2026-07-06）**：P0 全部完成（含 0-2 收尾：快捷指令已切 `device-report`，anon INSERT 策略已删；另收紧了清单遗漏的 quests/wallet_transactions/wechat_messages 三表）；
 > P1 全部完成；P2 服务端半边完成（2-1/2-4/2-7），原生侧待 Expo 项目；
 > P3 完成 3-1/3-2/3-3/3-4（advisor 清零），3-5 只出评估清单；P4 完成 4-2/4-3/4-5，4-1/4-4 留待单独工单。
 > 落地细节与新安全守则见 [`security-boundary.md`](./security-boundary.md)。

@@ -1,3 +1,8 @@
+// DEPRECATED (2026-07): scheduler for the retired scheduled-letter product.
+// Its GitHub cron (auto-letter-cron.yml) has been removed, so nothing calls
+// this anymore. Kept deployed and in-repo as reference for the V4.0
+// "主动来信" rework; see letter-generate for the companion note.
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyAuth } from '../_shared/auth.ts'
 import { getBeijingDate } from '../_shared/time.ts'

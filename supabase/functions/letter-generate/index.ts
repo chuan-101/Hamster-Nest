@@ -1,3 +1,9 @@
+// DEPRECATED (2026-07): the scheduled-letter product was retired in June —
+// the WeChat bridge replaced it, and the auto-letter GitHub cron has been
+// removed. The function stays deployed (auth + quota guardrails intact) as
+// the reference implementation for the V4.0 "主动来信" rework on APNs push.
+// letters / letter_conversations / auto_letter_config tables are kept as-is.
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyAuth } from '../_shared/auth.ts'
 import { getBeijingTimeString } from '../_shared/time.ts'
