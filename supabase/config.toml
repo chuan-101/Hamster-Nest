@@ -31,3 +31,27 @@ verify_jwt = false
 
 [functions.signal-bus-consumer]
 verify_jwt = false
+
+[functions.hamster-reading-mcp]
+verify_jwt = false
+
+[functions.hamster-life-mcp]
+verify_jwt = false
+
+[functions.hamster-knowledge-mcp]
+verify_jwt = false
+
+[functions.hamster-lounge-mcp]
+verify_jwt = false
+
+[functions.letter-generate]
+verify_jwt = false
+
+[functions.letter-check]
+verify_jwt = false
+
+[functions.wechat-reply]
+verify_jwt = false
+
+[functions.tts-generate]
+verify_jwt = false
