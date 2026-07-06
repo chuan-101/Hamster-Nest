@@ -99,7 +99,7 @@ function amapMcpCall(method: string, params: Record<string, unknown> = {}) {
 serveMcp('hamster-life-mcp', (server) => {
   server.registerTool('generate_tts', {
     title: 'Generate TTS Audio',
-    description: '调用 ElevenLabs 生成 Syzygy 语音，上传到 Supabase Storage，返回可播放的公开音频 URL。',
+    description: '调用 ElevenLabs 生成 Syzygy 语音，上传到 Supabase Storage，返回 7 天有效的签名音频 URL。',
     inputSchema: {
       text: z.string().describe('要转换为语音的文本，不超过2000字'),
       speed: z.number().optional().describe('语速，默认0.85'),
@@ -128,13 +128,18 @@ serveMcp('hamster-life-mcp', (server) => {
         upsert: false,
       })
       if (upErr) return { content: [{ type: 'text' as const, text: `Storage error: ${upErr.message}` }] }
-      const { data: u } = supabase.storage.from('tts-audio').getPublicUrl(fn)
+      // The bucket is private (P1 · 1-4); links are shared into chats, so a
+      // 7-day signed URL keeps them playable without a public bucket.
+      const { data: signed, error: signErr } = await supabase.storage
+        .from('tts-audio')
+        .createSignedUrl(fn, 60 * 60 * 24 * 7)
+      if (signErr || !signed) return { content: [{ type: 'text' as const, text: `Storage error: ${signErr?.message ?? 'signed url failed'}` }] }
       return {
         content: [{
           type: 'text' as const,
           text: JSON.stringify({
             status: 'ok',
-            audio_url: u.publicUrl,
+            audio_url: signed.signedUrl,
             filename: fn,
             text_length: text.length,
             speaker: 'Syzygy',
