@@ -372,7 +372,9 @@ Hamster-Nest/
 │   └── main.tsx                     # 应用挂载点
 ├── docs/                            # 📌 开工前必读
 │   ├── security-boundary.md         #   安全边界 · 鉴权矩阵 · 加表/加函数守则
-│   └── supabase-architecture-review.md  # 架构体检清单（含整改状态）
+│   ├── supabase-architecture-review.md  # 架构体检清单（含整改状态）
+│   ├── v4-expo-native-app-plan.md   #   V4.0 Expo 原生 App 正式施工方案（整合版）
+│   └── v4-expo-feature-pool.md      #   V4.1+ 功能池附卷
 ├── supabase/
 │   ├── functions/                   # Deno Edge Functions
 │   │   ├── _shared/                 #   公共库（auth 统一鉴权 / quota 额度 / time / mcp_common）
