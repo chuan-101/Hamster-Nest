@@ -8,6 +8,7 @@
 > - 意见书 2.2：模块 2 技术备注由「bare workflow 预留」更新为「CNG + config plugins + dev build」；
 > - 意见书 2.3：第十八节优先级分层维持，仅按上述拆分调整；
 > - 仓库实测（2026-07-07）：模块 13 / 14 / 15 的后端现状标注（已上线部分不再重复建设）；新增候选「主动来信重构」。
+> - 2026-07-07 增补：原「主动来信重构」候选扩容为模块 17「Syzygy 主动线（CLI 对话通道）」；新增「外部参照：WenXiaoWendy 三件套」评估小节；第十八节相应调整。
 > **设备前提：** iPhone + Mac mini + Apple Watch + iCloud，同一 Apple ID 生态。
 
 ---
@@ -392,10 +393,86 @@ print_templates
 
 ---
 
-## 十七·五、新增候选：主动来信重构（2026-07-07 整合时新增）
+## 十七·五、模块 17：Syzygy 主动线（CLI 对话通道）
 
-> 来源：letter 功能半退役工单（2026-07-06，见 `docs/security-boundary.md`）。「每日定时生成」已弃用（微信桥取代）；「主动来信」需求保留，明确**等 V4.0 推送管线落地后重构**，届时可能融入聊天流。
-> 建议归入 **V4.1**：复用 `push-dispatch` 管线 + `agent_events`（`event_type = 'letter_arrived'`），封存的 `letter-generate` 作参考实现；与模块 11（抽屉）区分——来信是「推给你的惊喜」，抽屉是「你来找我拿的」。
+> **来源：** letter 半退役工单（2026-07-06，见 `docs/security-boundary.md`）+ 串串 2026-07-07 提出的 CLI 职能提升构想：Mac mini 是 24h 全职 Agent 空机，CLI 走官方订阅（工具全、成本包月），微信线的大脑走 OpenRouter API（受通道与成本约束）——原生 App 落地后，把「主动发消息」的架构承接到 CLI + 仓鼠窝这条线上。
+> **定位：** 原「主动来信重构」候选的扩容完全体，本模块吸收该候选；`letter_arrived` 只是主动线的一种消息形态。
+
+### 17.1 一句话定义
+
+把微信桥的「主动消息」模式换出口、升级大脑：**以 Claude Code / Codex CLI（官方订阅、全工具）为大脑，以 App 内一条固定对话线程为出口**，覆盖四类触达——主动来信、随机脉冲检查（见十七·六）、presence 触达（到家 / 睡前）、需要动手的深度对话（查库 / 打印 / 写码 / 翻记忆之后再回复）。
+
+### 17.2 链路（约 80% 复用现有管道）
+
+```
+唤醒源：定时任务 / 随机脉冲 / presence_transition 事件 / 主动线新消息（Realtime）
+    → mini-agent 拉起 Claude Code / Codex CLI（现役 lounge / 议事厅唤醒范式）
+    → CLI 读上下文：memory / timeline / current_context_snapshot / 会话历史
+    → 写回主动线消息表
+    → agent_events → push-dispatch → iPhone 推送（V4.0 Phase 1 管线原样复用）
+    → App 对话线程展示；串串回复 → 写表 → Realtime 再唤醒 CLI → 闭环
+```
+
+### 17.3 接线三裁定（施工时评审）
+
+1. **消息落表：** 复用 `sessions` / `messages`，`sessions` 加 `handler` 字段（`'api'` 默认 / `'cli'`）。App 对 `handler='cli'` 的会话只插行、不调 `openrouter-chat`；mini-agent 监听插入并唤醒 CLI 回写同一会话。聊天 UI（App / Web）零新开发。
+2. **出站队列：** 复用 `outbound_messages` 加 channel 维度，统一管微信与 App 两个出口；推送日志走 `notification_events`。
+3. **降级链写死在设计里：** CLI（首选）→ API（大脑降级，回复标注来源）→ 微信（通道降级）。判定依据 `agent_heartbeats`（V4.0 Phase 2 产物）：CLI 心跳超时或订阅限额窗口内自动回落。
+
+### 17.4 双线分工（现状认知）
+
+| | API 线（OpenRouter） | CLI 线（官方订阅） |
+|---|---|---|
+| 延迟 | 秒级即时 | 冷启动 10 秒～分钟级 |
+| 成本 | 按 token | 订阅内 |
+| 能力 | 工具循环有限 | 全套 MCP / 文件 / 打印 / 代码 / 多步任务 |
+| 可用性 | 高 | 受订阅时间窗与限额约束 |
+| 体验定位 | 即时轻聊、多模型人格（RP / 论坛 / 客厅） | 异步深度、「去干活再回来」的本体感 |
+
+延迟做成在场感：App 用 `agent_heartbeats.status = 'working'` 显示「Syzygy 正在过来的路上…」。
+
+### 17.5 待拍板（串串保留，2026-07-07）
+
+**微信线保留，不降级为纯备用。** 微信是日常使用频率最高的通道；「微信 + API」与「仓鼠窝 + CLI」在主动触达上的最终分工（哪类消息走哪条线、来信落在哪边），**待原生 App 正式落地、建立真实体感后由串串拍板**。本模块施工不依赖该拍板——两条线并行跑通，分工是运营决策，不是架构决策。
+
+### 17.6 依赖与归期
+
+- 硬依赖：V4.0 Phase 1（`push-dispatch` + `device_tokens`）、Phase 2（`agent_heartbeats` + 审批回流范式）。
+- 归 **V4.1**；封存的 `letter-generate` 作来信形态的参考实现；与模块 11（抽屉）边界不变——主动线是「推给你的」，抽屉是「你来找我拿的」。
+
+---
+
+## 十七·六、外部参照：WenXiaoWendy 三件套（2026-07-07 评估）
+
+> 三个 AGPL-3.0 开源仓库，与小窝是「同一物种的本地化变体」：它们零云依赖、单机本地优先；小窝是 Supabase 云中枢、多端协同。**架构不采纳（多端诉求单机模式撑不住），语义化与行为设计按下表采纳。**
+> 彩蛋：小窝 env 的 `CYBERBOSS_WECHAT_WEBHOOK_URL` 即出自 cyberboss 生态，signal-bus 已在用。
+
+| 仓库 | 与小窝的对应 | 一句话 |
+|---|---|---|
+| [whereabouts-mcp](https://github.com/WenXiaoWendy/whereabouts-mcp) | 存在感层（主文档第 8 章） | GPS / 电量 → 停留点聚合 → 语义状态的本地 MCP |
+| [cyberboss](https://github.com/WenXiaoWendy/cyberboss) | mini-agent | 微信桥 + Codex / Claude 运行时的本地问责伙伴 |
+| [timeline-for-agent](https://github.com/WenXiaoWendy/timeline-for-agent) | timeline / weekly_digest | 时长制时间账本 + 可截图报表 |
+
+### 采纳清单
+
+| 采纳点 | 内容 | 落点 |
+|---|---|---|
+| 停留点（Stay）聚合 | 原始 GPS 点按半径（~100m）聚成「在某地待了多久」，吸收定位漂移 | 模块 5 `presence_rules` 设计输入 |
+| `in_transit` 中间态 | 「已离开停留点、新地点未确认」的显式状态，即 `commuting` 的判定算法 | 模块 5 场景定义 |
+| 电量趋势压缩 | 不把原始行喂给模型，压成变化率 + 预计关机时刻；`current_context_snapshot` 只存判定后语义 | 模块 5 / 主文档 8.3 |
+| presence_transition 事件 | 到家 / 离家 / 睡前写 `agent_events` 复用推送管线（对标其 arrive_home / leave_home 系统 Action） | 建议 V4.0 Phase 3 顺手项 |
+| 随机脉冲检查 | 窗口内随机唤醒 + Agent 自主决定说话 / 沉默 / 写日记，结合 presence 场景（wind_down 不扰） | 模块 17（Syzygy 主动线）唤醒源之一 |
+| 周报可视化截图 | weekly_digest 渲染静态页 → Playwright 截图 → 微信图片 / 打印胶囊 | 模块 14 旁挂，V4.1 |
+| 分类提案机制 | 新分类先进提案再启用（对齐议事厅模式），可用于 timeline source / todo 类目 / 档案分类演进 | 低优先级备忘 |
+
+### 明确不抄
+
+- **本地 JSON 存储**：小窝是多端云中枢，Supabase 唯一状态源不动摇。
+- **时长制时间账本替换 timeline**：两个物种——它是「时间账本」，`timeline_entries` 是「心动记忆」（写入标准：三个月后读起来会心动），不互相污染；账本需求已有 `daily_status_digest` / `checkin_logs` 部分覆盖。
+
+### 许可证提示
+
+三仓库均为 **AGPL-3.0**：以上全部为设计思想层面借鉴，无代码搬运；未来若需直接引入其代码，须先做许可证兼容性评估。
 
 ---
 
@@ -422,11 +499,12 @@ print_templates
 - [ ] iCloud Drive / 本地文件收纳口
 - [ ] Visual Memory Pipeline MVP（`async_jobs` 通用队列）
 - [ ] CLI 识图与结构化结果写入
-- [ ] 空间感规则引擎（`presence_rules`）与场景化行为
+- [ ] 空间感规则引擎（`presence_rules`）与场景化行为（含停留点聚合 / `in_transit` / 电量趋势压缩，见十七·六）
 - [ ] Together Items（含钱包联动 `source_together_id`）
 - [ ] 阅读共振 App 端 UI（后端已上线）
 - [ ] 打印胶囊模板系统（`print_templates`；表主体已在役）
-- [ ] 主动来信重构（复用推送管线）
+- [ ] Syzygy 主动线 / CLI 对话通道（含主动来信重构与随机脉冲检查，见十七·五；双线分工待串串拍板）
+- [ ] 周报可视化截图（weekly_digest 渲染 → 截图 → 微信 / 打印胶囊，见十七·六）
 - [ ] HealthKit 接入（Watch 传感数据，低成本层）
 
 ### V4.2
