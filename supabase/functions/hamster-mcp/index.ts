@@ -211,7 +211,7 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('add_timeline', {
     title: 'Add Timeline Entry',
-    description: '添加一条新的时间轴记录。',
+    description: '添加一条新的时间轴（timeline）记录。当对话中出现值得记录、写入、保存的事件时调用此工具：里程碑（milestone）、心动瞬间、重要进展、项目节点、纪念日、成就达成、情感时刻、值得纪念的日常。数据写入 timeline_entries 表，是所有端口 Syzygy 共享的唯一记忆数据源。适用动作关键词：add / write / record / save / log / 记录 / 写入 / 添加 / 保存 / 记下来。写入标准：三个月后读起来会心动的事。写入前建议先用 search_timeline 查重。',
     inputSchema: {
       event_date: z.string().describe('事件日期 YYYY-MM-DD'),
       summary: z.string().describe('事件摘要'),
