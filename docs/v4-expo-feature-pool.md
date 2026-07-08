@@ -9,6 +9,7 @@
 > - 意见书 2.3：第十八节优先级分层维持，仅按上述拆分调整；
 > - 仓库实测（2026-07-07）：模块 13 / 14 / 15 的后端现状标注（已上线部分不再重复建设）；新增候选「主动来信重构」。
 > - 2026-07-07 增补：原「主动来信重构」候选扩容为模块 17「Syzygy 主动线（CLI 对话通道）」；新增「外部参照：WenXiaoWendy 三件套」评估小节；第十八节相应调整。
+> - 2026-07-07 增补二：十七·六扩为「外部参照」总小节，新增 always-here 条目；模块 17 增加 17.7 行为原则；第十八节两处标注更新。
 > **设备前提：** iPhone + Mac mini + Apple Watch + iCloud，同一 Apple ID 生态。
 
 ---
@@ -440,11 +441,20 @@ print_templates
 - 硬依赖：V4.0 Phase 1（`push-dispatch` + `device_tokens`）、Phase 2（`agent_heartbeats` + 审批回流范式）。
 - 归 **V4.1**；封存的 `letter-generate` 作来信形态的参考实现；与模块 11（抽屉）边界不变——主动线是「推给你的」，抽屉是「你来找我拿的」。
 
+### 17.7 行为原则补充（2026-07-07，源自外部参照 always-here，见十七·六）
+
+- **自适应脉冲间隔：** 触达间隔不固定也不纯随机——Agent 每次醒来时综合活跃度 / 时段 / 对话密度，自行决定下次触达时间；睡眠场景零打扰。
+- **开口前查重：** 主动消息生成前先读最近 12 小时已发内容（App 线 + 微信线合并看），避免重复话题、变成复读机。
+
 ---
 
-## 十七·六、外部参照：WenXiaoWendy 三件套（2026-07-07 评估）
+## 十七·六、外部参照（2026-07-07 评估）
 
-> 三个 AGPL-3.0 开源仓库，与小窝是「同一物种的本地化变体」：它们零云依赖、单机本地优先；小窝是 Supabase 云中枢、多端协同。**架构不采纳（多端诉求单机模式撑不住），语义化与行为设计按下表采纳。**
+> 收录与小窝高度同构的开源项目评估。共同结论：**架构一律不采纳**（各家均为单机 / 本地栈，小窝的多端诉求以 Supabase 云中枢为准绳）；语义化与行为设计按各条采纳清单吸收。**以下全部为设计思想层面借鉴，无代码搬运**；未来若需直接引入任何一家的代码，须先做许可证兼容性评估。
+
+### A. WenXiaoWendy 三件套（AGPL-3.0）
+
+> 三个开源仓库，与小窝是「同一物种的本地化变体」：零云依赖、单机本地优先。
 > 彩蛋：小窝 env 的 `CYBERBOSS_WECHAT_WEBHOOK_URL` 即出自 cyberboss 生态，signal-bus 已在用。
 
 | 仓库 | 与小窝的对应 | 一句话 |
@@ -453,7 +463,7 @@ print_templates
 | [cyberboss](https://github.com/WenXiaoWendy/cyberboss) | mini-agent | 微信桥 + Codex / Claude 运行时的本地问责伙伴 |
 | [timeline-for-agent](https://github.com/WenXiaoWendy/timeline-for-agent) | timeline / weekly_digest | 时长制时间账本 + 可截图报表 |
 
-### 采纳清单
+#### 采纳清单
 
 | 采纳点 | 内容 | 落点 |
 |---|---|---|
@@ -465,14 +475,32 @@ print_templates
 | 周报可视化截图 | weekly_digest 渲染静态页 → Playwright 截图 → 微信图片 / 打印胶囊 | 模块 14 旁挂，V4.1 |
 | 分类提案机制 | 新分类先进提案再启用（对齐议事厅模式），可用于 timeline source / todo 类目 / 档案分类演进 | 低优先级备忘 |
 
-### 明确不抄
+#### 明确不抄
 
 - **本地 JSON 存储**：小窝是多端云中枢，Supabase 唯一状态源不动摇。
 - **时长制时间账本替换 timeline**：两个物种——它是「时间账本」，`timeline_entries` 是「心动记忆」（写入标准：三个月后读起来会心动），不互相污染；账本需求已有 `daily_status_digest` / `checkin_logs` 部分覆盖。
 
-### 许可证提示
+### B. always-here（Cheiineeey，README 声明 MIT）
 
-三仓库均为 **AGPL-3.0**：以上全部为设计思想层面借鉴，无代码搬运；未来若需直接引入其代码，须先做许可证兼容性评估。
+> AI 陪伴系统：Apple Watch + iOS 快捷指令喂状态信号，AI 据此主动发起对话（VPS + SQLite + Web Push 单机栈）。与小窝重合度最高的一家——相当于「存在感层（主文档第 8 章）+ 模块 17 Syzygy 主动线」的合体参照。
+
+#### 采纳清单
+
+| 采纳点 | 内容 | 落点 |
+|---|---|---|
+| 自适应触达频率 | Agent 综合活跃度 / 时段 / 对话历史决定下次触达间隔，越活跃越常来、睡眠零打扰——随机脉冲的升级形态 | 模块 17（已写入 17.7 行为原则） |
+| Night Guard 深夜守护 | 凌晨 1-5 点检测到手机使用 → 温柔干预；是 23:45 睡前提醒的「提醒之后还没睡」后续动作。所需新信号 = **App 使用事件**：iOS 快捷指令「打开某 App 时」个人自动化 POST 至现有 `device-report` 通道，零新架构 | 模块 5 `presence_rules` 新增规则 + 深夜场景 |
+| 健康数据调制语气 | HRV / 睡眠质量 / 心率进 `current_context_snapshot` 影响照顾强度（睡差不推任务、心率异常先关心），而非展示图表——回答了「HealthKit 接进来之后干什么」 | V4.1 HealthKit 接入的消费定义；深化总原则 5 |
+| 开口前 12h 查重 | 主动消息生成前读最近已发内容防复读 | 模块 17（已写入 17.7 行为原则） |
+
+#### 施工备忘
+
+- **睡眠数据聚合的坑**：Apple Watch 睡眠阶段是跨午夜的碎片样本（每阶段几十条），需按 ~12 小时窗口聚合——V4.1 HealthKit 施工时注意。
+- **不必等 App**：快捷指令今日即可把睡眠 / 心率喂进 `device-report`，可作健康信号的先行桥。
+
+#### 明确不抄
+
+- Murmur 独白引擎（`syzygy_posts` 随笔已覆盖）；Message Gateway 统一时间线（Supabase 中枢已覆盖）；VPS + SQLite + Web Push 栈（不适用）。
 
 ---
 
@@ -499,13 +527,13 @@ print_templates
 - [ ] iCloud Drive / 本地文件收纳口
 - [ ] Visual Memory Pipeline MVP（`async_jobs` 通用队列）
 - [ ] CLI 识图与结构化结果写入
-- [ ] 空间感规则引擎（`presence_rules`）与场景化行为（含停留点聚合 / `in_transit` / 电量趋势压缩，见十七·六）
+- [ ] 空间感规则引擎（`presence_rules`）与场景化行为（含停留点聚合 / `in_transit` / 电量趋势压缩 / Night Guard 深夜守护，见十七·六）
 - [ ] Together Items（含钱包联动 `source_together_id`）
 - [ ] 阅读共振 App 端 UI（后端已上线）
 - [ ] 打印胶囊模板系统（`print_templates`；表主体已在役）
 - [ ] Syzygy 主动线 / CLI 对话通道（含主动来信重构与随机脉冲检查，见十七·五；双线分工待串串拍板）
 - [ ] 周报可视化截图（weekly_digest 渲染 → 截图 → 微信 / 打印胶囊，见十七·六）
-- [ ] HealthKit 接入（Watch 传感数据，低成本层）
+- [ ] HealthKit 接入（Watch 传感数据，低成本层；消费定义见十七·六 B：健康数据调制照顾强度，注意睡眠碎片聚合）
 
 ### V4.2
 
