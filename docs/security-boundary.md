@@ -45,6 +45,7 @@
 | `wechat-reply` | **A/B（2026-07-06 修复）** | 500/天 | 同上 |
 | `tts-generate` | **A/B（2026-07-06 新增）** | 200/天 | 原先完全裸奔；前端调用已补 session JWT |
 | `device-report` | **C（`DEVICE_REPORT_SECRET`，2026-07-06 新建）** | – | iOS 快捷指令上报通道，替代 anon 直写 |
+| `push-dispatch` | **C（header `x-push-dispatch-secret`，2026-07-12 新建；密钥唯一存 Vault `push_dispatch_secret`，函数经 service_role 专属 RPC `get_push_dispatch_secret` 读取后 timing-safe 比对，轮换只改 Vault）** | 200/天 | agent_events AFTER INSERT webhook（pg_net）/ Mac mini sweep / receipts 回查；推送只携标题+实体 id+路由，正文零敏感内容 |
 
 额度护栏（1-3）：`usage_quota` 表 + `consume_usage_quota(user, scope)`，按北京时区自然日计数。
 护栏**失败时放行**（fail-open）并打日志——它是成本刹车，不是鉴权门；鉴权在它之前已完成。

@@ -58,3 +58,6 @@ verify_jwt = false
 
 [functions.device-report]
 verify_jwt = false
+
+[functions.push-dispatch]
+verify_jwt = false
