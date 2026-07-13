@@ -150,26 +150,98 @@ serveMcp('hamster-reading-mcp', (server) => {
     }
   })
 
-  server.registerTool('book_excerpts', {
-    title: 'Book Excerpts',
-    description: '读取 All About Book 中某本书的摘录，可按章节筛选，按创建时间升序返回。只读工具。',
+  server.registerTool('list_chapters', {
+    title: 'List Book Chapters',
+    description: '列出 All About Book 某本书的章节目录（书目->章节->摘抄 树的中间层），含各章节摘抄数量。只读工具。',
     inputSchema: {
       book_id: z.string().describe('书目 UUID'),
-      chapter: z.string().optional().describe('章节筛选'),
-      limit: z.number().optional().describe('返回数量上限，默认50，最大200'),
     },
-  }, async ({ book_id, chapter, limit }) => {
+  }, async ({ book_id }) => {
     try {
       const aab = getAabClient()
-      const safeLimit = clampLimit(limit, 50, 200)
       const { data: book, error: bookError } = await aab.from('books').select('title').eq('user_id', AAB_USER_ID).eq('id', book_id).maybeSingle()
       if (bookError) return errorResult(bookError)
       if (!book) return { content: [{ type: 'text' as const, text: `Error: book not found: ${book_id}` }] }
-      let query = aab.from('excerpts').select('id, content, page, chapter, created_at').eq('user_id', AAB_USER_ID).eq('book_id', book_id)
+      const { data: chapterRows, error: chaptersError } = await aab.from('chapters').select('id, title, sort_order, created_at').eq('user_id', AAB_USER_ID).eq('book_id', book_id).order('sort_order', { ascending: true }).order('created_at', { ascending: true })
+      if (chaptersError) return errorResult(chaptersError)
+      const { data: excerptRows, error: excerptError } = await aab.from('excerpts').select('id, chapter_id').eq('user_id', AAB_USER_ID).eq('book_id', book_id)
+      if (excerptError) return errorResult(excerptError)
+      const counts = new Map<string, number>()
+      let unchapteredCount = 0
+      for (const row of excerptRows ?? []) {
+        if (row.chapter_id) {
+          const key = String(row.chapter_id)
+          counts.set(key, (counts.get(key) ?? 0) + 1)
+        } else {
+          unchapteredCount += 1
+        }
+      }
+      return jsonResult({
+        book_title: book.title,
+        chapters: (chapterRows ?? []).map((chapterRow) => ({
+          chapter_id: chapterRow.id,
+          title: chapterRow.title,
+          sort_order: chapterRow.sort_order,
+          excerpt_count: counts.get(String(chapterRow.id)) ?? 0,
+        })),
+        unchaptered_count: unchapteredCount,
+        total_chapters: chapterRows?.length ?? 0,
+      })
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('book_excerpts', {
+    title: 'Book Excerpts',
+    description: '读取 All About Book 中某本书的摘录，按 书目->章节->单条摘抄 树形结构返回（章节按目录顺序、摘抄按创建时间升序）。可用 chapter_id 或章节名筛选单个章节。只读工具。',
+    inputSchema: {
+      book_id: z.string().describe('书目 UUID'),
+      chapter_id: z.string().optional().describe('章节 UUID 筛选（可先用 list_chapters 查询）'),
+      chapter: z.string().optional().describe('章节名筛选（精确匹配）'),
+      limit: z.number().optional().describe('返回摘抄数量上限，默认100，最大300'),
+    },
+  }, async ({ book_id, chapter_id, chapter, limit }) => {
+    try {
+      const aab = getAabClient()
+      const safeLimit = clampLimit(limit, 100, 300)
+      const { data: book, error: bookError } = await aab.from('books').select('title').eq('user_id', AAB_USER_ID).eq('id', book_id).maybeSingle()
+      if (bookError) return errorResult(bookError)
+      if (!book) return { content: [{ type: 'text' as const, text: `Error: book not found: ${book_id}` }] }
+      const { data: chapterRows, error: chaptersError } = await aab.from('chapters').select('id, title, sort_order').eq('user_id', AAB_USER_ID).eq('book_id', book_id).order('sort_order', { ascending: true }).order('created_at', { ascending: true })
+      if (chaptersError) return errorResult(chaptersError)
+      let query = aab.from('excerpts').select('id, content, page, chapter_id, created_at').eq('user_id', AAB_USER_ID).eq('book_id', book_id)
+      if (chapter_id) query = query.eq('chapter_id', chapter_id)
       if (chapter) query = query.eq('chapter', chapter)
-      const { data, error } = await query.order('created_at', { ascending: true }).limit(safeLimit)
+      const { data: excerptRows, error } = await query.order('created_at', { ascending: true }).limit(safeLimit)
       if (error) return errorResult(error)
-      return jsonResult({ book_title: book.title, excerpts: data ?? [], total: data?.length ?? 0 })
+      const hasFilter = Boolean(chapter_id || chapter)
+      const byChapter = new Map<string, unknown[]>()
+      const unchaptered: unknown[] = []
+      for (const row of excerptRows ?? []) {
+        const item = { id: row.id, content: row.content, page: row.page, created_at: row.created_at }
+        if (row.chapter_id) {
+          const key = String(row.chapter_id)
+          const list = byChapter.get(key) ?? []
+          list.push(item)
+          byChapter.set(key, list)
+        } else {
+          unchaptered.push(item)
+        }
+      }
+      const chapters = (chapterRows ?? [])
+        .map((chapterRow) => ({
+          chapter_id: chapterRow.id,
+          title: chapterRow.title,
+          excerpts: byChapter.get(String(chapterRow.id)) ?? [],
+        }))
+        .filter((chapterGroup) => chapterGroup.excerpts.length > 0 || !hasFilter)
+      return jsonResult({
+        book_title: book.title,
+        chapters,
+        unchaptered,
+        total: excerptRows?.length ?? 0,
+      })
     } catch (err) {
       return errorResult(err)
     }
