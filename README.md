@@ -307,7 +307,7 @@ codex exec ... 或 claude -p ...
 
 > **现状（2026-07）**：全库安全加固完成——`anon` 角色在 public schema 的读写面为**零**，
 > 全部 Edge Function 鉴权统一且 fail-closed，LLM 调用有按日额度护栏。
-> 详细鉴权矩阵、单租户守则与整改记录见 [`docs/security-boundary.md`](./docs/security-boundary.md)。
+> 详细鉴权矩阵、单租户守则与整改记录已迁移至私有仓库 `hamster-nest-app` 的 `docs/security-boundary.md`。
 
 面向后续开发者（人类或 AI）的**硬规矩**，防回归用：
 
@@ -317,7 +317,7 @@ codex exec ... 或 claude -p ...
 4. **设备 / 机器上报一律走共享密钥 Edge Function 模式**（参考 `device-report`），禁止为任何表开 anon INSERT。
 5. **`openrouter-chat` 为受保护函数**，任何修改必须走中间层，不得绕过其鉴权与额度检查直连上游。
 
-历史漏洞的形状与修复过程不在此罗列，完整记录见 `docs/security-boundary.md` 与 PR #457。
+历史漏洞的形状与修复过程不在此罗列，完整记录见私有仓库 `hamster-nest-app` 的 `docs/security-boundary.md` 与 PR #457。
 
 ---
 
@@ -370,11 +370,6 @@ Hamster-Nest/
 │   ├── styles/                      # 全局样式
 │   ├── App.tsx                      # 路由总入口
 │   └── main.tsx                     # 应用挂载点
-├── docs/                            # 📌 开工前必读
-│   ├── security-boundary.md         #   安全边界 · 鉴权矩阵 · 加表/加函数守则
-│   ├── supabase-architecture-review.md  # 架构体检清单（含整改状态）
-│   ├── v4-expo-native-app-plan.md   #   V4.0 Expo 原生 App 正式施工方案（整合版）
-│   └── v4-expo-feature-pool.md      #   V4.1+ 功能池附卷
 ├── supabase/
 │   ├── functions/                   # Deno Edge Functions
 │   │   ├── _shared/                 #   公共库（auth 统一鉴权 / quota 额度 / time / mcp_common）
