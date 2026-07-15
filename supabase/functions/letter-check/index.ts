@@ -6,10 +6,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyAuth } from '../_shared/auth.ts'
 import { getBeijingDate } from '../_shared/time.ts'
+import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 
 const buildServiceClient = () => {
   const url = Deno.env.get('SUPABASE_URL')!
-  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const key = getSupabaseAdminKey()
   return createClient(url, key)
 }
 
@@ -23,12 +24,12 @@ const isInActiveHours = (currentHour: number, start: number, end: number): boole
 
 const callLetterGenerate = async (userId: string, triggerType: string, triggerReason: string) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const serviceKey = getSupabaseAdminKey()
 
   const resp = await fetch(`${supabaseUrl}/functions/v1/letter-generate`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({

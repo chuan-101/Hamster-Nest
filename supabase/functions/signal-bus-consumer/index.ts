@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 
 type SignalStatus = 'pending' | 'processing' | 'processed' | 'failed' | 'expired'
 type SignalType = 'sleep_alert' | 'hydration_boost' | 'calendar_aware' | 'mood_check' | 'custom'
@@ -331,11 +332,11 @@ serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  const serviceRoleKey = getSupabaseAdminKey()
   const wechatWebhookUrl = Deno.env.get('CYBERBOSS_WECHAT_WEBHOOK_URL')
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    return jsonResponse({ error: 'Supabase service role env is missing' }, 500, origin)
+  if (!supabaseUrl) {
+    return jsonResponse({ error: 'Supabase URL env is missing' }, 500, origin)
   }
 
   const payload = ((await req.json().catch(() => ({}))) ?? {}) as ConsumePayload

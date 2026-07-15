@@ -23,6 +23,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { timingSafeEqual } from '../_shared/auth.ts'
 import { consumeQuota } from '../_shared/quota.ts'
 import { getBeijingDate } from '../_shared/time.ts'
+import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 
 const PUSH_DAILY_LIMIT = 200
 const QUIET_HOUR_START = 23 // 北京时区静默时段 [23:00, 08:00)，urgent 豁免
@@ -59,7 +60,7 @@ const json = (status: number, body: Record<string, unknown>) =>
   })
 
 const serviceClient = () =>
-  createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+  createClient(Deno.env.get('SUPABASE_URL')!, getSupabaseAdminKey())
 
 // 期望密钥只存 Vault；经 service_role 专属 RPC 读取，进程内缓存。
 let cachedSecret: string | null = null

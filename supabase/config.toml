@@ -11,10 +11,10 @@
 # `/auth/v1/user` with the caller's Authorization/apikey headers and return
 # 401 on failure, so this is not a security regression for them.
 #
-# Functions that run with SUPABASE_SERVICE_ROLE_KEY (signal-bus-consumer)
-# never performed user-JWT verification — they rely on being invoked only
-# from trusted callers (cron jobs, other Edge Functions) that hold the
-# service-role key. Their exposure profile is unchanged by this setting.
+# Machine-only Functions use dedicated shared-secret headers. Functions that
+# need privileged database access read the named edge_functions_20260715 key
+# from SUPABASE_SECRET_KEYS; the legacy service-role Bearer token is not an
+# accepted request credential.
 project_id = "crfhiumxzmaszkapanrb"
 
 [functions.hamster-mcp]

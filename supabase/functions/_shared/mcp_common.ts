@@ -3,13 +3,14 @@ import { McpServer } from 'npm:@modelcontextprotocol/sdk@1.25.3/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from 'npm:@modelcontextprotocol/sdk@1.25.3/server/webStandardStreamableHttp.js'
 import { Hono } from 'npm:hono@^4.9.7'
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { getSupabaseAdminKey } from './supabase_secret.ts'
 
 export const MCP_VERSION = '5.6.0'
 export const USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
 
 export const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  getSupabaseAdminKey(),
 )
 
 const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]

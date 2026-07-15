@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { consumeQuota } from '../_shared/quota.ts'
+import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 
 const DAILY_QUOTA = 1000
 
@@ -557,12 +558,11 @@ const fetchConversationMessages = async (
 
 const buildSupabaseServiceRoleClient = () => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Supabase env missing for service-role compression cache')
+  if (!supabaseUrl) {
+    throw new Error('Supabase URL missing for compression cache')
   }
 
-  return createClient(supabaseUrl, serviceRoleKey)
+  return createClient(supabaseUrl, getSupabaseAdminKey())
 }
 
 const resolveActiveProviderConfig = async (userId: string): Promise<RuntimeProviderConfig | null> => {
