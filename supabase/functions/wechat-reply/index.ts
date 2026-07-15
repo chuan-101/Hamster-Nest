@@ -2,10 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyAuth } from '../_shared/auth.ts'
 import { getBeijingTimeString, formatBeijingClock } from '../_shared/time.ts'
 import { consumeQuota, quotaExceededResponse } from '../_shared/quota.ts'
+import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 
 const buildServiceClient = () => {
   const url = Deno.env.get('SUPABASE_URL')!
-  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const key = getSupabaseAdminKey()
   return createClient(url, key)
 }
 
@@ -39,7 +40,7 @@ Deno.serve(async (req: Request) => {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, content-type',
+        'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
       },
     })

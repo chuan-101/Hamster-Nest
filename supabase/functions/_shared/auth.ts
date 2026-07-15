@@ -1,8 +1,7 @@
 // Shared fail-closed auth helpers for Edge Functions.
 //
 // Accepted credentials:
-//   1. the project service-role key (timing-safe exact match) — cron jobs,
-//      the Mac-mini agent, and function-to-function calls;
+//   1. a configured sb_secret_ key in the apikey header — machine callers;
 //   2. a real user JWT, re-verified against GoTrue via /auth/v1/user — the
 //      web frontend. The gateway cannot verify ES256 tokens (see
 //      supabase/config.toml), so functions must re-verify here.
@@ -10,6 +9,8 @@
 // The public anon key is NOT an accepted credential: it ships inside the
 // frontend bundle and must be treated as a public constant. GoTrue rejects
 // it at /auth/v1/user because it carries no user claims.
+
+import { isConfiguredSupabaseSecretKey } from './supabase_secret.ts'
 
 export const timingSafeEqual = (a: string, b: string): boolean => {
   const encoder = new TextEncoder()
@@ -28,12 +29,6 @@ export const getBearerToken = (req: Request): string | null => {
   return token.length > 0 ? token : null
 }
 
-export const isServiceRoleKey = (token: string): boolean => {
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim()
-  if (!serviceKey) return false
-  return timingSafeEqual(token, serviceKey)
-}
-
 export const isVerifiedUserJwt = async (req: Request): Promise<boolean> => {
   const authHeader = req.headers.get('authorization')
   if (!authHeader) return false
@@ -49,11 +44,14 @@ export const isVerifiedUserJwt = async (req: Request): Promise<boolean> => {
   }
 }
 
-// Service-role key or verified user JWT. No pattern-matching shortcuts.
+// Configured secret API key or verified user JWT. Secret keys are checked
+// against SUPABASE_SECRET_KEYS, never by prefix alone.
 export const verifyAuth = async (req: Request): Promise<boolean> => {
+  const apiKey = req.headers.get('apikey')?.trim()
+  if (apiKey && isConfiguredSupabaseSecretKey(apiKey)) return true
+
   const token = getBearerToken(req)
   if (!token) return false
-  if (isServiceRoleKey(token)) return true
   return await isVerifiedUserJwt(req)
 }
 

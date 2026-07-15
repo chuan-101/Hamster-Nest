@@ -7,6 +7,7 @@
 // brick chat or letters. Auth must already have been enforced by then.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getSupabaseAdminKey } from './supabase_secret.ts'
 
 export const consumeQuota = async (
   scope: string,
@@ -16,7 +17,7 @@ export const consumeQuota = async (
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      getSupabaseAdminKey(),
     )
     const { data, error } = await supabase.rpc('consume_usage_quota', {
       p_user_id: userId,

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -98,9 +99,8 @@ serve(async (req) => {
   let providerRow: ProviderConfig | null = null
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    if (supabaseUrl && serviceRoleKey && userId) {
-      const admin = createClient(supabaseUrl, serviceRoleKey)
+    if (supabaseUrl && userId) {
+      const admin = createClient(supabaseUrl, getSupabaseAdminKey())
       let query = admin
         .from('llm_providers')
         .select('id,name,base_url,secret_name,active')
