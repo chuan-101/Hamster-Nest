@@ -32,7 +32,7 @@ export const getBearerToken = (req: Request): string | null => {
 export const isVerifiedUserJwt = async (req: Request): Promise<boolean> => {
   const authHeader = req.headers.get('authorization')
   if (!authHeader) return false
-  const apikey = req.headers.get('apikey') ?? Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+  const apikey = req.headers.get('apikey')?.trim() ?? ''
   if (!apikey) return false
   try {
     const authResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/user`, {

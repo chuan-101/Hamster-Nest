@@ -274,8 +274,7 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
-    if (!supabaseUrl || !anonKey) {
+    if (!supabaseUrl) {
       return jsonResponse({ error: 'Supabase 环境变量未配置' }, 500)
     }
 
@@ -285,7 +284,7 @@ serve(async (req) => {
       return jsonResponse({ error: '缺少身份令牌' }, 401)
     }
 
-    const supabase = createClient(supabaseUrl, anonKey, {
+    const supabase = createClient(supabaseUrl, apikey, {
       global: {
         headers: {
           Authorization: authHeader,
