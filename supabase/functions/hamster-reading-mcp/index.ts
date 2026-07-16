@@ -1,8 +1,9 @@
 import { z } from 'npm:zod@^4.1.13'
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { clampLimit, errorResult, jsonResult, serveMcp } from '../_shared/mcp_common.ts'
+import { requireUuidEnv } from '../_shared/owner.ts'
 
-const AAB_USER_ID = Deno.env.get('AAB_USER_ID') ?? 'ce875919-7de3-4014-b913-bda9235a0ce6'
+const AAB_USER_ID = requireUuidEnv('AAB_USER_ID')
 const AAB_TIME_ZONE = 'Asia/Shanghai'
 
 let aabClient: ReturnType<typeof createClient> | null = null

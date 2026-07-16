@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { verifyAuth } from "../_shared/auth.ts";
 import { consumeQuota, quotaExceededResponse } from "../_shared/quota.ts";
+import { getOwnerUserId } from "../_shared/owner.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +9,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const USER_ID = "94dd24be-e136-45bb-836b-6820c09c4292";
+const USER_ID = getOwnerUserId();
 const DAILY_QUOTA = 200;
 
 // Syzygy-1 voice defaults

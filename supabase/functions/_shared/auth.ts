@@ -10,7 +10,7 @@
 // frontend bundle and must be treated as a public constant. GoTrue rejects
 // it at /auth/v1/user because it carries no user claims.
 
-import { isConfiguredSupabaseSecretKey } from './supabase_secret.ts'
+import { isApprovedSupabaseSecretKey } from './supabase_secret.ts'
 
 export const timingSafeEqual = (a: string, b: string): boolean => {
   const encoder = new TextEncoder()
@@ -44,11 +44,12 @@ export const isVerifiedUserJwt = async (req: Request): Promise<boolean> => {
   }
 }
 
-// Configured secret API key or verified user JWT. Secret keys are checked
-// against SUPABASE_SECRET_KEYS, never by prefix alone.
+// The approved Edge secret API key or a verified user JWT. Machine callers
+// cannot authenticate with another project secret key (for example the Mac
+// mini Runtime key) even though it is present in SUPABASE_SECRET_KEYS.
 export const verifyAuth = async (req: Request): Promise<boolean> => {
   const apiKey = req.headers.get('apikey')?.trim()
-  if (apiKey && isConfiguredSupabaseSecretKey(apiKey)) return true
+  if (apiKey && isApprovedSupabaseSecretKey(apiKey)) return true
 
   const token = getBearerToken(req)
   if (!token) return false

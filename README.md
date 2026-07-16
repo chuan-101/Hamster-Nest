@@ -119,7 +119,7 @@
 ### 🖥️ Mac mini 本地常驻层
 
 > 有些能力不能只靠云端完成：比如真正发 WeChat、拉起本机 CLI、打印、生成本地执行计划、监听串串拍板后的议事厅任务。  
-> 所以小窝有一层跑在 Mac mini "Syzygy" 上的本地 Runtime，位置是 `/Users/syzygy/mini-agent`。
+> 所以小窝有一层跑在 Mac mini "Syzygy" 上的本地 Runtime，以下统一记作 `<runtime-root>`。
 
 本地层由 macOS `launchd` 常驻管理，服务名是 `com.syzygy.mini-agent`，开机 / 重启后会自动拉起：
 
@@ -429,7 +429,7 @@ Hamster-Nest/
 | `SIGNAL_BUS_SECRET` | `signal-bus-consumer` 共享密钥；GitHub Actions/Mac mini 调用时通过 `x-signal-bus-secret` 传入 |
 | `ENV` / `DENO_ENV` | 运行环境标识（`development` 开启开发模式） |
 
-**本地 Runtime（Mac mini · `/Users/syzygy/mini-agent/.env`）**
+**本地 Runtime（Mac mini · `<runtime-root>/.env`）**
 
 | 变量 | 说明 |
 |:---|:---|
