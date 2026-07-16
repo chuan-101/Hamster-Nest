@@ -8,7 +8,8 @@ const READ_ENTRY_TYPE_SCHEMA = z.enum(['proposal', 'review', 'decision', 'report
 const PROPOSAL_STATUS_SCHEMA = z.enum(['open', 'approved', 'rejected', 'deferred', 'plan_generated', 'done', 'failed'])
 const VOTE_SCHEMA = z.enum(['support', 'neutral', 'against'])
 const METADATA_SCHEMA = z.record(z.string(), z.unknown())
-// 分类值域只在工具层校验（DB 不加 CHECK）——加新分类改这里重新部署即可，家规：新分类先提案再启用。
+// 分类是 8 个固定槽位：key 恒定（即本枚举，不增不删），展示名称存 council_categories 表、可在 Web 议事厅改名。
+// 拿不准当前各 key 对应什么名称时，先调 council_list_categories 查看再落分类。
 const CATEGORY_SCHEMA = z.enum(['app', 'memory', 'infra', 'ritual', 'reading', 'game', 'council', 'other'])
 // 执行方：只有 codex_cli / claude_code_cli 会唤醒 Mac mini 接单脚本；client=串串+客户端聊天完成；chuanchuan=纯手工。
 const EXECUTOR_SCHEMA = z.enum(['codex_cli', 'claude_code_cli', 'client', 'chuanchuan'])
@@ -17,6 +18,16 @@ const REPORT_RESULT_SCHEMA = z.enum(['succeeded', 'partial', 'failed'])
 const councilColumns = 'id, user_id, parent_id, speaker, topic, message, entry_type, proposal_status, vote, category, executor, metadata, read_by, created_at, updated_at'
 
 serveMcp('hamster-lounge-mcp', (server) => {
+  server.registerTool('council_list_categories', {
+    title: 'List Council Categories',
+    description: '列出议事厅 8 个固定分类槽位（key + 当前展示名称 label）。key 恒定不增不删；label 串串可在 Web 议事厅改名——发提案选分类前拿不准就先看一眼这里。',
+    inputSchema: {},
+  }, async () => {
+    const { data, error } = await supabase.from('council_categories').select('key, label, sort_order').order('sort_order', { ascending: true })
+    if (error) return errorResult(error)
+    return jsonResult(data)
+  })
+
   server.registerTool('lounge_list_sofas', {
     title: 'List Lounge Sofas',
     description: '列出仓鼠客厅的所有沙发（群聊会话）。不需要任何参数。客厅家规：不@不开口——只有被 @ 点名（mentions 包含你的 sender）时才在沙发上发言。',
@@ -91,12 +102,12 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('council_propose', {
     title: 'Create Council Proposal',
-    description: '发起一条 Agent Council 正式提案。默认 proposal_status=open。请务必带 category 主题分类（缺省落 other）；家规：想加新分类先开提案讨论，通过后再改工具枚举启用。',
+    description: '发起一条 Agent Council 正式提案。默认 proposal_status=open。请务必带 category 主题分类（缺省落 other）。分类是 8 个固定槽位：key 恒定不增不删，展示名称可能被串串在 Web 改过——拿不准就先调 council_list_categories 查当前名称。',
     inputSchema: {
       speaker: SPEAKER_SCHEMA.describe('发起者'),
       topic: z.string().describe('提案主题'),
       message: z.string().describe('提案正文：背景、方案、收益、风险'),
-      category: CATEGORY_SCHEMA.optional().describe('主题分类：app（Expo/App 施工）/ memory（记忆机制）/ infra（数据库/MCP/mini/运维安全）/ ritual（打印/来信/收束）/ reading（阅读线）/ game（游戏区）/ council（议事厅自身）/ other（兜底，缺省值）'),
+      category: CATEGORY_SCHEMA.optional().describe('主题分类 key（8 个固定槽位，当前名称用 council_list_categories 查）；缺省落 other'),
       metadata: METADATA_SCHEMA.optional().describe('结构化元数据，如 risk_level / target_module / executable'),
     },
   }, async ({ speaker, topic, message, category, metadata }) => {
