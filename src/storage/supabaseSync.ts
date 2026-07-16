@@ -16,6 +16,7 @@ import type {
   AgentCouncilCategory,
   AgentCouncilExecutor,
   AgentCouncilReportResult,
+  CouncilCategorySlot,
   CheckinEntry,
   ForumAiProfile,
   ForumReply,
@@ -3164,6 +3165,65 @@ export const decideAgentCouncilProposal = async (payload: {
   })
   if (insertError) {
     throw insertError
+  }
+}
+
+// 分类槽位：固定 8 个 key，label 可改名（council_categories 表，见 migration 20260716070023）。
+export const listCouncilCategories = async (): Promise<CouncilCategorySlot[]> => {
+  if (!supabase) {
+    return []
+  }
+  const { data, error } = await supabase
+    .from('council_categories')
+    .select('key,label,sort_order')
+    .order('sort_order', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => ({
+    key: row.key as string,
+    label: row.label as string,
+    sortOrder: row.sort_order as number,
+  }))
+}
+
+// 给分类槽位改名（只允许动 label；key/槽位数量由 DB 权限锁死）。
+export const renameCouncilCategory = async (key: string, label: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const trimmed = label.trim()
+  if (!trimmed) {
+    throw new Error('分类名称不能为空')
+  }
+  const { error } = await supabase.from('council_categories').update({ label: trimmed }).eq('key', key)
+  if (error) {
+    throw error
+  }
+}
+
+// 修改提案的主题分类：主行更新，且子条目（评估/拍板/回执）一并跟随，保持继承一致。
+export const updateAgentCouncilProposalCategory = async (
+  proposalId: string,
+  category: string,
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const nowIso = new Date().toISOString()
+  const { error: mainError } = await supabase
+    .from('agent_council')
+    .update({ category, updated_at: nowIso })
+    .eq('id', proposalId)
+  if (mainError) {
+    throw mainError
+  }
+  const { error: childError } = await supabase
+    .from('agent_council')
+    .update({ category })
+    .eq('parent_id', proposalId)
+  if (childError) {
+    throw childError
   }
 }
 

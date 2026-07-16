@@ -66,6 +66,22 @@
 .category-tag { border-radius:999px; padding:2px 8px; font-size:11px; font-weight:600; background:#f4effc; border:1px solid rgba(210,190,240,.7); color:#6b4fa3; }
 .executor-tag { border-radius:999px; padding:2px 8px; font-size:11px; font-weight:600; background:#eef7f2; border:1px solid rgba(150,214,180,.7); color:#2f7a56; }
 
+/* 分类管理（8 个固定槽位改名） */
+.council-list-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.council-list-header h2 { margin:0; }
+.category-manager { display:grid; gap:6px; border:1px solid rgba(210,190,240,.5); border-radius:12px; padding:10px; background:#fbf8ff; }
+.category-manager__row { display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center; }
+.category-manager__key { font-size:11px; color:#8a7ba3; background:#f0ebfa; border-radius:6px; padding:3px 7px; min-width:64px; text-align:center; }
+.category-manager__row input { border:1px solid rgba(210,190,240,.7); border-radius:10px; padding:6px 10px; font:inherit; background:#fff; color:#1f2937; min-width:0; }
+.category-manager__save { border-radius:999px; border:1px solid rgba(210,190,240,.8); background:#fff; color:#6b4fa3; padding:5px 13px; font-size:12px; cursor:pointer; }
+.category-manager__save:hover:not(:disabled) { background:#f0e8fc; }
+.category-manager__save:disabled { opacity:.45; cursor:default; }
+
+/* 详情页分类下拉（即改即存） */
+.category-select { display:inline-flex; align-items:center; gap:6px; font-size:11px; color:#6b4fa3; }
+.category-select__label { font-weight:600; }
+.category-select select { border:1px solid rgba(210,190,240,.7); border-radius:999px; padding:3px 8px; font-size:12px; background:#f4effc; color:#6b4fa3; font-weight:600; }
+
 /* 两维筛选：状态分组 × 分类 */
 .council-filters { display:grid; gap:6px; }
 .filter-row { display:flex; flex-wrap:wrap; gap:6px; }

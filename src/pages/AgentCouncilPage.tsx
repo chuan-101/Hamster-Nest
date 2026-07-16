@@ -9,7 +9,10 @@ import {
   deleteAgentCouncilProposal,
   deleteAgentCouncilTopic,
   listAgentCouncilMessages,
+  listCouncilCategories,
+  renameCouncilCategory,
   submitAgentCouncilReport,
+  updateAgentCouncilProposalCategory,
 } from '../storage/supabaseSync'
 import type {
   AgentCouncilCategory,
@@ -19,6 +22,7 @@ import type {
   AgentCouncilReportResult,
   AgentCouncilSpeaker,
   AgentCouncilVote,
+  CouncilCategorySlot,
 } from '../types'
 import './AgentCouncilPage.css'
 
@@ -68,8 +72,9 @@ const STATUS_GROUPS = [
 
 type StatusGroupKey = (typeof STATUS_GROUPS)[number]['key']
 
-// 分类值域由 MCP 工具层维护；这里只管展示文案，未知分类原样显示不崩。
-const CATEGORY_META: Record<string, string> = {
+// 分类是 8 个固定槽位：key 恒定，label 存 council_categories 表、可改名。
+// 这份内置表只做表还没加载出来时的兜底文案，权威名称以表数据为准。
+const CATEGORY_FALLBACK: Record<string, string> = {
   app: 'App 施工',
   memory: '记忆机制',
   infra: '基建运维',
@@ -80,19 +85,9 @@ const CATEGORY_META: Record<string, string> = {
   other: '其他',
 }
 
-const getCategoryLabel = (category: string | null) =>
-  category ? (CATEGORY_META[category] ?? category) : null
-
-const CATEGORY_OPTIONS: AgentCouncilCategory[] = [
-  'app',
-  'memory',
-  'infra',
-  'ritual',
-  'reading',
-  'game',
-  'council',
-  'other',
-]
+const CATEGORY_FALLBACK_SLOTS: CouncilCategorySlot[] = Object.entries(CATEGORY_FALLBACK).map(
+  ([key, label], index) => ({ key, label, sortOrder: index + 1 }),
+)
 
 const EXECUTOR_META: Record<AgentCouncilExecutor, string> = {
   codex_cli: 'Codex CLI',
@@ -176,6 +171,11 @@ const AgentCouncilPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
+  // 分类槽位（8 个固定 key，label 可改名）；加载失败时用内置兜底
+  const [categories, setCategories] = useState<CouncilCategorySlot[]>(CATEGORY_FALLBACK_SLOTS)
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
+  const [categoryEdits, setCategoryEdits] = useState<Record<string, string>>({})
+
   // 列表两维筛选：状态分组 × 分类
   const [statusGroup, setStatusGroup] = useState<StatusGroupKey>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
@@ -222,7 +222,28 @@ const AgentCouncilPage = () => {
     } finally {
       setLoading(false)
     }
+    // 分类表加载失败不阻塞页面，保留兜底文案即可
+    try {
+      const slots = await listCouncilCategories()
+      if (slots.length > 0) {
+        setCategories(slots)
+      }
+    } catch (categoryError) {
+      console.warn('加载分类槽位失败，使用内置兜底', categoryError)
+    }
   }, [])
+
+  const categoryLabelMap = useMemo(() => {
+    const map = new Map<string, string>()
+    categories.forEach((slot) => map.set(slot.key, slot.label))
+    return map
+  }, [categories])
+
+  const getCategoryLabel = useCallback(
+    (category: string | null) =>
+      category ? (categoryLabelMap.get(category) ?? CATEGORY_FALLBACK[category] ?? category) : null,
+    [categoryLabelMap],
+  )
 
   useEffect(() => {
     void refresh()
@@ -414,6 +435,50 @@ const AgentCouncilPage = () => {
     }
   }
 
+  // 提案分类事后可改：主行 + 子条目一并更新，保持继承一致。
+  const handleChangeProposalCategory = async (category: string) => {
+    if (!activeProposal || category === (activeProposal.category ?? 'other')) {
+      return
+    }
+    setSaving(true)
+    try {
+      await updateAgentCouncilProposalCategory(activeProposal.id, category)
+      setNotice(`分类已改为「${getCategoryLabel(category)}」`)
+      setError(null)
+      await refresh()
+    } catch (categoryError) {
+      console.warn('修改提案分类失败', categoryError)
+      setError('修改提案分类失败，请稍后重试')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRenameCategory = async (key: string) => {
+    const nextLabel = (categoryEdits[key] ?? '').trim()
+    const current = categories.find((slot) => slot.key === key)
+    if (!current || !nextLabel || nextLabel === current.label) {
+      return
+    }
+    setSaving(true)
+    try {
+      await renameCouncilCategory(key, nextLabel)
+      setNotice(`分类「${current.label}」已改名为「${nextLabel}」`)
+      setError(null)
+      await refresh()
+    } catch (renameError) {
+      console.warn('分类改名失败', renameError)
+      setError('分类改名失败，请稍后重试')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const openCategoryManager = () => {
+    setCategoryEdits(Object.fromEntries(categories.map((slot) => [slot.key, slot.label])))
+    setCategoryManagerOpen(true)
+  }
+
   const handleSubmitReport = async (event: FormEvent) => {
     event.preventDefault()
     if (!activeProposal) {
@@ -524,8 +589,8 @@ const AgentCouncilPage = () => {
             <label className="council-field">
               <span>主题分类</span>
               <select value={newCategory} onChange={(e) => setNewCategory(e.target.value as AgentCouncilCategory)}>
-                {CATEGORY_OPTIONS.map((category) => (
-                  <option key={category} value={category}>{CATEGORY_META[category]}</option>
+                {categories.map((slot) => (
+                  <option key={slot.key} value={slot.key}>{slot.label}</option>
                 ))}
               </select>
             </label>
@@ -541,7 +606,41 @@ const AgentCouncilPage = () => {
       </section>
 
       <section className="council-panel">
-        <h2>主提案列表</h2>
+        <div className="council-list-header">
+          <h2>主提案列表</h2>
+          <button
+            type="button"
+            className="legacy-toggle"
+            onClick={() => (categoryManagerOpen ? setCategoryManagerOpen(false) : openCategoryManager())}
+          >
+            {categoryManagerOpen ? '收起分类管理' : '管理分类'}
+          </button>
+        </div>
+        {categoryManagerOpen ? (
+          <div className="category-manager">
+            <p className="decision-hint">
+              8 个分类槽位固定、不增不删，只能改名；改名后新旧提案统一显示新名称（数据里存的 key 不变，Agent 端不受影响）。
+            </p>
+            {categories.map((slot) => (
+              <div key={slot.key} className="category-manager__row">
+                <code className="category-manager__key">{slot.key}</code>
+                <input
+                  value={categoryEdits[slot.key] ?? slot.label}
+                  onChange={(e) => setCategoryEdits((prev) => ({ ...prev, [slot.key]: e.target.value }))}
+                  maxLength={20}
+                />
+                <button
+                  type="button"
+                  className="category-manager__save"
+                  onClick={() => void handleRenameCategory(slot.key)}
+                  disabled={saving || (categoryEdits[slot.key] ?? slot.label).trim() === slot.label || !(categoryEdits[slot.key] ?? slot.label).trim()}
+                >
+                  改名
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="council-filters">
           <div className="filter-row">
             {STATUS_GROUPS.map((group) => (
@@ -649,9 +748,21 @@ const AgentCouncilPage = () => {
             </div>
             <CollapsibleMarkdown content={activeProposal.message} />
             <div className="proposal-item__meta">
-              {getCategoryLabel(activeProposal.category) ? (
-                <span className="category-tag">{getCategoryLabel(activeProposal.category)}</span>
-              ) : null}
+              <label className="category-select">
+                <span className="category-select__label">分类</span>
+                <select
+                  value={activeProposal.category ?? 'other'}
+                  onChange={(e) => void handleChangeProposalCategory(e.target.value)}
+                  disabled={saving}
+                >
+                  {categories.map((slot) => (
+                    <option key={slot.key} value={slot.key}>{slot.label}</option>
+                  ))}
+                  {activeProposal.category && !categoryLabelMap.has(activeProposal.category) ? (
+                    <option value={activeProposal.category}>{activeProposal.category}</option>
+                  ) : null}
+                </select>
+              </label>
               {activeProposal.executor ? (
                 <span className="executor-tag">执行方：{EXECUTOR_META[activeProposal.executor]}</span>
               ) : null}

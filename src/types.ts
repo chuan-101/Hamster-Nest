@@ -304,6 +304,13 @@ export type AgentCouncilCategory =
 
 export type AgentCouncilExecutor = 'codex_cli' | 'claude_code_cli' | 'client' | 'chuanchuan'
 
+// 分类槽位（council_categories 表）：key 恒定 8 个，label 可改名。
+export type CouncilCategorySlot = {
+  key: string
+  label: string
+  sortOrder: number
+}
+
 export type AgentCouncilReportResult = 'succeeded' | 'partial' | 'failed'
 
 export type AgentCouncilMetadata = {
