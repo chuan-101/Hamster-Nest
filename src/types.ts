@@ -278,7 +278,7 @@ export type AgentCouncilSpeaker =
   | 'codex_cli'
   | 'claude_code_cli'
 
-export type AgentCouncilEntryType = 'proposal' | 'review' | 'decision'
+export type AgentCouncilEntryType = 'proposal' | 'review' | 'decision' | 'report'
 
 export type AgentCouncilProposalStatus =
   | 'open'
@@ -286,12 +286,33 @@ export type AgentCouncilProposalStatus =
   | 'rejected'
   | 'deferred'
   | 'plan_generated'
+  | 'done'
+  | 'failed'
 
 export type AgentCouncilVote = 'support' | 'neutral' | 'against'
+
+// 分类值域由 MCP 工具层维护（DB 无 CHECK）；前端把 category 当普通字符串容忍未知值，仅用于展示与筛选。
+export type AgentCouncilCategory =
+  | 'app'
+  | 'memory'
+  | 'infra'
+  | 'ritual'
+  | 'reading'
+  | 'game'
+  | 'council'
+  | 'other'
+
+export type AgentCouncilExecutor = 'codex_cli' | 'claude_code_cli' | 'client' | 'chuanchuan'
+
+export type AgentCouncilReportResult = 'succeeded' | 'partial' | 'failed'
 
 export type AgentCouncilMetadata = {
   risk_level?: string
   target_module?: string
+  result?: AgentCouncilReportResult
+  artifacts?: string[]
+  follow_ups?: string[]
+  executor?: string
   [key: string]: unknown
 }
 
@@ -306,6 +327,8 @@ export type AgentCouncilMessage = {
   entryType: AgentCouncilEntryType | null
   proposalStatus: AgentCouncilProposalStatus | null
   vote: AgentCouncilVote | null
+  category: string | null
+  executor: AgentCouncilExecutor | null
   metadata: AgentCouncilMetadata
 }
 

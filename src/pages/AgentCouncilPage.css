@@ -55,12 +55,59 @@
 .status-rejected { background:#ffe9ec; color:#b13f4d; }
 .status-deferred { background:#fff4e0; color:#9a6a1f; }
 .status-plan { background:#e9f0ff; color:#3f5fb1; }
+.status-done { background:#e3f2e9; color:#1f6b40; }
+.status-failed { background:#ffe4e8; color:#a3273a; }
 .status-decision { background:#fbeafd; color:#8a3f9c; }
 .vote-tag { border-radius:999px; padding:2px 8px; font-size:11px; font-weight:600; }
 .vote-support { background:#e7f7ec; color:#2f8a52; }
 .vote-neutral { background:#eef2f7; color:#5a6675; }
 .vote-against { background:#ffe9ec; color:#b13f4d; }
 .meta-chip { border-radius:999px; padding:2px 8px; font-size:11px; background:#fff2f8; border:1px solid rgba(255,214,231,.7); color:#8a6b7d; }
+.category-tag { border-radius:999px; padding:2px 8px; font-size:11px; font-weight:600; background:#f4effc; border:1px solid rgba(210,190,240,.7); color:#6b4fa3; }
+.executor-tag { border-radius:999px; padding:2px 8px; font-size:11px; font-weight:600; background:#eef7f2; border:1px solid rgba(150,214,180,.7); color:#2f7a56; }
+
+/* 两维筛选：状态分组 × 分类 */
+.council-filters { display:grid; gap:6px; }
+.filter-row { display:flex; flex-wrap:wrap; gap:6px; }
+.filter-chip { border-radius:999px; border:1px solid rgba(255,214,231,.8); background:#fff; color:#8a6b7d; padding:5px 12px; font-size:12px; cursor:pointer; }
+.filter-chip.active { border-color:#f29cc3; background:linear-gradient(180deg,#ffdeec 0%,#ffcfe5 100%); color:#9c3f69; font-weight:600; }
+.filter-chip--category { border-color:rgba(210,190,240,.6); }
+.filter-chip--category.active { border-color:#b79ae0; background:linear-gradient(180deg,#f0e8fc 0%,#e6d9f8 100%); color:#6b4fa3; }
+
+/* 执行回执 */
+.report-item { background:#f5faf7; border-color:rgba(170,220,190,.6); }
+.report-tag { border-radius:999px; padding:2px 8px; font-size:11px; font-weight:600; }
+.report-succeeded { background:#e3f2e9; color:#1f6b40; }
+.report-partial { background:#fff4e0; color:#9a6a1f; }
+.report-failed { background:#ffe4e8; color:#a3273a; }
+.report-extras { display:grid; gap:4px; margin-top:8px; font-size:12px; }
+.report-extras__label { font-weight:600; color:#68485e; font-size:11px; }
+.report-extras ul { margin:0; padding-left:18px; display:grid; gap:2px; color:#5f4b57; }
+.report-extras a { color:#3f5fb1; word-break:break-all; }
+.report-form { border-top:1px dashed rgba(170,220,190,.8); padding-top:10px; }
+
+/* 密集文本：Markdown 渲染 + 长文折叠 */
+.council-markdown { display:grid; gap:6px; }
+.council-markdown__body { font-size:13.5px; line-height:1.75; color:#3b3340; word-break:break-word; }
+.council-markdown__body > :first-child { margin-top:0; }
+.council-markdown__body > :last-child { margin-bottom:0; }
+.council-markdown__body p { margin:0 0 .65em; }
+.council-markdown__body h1,.council-markdown__body h2,.council-markdown__body h3,.council-markdown__body h4 { margin:.9em 0 .4em; font-size:1.05em; color:#68485e; }
+.council-markdown__body ul,.council-markdown__body ol { margin:0 0 .65em; padding-left:20px; }
+.council-markdown__body li { margin:.15em 0; }
+.council-markdown__body code { background:#f6eef5; border-radius:6px; padding:1px 5px; font-size:.9em; color:#8a3f6b; }
+.council-markdown__body pre { background:#f8f4f8; border:1px solid rgba(255,214,231,.6); border-radius:10px; padding:10px; overflow-x:auto; margin:0 0 .65em; }
+.council-markdown__body pre code { background:transparent; padding:0; color:#4a3a4f; }
+.council-markdown__body blockquote { margin:0 0 .65em; padding:4px 12px; border-left:3px solid #f3b8d4; color:#7d5d70; background:#fff6fa; border-radius:0 8px 8px 0; }
+.council-markdown__body table { border-collapse:collapse; margin:0 0 .65em; display:block; overflow-x:auto; max-width:100%; }
+.council-markdown__body th,.council-markdown__body td { border:1px solid rgba(255,214,231,.9); padding:4px 8px; font-size:12.5px; }
+.council-markdown__body th { background:#fff2f8; color:#68485e; }
+.council-markdown__body hr { border:none; border-top:1px dashed rgba(255,214,231,.9); margin:.8em 0; }
+.council-markdown__body.is-collapsed { max-height:190px; overflow:hidden;
+  -webkit-mask-image:linear-gradient(180deg,#000 62%,transparent 100%);
+  mask-image:linear-gradient(180deg,#000 62%,transparent 100%); }
+.collapse-toggle { justify-self:start; border:1px solid rgba(255,214,231,.9); border-radius:999px; background:#fff; color:#9c3f69; padding:4px 14px; font-size:12px; cursor:pointer; }
+.collapse-toggle:hover { background:#fff2f8; }
 
 /* 提案列表 */
 .proposal-list { display:grid; gap:10px; }

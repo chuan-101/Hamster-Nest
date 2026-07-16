@@ -13,6 +13,9 @@ import type {
   AgentCouncilProposalStatus,
   AgentCouncilVote,
   AgentCouncilMetadata,
+  AgentCouncilCategory,
+  AgentCouncilExecutor,
+  AgentCouncilReportResult,
   CheckinEntry,
   ForumAiProfile,
   ForumReply,
@@ -359,6 +362,8 @@ type AgentCouncilRow = {
   entry_type: string | null
   proposal_status: string | null
   vote: string | null
+  category: string | null
+  executor: string | null
   metadata: Record<string, unknown> | null
 }
 
@@ -405,18 +410,26 @@ const mapSyzygyReplyRow = (row: SyzygyReplyRow): SyzygyReply => ({
   modelId: row.model_id ?? null,
 })
 
-const AGENT_COUNCIL_ENTRY_TYPES: AgentCouncilEntryType[] = ['proposal', 'review', 'decision']
+const AGENT_COUNCIL_ENTRY_TYPES: AgentCouncilEntryType[] = ['proposal', 'review', 'decision', 'report']
 const AGENT_COUNCIL_PROPOSAL_STATUSES: AgentCouncilProposalStatus[] = [
   'open',
   'approved',
   'rejected',
   'deferred',
   'plan_generated',
+  'done',
+  'failed',
 ]
 const AGENT_COUNCIL_VOTES: AgentCouncilVote[] = ['support', 'neutral', 'against']
+const AGENT_COUNCIL_EXECUTORS: AgentCouncilExecutor[] = [
+  'codex_cli',
+  'claude_code_cli',
+  'client',
+  'chuanchuan',
+]
 
 const AGENT_COUNCIL_SELECT_FIELDS =
-  'id,speaker,topic,message,created_at,updated_at,parent_id,entry_type,proposal_status,vote,metadata'
+  'id,speaker,topic,message,created_at,updated_at,parent_id,entry_type,proposal_status,vote,category,executor,metadata'
 
 // 旧数据的 entry_type / proposal_status / vote 可能为空或不在白名单内，统一归一化为 null，避免前端崩溃。
 const normalizeAgentCouncilEnum = <T extends string>(value: string | null, allowed: T[]): T | null =>
@@ -433,6 +446,9 @@ const mapAgentCouncilRow = (row: AgentCouncilRow): AgentCouncilMessage => ({
   entryType: normalizeAgentCouncilEnum(row.entry_type, AGENT_COUNCIL_ENTRY_TYPES),
   proposalStatus: normalizeAgentCouncilEnum(row.proposal_status, AGENT_COUNCIL_PROPOSAL_STATUSES),
   vote: normalizeAgentCouncilEnum(row.vote, AGENT_COUNCIL_VOTES),
+  // category 值域由工具层演进，前端不做白名单过滤，原样展示未知分类。
+  category: row.category ?? null,
+  executor: normalizeAgentCouncilEnum(row.executor, AGENT_COUNCIL_EXECUTORS),
   metadata: (row.metadata ?? {}) as AgentCouncilMetadata,
 })
 
@@ -3044,6 +3060,7 @@ export const createAgentCouncilProposal = async (payload: {
   topic: string
   message: string
   speaker?: AgentCouncilSpeaker
+  category?: AgentCouncilCategory
   metadata?: AgentCouncilMetadata
 }): Promise<AgentCouncilMessage> => {
   if (!supabase) {
@@ -3060,6 +3077,7 @@ export const createAgentCouncilProposal = async (payload: {
       entry_type: 'proposal',
       proposal_status: 'open',
       parent_id: null,
+      category: payload.category ?? 'other',
       metadata: payload.metadata ?? {},
     })
     .select(AGENT_COUNCIL_SELECT_FIELDS)
@@ -3070,13 +3088,14 @@ export const createAgentCouncilProposal = async (payload: {
   return mapAgentCouncilRow(data as AgentCouncilRow)
 }
 
-// 给某条主提案添加一条评估回复（entry_type=review），并记录态度 vote。
+// 给某条主提案添加一条评估回复（entry_type=review），并记录态度 vote；category 从父提案继承。
 export const createAgentCouncilReview = async (payload: {
   parentId: string
   topic: string
   message: string
   vote: AgentCouncilVote
   speaker?: AgentCouncilSpeaker
+  category?: string | null
 }): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
@@ -3090,29 +3109,34 @@ export const createAgentCouncilReview = async (payload: {
     entry_type: 'review',
     parent_id: payload.parentId,
     vote: payload.vote,
+    category: payload.category ?? null,
   })
   if (error) {
     throw error
   }
 }
 
-// 串串拍板：更新主提案 proposal_status，并插入一条 entry_type=decision 的记录保留拍板说明。
-// approved 仅代表“允许生成本地执行方案”，不代表自动执行；真正的执行案由 Mac mini 监听脚本生成。
+// 串串拍板：更新主提案 proposal_status（approved 时一并落 executor 指派），并插入 decision 记录留痕。
+// executor 语义与 MCP 工具 council_decide 一致：只有 codex_cli / claude_code_cli 会唤醒 Mac mini 接单脚本；
+// 缺省 NULL = 不唤醒任何脚本（安全默认）；重复拍板即改派；非 approved 拍板清空 executor。
 export const decideAgentCouncilProposal = async (payload: {
   proposalId: string
   topic: string
   status: 'approved' | 'rejected' | 'deferred'
   note?: string
   speaker?: AgentCouncilSpeaker
+  executor?: AgentCouncilExecutor | null
+  category?: string | null
 }): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
   const userId = await requireAuthenticatedUserId()
   const nowIso = new Date().toISOString()
+  const nextExecutor = payload.status === 'approved' ? (payload.executor ?? null) : null
   const { error: updateError } = await supabase
     .from('agent_council')
-    .update({ proposal_status: payload.status, updated_at: nowIso })
+    .update({ proposal_status: payload.status, executor: nextExecutor, updated_at: nowIso })
     .eq('id', payload.proposalId)
   if (updateError) {
     throw updateError
@@ -3120,7 +3144,11 @@ export const decideAgentCouncilProposal = async (payload: {
   const statusLabel =
     payload.status === 'approved' ? '已拍板' : payload.status === 'rejected' ? '已拒绝' : '暂缓'
   const note = payload.note?.trim()
-  const message = note ? note : `串串拍板：${statusLabel}`
+  const message = note
+    ? note
+    : nextExecutor
+      ? `串串拍板：${statusLabel}，指派 ${nextExecutor} 执行`
+      : `串串拍板：${statusLabel}`
   const { error: insertError } = await supabase.from('agent_council').insert({
     user_id: userId,
     speaker: payload.speaker ?? 'chuanchuan',
@@ -3128,10 +3156,40 @@ export const decideAgentCouncilProposal = async (payload: {
     message,
     entry_type: 'decision',
     parent_id: payload.proposalId,
-    metadata: { decision_status: payload.status },
+    category: payload.category ?? null,
+    metadata: {
+      decision_status: payload.status,
+      ...(nextExecutor ? { executor: nextExecutor } : {}),
+    },
   })
   if (insertError) {
     throw insertError
+  }
+}
+
+// 提交执行回执：调用 DB 函数 council_submit_report（写回标准的唯一实现，与 MCP 工具 council_report 同源）。
+// 一次完成：插 report 子条目 / 翻主提案状态（succeeded、partial→done，failed→failed）/ 写 agent_events 推横幅。
+export const submitAgentCouncilReport = async (payload: {
+  proposalId: string
+  speaker: AgentCouncilSpeaker
+  message: string
+  result: AgentCouncilReportResult
+  artifacts?: string[]
+  followUps?: string[]
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.rpc('council_submit_report', {
+    p_proposal_id: payload.proposalId,
+    p_speaker: payload.speaker,
+    p_message: payload.message,
+    p_result: payload.result,
+    p_artifacts: payload.artifacts && payload.artifacts.length > 0 ? payload.artifacts : null,
+    p_follow_ups: payload.followUps && payload.followUps.length > 0 ? payload.followUps : null,
+  })
+  if (error) {
+    throw error
   }
 }
 

@@ -2,12 +2,19 @@ import { z } from 'npm:zod@^4.1.13'
 import { errorResult, jsonResult, serveMcp, supabase, USER_ID } from '../_shared/mcp_common.ts'
 
 const SPEAKER_SCHEMA = z.enum(['claude', 'gpt', 'gemini', 'chuanchuan', 'codex_cli', 'claude_code_cli'])
-const ENTRY_TYPE_SCHEMA = z.enum(['proposal', 'review', 'decision'])
-const PROPOSAL_STATUS_SCHEMA = z.enum(['open', 'approved', 'rejected', 'deferred', 'plan_generated'])
+// council_post 只许写前三种；report 是执行回执，必须走 council_report（唯一写回入口）。
+const POST_ENTRY_TYPE_SCHEMA = z.enum(['proposal', 'review', 'decision'])
+const READ_ENTRY_TYPE_SCHEMA = z.enum(['proposal', 'review', 'decision', 'report'])
+const PROPOSAL_STATUS_SCHEMA = z.enum(['open', 'approved', 'rejected', 'deferred', 'plan_generated', 'done', 'failed'])
 const VOTE_SCHEMA = z.enum(['support', 'neutral', 'against'])
 const METADATA_SCHEMA = z.record(z.string(), z.unknown())
+// 分类值域只在工具层校验（DB 不加 CHECK）——加新分类改这里重新部署即可，家规：新分类先提案再启用。
+const CATEGORY_SCHEMA = z.enum(['app', 'memory', 'infra', 'ritual', 'reading', 'game', 'council', 'other'])
+// 执行方：只有 codex_cli / claude_code_cli 会唤醒 Mac mini 接单脚本；client=串串+客户端聊天完成；chuanchuan=纯手工。
+const EXECUTOR_SCHEMA = z.enum(['codex_cli', 'claude_code_cli', 'client', 'chuanchuan'])
+const REPORT_RESULT_SCHEMA = z.enum(['succeeded', 'partial', 'failed'])
 
-const councilColumns = 'id, user_id, parent_id, speaker, topic, message, entry_type, proposal_status, vote, metadata, read_by, created_at, updated_at'
+const councilColumns = 'id, user_id, parent_id, speaker, topic, message, entry_type, proposal_status, vote, category, executor, metadata, read_by, created_at, updated_at'
 
 serveMcp('hamster-lounge-mcp', (server) => {
   server.registerTool('lounge_list_sofas', {
@@ -61,8 +68,8 @@ serveMcp('hamster-lounge-mcp', (server) => {
       topic: z.string().describe('话题'),
       message: z.string().describe('消息内容'),
       parent_id: z.string().optional().describe('父提案 UUID；评估/拍板时传入'),
-      entry_type: ENTRY_TYPE_SCHEMA.optional().describe('proposal / review / decision'),
-      proposal_status: PROPOSAL_STATUS_SCHEMA.optional().describe('open / approved / rejected / deferred / plan_generated'),
+      entry_type: POST_ENTRY_TYPE_SCHEMA.optional().describe('proposal / review / decision（执行回执请走 council_report）'),
+      proposal_status: PROPOSAL_STATUS_SCHEMA.optional().describe('open / approved / rejected / deferred / plan_generated / done / failed'),
       vote: VOTE_SCHEMA.optional().describe('support / neutral / against'),
       metadata: METADATA_SCHEMA.optional().describe('结构化元数据，如 risk_level / target_module / command_id'),
     },
@@ -84,14 +91,15 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('council_propose', {
     title: 'Create Council Proposal',
-    description: '发起一条 V3.1 Agent Council 正式提案。默认 proposal_status=open。',
+    description: '发起一条 Agent Council 正式提案。默认 proposal_status=open。请务必带 category 主题分类（缺省落 other）；家规：想加新分类先开提案讨论，通过后再改工具枚举启用。',
     inputSchema: {
       speaker: SPEAKER_SCHEMA.describe('发起者'),
       topic: z.string().describe('提案主题'),
       message: z.string().describe('提案正文：背景、方案、收益、风险'),
+      category: CATEGORY_SCHEMA.optional().describe('主题分类：app（Expo/App 施工）/ memory（记忆机制）/ infra（数据库/MCP/mini/运维安全）/ ritual（打印/来信/收束）/ reading（阅读线）/ game（游戏区）/ council（议事厅自身）/ other（兜底，缺省值）'),
       metadata: METADATA_SCHEMA.optional().describe('结构化元数据，如 risk_level / target_module / executable'),
     },
-  }, async ({ speaker, topic, message, metadata }) => {
+  }, async ({ speaker, topic, message, category, metadata }) => {
     const { data, error } = await supabase.from('agent_council').insert({
       user_id: USER_ID,
       speaker,
@@ -99,6 +107,7 @@ serveMcp('hamster-lounge-mcp', (server) => {
       message,
       entry_type: 'proposal',
       proposal_status: 'open',
+      category: category ?? 'other',
       metadata: metadata ?? {},
     }).select(councilColumns).single()
     if (error) return errorResult(error)
@@ -116,7 +125,7 @@ serveMcp('hamster-lounge-mcp', (server) => {
       metadata: METADATA_SCHEMA.optional().describe('结构化元数据，如 risk_notes / alternative_plan'),
     },
   }, async ({ proposal_id, speaker, message, vote, metadata }) => {
-    const { data: proposal, error: proposalError } = await supabase.from('agent_council').select('id, topic').eq('id', proposal_id).maybeSingle()
+    const { data: proposal, error: proposalError } = await supabase.from('agent_council').select('id, topic, category').eq('id', proposal_id).maybeSingle()
     if (proposalError) return errorResult(proposalError)
     if (!proposal) return { content: [{ type: 'text' as const, text: `Error: proposal not found: ${proposal_id}` }] }
     const { data, error } = await supabase.from('agent_council').insert({
@@ -127,6 +136,7 @@ serveMcp('hamster-lounge-mcp', (server) => {
       message,
       entry_type: 'review',
       vote,
+      category: proposal.category ?? null,
       metadata: metadata ?? {},
     }).select(councilColumns).single()
     if (error) return errorResult(error)
@@ -135,52 +145,84 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('council_decide', {
     title: 'Decide Council Proposal',
-    description: '由串串对 Council 提案拍板，并同步更新主提案 proposal_status。approved 只表示允许生成执行方案，不代表自动执行。',
+    description: '由串串对 Council 提案拍板，并同步更新主提案 proposal_status。approved 时可用 executor 指派执行方：只有指派 codex_cli / claude_code_cli 才会唤醒 Mac mini 接单脚本；不带 executor 则主行落 NULL=不唤醒任何脚本（安全默认，云端/客户端就能做的活不必唤醒 CLI）。允许对同一提案重复 decide 改派（更新主行 executor，照常追加 decision 子条目留痕）；非 approved 拍板会清空 executor。',
     inputSchema: {
       proposal_id: z.string().describe('主提案 UUID'),
       decision: z.enum(['approved', 'rejected', 'deferred', 'plan_generated']).describe('拍板状态'),
+      executor: EXECUTOR_SCHEMA.optional().describe('执行方（仅 decision=approved 时生效）：codex_cli / claude_code_cli（唤醒 mini 脚本）/ client（串串+客户端聊天完成）/ chuanchuan（纯手工）；缺省 NULL=不唤醒'),
       message: z.string().optional().describe('拍板说明'),
       speaker: SPEAKER_SCHEMA.optional().describe('拍板者，默认 chuanchuan'),
       metadata: METADATA_SCHEMA.optional().describe('结构化元数据，如 generated_plan_path / command_id'),
     },
-  }, async ({ proposal_id, decision, message, speaker, metadata }) => {
+  }, async ({ proposal_id, decision, executor, message, speaker, metadata }) => {
     const actor = speaker ?? 'chuanchuan'
-    const { data: proposal, error: proposalError } = await supabase.from('agent_council').select('id, topic, metadata').eq('id', proposal_id).maybeSingle()
+    const { data: proposal, error: proposalError } = await supabase.from('agent_council').select('id, topic, category, metadata').eq('id', proposal_id).maybeSingle()
     if (proposalError) return errorResult(proposalError)
     if (!proposal) return { content: [{ type: 'text' as const, text: `Error: proposal not found: ${proposal_id}` }] }
+    // executor 只随 approved 落主行；重复 decide 即改派；rejected/deferred/plan_generated 不保留指派。
+    const nextExecutor = decision === 'approved' ? (executor ?? null) : null
     const nextMetadata = { ...((proposal.metadata ?? {}) as Record<string, unknown>), ...(metadata ?? {}) }
     const now = new Date().toISOString()
-    const { error: updateError } = await supabase.from('agent_council').update({ proposal_status: decision, metadata: nextMetadata, updated_at: now }).eq('id', proposal_id)
+    const { error: updateError } = await supabase.from('agent_council').update({ proposal_status: decision, executor: nextExecutor, metadata: nextMetadata, updated_at: now }).eq('id', proposal_id)
     if (updateError) return errorResult(updateError)
     const { data, error } = await supabase.from('agent_council').insert({
       user_id: USER_ID,
       parent_id: proposal_id,
       speaker: actor,
       topic: proposal.topic,
-      message: message ?? `串串拍板：${decision}`,
+      message: message ?? (nextExecutor ? `串串拍板：${decision}，指派 ${nextExecutor} 执行` : `串串拍板：${decision}`),
       entry_type: 'decision',
       proposal_status: decision,
-      metadata: metadata ?? {},
+      category: proposal.category ?? null,
+      metadata: { ...(metadata ?? {}), ...(nextExecutor ? { executor: nextExecutor } : {}) },
     }).select(councilColumns).single()
     if (error) return errorResult(error)
-    return jsonResult({ proposal_id, proposal_status: decision, decision_entry: data })
+    return jsonResult({ proposal_id, proposal_status: decision, executor: nextExecutor, decision_entry: data })
   })
 
   server.registerTool('council_read', {
     title: 'Read Council',
-    description: '阅读 Agent Council 消息；可按 proposal_status / entry_type / parent_id 筛选。',
+    description: '阅读 Agent Council 消息；可按 proposal_status / entry_type / category / executor / parent_id 组合筛选。',
     inputSchema: {
       limit: z.number().optional().describe('返回数量，默认10'),
-      proposal_status: PROPOSAL_STATUS_SCHEMA.optional().describe('按提案状态筛选'),
-      entry_type: ENTRY_TYPE_SCHEMA.optional().describe('按条目类型筛选'),
-      parent_id: z.string().optional().describe('读取某个主提案下的评估/拍板记录'),
+      proposal_status: PROPOSAL_STATUS_SCHEMA.optional().describe('按提案状态筛选：open / approved / rejected / deferred / plan_generated / done / failed'),
+      entry_type: READ_ENTRY_TYPE_SCHEMA.optional().describe('按条目类型筛选：proposal / review / decision / report'),
+      category: CATEGORY_SCHEMA.optional().describe('按主题分类筛选'),
+      executor: EXECUTOR_SCHEMA.optional().describe('按指派执行方筛选（主提案行才有值）'),
+      parent_id: z.string().optional().describe('读取某个主提案下的评估/拍板/回执记录'),
     },
-  }, async ({ limit, proposal_status, entry_type, parent_id }) => {
+  }, async ({ limit, proposal_status, entry_type, category, executor, parent_id }) => {
     let query = supabase.from('agent_council').select(councilColumns).order('created_at', { ascending: false }).limit(limit ?? 10)
     if (proposal_status) query = query.eq('proposal_status', proposal_status)
     if (entry_type) query = query.eq('entry_type', entry_type)
+    if (category) query = query.eq('category', category)
+    if (executor) query = query.eq('executor', executor)
     if (parent_id) query = query.eq('parent_id', parent_id)
     const { data, error } = await query
+    if (error) return errorResult(error)
+    return jsonResult(data)
+  })
+
+  server.registerTool('council_report', {
+    title: 'Report Council Execution',
+    description: '提交执行回执（谁执行谁执笔）——议事厅写回标准的唯一入口，内部调用 DB 函数 council_submit_report，一次完成三件事：插入 entry_type=report 子条目（继承父提案 category）、翻主提案状态（succeeded/partial → done；failed → failed，等串串改派或重试）、写 agent_events 推送横幅。回执写错不改写历史，再发一条修正。字段语义见 hamster-nest-app 仓库 docs/council-report-standard.md。',
+    inputSchema: {
+      proposal_id: z.string().describe('主提案 UUID'),
+      speaker: SPEAKER_SCHEMA.describe('执行方（回执执笔人）'),
+      message: z.string().describe('回执正文，三五句人话：干了什么 / 怎么验证的 / 遗留什么'),
+      result: REPORT_RESULT_SCHEMA.describe('执行结果：succeeded 全部完成 / partial 部分完成（遗留项写 follow_ups，建议另开提案）/ failed 失败（卡点写在正文）'),
+      artifacts: z.array(z.string()).optional().describe('产出物清单：PR 链接 / migration 版本号 / 文件路径等'),
+      follow_ups: z.array(z.string()).optional().describe('遗留事项清单（partial 时必填为宜）'),
+    },
+  }, async ({ proposal_id, speaker, message, result, artifacts, follow_ups }) => {
+    const { data, error } = await supabase.rpc('council_submit_report', {
+      p_proposal_id: proposal_id,
+      p_speaker: speaker,
+      p_message: message,
+      p_result: result,
+      p_artifacts: artifacts ?? null,
+      p_follow_ups: follow_ups ?? null,
+    })
     if (error) return errorResult(error)
     return jsonResult(data)
   })

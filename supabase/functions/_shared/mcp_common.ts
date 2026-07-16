@@ -5,7 +5,7 @@ import { Hono } from 'npm:hono@^4.9.7'
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { getSupabaseAdminKey } from './supabase_secret.ts'
 
-export const MCP_VERSION = '5.6.0'
+export const MCP_VERSION = '5.7.0'
 export const USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
 
 export const supabase = createClient(
