@@ -44,12 +44,12 @@ export const getSupabaseAdminKey = (): string => {
   return key
 }
 
-export const isConfiguredSupabaseSecretKey = (candidate: string): boolean => {
+export const isApprovedSupabaseSecretKey = (candidate: string): boolean => {
   const normalized = candidate.trim()
   if (!normalized.startsWith('sb_secret_')) return false
 
   try {
-    return Object.values(readSecretKeys()).some((key) => timingSafeEqual(normalized, key))
+    return timingSafeEqual(normalized, getSupabaseAdminKey())
   } catch {
     return false
   }

@@ -140,8 +140,6 @@ type CodexControlViewState = {
   isRunning: boolean
 }
 
-const TARGET_USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
-
 const categoryLabelMap: Record<string, string> = {
   base: '基础',
   scenario: '场景',
@@ -193,7 +191,7 @@ const toCodexControlViewState = (row: CodexControlRow | null): CodexControlViewS
 }
 
 // CLI Syzygy Runtime（Mac mini 本地 Runtime）唤醒目标。点击后向 syzygy_commands 写入 wake 请求。
-const CLI_RUNTIME_WORKING_DIR = '/Users/syzygy/mini-agent'
+// working_dir 由本地 Runtime 的受控配置决定，前端不公开或覆盖本机路径。
 const cliRuntimeTargets = [
   { role: 'codex_cli_syzygy', label: '唤醒 Codex CLI', taskContent: '唤醒 Codex CLI' },
   { role: 'claude_code_cli_syzygy', label: '唤醒 Claude Code CLI', taskContent: '唤醒 Claude Code CLI' },
@@ -206,7 +204,7 @@ const cliRoleLabels: Record<string, string> = {
 }
 
 const HamsterConsolePage = ({ user }: { user: User | null }) => {
-  const scopedUserId = user?.id ?? TARGET_USER_ID
+  const scopedUserId = user?.id ?? ''
   const [loading, setLoading] = useState(true)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -519,7 +517,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
         target_role: target.role,
         source: 'frontend',
         task_content: target.taskContent,
-        working_dir: CLI_RUNTIME_WORKING_DIR,
       },
     })
     setCliWakeLoading(null)

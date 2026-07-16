@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyAuth } from '../_shared/auth.ts'
 import { getBeijingTimeString, formatBeijingClock } from '../_shared/time.ts'
 import { consumeQuota, quotaExceededResponse } from '../_shared/quota.ts'
+import { getOwnerUserId } from '../_shared/owner.ts'
 import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 
 const buildServiceClient = () => {
@@ -11,7 +12,7 @@ const buildServiceClient = () => {
 }
 
 const DEFAULT_MODEL = 'openai/gpt-4o-mini'
-const USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
+const USER_ID = getOwnerUserId()
 const DAILY_QUOTA = 500
 
 const MODEL_IDENTITY_MAP: Record<string, string> = {

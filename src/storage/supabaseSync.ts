@@ -61,7 +61,6 @@ import type {
 import { supabase } from '../supabase/client'
 
 const FORUM_USER_AUTHOR_NAME = '串串'
-const WALLET_USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
 
 type SessionRow = {
   id: string
@@ -3303,11 +3302,12 @@ export const listWalletQuests = async (status: 'open' | 'completed'): Promise<Wa
   if (!supabase) {
     return []
   }
+  const userId = await requireAuthenticatedUserId()
   const orderColumn = status === 'completed' ? 'completed_at' : 'created_at'
   const { data, error } = await supabase
     .from('quests')
     .select('id,user_id,created_by,title,description,reward_points,status,completed_at,completed_note,created_at')
-    .eq('user_id', WALLET_USER_ID)
+    .eq('user_id', userId)
     .eq('status', status)
     .order(orderColumn, { ascending: false })
     .order('created_at', { ascending: false })
@@ -3326,8 +3326,9 @@ export const createWalletQuest = async (payload: {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const userId = await requireAuthenticatedUserId()
   const { error } = await supabase.from('quests').insert({
-    user_id: WALLET_USER_ID,
+    user_id: userId,
     created_by: payload.createdBy,
     title: payload.title,
     description: payload.description.trim() ? payload.description : null,
@@ -3346,6 +3347,7 @@ export const updateWalletQuest = async (
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  const userId = await requireAuthenticatedUserId()
   const { error } = await supabase
     .from('quests')
     .update({
@@ -3354,7 +3356,7 @@ export const updateWalletQuest = async (
       reward_points: payload.rewardPoints,
     })
     .eq('id', questId)
-    .eq('user_id', WALLET_USER_ID)
+    .eq('user_id', userId)
   if (error) {
     throw error
   }
@@ -3403,10 +3405,11 @@ export const listWalletTransactions = async (): Promise<WalletTransaction[]> => 
   if (!supabase) {
     return []
   }
+  const userId = await requireAuthenticatedUserId()
   const { data, error } = await supabase
     .from('wallet_transactions')
     .select('id,type,points_delta,coins_delta,description,quest_id,created_at')
-    .eq('user_id', WALLET_USER_ID)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
   if (error) {
     throw error

@@ -11,9 +11,10 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifySharedSecret } from '../_shared/auth.ts'
+import { getOwnerUserId } from '../_shared/owner.ts'
 import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 
-const USER_ID = '94dd24be-e136-45bb-836b-6820c09c4292'
+const USER_ID = getOwnerUserId()
 
 type DeviceReport = {
   battery_level?: number

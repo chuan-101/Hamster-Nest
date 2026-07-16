@@ -1,13 +1,13 @@
 # Supabase project configuration for Hamster-Nest.
 #
-# We disable the gateway-level JWT verification for every Edge Function and
-# let the function code handle authentication itself. The Supabase gateway only
-# understands HS256-signed JWTs, but the current @supabase/supabase-js client
-# issues ES256-signed JWTs, which causes the gateway to reject every request
-# with UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM before the function ever runs.
+# These functions currently use handler-level authentication because the same
+# deployment contains user-JWT calls, service-to-service API-key calls, and
+# custom signed/shared-secret callbacks. New Supabase API keys are sent through
+# the apikey header and are not JWTs, so mixed-mode endpoints must reach the
+# handler before their specific credential can be checked.
 #
 # Functions that need user identity (memory-extract, openrouter-chat,
-# openrouter-models) re-verify the JWT internally by calling
+# openrouter-models and shared verifyAuth callers) re-verify the JWT by calling
 # `/auth/v1/user` with the caller's Authorization/apikey headers and return
 # 401 on failure, so this is not a security regression for them.
 #
