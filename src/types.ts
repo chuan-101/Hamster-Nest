@@ -354,7 +354,16 @@ export type BubbleSession = {
   updatedAt: string
 }
 
-export type MemoSource = 'user' | 'ai'
+export type MemoSource =
+  | 'user'
+  | 'ai'
+  | 'claude'
+  | 'gpt'
+  | 'gemini'
+  | 'wechat'
+  | 'codex_cli'
+  | 'claude_code_cli'
+  | 'api'
 
 export type MemoTag = {
   id: string
@@ -371,7 +380,6 @@ export type MemoEntry = {
   isPinned: boolean
   createdAt: string
   updatedAt: string
-  isDeleted: boolean
   tagIds: string[]
 }
 

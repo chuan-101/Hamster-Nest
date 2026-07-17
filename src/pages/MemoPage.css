@@ -109,6 +109,13 @@
   font-size: 14px;
 }
 
+.memo-count {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #b28ba1;
+}
+
 .memo-mode-toggle {
   display: inline-flex;
   padding: 3px;
@@ -159,6 +166,14 @@
   box-shadow: 0 8px 14px rgba(255, 214, 231, 0.18);
 }
 
+.memo-card--active-line {
+  border-color: #f6b6d4;
+  border-left: 4px solid #ef9cc4;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 226, 240, 0.55), transparent 46%),
+    rgba(255, 255, 255, 0.96);
+}
+
 .memo-card__top {
   display: flex;
   align-items: center;
@@ -167,7 +182,13 @@
   color: #8f7285;
 }
 
-.memo-pin {
+.memo-card__badges {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.memo-pin,
+.memo-active-badge {
   padding: 3px 8px;
   border-radius: 999px;
   border: 1px solid #ffd6e7;
@@ -176,12 +197,41 @@
   font-weight: 600;
 }
 
+.memo-active-badge {
+  border-color: #f2a9cb;
+  background: linear-gradient(180deg, #ffe4f1 0%, #ffd4e8 100%);
+  color: #86335d;
+}
+
 .memo-content-preview {
   margin: 0;
   color: #4f3f4a;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.memo-content-preview.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.memo-expand-btn {
+  justify-self: start;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: #c06e97;
+  cursor: pointer;
+}
+
+.memo-expand-btn:hover {
+  color: #9a4b72;
+  text-decoration: underline;
 }
 
 .memo-card__tags {

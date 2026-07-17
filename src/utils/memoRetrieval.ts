@@ -9,7 +9,6 @@ type MemoEntryRow = {
   is_pinned: boolean | null
   created_at: string
   updated_at: string
-  is_deleted: boolean
 }
 
 type MatchedMemoEntry = {
@@ -140,9 +139,8 @@ export const fetchMemoEntriesByTagKeywords = async (keywords: string[]): Promise
 
   const { data: entries, error: entryError } = await supabase
     .from('memo_entries')
-    .select('id,user_id,content,source,is_pinned,created_at,updated_at,is_deleted')
+    .select('id,user_id,content,source,is_pinned,created_at,updated_at')
     .eq('user_id', user.id)
-    .eq('is_deleted', false)
     .in('id', entryIds)
 
   if (entryError) {

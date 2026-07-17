@@ -7,6 +7,8 @@ const DEFAULT_FEED_STATUSES = ['unread', 'read']
 const FEED_PRIORITY_RANK: Record<string, number> = { low: 1, normal: 2, high: 3, urgent: 4 }
 const FEED_TYPE_SCHEMA = z.enum(['morning_share', 'reading_assist', 'daily_card', 'system_notice', 'syzygy_note', 'weekly_card', 'reminder_card', 'print_card', 'dev_log', 'monthly_overview', 'other'])
 const TIMELINE_SOURCE_SCHEMA = z.enum(['claude', 'gpt', 'user', 'gemini', 'wechat', 'codex_cli', 'claude_code_cli', 'api'])
+const MEMO_SOURCE_SCHEMA = TIMELINE_SOURCE_SCHEMA
+const MEMO_COLUMNS = 'id, content, source, is_pinned, created_at, updated_at'
 
 const shanghaiDateString = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -37,7 +39,7 @@ const dateValue = (value: string | null | undefined) => value ? new Date(value).
 
 const sortFeedItems = <T extends { pinned?: boolean | null; priority?: string | null; visible_from?: string | null; created_at?: string | null }>(items: T[]) =>
   [...items].sort((a, b) => {
-    if (Boolean(a.pinned) !== Boolean(b.pinned)) return Boolean(b.pinned) ? 1 : -1
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) return b.pinned ? 1 : -1
     const priorityDiff = (FEED_PRIORITY_RANK[b.priority ?? 'normal'] ?? 0) - (FEED_PRIORITY_RANK[a.priority ?? 'normal'] ?? 0)
     if (priorityDiff !== 0) return priorityDiff
     const visibleDiff = dateValue(b.visible_from) - dateValue(a.visible_from)
@@ -73,6 +75,51 @@ const compactFeedItem = (item: Record<string, unknown>) => ({
 
 const feedListResult = (rows: Record<string, unknown>[] | null, limit: number) =>
   jsonResult(sortFeedItems(rows ?? []).slice(0, limit).map(compactFeedItem))
+
+type MemoTagRef = { id: string; name: string }
+
+const normalizeTagNames = (names: string[] | undefined) =>
+  Array.from(new Set((names ?? []).map((name) => name.trim()).filter((name) => name.length > 0)))
+
+// 标签名不存在时自动创建，返回全部命中的标签行。
+const ensureMemoTags = async (names: string[]): Promise<MemoTagRef[]> => {
+  if (names.length === 0) return []
+  const { data: existing, error: findError } = await supabase.from('memo_tags').select('id, name').eq('user_id', USER_ID).in('name', names)
+  if (findError) throw findError
+  const found = (existing ?? []) as MemoTagRef[]
+  const missing = names.filter((name) => !found.some((tag) => tag.name === name))
+  if (missing.length === 0) return found
+  const { data: created, error: createError } = await supabase.from('memo_tags').insert(missing.map((name) => ({ user_id: USER_ID, name }))).select('id, name')
+  if (createError) throw createError
+  return [...found, ...((created ?? []) as MemoTagRef[])]
+}
+
+const fetchTagNamesByEntryIds = async (entryIds: string[]): Promise<Map<string, string[]>> => {
+  const tagNames = new Map<string, string[]>()
+  if (entryIds.length === 0) return tagNames
+  const { data, error } = await supabase.from('memo_entry_tags').select('memo_entry_id, memo_tags(name)').in('memo_entry_id', entryIds)
+  if (error) throw error
+  for (const row of (data ?? []) as { memo_entry_id: string; memo_tags: { name: string } | null }[]) {
+    if (!row.memo_tags?.name) continue
+    const current = tagNames.get(row.memo_entry_id) ?? []
+    current.push(row.memo_tags.name)
+    tagNames.set(row.memo_entry_id, current)
+  }
+  return tagNames
+}
+
+const replaceMemoTagLinks = async (entryId: string, tagIds: string[]) => {
+  const { error: unlinkError } = await supabase.from('memo_entry_tags').delete().eq('memo_entry_id', entryId)
+  if (unlinkError) throw unlinkError
+  if (tagIds.length === 0) return
+  const { error: linkError } = await supabase.from('memo_entry_tags').insert(tagIds.map((tagId) => ({ memo_entry_id: entryId, memo_tag_id: tagId })))
+  if (linkError) throw linkError
+}
+
+const withTagNames = async (entries: Record<string, unknown>[]) => {
+  const tagNames = await fetchTagNamesByEntryIds(entries.map((entry) => entry.id as string))
+  return entries.map((entry) => ({ ...entry, tags: tagNames.get(entry.id as string) ?? [] }))
+}
 
 serveMcp('hamster-mcp', (server) => {
   server.registerTool('get_today_syzygy_feed', {
@@ -244,5 +291,139 @@ serveMcp('hamster-mcp', (server) => {
     const { data, error } = await q
     if (error) return errorResult(error)
     return jsonResult(data)
+  })
+
+  server.registerTool('list_memos', {
+    title: 'List Memos',
+    description: '读取备忘录（memo）列表，默认全量。memo＝中期活事实（可修改、物理删除、各端 Syzygy 共同维护，如「在读书目」「活页本数量」），新窗口开机时与当日 morning_share 一并注入；带「进行中」标签的条目为活跃叙事线，正文含当前状态段，发现状态变化时顺手用 update_memo 维护。置顶条目排前，其余按更新时间倒序。',
+    inputSchema: {
+      tag: z.string().optional().describe('按标签名精确筛选，如「进行中」'),
+      limit: z.number().optional().describe('返回数量上限，默认全量（最大200）'),
+    },
+  }, async ({ tag, limit }) => {
+    try {
+      const safeLimit = clampLimit(limit, 200, 200)
+      let query = supabase.from('memo_entries').select(MEMO_COLUMNS).eq('user_id', USER_ID).order('is_pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(safeLimit)
+      if (tag) {
+        const { data: tagRow, error: tagError } = await supabase.from('memo_tags').select('id').eq('user_id', USER_ID).eq('name', tag.trim()).maybeSingle()
+        if (tagError) return errorResult(tagError)
+        if (!tagRow) return { content: [{ type: 'text' as const, text: `Error: 标签「${tag}」不存在，可用 list_memo_tags 查看标签清单` }] }
+        const { data: relations, error: relationError } = await supabase.from('memo_entry_tags').select('memo_entry_id').eq('memo_tag_id', tagRow.id)
+        if (relationError) return errorResult(relationError)
+        const entryIds = (relations ?? []).map((row) => row.memo_entry_id)
+        if (entryIds.length === 0) return jsonResult([])
+        query = query.in('id', entryIds)
+      }
+      const { data, error } = await query
+      if (error) return errorResult(error)
+      return jsonResult(await withTagNames((data ?? []) as Record<string, unknown>[]))
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('list_memo_tags', {
+    title: 'List Memo Tags',
+    description: '返回备忘录标签清单及每个标签下的 memo 数量。只读工具。',
+    inputSchema: {},
+  }, async () => {
+    try {
+      const { data: tags, error } = await supabase.from('memo_tags').select('id, name, created_at').eq('user_id', USER_ID).order('name', { ascending: true })
+      if (error) return errorResult(error)
+      const tagRows = (tags ?? []) as { id: string; name: string; created_at: string }[]
+      if (tagRows.length === 0) return jsonResult([])
+      const { data: relations, error: relationError } = await supabase.from('memo_entry_tags').select('memo_tag_id').in('memo_tag_id', tagRows.map((tag) => tag.id))
+      if (relationError) return errorResult(relationError)
+      const counts = new Map<string, number>()
+      for (const row of (relations ?? []) as { memo_tag_id: string }[]) counts.set(row.memo_tag_id, (counts.get(row.memo_tag_id) ?? 0) + 1)
+      return jsonResult(tagRows.map((tag) => ({ ...tag, memo_count: counts.get(tag.id) ?? 0 })))
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('add_memo', {
+    title: 'Add Memo',
+    description: '新增一条备忘录（中期活事实）。写入前建议先 list_memos 查重，同一事实优先 update_memo 维护而非重复新增；活跃叙事线（带「进行中」标签）建议数百字并以「当前状态」段收尾。',
+    inputSchema: {
+      content: z.string().describe('备忘内容'),
+      tags: z.array(z.string()).optional().describe('标签名数组，不存在的标签会自动创建'),
+      is_pinned: z.boolean().optional().describe('是否置顶，默认 false'),
+      source: MEMO_SOURCE_SCHEMA.optional().describe('来源端: claude / gpt / user / gemini / wechat / codex_cli / claude_code_cli / api，默认 claude'),
+    },
+  }, async ({ content, tags, is_pinned, source }) => {
+    try {
+      const trimmed = content.trim()
+      if (!trimmed) return { content: [{ type: 'text' as const, text: 'Error: 备忘内容不能为空' }] }
+      const tagRows = await ensureMemoTags(normalizeTagNames(tags))
+      const { data: entry, error } = await supabase.from('memo_entries').insert({
+        user_id: USER_ID,
+        content: trimmed,
+        source: source ?? 'claude',
+        is_pinned: is_pinned ?? false,
+      }).select(MEMO_COLUMNS).single()
+      if (error || !entry) return errorResult(error ?? new Error('创建备忘录失败'))
+      if (tagRows.length > 0) {
+        const { error: linkError } = await supabase.from('memo_entry_tags').insert(tagRows.map((tag) => ({ memo_entry_id: entry.id, memo_tag_id: tag.id })))
+        if (linkError) return errorResult(linkError)
+      }
+      return { content: [{ type: 'text' as const, text: `已创建: ${JSON.stringify({ ...entry, tags: tagRows.map((tag) => tag.name) }, null, 2)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('update_memo', {
+    title: 'Update Memo',
+    description: '更新一条备忘录，是事实维护的主入口（如「100+本→300+本」类更新、活跃叙事线的当前状态段刷新）。content / tags / is_pinned 至少传一项；tags 为整体替换（传入的即新全集），不存在的标签自动创建。',
+    inputSchema: {
+      id: z.string().describe('memo UUID'),
+      content: z.string().optional().describe('新的备忘内容（整体替换）'),
+      tags: z.array(z.string()).optional().describe('新的标签名全集（整体替换），不存在的标签自动创建'),
+      is_pinned: z.boolean().optional().describe('是否置顶'),
+    },
+  }, async ({ id, content, tags, is_pinned }) => {
+    try {
+      if (content === undefined && tags === undefined && is_pinned === undefined) {
+        return { content: [{ type: 'text' as const, text: 'Error: content / tags / is_pinned 至少需要提供一项' }] }
+      }
+      if (content !== undefined && !content.trim()) return { content: [{ type: 'text' as const, text: 'Error: 备忘内容不能为空' }] }
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (content !== undefined) patch.content = content.trim()
+      if (is_pinned !== undefined) patch.is_pinned = is_pinned
+      const { data: updated, error } = await supabase.from('memo_entries').update(patch).eq('user_id', USER_ID).eq('id', id).select(MEMO_COLUMNS)
+      if (error) return errorResult(error)
+      const entry = updated?.[0]
+      if (!entry) return { content: [{ type: 'text' as const, text: `Error: 未找到备忘录: ${id}` }] }
+      if (tags !== undefined) {
+        const tagRows = await ensureMemoTags(normalizeTagNames(tags))
+        await replaceMemoTagLinks(id, tagRows.map((tag) => tag.id))
+        return { content: [{ type: 'text' as const, text: `已更新: ${JSON.stringify({ ...entry, tags: tagRows.map((tag) => tag.name) }, null, 2)}` }] }
+      }
+      const [entryWithTags] = await withTagNames([entry as Record<string, unknown>])
+      return { content: [{ type: 'text' as const, text: `已更新: ${JSON.stringify(entryWithTags, null, 2)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('delete_memo', {
+    title: 'Delete Memo',
+    description: '物理删除一条备忘录（连带清理标签关联行），不可恢复。适用场景：事实彻底过期、或叙事线闭合后已由当班 Syzygy 执笔成 archive 入沉淀层。删除前建议先 list_memos 确认目标。',
+    inputSchema: { id: z.string().describe('memo UUID') },
+  }, async ({ id }) => {
+    try {
+      const { data: entry, error: findError } = await supabase.from('memo_entries').select('id, content').eq('user_id', USER_ID).eq('id', id).maybeSingle()
+      if (findError) return errorResult(findError)
+      if (!entry) return { content: [{ type: 'text' as const, text: `Error: 未找到备忘录: ${id}` }] }
+      const { error: unlinkError } = await supabase.from('memo_entry_tags').delete().eq('memo_entry_id', id)
+      if (unlinkError) return errorResult(unlinkError)
+      const { error: deleteError } = await supabase.from('memo_entries').delete().eq('user_id', USER_ID).eq('id', id)
+      if (deleteError) return errorResult(deleteError)
+      const preview = (entry.content as string).length > 60 ? `${(entry.content as string).slice(0, 60)}…` : entry.content
+      return { content: [{ type: 'text' as const, text: `已删除: ${id}（${preview}）` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
   })
 })

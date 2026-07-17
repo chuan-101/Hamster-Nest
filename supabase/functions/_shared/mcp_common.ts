@@ -6,7 +6,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { getOwnerUserId } from './owner.ts'
 import { getSupabaseAdminKey } from './supabase_secret.ts'
 
-export const MCP_VERSION = '5.8.0'
+export const MCP_VERSION = '5.9.0'
 export const USER_ID = getOwnerUserId()
 
 export const supabase = createClient(
