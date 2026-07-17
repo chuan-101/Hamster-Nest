@@ -148,7 +148,6 @@ type MemoEntryRow = {
   is_pinned: boolean | null
   created_at: string
   updated_at: string
-  is_deleted: boolean
 }
 
 type MemoTagRow = {
@@ -506,7 +505,6 @@ const mapMemoEntryRow = (row: MemoEntryRow, tagIds: string[]): MemoEntry => ({
   isPinned: row.is_pinned ?? false,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
-  isDeleted: row.is_deleted,
   tagIds,
 })
 
@@ -2515,9 +2513,8 @@ export const listMemoEntries = async (): Promise<MemoEntry[]> => {
   const userId = await requireAuthenticatedUserId()
   const { data: entryRows, error: entryError } = await supabase
     .from('memo_entries')
-    .select('id,user_id,content,source,is_pinned,created_at,updated_at,is_deleted')
+    .select('id,user_id,content,source,is_pinned,created_at,updated_at')
     .eq('user_id', userId)
-    .eq('is_deleted', false)
     .order('updated_at', { ascending: false })
   if (entryError) {
     throw entryError
@@ -2562,7 +2559,6 @@ export const createMemoEntry = async (payload: {
       content: payload.content,
       source: payload.source ?? 'user',
       is_pinned: payload.isPinned,
-      is_deleted: false,
       created_at: now,
       updated_at: now,
     })
@@ -2602,7 +2598,6 @@ export const updateMemoEntry = async (
       updated_at: now,
     })
     .eq('id', entryId)
-    .eq('is_deleted', false)
   if (updateError) {
     throw updateError
   }
@@ -2630,13 +2625,21 @@ export const updateMemoEntry = async (
   }
 }
 
-export const softDeleteMemoEntry = async (entryId: string): Promise<void> => {
+export const deleteMemoEntry = async (entryId: string): Promise<void> => {
   if (!supabase) {
     throw new Error('Supabase 客户端未配置')
   }
+  // 物理删除：先清标签关联行再删主行（外键本身也带 ON DELETE CASCADE 兜底）。
+  const { error: unlinkError } = await supabase
+    .from('memo_entry_tags')
+    .delete()
+    .eq('memo_entry_id', entryId)
+  if (unlinkError) {
+    throw unlinkError
+  }
   const { error } = await supabase
     .from('memo_entries')
-    .update({ is_deleted: true, updated_at: new Date().toISOString() })
+    .delete()
     .eq('id', entryId)
   if (error) {
     throw error

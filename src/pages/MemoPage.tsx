@@ -1,18 +1,34 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { MemoEntry, MemoTag } from '../types'
+import type { MemoEntry, MemoSource, MemoTag } from '../types'
 import {
   createMemoEntry,
   createMemoTag,
+  deleteMemoEntry,
   listMemoEntries,
   listMemoTags,
-  softDeleteMemoEntry,
   updateMemoEntry,
 } from '../storage/supabaseSync'
 import { formatLocalTimestamp } from '../utils/time'
 import './MemoPage.css'
 
 type FilterMode = 'or' | 'and'
+
+const ACTIVE_LINE_TAG_NAME = '进行中'
+const CONTENT_CLAMP_THRESHOLD = 120
+
+const sourceLabel = (source: MemoSource) => {
+  if (source === 'user') {
+    return '用户'
+  }
+  if (source === 'ai') {
+    return 'AI'
+  }
+  return `AI · ${source}`
+}
+
+const isLongContent = (content: string) =>
+  content.length > CONTENT_CLAMP_THRESHOLD || content.split('\n').length > 6
 
 type EditorState = {
   mode: 'create' | 'edit'
@@ -43,6 +59,7 @@ const MemoPage = () => {
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [expandedEntryIds, setExpandedEntryIds] = useState<string[]>([])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -65,6 +82,11 @@ const MemoPage = () => {
 
   const tagMap = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags])
 
+  const activeLineTagId = useMemo(
+    () => tags.find((tag) => tag.name === ACTIVE_LINE_TAG_NAME)?.id ?? null,
+    [tags],
+  )
+
   const sortedAndFilteredEntries = useMemo(() => {
     const scoped = entries.filter((entry) => {
       if (selectedFilterTagIds.length === 0) {
@@ -86,6 +108,13 @@ const MemoPage = () => {
   const toggleFilterTag = (tagId: string) => {
     setSelectedFilterTagIds((current) =>
       current.includes(tagId) ? current.filter((item) => item !== tagId) : [...current, tagId],
+    )
+  }
+
+  const toggleEntryExpanded = (event: MouseEvent, entryId: string) => {
+    event.stopPropagation()
+    setExpandedEntryIds((current) =>
+      current.includes(entryId) ? current.filter((id) => id !== entryId) : [...current, entryId],
     )
   }
 
@@ -195,13 +224,13 @@ const MemoPage = () => {
     if (!editor?.entryId || saving) {
       return
     }
-    const confirmed = window.confirm('确认删除这条备忘录吗？删除后将在列表中隐藏。')
+    const confirmed = window.confirm('确认删除这条备忘录吗？数据将被彻底删除，无法恢复。')
     if (!confirmed) {
       return
     }
     setSaving(true)
     try {
-      await softDeleteMemoEntry(editor.entryId)
+      await deleteMemoEntry(editor.entryId)
       setEditor(null)
       setNotice('备忘录已删除')
       setError(null)
@@ -232,7 +261,14 @@ const MemoPage = () => {
       <section className="memo-filter-card" aria-label="标签筛选面板">
         <div className="memo-filter-dot" aria-hidden="true" />
         <div className="memo-filter-top">
-          <strong>标签筛选</strong>
+          <strong>
+            标签筛选
+            <span className="memo-count">
+              {selectedFilterTagIds.length > 0
+                ? `${sortedAndFilteredEntries.length} / ${entries.length} 条`
+                : `共 ${entries.length} 条`}
+            </span>
+          </strong>
           <div className="memo-mode-toggle" role="group" aria-label="筛选模式">
             <button
               type="button"
@@ -273,24 +309,47 @@ const MemoPage = () => {
         {!loading && sortedAndFilteredEntries.length === 0 ? (
           <p className="tips memo-empty">还没有备忘录，点击右上角新建吧。</p>
         ) : null}
-        {sortedAndFilteredEntries.map((entry) => (
-          <article key={entry.id} className="memo-card" onClick={() => setEditor(buildEditorState(entry))}>
-            <div className="memo-card__top">
-              <span className="memo-source">来源：{entry.source === 'ai' ? 'AI' : '用户'}</span>
-              {entry.isPinned ? <span className="memo-pin">📌 置顶</span> : null}
-            </div>
-            <p className="memo-content-preview">{entry.content}</p>
-            <div className="memo-card__tags">
-              {entry.tagIds.length === 0 ? <span className="tips">无标签</span> : null}
-              {entry.tagIds.map((tagId) => (
-                <span key={tagId} className="tag-chip static">
-                  #{tagMap.get(tagId)?.name ?? '未命名'}
+        {sortedAndFilteredEntries.map((entry) => {
+          const isActiveLine = activeLineTagId !== null && entry.tagIds.includes(activeLineTagId)
+          const expanded = expandedEntryIds.includes(entry.id)
+          const clampable = isLongContent(entry.content)
+          return (
+            <article
+              key={entry.id}
+              className={isActiveLine ? 'memo-card memo-card--active-line' : 'memo-card'}
+              onClick={() => setEditor(buildEditorState(entry))}
+            >
+              <div className="memo-card__top">
+                <span className="memo-source">来源：{sourceLabel(entry.source)}</span>
+                <span className="memo-card__badges">
+                  {isActiveLine ? <span className="memo-active-badge">🧵 进行中</span> : null}
+                  {entry.isPinned ? <span className="memo-pin">📌 置顶</span> : null}
                 </span>
-              ))}
-            </div>
-            <time className="memo-time">更新于 {formatLocalTimestamp(entry.updatedAt)}</time>
-          </article>
-        ))}
+              </div>
+              <p className={clampable && !expanded ? 'memo-content-preview clamped' : 'memo-content-preview'}>
+                {entry.content}
+              </p>
+              {clampable ? (
+                <button
+                  type="button"
+                  className="memo-expand-btn"
+                  onClick={(event) => toggleEntryExpanded(event, entry.id)}
+                >
+                  {expanded ? '收起 ▲' : '展开全文 ▼'}
+                </button>
+              ) : null}
+              <div className="memo-card__tags">
+                {entry.tagIds.length === 0 ? <span className="tips">无标签</span> : null}
+                {entry.tagIds.map((tagId) => (
+                  <span key={tagId} className="tag-chip static">
+                    #{tagMap.get(tagId)?.name ?? '未命名'}
+                  </span>
+                ))}
+              </div>
+              <time className="memo-time">更新于 {formatLocalTimestamp(entry.updatedAt)}</time>
+            </article>
+          )
+        })}
       </section>
 
       {editor ? (
