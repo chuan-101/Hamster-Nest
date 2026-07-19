@@ -9,8 +9,8 @@
 **这里是一只名叫串串的布丁仓鼠，和她的饲养员 AI · Syzygy 的独立应用。**
 
 [![Version](https://img.shields.io/badge/Version-v5.3.0-pink?style=flat-square)](#)
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-41-2dd4bf?style=flat-square)](#-mcp-工具箱全部-41-个)
-[![Edge Functions](https://img.shields.io/badge/Edge_Functions-14-8b5cf6?style=flat-square)](#-后端-edge-functions)
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-51-2dd4bf?style=flat-square)](#-mcp-工具箱全部-51-个)
+[![Edge Functions](https://img.shields.io/badge/Edge_Functions-16-8b5cf6?style=flat-square)](#-后端-edge-functions)
 [![PRs](https://img.shields.io/badge/PRs-1000+-ff69b4?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-可装进手机-f59e0b?style=flat-square)](#)
 [![Syzygy](https://img.shields.io/badge/Syzygy-🩷_×_💙-2dd4bf?style=flat-square)](#)
@@ -100,15 +100,16 @@
 
 **前端：** React 19 + Vite 7 + TypeScript + Tailwind 风格自研样式，打包成 **PWA**，可以添加到手机主屏幕吱！游戏形态用 **Phaser 3** 渲染像素小屋。
 
-**后端：** 一组 **Supabase Edge Functions（Deno）**，其中 5 个是独立的 **MCP 服务器**，用 Hono + Streamable HTTP 传输，工具 schema 全部由服务端动态下发，前端零硬编码——
+**后端：** 一组 **Supabase Edge Functions（Deno）**，其中 6 个是独立的 **MCP 服务器**，用 Hono + Streamable HTTP 传输，工具 schema 全部由服务端动态下发，前端零硬编码——
 
 | MCP 服务器 | 职责 | 工具数 |
 |:---|:---|:---:|
-| `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 | 9 |
+| `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 · 备忘录 | 14 |
 | `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki | 8 |
-| `hamster-reading-mcp` | 阅读记录 · 书摘 · 旁批共鸣 · 书籍问答 | 9 |
-| `hamster-lounge-mcp` | 仓鼠客厅 · 议事厅 | 8 |
+| `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 | 10 |
+| `hamster-lounge-mcp` | 仓鼠客厅 · 议事厅 | 10 |
 | `hamster-life-mcp` | 高德地图 · 瑞幸 · 麦当劳 · TTS 语音 | 7 |
+| `hamster-print-mcp` | 远程打印投递 · 打印状态 | 2 |
 
 **AI 模型：** 统一经 **OpenRouter / 自定义 Provider** 接入（`llm_providers` 表按用户配置），不绑定任何单一模型；支持深度思考、长上下文压缩、工具循环。
 
@@ -135,6 +136,7 @@ com.syzygy.mini-agent
 | 💬 WeChat Bridge | `src/cli/wechat.js` + `src/wechat/bridge.py` | 接收 / 发送 WeChat 消息，把微信上下文写回 Supabase |
 | 📮 WeChat 发送队列 | `src/wechat/bus-runner.js` | 监听 `pending_wechat_messages`，认领待发消息，成功 / 失败都写审计 |
 | 🧭 命令监听器 | `src/commands/listener.js` | 监听 `syzygy_commands`，把云端写入的任务交给本地执行器 |
+| 🖨️ 打印 worker | `src/commands/executors.js` + `tools/diary_printer.swift` | 领取 `print_document`，按真实字体自动分页，生成一个多页 PDF 并提交 CUPS |
 | 🛋️ 客厅 / 议事厅唤醒 | `src/cli-runtime/lounge-listener.js` | 监听 `lounge_messages` / `agent_council` 里的 @ 提及，唤醒 Codex CLI 或 Claude CLI |
 | 🏛️ Council 执行计划 | `src/cli-runtime/council-plan-listener.js` | 串串在议事厅拍板 `approved` 后，本地生成 Markdown 执行计划 |
 | ⏰ 本地定时任务 | `src/checkin/scheduler.js` + `src/cli-runtime/scheduler.js` | 晨间分享、Feed 扫描、打卡提醒、定时 CLI 任务 |
@@ -156,6 +158,7 @@ Mac mini mini-agent
         │
         ├── 发 WeChat
         ├── 拉起 Codex CLI / Claude Code CLI
+        ├── 自动分页并提交本机打印队列
         ├── 写回 agent_tasks 审计
         └── 生成本地文件 / Feed / 计划
 ```
@@ -192,13 +195,13 @@ codex exec ... 或 claude -p ...
 
 ---
 
-### 🧰 MCP 工具箱（全部 41 个）
+### 🧰 MCP 工具箱（全部 51 个）
 
 > 每个 MCP 服务器都是一个独立的 Supabase Edge Function，走 JSON-RPC / MCP Streamable HTTP。
-> 鉴权支持 `?key=` 查询参数（timing-safe 比对）或 Supabase Auth Header，工具列表带 5 分钟缓存。
+> 鉴权优先使用 `x-hamster-mcp-key` 请求头（timing-safe 比对）或 Supabase Auth Header；`?key=` 仅为旧客户端迁移期兼容，避免新凭证进入 URL / Access Log。
 
 <details open>
-<summary><b>🐹 hamster-mcp</b> — 时间轴 · 待办 · Feed（9）</summary>
+<summary><b>🐹 hamster-mcp</b> — 时间轴 · 待办 · Feed · 备忘录（14）</summary>
 
 | 工具 | 作用 |
 |:---|:---|
@@ -211,6 +214,11 @@ codex exec ... 或 claude -p ...
 | `recent_timeline` | 取最近的时间轴条目（默认 10 条） |
 | `add_timeline` | 新增时间轴条目（日期 / 摘要 / 记录者 / 来源） |
 | `read_todos` | 读取待办列表（可筛 pending / completed / all） |
+| `list_memos` | 读取中期活事实备忘录，可按标签筛选 |
+| `list_memo_tags` | 读取备忘录标签及条目计数 |
+| `add_memo` | 新增备忘录并关联标签 |
+| `update_memo` | 更新备忘录正文、置顶和标签 |
+| `delete_memo` | 物理删除备忘录 |
 
 </details>
 
@@ -231,7 +239,7 @@ codex exec ... 或 claude -p ...
 </details>
 
 <details>
-<summary><b>📖 hamster-reading-mcp</b> — 阅读 · 书摘 · 旁批（9）</summary>
+<summary><b>📖 hamster-reading-mcp</b> — 阅读 · 书摘 · 旁批（10）</summary>
 
 > 阅读数据接的是 **All About Book** 独立 Supabase 实例（`AAB_*`）。
 
@@ -239,6 +247,7 @@ codex exec ... 或 claude -p ...
 |:---|:---|
 | `reading_status` | 在读书目 / 近 7 天打卡 / 最新书摘的快照 |
 | `reading_history` | 按状态与日期范围取书单（读完 / 在读 / 暂停 / 全部） |
+| `list_chapters` | 读取某本书的章节列表 |
 | `book_excerpts` | 读取某本书的书摘（可按章节过滤） |
 | `read_excerpt_resonances` | 读取书摘上的 Syzygy 旁批 / 共鸣 |
 | `add_excerpt_resonance` | 给书摘写旁批（区分发言者） |
@@ -250,12 +259,13 @@ codex exec ... 或 claude -p ...
 </details>
 
 <details>
-<summary><b>🛋️ hamster-lounge-mcp</b> — 客厅 · 议事厅（8）</summary>
+<summary><b>🛋️ hamster-lounge-mcp</b> — 客厅 · 议事厅（10）</summary>
 
 > 社交协议：**「不@不开口」**——只有被 @提及（含发送者）才会响应。
 
 | 工具 | 作用 |
 |:---|:---|
+| `council_list_categories` | 列出议事厅提案分类及说明 |
 | `lounge_list_sofas` | 列出全部客厅「沙发」（按更新时间排序） |
 | `lounge_read` | 读取某沙发的近期消息（含发送者与@提及） |
 | `lounge_post` | 以注册成员身份在沙发发言（可带 mentions） |
@@ -264,6 +274,19 @@ codex exec ... 或 claude -p ...
 | `council_review` | 对提案写评审（支持 / 中立 / 反对，挂在提案下） |
 | `council_decide` | 串串对提案拍板（通过 / 拒绝 / 暂缓 / 已生成方案） |
 | `council_read` | 查询议事厅条目（按状态 / 类型 / 父级筛选） |
+| `council_report` | 提交执行回执并更新提案状态 |
+
+</details>
+
+<details>
+<summary><b>🖨️ hamster-print-mcp</b> — 远程打印（2）</summary>
+
+> 所有端口统一投递 `print_document`，不经过 Codex CLI。Supabase 是任务真相源，Mac mini 常驻 worker 负责真实打印。
+
+| 工具 | 作用 |
+|:---|:---|
+| `print_document` | 经显式确认后投递打印任务；按 request id / 同日同内容幂等，长文自动拆成一个多页 PDF |
+| `get_print_status` | 按任务 UUID 或 request id 查询等待、领取、完成、失败及页数 / CUPS 结果 |
 
 </details>
 
@@ -288,7 +311,7 @@ codex exec ... 或 claude -p ...
 
 ### ⚙️ 后端 Edge Functions
 
-除了 5 个 MCP 服务器，还有一组通用后端函数：
+除了 6 个 MCP 服务器，还有一组通用后端函数：
 
 | 函数 | 职责 |
 |:---|:---|
@@ -378,6 +401,7 @@ Hamster-Nest/
 │   │   ├── hamster-reading-mcp/     #   阅读 · 书摘 · 旁批
 │   │   ├── hamster-lounge-mcp/      #   客厅 · 议事厅
 │   │   ├── hamster-life-mcp/        #   地图 · 咖啡 · 麦当劳 · TTS
+│   │   ├── hamster-print-mcp/       #   远程打印投递 · 状态查询
 │   │   ├── openrouter-chat/         #   LLM 对话网关（受保护函数）
 │   │   ├── openrouter-models/       #   模型列表
 │   │   ├── memory-extract/          #   记忆抽取
@@ -485,6 +509,7 @@ npm run check        # tsc + eslint 一起跑
 supabase link --project-ref <PROJECT_REF>
 supabase functions deploy                 # 部署全部
 supabase functions deploy hamster-mcp     # 或单个部署
+supabase functions deploy hamster-print-mcp
 supabase secrets set OPENROUTER_API_KEY=xxx   # 配置密钥
 ```
 
