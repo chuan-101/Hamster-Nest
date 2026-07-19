@@ -20,6 +20,9 @@ project_id = "crfhiumxzmaszkapanrb"
 [functions.hamster-mcp]
 verify_jwt = false
 
+[functions.hamster-print-mcp]
+verify_jwt = false
+
 [functions.memory-extract]
 verify_jwt = false
 

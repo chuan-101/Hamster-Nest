@@ -3,10 +3,11 @@ import { McpServer } from 'npm:@modelcontextprotocol/sdk@1.25.3/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from 'npm:@modelcontextprotocol/sdk@1.25.3/server/webStandardStreamableHttp.js'
 import { Hono } from 'npm:hono@^4.9.7'
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { isMcpKeyAuthorized } from './mcp_key_auth.ts'
 import { getOwnerUserId } from './owner.ts'
 import { getSupabaseAdminKey } from './supabase_secret.ts'
 
-export const MCP_VERSION = '5.9.0'
+export const MCP_VERSION = '5.10.0'
 export const USER_ID = getOwnerUserId()
 
 export const supabase = createClient(
@@ -23,26 +24,15 @@ const isAllowedOrigin = (origin: string) =>
 
 const buildCorsHeaders = (origin: string): Record<string, string> => ({
   'Access-Control-Allow-Origin': origin,
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, mcp-session-id, mcp-protocol-version',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, mcp-session-id, mcp-protocol-version, x-hamster-mcp-key',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Max-Age': '86400',
   Vary: 'Origin',
 })
 
-const timingSafeEqual = (a: string, b: string) => {
-  const encoder = new TextEncoder()
-  const aBytes = encoder.encode(a)
-  const bBytes = encoder.encode(b)
-  if (aBytes.length !== bBytes.length) return false
-  let diff = 0
-  for (let i = 0; i < aBytes.length; i += 1) diff |= aBytes[i] ^ bBytes[i]
-  return diff === 0
-}
-
 const isAuthorizedRequest = async (req: Request): Promise<boolean> => {
-  const providedKey = new URL(req.url).searchParams.get('key')
   const expectedKey = Deno.env.get('HAMSTER_MCP_KEY') ?? ''
-  if (providedKey && expectedKey && timingSafeEqual(providedKey, expectedKey)) return true
+  if (isMcpKeyAuthorized(req, expectedKey)) return true
 
   const authHeader = req.headers.get('authorization')
   if (!authHeader) return false

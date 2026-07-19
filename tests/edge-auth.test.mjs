@@ -18,6 +18,9 @@ const { verifyAuth } = await import('../supabase/functions/_shared/auth.ts')
 const { getOwnerUserId, requireUuidEnv } = await import(
   '../supabase/functions/_shared/owner.ts'
 )
+const { isMcpKeyAuthorized } = await import(
+  '../supabase/functions/_shared/mcp_key_auth.ts'
+)
 
 const configureSecretKeys = () => {
   env.set(
@@ -98,4 +101,24 @@ test('owner identifiers are required UUID environment values', () => {
 
   env.set('HAMSTER_OWNER_USER_ID', 'not-a-uuid')
   assert.throws(() => getOwnerUserId(), /HAMSTER_OWNER_USER_ID is not configured as a UUID/)
+})
+
+test('MCP key auth prefers a header while retaining legacy query compatibility', () => {
+  const key = 'mcp-secret-for-test'
+  assert.equal(
+    isMcpKeyAuthorized(new Request('https://example.test/mcp', {
+      headers: { 'x-hamster-mcp-key': key },
+    }), key),
+    true,
+  )
+  assert.equal(
+    isMcpKeyAuthorized(new Request(`https://example.test/mcp?key=${encodeURIComponent(key)}`), key),
+    true,
+  )
+  assert.equal(
+    isMcpKeyAuthorized(new Request('https://example.test/mcp', {
+      headers: { 'x-hamster-mcp-key': 'wrong' },
+    }), key),
+    false,
+  )
 })
