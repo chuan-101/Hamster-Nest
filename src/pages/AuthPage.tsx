@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
+import { friendlyAuthError } from '../lib/authErrors'
 import { supabase } from '../supabase/client'
 import './AuthPage.css'
 
@@ -42,7 +43,7 @@ const AuthPage = ({ user }: AuthPageProps) => {
   }, [navigate])
 
   const handleSendOtp = useCallback(async () => {
-    const trimmed = email.trim()
+    const trimmed = email.trim().toLowerCase()
     if (!trimmed) {
       setError('请输入邮箱地址。')
       return
@@ -56,17 +57,18 @@ const AuthPage = ({ user }: AuthPageProps) => {
     setStatus(null)
     const { error: signInError } = await supabase.auth.signInWithOtp({
       email: trimmed,
+      options: { shouldCreateUser: false },
     })
     setSending(false)
     if (signInError) {
-      setError('验证码发送失败，请稍后再试。')
+      setError(friendlyAuthError(signInError, '验证码发送失败，请稍后再试。'))
       return
     }
     setStatus('验证码已发送，请查收邮箱。')
   }, [email])
 
   const handleVerifyOtp = useCallback(async () => {
-    const trimmedEmail = email.trim()
+    const trimmedEmail = email.trim().toLowerCase()
     const trimmedOtp = otp.trim()
     if (!trimmedEmail) {
       setError('请输入邮箱地址。')
@@ -90,7 +92,7 @@ const AuthPage = ({ user }: AuthPageProps) => {
     })
     setVerifying(false)
     if (verifyError) {
-      setError('验证码无效或已过期。')
+      setError(friendlyAuthError(verifyError, '验证码无效或已过期。'))
       return
     }
     setStatus('登录成功，欢迎回来。')
@@ -103,7 +105,10 @@ const AuthPage = ({ user }: AuthPageProps) => {
     }
     setError(null)
     setStatus(null)
-    await supabase.auth.signOut()
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' })
+    if (signOutError) {
+      setError(friendlyAuthError(signOutError, '退出登录失败，请稍后再试。'))
+    }
   }, [])
 
   return (
