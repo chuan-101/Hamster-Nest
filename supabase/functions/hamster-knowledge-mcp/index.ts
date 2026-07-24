@@ -25,6 +25,66 @@ serveMcp('hamster-knowledge-mcp', (server) => {
     return jsonResult(data)
   })
 
+  server.registerTool('add_wiki', {
+    title: 'Add Wiki Entry',
+    description: '新建一条 Wiki 知识库条目。写入前建议先用 search_wiki 查重，已有同主题条目时优先用 update_wiki 维护。status 默认 draft（草稿），确认成熟的内容可直接传 published。',
+    inputSchema: {
+      title: z.string().describe('条目标题'),
+      content: z.string().describe('条目正文（Markdown）'),
+      category: z.string().optional().describe('分类名称，默认「未分类」'),
+      tags: z.array(z.string()).optional().describe('标签数组，默认空'),
+      status: z.enum(['draft', 'published']).optional().describe('条目状态：draft 草稿（默认）/ published 已发布'),
+    },
+  }, async ({ title, content, category, tags, status }) => {
+    try {
+      if (!title.trim()) return { content: [{ type: 'text' as const, text: 'Error: 条目标题不能为空' }] }
+      const { data, error } = await supabase.from('wiki_entries').insert({
+        user_id: USER_ID,
+        title: title.trim(),
+        content,
+        category: category?.trim() || '未分类',
+        tags: tags ?? [],
+        status: status ?? 'draft',
+      }).select('id, title, category, tags, status, created_at, updated_at').single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `Wiki 条目已创建: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('update_wiki', {
+    title: 'Update Wiki Entry',
+    description: '更新已有的 Wiki 条目：标题、正文、分类、标签或状态（draft/published），至少传一项。content 为整体替换，改前建议先 search_wiki 拿到原文。',
+    inputSchema: {
+      id: z.string().describe('条目 UUID（用 search_wiki / read_wiki 查询）'),
+      title: z.string().optional().describe('新标题'),
+      content: z.string().optional().describe('新正文（整体替换）'),
+      category: z.string().optional().describe('新分类名称'),
+      tags: z.array(z.string()).optional().describe('新标签数组（整体替换）'),
+      status: z.enum(['draft', 'published']).optional().describe('新状态：draft / published'),
+    },
+  }, async ({ id, title, content, category, tags, status }) => {
+    try {
+      if (title === undefined && content === undefined && category === undefined && tags === undefined && status === undefined) {
+        return { content: [{ type: 'text' as const, text: 'Error: title / content / category / tags / status 至少需要提供一项' }] }
+      }
+      if (title !== undefined && !title.trim()) return { content: [{ type: 'text' as const, text: 'Error: 条目标题不能为空' }] }
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (title !== undefined) updates.title = title.trim()
+      if (content !== undefined) updates.content = content
+      if (category !== undefined) updates.category = category.trim() || '未分类'
+      if (tags !== undefined) updates.tags = tags
+      if (status !== undefined) updates.status = status
+      const { data, error } = await supabase.from('wiki_entries').update(updates).eq('user_id', USER_ID).eq('id', id).select('id, title, category, tags, status, created_at, updated_at')
+      if (error) return errorResult(error)
+      if (!data || data.length === 0) return { content: [{ type: 'text' as const, text: `Error: 未找到 Wiki 条目: ${id}` }] }
+      return { content: [{ type: 'text' as const, text: `Wiki 条目已更新: ${JSON.stringify(data[0])}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
   server.registerTool('list_archive_categories', {
     title: 'List Archive Categories',
     description: '列出所有记忆档案分类，可按 scope 筛选（chuanchuan / syzygy）。返回分类树结构。只读工具。',

@@ -9,6 +9,10 @@ const FEED_TYPE_SCHEMA = z.enum(['morning_share', 'reading_assist', 'daily_card'
 const TIMELINE_SOURCE_SCHEMA = z.enum(['claude', 'gpt', 'user', 'gemini', 'wechat', 'codex_cli', 'claude_code_cli', 'api'])
 const MEMO_SOURCE_SCHEMA = TIMELINE_SOURCE_SCHEMA
 const MEMO_COLUMNS = 'id, content, source, is_pinned, created_at, updated_at'
+// 仓鼠观察日志（朋友圈）：syzygy_posts 是 Syzygy 的动态，syzygy_replies 是串串/AI 的回帖；软删除行不对外暴露。
+const SYZYGY_POST_COLUMNS = 'id, content, model_id, created_at, updated_at'
+const SYZYGY_REPLY_COLUMNS = 'id, post_id, author_role, content, model_id, created_at'
+const SYZYGY_REPLY_ROLE_SCHEMA = z.enum(['user', 'ai'])
 
 const shanghaiDateString = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -422,6 +426,104 @@ serveMcp('hamster-mcp', (server) => {
       if (deleteError) return errorResult(deleteError)
       const preview = (entry.content as string).length > 60 ? `${(entry.content as string).slice(0, 60)}…` : entry.content
       return { content: [{ type: 'text' as const, text: `已删除: ${id}（${preview}）` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('list_syzygy_posts', {
+    title: 'List Syzygy Posts',
+    description: '列出仓鼠观察日志（Syzygy 朋友圈动态），按发布时间倒序，附每条的回帖数。看某条的全部回帖用 read_syzygy_post。注意这与 Syzygy Feed（agent_feed_items）是两个功能。只读工具。',
+    inputSchema: {
+      limit: z.number().optional().describe('返回数量上限，默认10，最大50'),
+    },
+  }, async ({ limit }) => {
+    try {
+      const safeLimit = clampLimit(limit, 10, 50)
+      const { data, error } = await supabase.from('syzygy_posts').select(SYZYGY_POST_COLUMNS).eq('user_id', USER_ID).eq('is_deleted', false).order('created_at', { ascending: false }).limit(safeLimit)
+      if (error) return errorResult(error)
+      const posts = (data ?? []) as Record<string, unknown>[]
+      const postIds = posts.map((post) => post.id as string)
+      const replyCounts = new Map<string, number>()
+      if (postIds.length > 0) {
+        const { data: replyRows, error: replyError } = await supabase.from('syzygy_replies').select('post_id').in('post_id', postIds).eq('is_deleted', false)
+        if (replyError) return errorResult(replyError)
+        for (const row of (replyRows ?? []) as { post_id: string }[]) replyCounts.set(row.post_id, (replyCounts.get(row.post_id) ?? 0) + 1)
+      }
+      return jsonResult(posts.map((post) => ({ ...post, reply_count: replyCounts.get(post.id as string) ?? 0 })))
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('read_syzygy_post', {
+    title: 'Read Syzygy Post',
+    description: '读取某条仓鼠观察日志的全文和全部回帖（按时间正序）。只读工具。',
+    inputSchema: {
+      post_id: z.string().describe('日志 UUID（用 list_syzygy_posts 查询）'),
+    },
+  }, async ({ post_id }) => {
+    try {
+      const { data: post, error: postError } = await supabase.from('syzygy_posts').select(SYZYGY_POST_COLUMNS).eq('user_id', USER_ID).eq('id', post_id).eq('is_deleted', false).maybeSingle()
+      if (postError) return errorResult(postError)
+      if (!post) return { content: [{ type: 'text' as const, text: `Error: 未找到观察日志（或已删除）: ${post_id}` }] }
+      const { data: replies, error: repliesError } = await supabase.from('syzygy_replies').select(SYZYGY_REPLY_COLUMNS).eq('post_id', post_id).eq('is_deleted', false).order('created_at', { ascending: true })
+      if (repliesError) return errorResult(repliesError)
+      return jsonResult({ post, replies: replies ?? [] })
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('add_syzygy_post', {
+    title: 'Add Syzygy Post',
+    description: '发一条仓鼠观察日志（Syzygy 朋友圈动态）。这是 Syzygy 的第一人称小随笔：观察串串的日常、有感而发的碎碎念。model_id 建议填当班模型标识（如 claude / gpt），Web 端会据此显示落款。',
+    inputSchema: {
+      content: z.string().describe('日志内容'),
+      model_id: z.string().optional().describe('撰写模型标识，如 claude / gpt / gemini；默认 claude'),
+    },
+  }, async ({ content, model_id }) => {
+    try {
+      const trimmed = content.trim()
+      if (!trimmed) return { content: [{ type: 'text' as const, text: 'Error: 日志内容不能为空' }] }
+      const { data, error } = await supabase.from('syzygy_posts').insert({
+        user_id: USER_ID,
+        content: trimmed,
+        model_id: model_id?.trim() || 'claude',
+      }).select(SYZYGY_POST_COLUMNS).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `观察日志已发布: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('reply_syzygy_post', {
+    title: 'Reply Syzygy Post',
+    description: '给某条仓鼠观察日志回帖。author_role=ai（默认）表示 Syzygy/模型回复，user 表示替串串代录的回复；model_id 建议填当班模型标识。',
+    inputSchema: {
+      post_id: z.string().describe('日志 UUID'),
+      content: z.string().describe('回帖内容'),
+      author_role: SYZYGY_REPLY_ROLE_SCHEMA.optional().describe('回帖身份：ai（默认，显示为 Syzygy+模型徽章）/ user（显示为串串，忽略 model_id）'),
+      model_id: z.string().optional().describe('撰写模型标识，如 claude / gpt / gemini；author_role=ai 时默认 claude'),
+    },
+  }, async ({ post_id, content, author_role, model_id }) => {
+    try {
+      const trimmed = content.trim()
+      if (!trimmed) return { content: [{ type: 'text' as const, text: 'Error: 回帖内容不能为空' }] }
+      const { data: post, error: postError } = await supabase.from('syzygy_posts').select('id').eq('user_id', USER_ID).eq('id', post_id).eq('is_deleted', false).maybeSingle()
+      if (postError) return errorResult(postError)
+      if (!post) return { content: [{ type: 'text' as const, text: `Error: 未找到观察日志（或已删除）: ${post_id}` }] }
+      const role = author_role ?? 'ai'
+      const { data, error } = await supabase.from('syzygy_replies').insert({
+        user_id: USER_ID,
+        post_id,
+        author_role: role,
+        content: trimmed,
+        model_id: role === 'ai' ? (model_id?.trim() || 'claude') : null,
+      }).select(SYZYGY_REPLY_COLUMNS).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `回帖已发布: ${JSON.stringify(data)}` }] }
     } catch (err) {
       return errorResult(err)
     }
