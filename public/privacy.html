@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="仓鼠小窝 iOS App 隐私政策：说明数据收集、使用、存储与用户选择。"
+    />
+    <title>仓鼠小窝隐私政策</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+          "Microsoft YaHei", sans-serif;
+        color: #1d1d1f;
+        background: #f5f5f7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 48px 20px 72px;
+        line-height: 1.7;
+      }
+
+      main {
+        width: min(820px, 100%);
+        margin: 0 auto;
+        padding: 44px clamp(24px, 6vw, 64px);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.07);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(32px, 7vw, 52px);
+        line-height: 1.12;
+        letter-spacing: -0.04em;
+      }
+
+      h2 {
+        margin: 42px 0 12px;
+        font-size: 22px;
+        line-height: 1.3;
+      }
+
+      p,
+      li {
+        font-size: 16px;
+      }
+
+      ul {
+        padding-left: 22px;
+      }
+
+      li + li {
+        margin-top: 10px;
+      }
+
+      a {
+        color: #0878d1;
+        text-underline-offset: 3px;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: #0878d1;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .updated,
+      .summary {
+        color: #6e6e73;
+      }
+
+      .summary {
+        margin-top: 24px;
+        padding: 18px 20px;
+        border-radius: 16px;
+        background: #f0f7ff;
+      }
+
+      .note {
+        padding: 16px 18px;
+        border-left: 4px solid #0878d1;
+        border-radius: 4px 14px 14px 4px;
+        background: #f5f5f7;
+      }
+
+      footer {
+        margin-top: 48px;
+        padding-top: 24px;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+        color: #6e6e73;
+        font-size: 14px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color: #f5f5f7;
+          background: #101114;
+        }
+
+        main {
+          border-color: rgba(255, 255, 255, 0.1);
+          background: rgba(29, 29, 31, 0.96);
+          box-shadow: none;
+        }
+
+        .updated,
+        .summary,
+        footer {
+          color: #a1a1a6;
+        }
+
+        .summary,
+        .note {
+          background: #24262b;
+        }
+
+        a {
+          color: #64b5f6;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Hamster Nest · iOS</p>
+      <h1>仓鼠小窝隐私政策</h1>
+      <p class="updated">生效及最近更新日期：2026 年 7 月 24 日</p>
+
+      <p class="summary">
+        仓鼠小窝只收集提供登录、同步、通知、设备状态和小窝内容功能所必需的数据；不出售个人数据，不展示广告，也不进行跨 App
+        或跨公司的用户追踪。
+      </p>
+
+      <h2>1. 本政策适用范围</h2>
+      <p>
+        本政策适用于仓鼠小窝 iOS App。仓鼠小窝是一个个人数字小窝，使用 Supabase
+        提供账户认证与云端数据同步，并通过 Expo Push Service 与 Apple Push Notification
+        service（APNs）提供通知。
+      </p>
+
+      <h2>2. 我们收集的数据</h2>
+      <ul>
+        <li>
+          <strong>邮箱地址：</strong>用于发送一次性验证码、完成登录以及显示当前账户。
+        </li>
+        <li>
+          <strong>精确位置：</strong>仅在你授权后采集，用于显示当前设备状态，以及在你选择“始终允许”并设置家庭围栏后记录到家/离家状态。
+        </li>
+        <li>
+          <strong>账户与设备标识：</strong>包括 Supabase 用户 ID、设备/推送令牌、设备名称、平台、App
+          版本，以及认证服务为会话安全保留的 IP 地址和 User-Agent。
+        </li>
+        <li>
+          <strong>你创建的内容：</strong>例如待办、时间轴速记、议事厅补充说明、审批决定与备注。
+        </li>
+        <li>
+          <strong>产品交互：</strong>例如 App 在线心跳、最近使用时间、已读/归档、待办完成状态和审批响应，用于跨端同步界面状态。
+        </li>
+        <li>
+          <strong>设备状态：</strong>包括电量、充电状态、状态上报时间和触发来源，用于小窝的设备状态功能。
+        </li>
+      </ul>
+
+      <p class="note">
+        Motion 数据只用于本机界面动画与交互，不上传服务器。你设置的“家”围栏基准坐标只保存在本机；但在你授权定位后，App
+        生成的当前精确位置和到家/离家状态可按上述功能写入你自己的小窝数据库。
+      </p>
+
+      <h2>3. 数据的使用目的</h2>
+      <p>上述数据仅用于 App 功能，包括：</p>
+      <ul>
+        <li>认证账户、维持安全会话与防止未授权访问；</li>
+        <li>在你的设备之间同步小窝内容和交互状态；</li>
+        <li>登记推送设备并向你发送与小窝有关的通知；</li>
+        <li>展示设备在线、位置、电量和家庭围栏状态；</li>
+        <li>响应待办、时间轴、议事厅和审批等由你主动发起的操作。</li>
+      </ul>
+
+      <h2>4. 数据处理服务</h2>
+      <p>
+        为提供上述功能，数据可能由 Supabase（认证、数据库和云端服务）、Expo Push Service
+        与 Apple APNs（推送通知）代表仓鼠小窝处理。推送内容采用最小化原则，不在通知正文中携带精确位置或完整用户内容。
+      </p>
+      <p>
+        我们不会将数据用于第三方广告、开发者广告或营销，不会将数据出售给数据经纪商，也不会把数据与其他公司的数据结合用于追踪。
+      </p>
+
+      <h2>5. 保存期限</h2>
+      <p>
+        云端内容与账户关联数据会保存至你请求删除，或不再需要用于提供相应功能时。认证安全日志及服务运行记录可能按照服务提供商的安全与合规期限保存。
+        删除手机上的 App 只会清除本机数据，不会自动删除云端账户和内容。
+      </p>
+
+      <h2>6. 你的选择与权利</h2>
+      <ul>
+        <li>你可以在 iOS“设置”中随时关闭定位或通知权限。</li>
+        <li>你可以在 App 设置页退出本机账户。</li>
+        <li>
+          你可以请求访问、更正或删除云端账户及关联数据。请通过下方公开联系入口发起请求，并且不要在公开 Issue
+          中填写邮箱、验证码、位置或其他敏感信息。
+        </li>
+      </ul>
+
+      <h2>7. 数据安全</h2>
+      <p>
+        仓鼠小窝通过 HTTPS 传输数据，并使用账户认证、数据库行级访问控制和本机加密会话存储等措施限制访问。没有任何系统能够保证绝对安全，但我们会持续维护与实际功能一致的最小数据边界。
+      </p>
+
+      <h2>8. 儿童隐私</h2>
+      <p>仓鼠小窝并非面向儿童设计，也不会有意收集儿童的个人数据。</p>
+
+      <h2>9. 政策更新</h2>
+      <p>
+        如果 App 的数据处理方式发生变化，我们会更新本页面的日期和内容，并同步更新 App Store
+        隐私回答。重大变化会通过适当方式说明。
+      </p>
+
+      <h2>10. 联系方式</h2>
+      <p>
+        如需提出隐私问题或数据请求，请访问
+        <a href="https://github.com/chuan-101/Hamster-Nest/issues" rel="noreferrer"
+          >Hamster Nest GitHub Issues</a
+        >。请勿在公开 Issue 中提供敏感数据。
+      </p>
+
+      <footer>仓鼠小窝 · Hamster Nest</footer>
+    </main>
+  </body>
+</html>
