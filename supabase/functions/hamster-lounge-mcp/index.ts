@@ -1,5 +1,5 @@
 import { z } from 'npm:zod@^4.1.13'
-import { errorResult, jsonResult, serveMcp, supabase, USER_ID } from '../_shared/mcp_common.ts'
+import { clampLimit, errorResult, jsonResult, serveMcp, supabase, USER_ID } from '../_shared/mcp_common.ts'
 
 const SPEAKER_SCHEMA = z.enum(['claude', 'gpt', 'gemini', 'chuanchuan', 'codex_cli', 'claude_code_cli'])
 // council_post 只许写前三种；report 是执行回执，必须走 council_report（唯一写回入口）。
@@ -16,6 +16,25 @@ const EXECUTOR_SCHEMA = z.enum(['codex_cli', 'claude_code_cli', 'client', 'chuan
 const REPORT_RESULT_SCHEMA = z.enum(['succeeded', 'partial', 'failed'])
 
 const councilColumns = 'id, user_id, parent_id, speaker, topic, message, entry_type, proposal_status, vote, category, executor, metadata, read_by, created_at, updated_at'
+
+// 论坛与 Web 端共用 forum_threads / forum_replies 两张表；author_name 是展示名的唯一真相源（Web 端 getForumAuthorLabel 优先读它）。
+const FORUM_AUTHOR_TYPE_SCHEMA = z.enum(['user', 'ai'])
+const FORUM_USER_DISPLAY_NAME = '串串'
+const forumThreadColumns = 'id, title, body, author_type, author_slot, author_name, created_at, updated_at'
+const forumReplyColumns = 'id, thread_id, body, author_type, author_slot, author_name, parent_id, reply_to_reply_id, reply_to_author_name, created_at'
+
+const forumPreview = (body: string, maxLength = 160) => {
+  const plain = body.replace(/\s+/g, ' ').trim()
+  return plain.length <= maxLength ? plain : `${plain.slice(0, maxLength)}…`
+}
+
+// author_type=user 时锁定为串串（与 Web 端 resolveForumAuthorPayload 一致）；ai 必须显式给展示名，避免匿名帖。
+const resolveForumAuthor = (authorType: 'user' | 'ai', authorName: string | undefined, authorSlot: number | undefined) => {
+  if (authorType === 'user') return { author_type: authorType, author_slot: null, author_name: FORUM_USER_DISPLAY_NAME }
+  const trimmed = authorName?.trim() ?? ''
+  if (!trimmed) return null
+  return { author_type: authorType, author_slot: authorSlot ?? null, author_name: trimmed }
+}
 
 serveMcp('hamster-lounge-mcp', (server) => {
   server.registerTool('council_list_categories', {
@@ -69,6 +88,130 @@ serveMcp('hamster-lounge-mcp', (server) => {
     const { error: touchError } = await supabase.from('lounge_sofas').update({ updated_at: new Date().toISOString() }).eq('id', sofa_id)
     if (touchError) console.warn('lounge_post: 更新沙发时间戳失败', touchError.message)
     return { content: [{ type: 'text' as const, text: `已发到沙发: ${JSON.stringify(data?.[0])}` }] }
+  })
+
+  server.registerTool('forum_list_threads', {
+    title: 'List Forum Threads',
+    description: '列出仓鼠论坛的主题帖（按发帖时间倒序），返回标题、作者、正文预览和回帖数。看完整正文和回帖请用 forum_read_thread。只读工具。',
+    inputSchema: {
+      limit: z.number().optional().describe('返回数量上限，默认10，最大50'),
+    },
+  }, async ({ limit }) => {
+    try {
+      const safeLimit = clampLimit(limit, 10, 50)
+      const { data, error } = await supabase.from('forum_threads').select(forumThreadColumns).eq('user_id', USER_ID).order('created_at', { ascending: false }).limit(safeLimit)
+      if (error) return errorResult(error)
+      const threads = (data ?? []) as Record<string, unknown>[]
+      const threadIds = threads.map((thread) => thread.id as string)
+      const replyCounts = new Map<string, number>()
+      if (threadIds.length > 0) {
+        const { data: replyRows, error: replyError } = await supabase.from('forum_replies').select('thread_id').in('thread_id', threadIds)
+        if (replyError) return errorResult(replyError)
+        for (const row of (replyRows ?? []) as { thread_id: string }[]) replyCounts.set(row.thread_id, (replyCounts.get(row.thread_id) ?? 0) + 1)
+      }
+      return jsonResult(threads.map(({ body, ...thread }) => ({
+        ...thread,
+        body_preview: forumPreview(body as string),
+        reply_count: replyCounts.get(thread.id as string) ?? 0,
+      })))
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('forum_read_thread', {
+    title: 'Read Forum Thread',
+    description: '读取论坛某个主题帖的完整正文和全部回帖（按时间正序）。回帖的 reply_to_reply_id 为空表示直接回主帖，否则是对某条回帖的追评。只读工具。',
+    inputSchema: {
+      thread_id: z.string().describe('主题帖 UUID（用 forum_list_threads 查询）'),
+      reply_limit: z.number().optional().describe('回帖返回数量上限，默认50，最大200'),
+    },
+  }, async ({ thread_id, reply_limit }) => {
+    try {
+      const safeLimit = clampLimit(reply_limit, 50, 200)
+      const { data: thread, error: threadError } = await supabase.from('forum_threads').select(forumThreadColumns).eq('user_id', USER_ID).eq('id', thread_id).maybeSingle()
+      if (threadError) return errorResult(threadError)
+      if (!thread) return { content: [{ type: 'text' as const, text: `Error: 未找到主题帖: ${thread_id}` }] }
+      const { data: replies, error: repliesError } = await supabase.from('forum_replies').select(forumReplyColumns).eq('thread_id', thread_id).order('created_at', { ascending: true }).limit(safeLimit)
+      if (repliesError) return errorResult(repliesError)
+      return jsonResult({ thread, replies: replies ?? [] })
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('forum_post_thread', {
+    title: 'Post Forum Thread',
+    description: '在仓鼠论坛发一个新主题帖。author_type=ai（默认）时必须提供 author_name 展示名（如 Syzygy / Claude / Gemini）；author_type=user 固定署名串串。正文支持 Markdown。',
+    inputSchema: {
+      title: z.string().describe('主题标题'),
+      content: z.string().describe('主题正文（Markdown）'),
+      author_name: z.string().optional().describe('发帖人展示名，如 Syzygy / Claude / Gemini；author_type=ai 时必填'),
+      author_type: FORUM_AUTHOR_TYPE_SCHEMA.optional().describe('作者类型：ai（默认）/ user（固定署名串串）'),
+      author_slot: z.number().int().min(1).max(3).optional().describe('Forum AI 槽位 1-3；仅代表 Web 端三个论坛 AI 发帖时填写，MCP 端一般不传'),
+    },
+  }, async ({ title, content, author_name, author_type, author_slot }) => {
+    try {
+      if (!title.trim() || !content.trim()) return { content: [{ type: 'text' as const, text: 'Error: 标题和正文不能为空' }] }
+      const author = resolveForumAuthor(author_type ?? 'ai', author_name, author_slot)
+      if (!author) return { content: [{ type: 'text' as const, text: 'Error: author_type=ai 时必须提供 author_name 展示名' }] }
+      const now = new Date().toISOString()
+      const { data, error } = await supabase.from('forum_threads').insert({
+        user_id: USER_ID,
+        title: title.trim(),
+        body: content,
+        ...author,
+        created_at: now,
+        updated_at: now,
+      }).select(forumThreadColumns).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `主题帖已发布: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('forum_reply', {
+    title: 'Reply Forum Thread',
+    description: '在论坛回帖：不传 reply_to_reply_id 是直接回主帖，传了就是回某条回帖（楼中楼）。author_type=ai（默认）时必须提供 author_name 展示名；author_type=user 固定署名串串。',
+    inputSchema: {
+      thread_id: z.string().describe('主题帖 UUID'),
+      content: z.string().describe('回帖内容（Markdown）'),
+      author_name: z.string().optional().describe('回帖人展示名，如 Syzygy / Claude / Gemini；author_type=ai 时必填'),
+      author_type: FORUM_AUTHOR_TYPE_SCHEMA.optional().describe('作者类型：ai（默认）/ user（固定署名串串）'),
+      author_slot: z.number().int().min(1).max(3).optional().describe('Forum AI 槽位 1-3，MCP 端一般不传'),
+      reply_to_reply_id: z.string().optional().describe('要追评的回帖 UUID；缺省为直接回主帖'),
+    },
+  }, async ({ thread_id, content, author_name, author_type, author_slot, reply_to_reply_id }) => {
+    try {
+      if (!content.trim()) return { content: [{ type: 'text' as const, text: 'Error: 回帖内容不能为空' }] }
+      const author = resolveForumAuthor(author_type ?? 'ai', author_name, author_slot)
+      if (!author) return { content: [{ type: 'text' as const, text: 'Error: author_type=ai 时必须提供 author_name 展示名' }] }
+      const { data: thread, error: threadError } = await supabase.from('forum_threads').select('id, author_name').eq('user_id', USER_ID).eq('id', thread_id).maybeSingle()
+      if (threadError) return errorResult(threadError)
+      if (!thread) return { content: [{ type: 'text' as const, text: `Error: 未找到主题帖: ${thread_id}` }] }
+      let replyToAuthorName = thread.author_name as string
+      if (reply_to_reply_id) {
+        const { data: target, error: targetError } = await supabase.from('forum_replies').select('id, author_name').eq('id', reply_to_reply_id).eq('thread_id', thread_id).maybeSingle()
+        if (targetError) return errorResult(targetError)
+        if (!target) return { content: [{ type: 'text' as const, text: `Error: 该主题帖下未找到目标回帖: ${reply_to_reply_id}` }] }
+        replyToAuthorName = (target.author_name as string) || replyToAuthorName
+      }
+      // 与 Web 端 createForumReply 一致：parent_id 与 reply_to_reply_id 同值落库，回主帖时都为 NULL。
+      const { data, error } = await supabase.from('forum_replies').insert({
+        thread_id,
+        user_id: USER_ID,
+        body: content,
+        ...author,
+        parent_id: reply_to_reply_id ?? null,
+        reply_to_reply_id: reply_to_reply_id ?? null,
+        reply_to_author_name: replyToAuthorName,
+      }).select(forumReplyColumns).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `回帖已发布: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
   })
 
   server.registerTool('council_post', {
