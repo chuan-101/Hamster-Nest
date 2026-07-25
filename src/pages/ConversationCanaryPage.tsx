@@ -1,40 +1,24 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
-  ConversationDispatchTimeoutError,
-  type ConversationDispatchResponse,
-} from '../lib/conversation-dispatch-client'
+  runConversationCanary,
+  type ConversationCanaryResult,
+} from '../lib/conversation-canary-runner'
 import { dispatchConversation } from '../storage/conversationDispatch'
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const TIMEOUT_MS = 200
-const RETRY_DELAY_MS = 4_000
-
-type CanaryResult = {
-  timeoutObserved: boolean
-  attempts: Array<{
-    status: number
-    userMessageId: string | null
-    replyId: string | null
-  }>
-}
 
 const sleep = (milliseconds: number) =>
   new Promise((resolve) => window.setTimeout(resolve, milliseconds))
-
-const summarize = (response: ConversationDispatchResponse) => ({
-  status: response.status,
-  userMessageId: response.userMessageId,
-  replyId: response.replyId,
-})
 
 export default function ConversationCanaryPage() {
   const [searchParams] = useSearchParams()
   const [state, setState] = useState<
     | { status: 'idle' }
     | { status: 'running' }
-    | { status: 'completed'; result: CanaryResult }
+    | { status: 'completed'; result: ConversationCanaryResult }
     | { status: 'failed'; message: string }
   >({ status: 'idle' })
   const sessionId = searchParams.get('session_id') ?? ''
@@ -57,36 +41,14 @@ export default function ConversationCanaryPage() {
     }
 
     try {
-      let timeoutObserved = false
-      try {
-        await dispatchConversation(request, { timeoutMs: TIMEOUT_MS })
-      } catch (error) {
-        if (!(error instanceof ConversationDispatchTimeoutError)) {
-          throw error
-        }
-        timeoutObserved = true
-      }
-
-      await sleep(RETRY_DELAY_MS)
-      const retryRequest = { ...request, retryFailed: true }
-      const settled = await Promise.allSettled([
-        dispatchConversation(retryRequest),
-        dispatchConversation(retryRequest),
-      ])
-      const attempts = settled.flatMap((attempt) =>
-        attempt.status === 'fulfilled' ? [summarize(attempt.value)] : [],
-      )
-      if (attempts.length === 0) {
-        const firstFailure = settled.find(
-          (attempt): attempt is PromiseRejectedResult =>
-            attempt.status === 'rejected',
-        )
-        throw firstFailure?.reason
-      }
-
       setState({
         status: 'completed',
-        result: { timeoutObserved, attempts },
+        result: await runConversationCanary({
+          dispatch: dispatchConversation,
+          request,
+          sleep,
+          initialTimeoutMs: TIMEOUT_MS,
+        }),
       })
     } catch (error) {
       setState({
@@ -120,6 +82,7 @@ export default function ConversationCanaryPage() {
             真实客户端超时：{state.result.timeoutObserved ? '已观察' : '未观察'}
           </p>
           <p>后续响应数：{state.result.attempts.length}</p>
+          <p>补账轮次：{state.result.rounds}</p>
           <p>
             canonical IDs：
             {state.result.attempts
