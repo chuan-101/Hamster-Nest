@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ForceGraph2D, { type ForceGraphMethods, type LinkObject, type NodeObject } from 'react-force-graph-2d'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase/client'
-import type { Database, Json } from '../supabase/types'
+import type { Database, Json } from '../supabase/database.types'
 import './KnowledgeLibraryPage.css'
 
 type FolderRow = Database['public']['Tables']['knowledge_folders']['Row']
@@ -150,13 +150,15 @@ const parseTags = (value: string) =>
     .map((tag) => tag.trim())
     .filter(Boolean)
 
-const formatTime = (value: string) =>
-  new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
+const formatTime = (value: string | null) =>
+  value
+    ? new Intl.DateTimeFormat('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(value))
+    : '--'
 
 const loadLearningEdges = (client: NonNullable<typeof supabase>) => {
   // learning_edges does not have a user_id column; keep this query unscoped so list and graph views can load edge data.
@@ -293,7 +295,7 @@ const KnowledgeLibraryPage = () => {
           target: edge.to_node_id,
           edgeType: edge.edge_type,
           description: edge.description ?? '无描述',
-          strength: edge.strength,
+          strength: edge.strength ?? 3,
           isCrossFolder: Boolean(source && target && source.folder_id !== target.folder_id),
         }
       })
@@ -368,7 +370,7 @@ const KnowledgeLibraryPage = () => {
       nodeType: node.node_type,
       title: node.title,
       content: node.content ?? '',
-      tags: node.tags.join(', '),
+      tags: (node.tags ?? []).join(', '),
       folderId: node.folder_id ?? '',
       metadata: asMetadata(node.metadata),
     })
@@ -574,7 +576,7 @@ const KnowledgeLibraryPage = () => {
                     <span className="type-badge" style={{ background: nodeTypeMeta[node.node_type].color }}>{nodeTypeMeta[node.node_type].label}</span>
                     <h2>{node.title}</h2>
                     <p>{node.content || '暂无正文'}</p>
-                    <div className="tag-row">{node.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
+                    <div className="tag-row">{(node.tags ?? []).map((tag) => <span key={tag}>#{tag}</span>)}</div>
                     <time>{formatTime(node.created_at)}</time>
                   </article>
                 ))}
@@ -604,7 +606,7 @@ const KnowledgeLibraryPage = () => {
                             <span>{edgeTypeLabels[edge.edge_type]} · 强度 {edge.strength}/5</span>
                             <p>{edge.description || '无描述'}</p>
                             <div className="detail-actions">
-                              <button type="button" onClick={() => peer && setEdgeEditor({ id: edge.id, targetNodeId: peer.id, edgeType: edge.edge_type, description: edge.description ?? '', strength: edge.strength })}>编辑</button>
+                              <button type="button" onClick={() => peer && setEdgeEditor({ id: edge.id, targetNodeId: peer.id, edgeType: edge.edge_type, description: edge.description ?? '', strength: edge.strength ?? 3 })}>编辑</button>
                               <button type="button" onClick={() => void deleteEdge(edge.id)}>删除</button>
                             </div>
                           </article>

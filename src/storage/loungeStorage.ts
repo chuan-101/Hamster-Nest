@@ -1,4 +1,5 @@
 import { supabase } from '../supabase/client'
+import type { Json } from '../supabase/database.types'
 import type { LoungeMember, LoungeMessage, LoungeSofa } from '../types'
 
 type LoungeSofaRow = {
@@ -14,7 +15,7 @@ type LoungeMessageRow = {
   sender: string
   content: string
   mentions: string[] | null
-  meta: Record<string, unknown> | null
+  meta: Json | null
   created_at: string
 }
 
@@ -39,13 +40,16 @@ const mapSofa = (row: LoungeSofaRow): LoungeSofa => ({
   updatedAt: row.updated_at,
 })
 
+const asMetadataRecord = (value: Json | null): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+
 export const mapLoungeMessageRow = (row: LoungeMessageRow): LoungeMessage => ({
   id: row.id,
   sofaId: row.sofa_id,
   sender: row.sender,
   content: row.content,
   mentions: row.mentions ?? [],
-  meta: row.meta ?? {},
+  meta: asMetadataRecord(row.meta),
   createdAt: row.created_at,
 })
 
@@ -157,7 +161,7 @@ export const addLoungeMessage = async (
   sender: string,
   content: string,
   mentions: string[],
-  meta: Record<string, unknown> = {},
+  meta: Record<string, Json | undefined> = {},
 ): Promise<LoungeMessage> => {
   const client = requireClient()
   const { data, error } = await client

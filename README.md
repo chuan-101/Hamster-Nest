@@ -502,9 +502,13 @@ npm run dev          # 本地开发服务器（Vite）
 npm run build        # 类型检查 + 生产打包
 npm run lint         # ESLint 检查
 npm run check        # tsc + eslint 一起跑
+npm run db:types:generate  # 从生产 public schema 全量生成类型
+npm run db:types:check     # 检查 committed types 是否与生产 schema 一致
 ```
 
 本地需要一个 `.env.local`，至少提供 `VITE_SUPABASE_URL` 与 `VITE_SUPABASE_ANON_KEY`。
+
+Supabase CLI 固定为 `2.109.1`，类型源固定为项目 `crfhiumxzmaszkapanrb`。`src/supabase/database.types.ts` 是 generated 文件，禁止手改。数据库 migration 必须与本仓和 Expo App 的类型更新同批提交，并在 PR 中记录 migration / schema commit；生成和漂移检查均需通过环境变量提供 `SUPABASE_ACCESS_TOKEN`，脚本不会读取 macOS Keychain。
 
 **② 前端部署（GitHub Pages）**
 

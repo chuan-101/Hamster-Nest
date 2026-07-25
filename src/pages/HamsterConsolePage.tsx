@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase/client'
+import type { Json } from '../supabase/database.types'
 import './HamsterConsolePage.css'
 
 type ChannelConfigRow = {
@@ -13,27 +14,27 @@ type ChannelConfigRow = {
 type AgentSettingsRow = {
   user_id: string
   checkin_enabled: boolean
-  day_mode_start_hour: number | null
-  day_mode_end_hour: number | null
-  day_min_interval_minutes: number | null
-  day_max_interval_minutes: number | null
-  night_mode_start_hour: number | null
-  night_mode_end_hour: number | null
-  night_min_interval_minutes: number | null
-  night_max_interval_minutes: number | null
+  day_mode_start_hour: number
+  day_mode_end_hour: number
+  day_min_interval_minutes: number
+  day_max_interval_minutes: number
+  night_mode_start_hour: number
+  night_mode_end_hour: number
+  night_min_interval_minutes: number
+  night_max_interval_minutes: number
   quiet_hours_start_hour: number | null
   quiet_hours_end_hour: number | null
-  cooldown_after_interaction_minutes: number | null
-  max_daily_checkins_day: number | null
-  max_daily_checkins_night: number | null
-  per_channel_schedule: Record<string, unknown> | null
+  cooldown_after_interaction_minutes: number
+  max_daily_checkins_day: number
+  max_daily_checkins_night: number
+  per_channel_schedule: Json
   wechat_context_summary_model: string | null
   wechat_context_window_rounds: number | null
   wechat_context_summary_trigger_rounds: number | null
   wechat_context_summary_refresh_rounds: number | null
   wechat_memory_search_min_length: number | null
   wechat_memory_search_enabled: boolean | null
-  agent_mode?: 'active' | 'quiet' | 'paused' | string | null
+  agent_mode: string | null
 }
 
 type PromptTemplateRow = {
@@ -94,7 +95,7 @@ type ContextSnapshotRow = {
 
 type DailyDigestRow = {
   id: string
-  period: string | null
+  period_of_day: string
   summary_text: string | null
   created_at: string | null
 }
@@ -176,8 +177,10 @@ const getCurrentWeekStart = () => {
   return now.toISOString().slice(0, 10)
 }
 
-const parseNumberField = (value: string, fallback: number | null = null) => {
-  if (value.trim() === '') return null
+function parseNumberField(value: string, fallback: number): number
+function parseNumberField(value: string, fallback?: null): number | null
+function parseNumberField(value: string, fallback: number | null = null) {
+  if (value.trim() === '') return fallback
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
 }
@@ -384,7 +387,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       supabase.from('pending_wechat_messages').select('status').eq('user_id', scopedUserId).in('status', ['pending', 'sending', 'failed']),
       supabase.from('agent_tasks').select('id, created_at, source, executor, command, status, result_summary, result_detail, error, payload_json, correlation_id, parent_task_id, started_at, completed_at').gte('created_at', todayStart).lt('created_at', todayEnd).order('created_at', { ascending: false }).limit(50),
       supabase.from('current_context_snapshot').select('id, snapshot_type, summary_text, stale_after, created_at').order('created_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('daily_status_digest').select('id, period, summary_text, created_at').gte('created_at', todayStart).lt('created_at', todayEnd),
+      supabase.from('daily_status_digest').select('id, period_of_day, summary_text, created_at').gte('created_at', todayStart).lt('created_at', todayEnd),
       supabase.from('print_capsules').select('id, title, type, paper_size, status, trigger_reason, created_at, scheduled_print_week, sort_order, hidden_until_printed, content').order('created_at', { ascending: false }).limit(80),
       supabase.from('capabilities').select('id, name, description, risk_level, enabled, requires_confirmation, output_channel, last_used_at, cooldown_until, usage_count, failure_count').order('name', { ascending: true }),
     ])
@@ -573,7 +576,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   }
 
   const handleAddModel = async () => {
-    if (!supabase) return
+    if (!supabase || !scopedUserId) return
     const normalizedModelId = manualModelId.trim()
     if (!normalizedModelId) {
       setErrorMessage('请先输入 model_id')
@@ -582,14 +585,31 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
     setAddingModel(true)
     setErrorMessage(null)
+    const { data: provider, error: providerError } = await supabase
+      .from('providers')
+      .select('id')
+      .eq('user_id', scopedUserId)
+      .eq('enabled', true)
+      .order('priority', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (providerError || !provider) {
+      setAddingModel(false)
+      setErrorMessage(providerError?.message ?? '没有可用的模型 Provider，请先在设置中配置。')
+      return
+    }
+
     const { error } = await supabase
       .from('provider_models')
       .upsert(
         {
+          provider_id: provider.id,
+          user_id: scopedUserId,
           model_id: normalizedModelId,
           enabled: true,
         },
-        { onConflict: 'model_id' },
+        { onConflict: 'provider_id,model_id,model_type' },
       )
 
     setAddingModel(false)
@@ -606,10 +626,15 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const handleSaveAgentSettings = async () => {
     if (!supabase || !agentSettings) return
 
-    let parsedSchedule: Record<string, unknown> | null = null
+    let parsedSchedule: Json = {}
     if (perChannelScheduleText.trim()) {
       try {
-        parsedSchedule = JSON.parse(perChannelScheduleText) as Record<string, unknown>
+        const parsed = JSON.parse(perChannelScheduleText) as unknown
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          setErrorMessage('每渠道计划必须是 JSON 对象。')
+          return
+        }
+        parsedSchedule = parsed as Json
       } catch {
         setErrorMessage('每渠道计划 JSON 解析失败，请检查格式。')
         return
@@ -1104,7 +1129,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
             <button className="hamster-console-accordion__header" onClick={() => toggleSection('context-snapshot')}><h2>当前状态快照</h2><span>{expandedSection === 'context-snapshot' ? '▼' : '▶'}</span></button>
             <div className={`hamster-console-accordion__content ${expandedSection === 'context-snapshot' ? 'expanded' : ''}`}><div className="hamster-console-accordion__inner">
               {contextSnapshotError ? <p className="hamster-console-card__hint">当前前端无权限读取该表：{contextSnapshotError}</p> : contextSnapshot ? <div className="hamster-v3-detail"><strong>{contextSnapshot.snapshot_type ?? 'snapshot'}</strong><p>{contextSnapshot.summary_text ?? '暂无摘要'}</p><small>{snapshotExpired ? '状态可能已过期 · ' : ''}stale_after：{formatDateTime(contextSnapshot.stale_after)} · created：{formatDateTime(contextSnapshot.created_at)}</small></div> : <p className="hamster-console-card__hint">CLI 小秘书还没有生成状态快照。</p>}
-              <div className="hamster-digest-grid">{['morning','afternoon','evening','night'].map((period) => { const item = dailyDigests.find((digest) => digest.period === period); return <article key={period} className="hamster-mini-card"><strong>{period}</strong><p>{item?.summary_text ?? '暂无摘要'}</p></article> })}</div>
+              <div className="hamster-digest-grid">{['morning','afternoon','evening','night'].map((period) => { const item = dailyDigests.find((digest) => digest.period_of_day === period); return <article key={period} className="hamster-mini-card"><strong>{period}</strong><p>{item?.summary_text ?? '暂无摘要'}</p></article> })}</div>
             </div></div>
           </section>
 

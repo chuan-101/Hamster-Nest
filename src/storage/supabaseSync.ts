@@ -59,6 +59,7 @@ import type {
   NovelCharacterCard,
 } from '../types'
 import { supabase } from '../supabase/client'
+import type { Json } from '../supabase/database.types'
 
 const FORUM_USER_AUTHOR_NAME = '串串'
 
@@ -78,12 +79,12 @@ type MessageRow = {
   id: string
   session_id: string
   user_id: string
-  role: ChatMessage['role']
+  role: string
   content: string
   created_at: string
   client_id: string | null
   client_created_at: string | null
-  meta: ChatMessage['meta'] | null
+  meta: Json | null
 }
 
 
@@ -713,12 +714,15 @@ const mapLetterRow = (row: LetterRow): LetterEntry => ({
 const mapMessageRow = (row: MessageRow): ChatMessage => ({
   id: row.id,
   sessionId: row.session_id,
-  role: row.role,
+  role: row.role === 'assistant' ? 'assistant' : 'user',
   content: row.content,
   createdAt: row.created_at,
   clientId: row.client_id ?? row.id,
   clientCreatedAt: row.client_created_at,
-  meta: row.meta ?? undefined,
+  meta:
+    row.meta && typeof row.meta === 'object' && !Array.isArray(row.meta)
+      ? (row.meta as ChatMessage['meta'])
+      : undefined,
   pending: false,
 })
 
@@ -823,8 +827,8 @@ export const createLetter = async (
       created_at: input.createdAt ?? new Date().toISOString(),
       is_read: input.isRead ?? false,
       conversation_id: input.conversationId ?? null,
-      module: input.module ?? null,
-      metadata: input.metadata ?? null,
+      module: input.module ?? undefined,
+      metadata: (input.metadata as Json | null | undefined) ?? null,
     })
     .select(
       'id,user_id,model,content,trigger_type,trigger_reason,created_at,is_read,conversation_id,module,metadata',
@@ -1127,7 +1131,7 @@ export const updateRpSessionDashboard = async (
     playerDisplayName?: string
     playerAvatarUrl?: string
     worldbookText?: string
-    settings?: Record<string, unknown>
+    settings?: Json
     rpContextTokenLimit?: number
     rpKeepRecentMessages?: number
   },
@@ -1141,7 +1145,7 @@ export const updateRpSessionDashboard = async (
     player_display_name?: string
     player_avatar_url?: string
     worldbook_text?: string
-    settings?: Record<string, unknown>
+    settings?: Json
     rp_context_token_limit?: number
     rp_keep_recent_messages?: number
   } = {
@@ -1158,7 +1162,7 @@ export const updateRpSessionDashboard = async (
     nextUpdates.worldbook_text = updates.worldbookText
   }
   if (typeof updates.settings !== 'undefined') {
-    nextUpdates.settings = updates.settings
+    nextUpdates.settings = updates.settings as Json
   }
   if (typeof updates.rpContextTokenLimit !== 'undefined') {
     nextUpdates.rp_context_token_limit = updates.rpContextTokenLimit
@@ -1258,7 +1262,7 @@ export const createRpMessage = async (
       role,
       content,
       created_at: now,
-      meta: options?.meta ?? {},
+      meta: (options?.meta ?? {}) as Json,
     })
     .select('id,session_id,user_id,role,content,created_at,client_id,client_created_at,meta')
     .single()
@@ -1324,8 +1328,8 @@ export const createRpNpcCard = async (
       user_id: payload.userId,
       display_name: payload.displayName,
       system_prompt: normalizedSystemPrompt,
-      model_config: normalizedModelConfig,
-      api_config: normalizedApiConfig,
+      model_config: normalizedModelConfig as Json,
+      api_config: normalizedApiConfig as Json,
       enabled: payload.enabled ?? false,
       created_at: now,
       updated_at: now,
@@ -1356,8 +1360,8 @@ export const updateRpNpcCard = async (
     updated_at: string
     display_name?: string
     system_prompt?: string
-    model_config?: Record<string, unknown>
-    api_config?: Record<string, unknown>
+    model_config?: Json
+    api_config?: Json
     enabled?: boolean
   } = {
     updated_at: new Date().toISOString(),
@@ -1369,10 +1373,10 @@ export const updateRpNpcCard = async (
     nextUpdates.system_prompt = updates.systemPrompt ?? ''
   }
   if (typeof updates.modelConfig !== 'undefined') {
-    nextUpdates.model_config = updates.modelConfig ?? {}
+    nextUpdates.model_config = (updates.modelConfig ?? {}) as Json
   }
   if (typeof updates.apiConfig !== 'undefined') {
-    nextUpdates.api_config = updates.apiConfig ?? {}
+    nextUpdates.api_config = (updates.apiConfig ?? {}) as Json
   }
   if (typeof updates.enabled !== 'undefined') {
     nextUpdates.enabled = updates.enabled
@@ -3081,7 +3085,7 @@ export const createAgentCouncilProposal = async (payload: {
       proposal_status: 'open',
       parent_id: null,
       category: payload.category ?? 'other',
-      metadata: payload.metadata ?? {},
+      metadata: (payload.metadata ?? {}) as Json,
     })
     .select(AGENT_COUNCIL_SELECT_FIELDS)
     .single()
@@ -3247,8 +3251,8 @@ export const submitAgentCouncilReport = async (payload: {
     p_speaker: payload.speaker,
     p_message: payload.message,
     p_result: payload.result,
-    p_artifacts: payload.artifacts && payload.artifacts.length > 0 ? payload.artifacts : null,
-    p_follow_ups: payload.followUps && payload.followUps.length > 0 ? payload.followUps : null,
+    p_artifacts: payload.artifacts && payload.artifacts.length > 0 ? payload.artifacts : undefined,
+    p_follow_ups: payload.followUps && payload.followUps.length > 0 ? payload.followUps : undefined,
   })
   if (error) {
     throw error
@@ -3371,7 +3375,7 @@ export const completeWalletQuest = async (questId: string, note: string): Promis
   }
   const { data, error } = await supabase.rpc('complete_quest', {
     p_quest_id: questId,
-    p_note: note.trim() ? note : null,
+    p_note: note.trim() || undefined,
   })
   if (error) {
     throw error
@@ -3748,8 +3752,8 @@ const mapNovelBookRow = (row: NovelBookRow): NovelBook => ({ id: row.id, userId:
 const mapNovelChapterRow = (row: NovelChapterRow): NovelChapter => ({ id: row.id, bookId: row.book_id, chapterNumber: row.chapter_number, title: row.title, content: row.content ?? '', directorNote: row.director_note ?? '', summary: row.summary ?? '', status: row.status === 'published' ? 'published' : 'draft', createdAt: row.created_at, updatedAt: row.updated_at })
 
 export const listNovelBooks = async (userId: string): Promise<NovelBook[]> => { if (!supabase) return []; const {data,error}= await supabase.from('novel_books').select('*').eq('user_id', userId).order('updated_at',{ascending:false}); if(error) throw error; return (data??[] as NovelBookRow[]).map((r)=>mapNovelBookRow(r as NovelBookRow)) }
-export const createNovelBook = async (payload: { userId:string; title:string; summary:string; status:'draft'|'serializing'|'completed'; outline:string; worldSetting:string; characters: NovelCharacterCard[]; modelConfig: Record<string, unknown> }): Promise<NovelBook> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const now=new Date().toISOString(); const {data,error}=await supabase.from('novel_books').insert({user_id:payload.userId,title:payload.title,summary:payload.summary,status:payload.status,outline:payload.outline,world_setting:payload.worldSetting,characters:payload.characters,model_config:payload.modelConfig,created_at:now,updated_at:now}).select('*').single(); if(error||!data) throw error ?? new Error('创建失败'); return mapNovelBookRow(data as NovelBookRow) }
-export const updateNovelBookModelConfig = async (bookId:string, modelConfig: Record<string, unknown>): Promise<void> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const userId = await requireAuthenticatedUserId(); const {error}=await supabase.from('novel_books').update({model_config:modelConfig,updated_at:new Date().toISOString()}).eq('id',bookId).eq('user_id',userId); if(error) throw error }
+export const createNovelBook = async (payload: { userId:string; title:string; summary:string; status:'draft'|'serializing'|'completed'; outline:string; worldSetting:string; characters: NovelCharacterCard[]; modelConfig: Record<string, unknown> }): Promise<NovelBook> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const now=new Date().toISOString(); const {data,error}=await supabase.from('novel_books').insert({user_id:payload.userId,title:payload.title,summary:payload.summary,status:payload.status,outline:payload.outline,world_setting:payload.worldSetting,characters:payload.characters as unknown as Json,model_config:payload.modelConfig as Json,created_at:now,updated_at:now}).select('*').single(); if(error||!data) throw error ?? new Error('创建失败'); return mapNovelBookRow(data as NovelBookRow) }
+export const updateNovelBookModelConfig = async (bookId:string, modelConfig: Record<string, unknown>): Promise<void> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const userId = await requireAuthenticatedUserId(); const {error}=await supabase.from('novel_books').update({model_config:modelConfig as Json,updated_at:new Date().toISOString()}).eq('id',bookId).eq('user_id',userId); if(error) throw error }
 export const updateNovelBookMeta = async (bookId:string, updates:{ title?: string; summary?:string; outline?:string; worldSetting?:string; characters?:NovelCharacterCard[] }): Promise<NovelBook> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const userId = await requireAuthenticatedUserId(); const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }; if (typeof updates.title !== 'undefined') patch.title = updates.title; if (typeof updates.summary !== 'undefined') patch.summary = updates.summary; if (typeof updates.outline !== 'undefined') patch.outline = updates.outline; if (typeof updates.worldSetting !== 'undefined') patch.world_setting = updates.worldSetting; if (typeof updates.characters !== 'undefined') patch.characters = updates.characters; const {data,error}=await supabase.from('novel_books').update(patch).eq('id',bookId).eq('user_id',userId).select('*').single(); if(error||!data) throw error ?? new Error('更新失败'); return mapNovelBookRow(data as NovelBookRow) }
 export const listNovelChaptersByBookId = async (bookId: string): Promise<NovelChapter[]> => { if (!supabase) return []; const {data,error}=await supabase.from('novel_chapters').select('*').eq('book_id',bookId).order('chapter_number',{ascending:true}); if(error) throw error; return (data??[] as NovelChapterRow[]).map((r)=>mapNovelChapterRow(r as NovelChapterRow)) }
 export const createNovelChapter = async (payload:{ bookId:string; chapterNumber:number; title:string; content:string; directorNote:string; summary:string }): Promise<NovelChapter> => { if (!supabase) throw new Error('Supabase 客户端未配置'); const now=new Date().toISOString(); const {data,error}=await supabase.from('novel_chapters').insert({book_id:payload.bookId,chapter_number:payload.chapterNumber,title:payload.title,content:payload.content,director_note:payload.directorNote,summary:payload.summary,created_at:now,updated_at:now}).select('*').single(); if(error||!data) throw error ?? new Error('创建章节失败'); return mapNovelChapterRow(data as NovelChapterRow) }
