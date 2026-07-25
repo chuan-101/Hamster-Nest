@@ -1841,8 +1841,11 @@ export type Database = {
           created_at: string
           id: string
           meta: Json
+          reply_to_id: string | null
           role: string
+          sender_key: string | null
           session_id: string
+          target_sender_keys: string[] | null
           user_id: string
         }
         Insert: {
@@ -1852,8 +1855,11 @@ export type Database = {
           created_at?: string
           id?: string
           meta?: Json
+          reply_to_id?: string | null
           role: string
+          sender_key?: string | null
           session_id: string
+          target_sender_keys?: string[] | null
           user_id?: string
         }
         Update: {
@@ -1863,11 +1869,21 @@ export type Database = {
           created_at?: string
           id?: string
           meta?: Json
+          reply_to_id?: string | null
           role?: string
+          sender_key?: string | null
           session_id?: string
+          target_sender_keys?: string[] | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_reply_same_session_fkey"
+            columns: ["session_id", "reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["session_id", "id"]
+          },
           {
             foreignKeyName: "messages_session_id_fkey"
             columns: ["session_id"]
@@ -2597,33 +2613,45 @@ export type Database = {
       sessions: {
         Row: {
           archived_at: string | null
+          conversation_kind: string
           created_at: string
+          handler: string
           id: string
           is_archived: boolean
           override_model: string | null
           override_reasoning: boolean | null
+          routing_config: Json
+          session_key: string | null
           title: string
           updated_at: string
           user_id: string
         }
         Insert: {
           archived_at?: string | null
+          conversation_kind?: string
           created_at?: string
+          handler?: string
           id?: string
           is_archived?: boolean
           override_model?: string | null
           override_reasoning?: boolean | null
+          routing_config?: Json
+          session_key?: string | null
           title?: string
           updated_at?: string
           user_id?: string
         }
         Update: {
           archived_at?: string | null
+          conversation_kind?: string
           created_at?: string
+          handler?: string
           id?: string
           is_archived?: boolean
           override_model?: string | null
           override_reasoning?: boolean | null
+          routing_config?: Json
+          session_key?: string | null
           title?: string
           updated_at?: string
           user_id?: string
