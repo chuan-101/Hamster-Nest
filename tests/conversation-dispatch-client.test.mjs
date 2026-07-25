@@ -7,6 +7,15 @@ const {
   ConversationDispatchError,
   ConversationDispatchTimeoutError,
 } = await import('../src/lib/conversation-dispatch-client.ts')
+const { runConversationCanary } = await import(
+  '../src/lib/conversation-canary-runner.ts'
+)
+
+const canonicalResponse = (status, suffix = '') => ({
+  status,
+  userMessageId: `00000000-0000-4000-8000-000000000003${suffix}`,
+  replyId: '00000000-0000-4000-8000-000000000004',
+})
 
 test('authenticated dispatch keeps the caller client id stable on concurrent requests', async () => {
   const bodies = []
@@ -124,6 +133,83 @@ test('HTTP failures preserve canonical ids for safe reconciliation', async () =>
   )
 })
 
+test('canary waits past duplicate 202 responses until one retry completes', async () => {
+  let callCount = 0
+  const dispatch = async () => {
+    callCount += 1
+    if (callCount === 1) {
+      throw Object.assign(new Error('timed out'), { code: 'CLIENT_TIMEOUT' })
+    }
+    return canonicalResponse(callCount === 4 ? 200 : 202)
+  }
+
+  const result = await runConversationCanary({
+    dispatch,
+    request: {
+      sessionId: '00000000-0000-4000-8000-000000000001',
+      clientId: '00000000-0000-4000-8000-000000000002',
+      content: 'timeout reconciliation',
+    },
+    sleep: async () => {},
+    maxRounds: 2,
+  })
+
+  assert.equal(callCount, 5)
+  assert.equal(result.rounds, 2)
+  assert.deepEqual(
+    result.attempts.map((attempt) => attempt.status),
+    [200, 202],
+  )
+})
+
+test('canary rejects mismatched canonical ids and 202-only false positives', async () => {
+  let mismatchCalls = 0
+  const mismatchDispatch = async () => {
+    mismatchCalls += 1
+    if (mismatchCalls === 1) {
+      throw Object.assign(new Error('timed out'), { code: 'CLIENT_TIMEOUT' })
+    }
+    return canonicalResponse(200, mismatchCalls === 3 ? '-mismatch' : '')
+  }
+
+  await assert.rejects(
+    runConversationCanary({
+      dispatch: mismatchDispatch,
+      request: {
+        sessionId: '00000000-0000-4000-8000-000000000001',
+        clientId: '00000000-0000-4000-8000-000000000002',
+        content: 'mismatch',
+      },
+      sleep: async () => {},
+      maxRounds: 1,
+    }),
+    /不同的 canonical message IDs/u,
+  )
+
+  let generatingCalls = 0
+  await assert.rejects(
+    runConversationCanary({
+      dispatch: async () => {
+        generatingCalls += 1
+        if (generatingCalls === 1) {
+          throw Object.assign(new Error('timed out'), {
+            code: 'CLIENT_TIMEOUT',
+          })
+        }
+        return canonicalResponse(202)
+      },
+      request: {
+        sessionId: '00000000-0000-4000-8000-000000000001',
+        clientId: '00000000-0000-4000-8000-000000000002',
+        content: 'still generating',
+      },
+      sleep: async () => {},
+      maxRounds: 2,
+    }),
+    /补账未等到 completed 响应/u,
+  )
+})
+
 test('Web wrapper uses the existing browser session and leaves legacy daily chat untouched', async () => {
   const [wrapper, app, canary] = await Promise.all([
     readFile(
@@ -143,8 +229,6 @@ test('Web wrapper uses the existing browser session and leaves legacy daily chat
   assert.match(app, /functions\/v1\/openrouter-chat/u)
   assert.doesNotMatch(app, /functions\/v1\/conversation-dispatch/u)
   assert.match(app, /path="\/conversation-canary"/u)
-  assert.match(canary, /timeoutMs: TIMEOUT_MS/u)
-  assert.match(canary, /Promise\.allSettled\(\[/u)
-  assert.match(canary, /dispatchConversation\(retryRequest\)/u)
-  assert.match(canary, /retryFailed: true/u)
+  assert.match(canary, /initialTimeoutMs: TIMEOUT_MS/u)
+  assert.match(canary, /runConversationCanary/u)
 })
