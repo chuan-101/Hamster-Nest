@@ -77,6 +77,7 @@ import WikiPage from './pages/WikiPage'
 import NovelPage from './pages/NovelPage'
 import LoungePage from './pages/LoungePage'
 import LoungeRoomPage, { type LoungeAiConfig } from './pages/LoungeRoomPage'
+import ConversationCanaryPage from './pages/ConversationCanaryPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1972,6 +1973,14 @@ const App = () => {
     >
       <Routes>
         <Route path="/auth" element={<AuthPage user={user} />} />
+        <Route
+          path="/conversation-canary"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <ConversationCanaryPage />
+            </RequireAuth>
+          }
+        />
         <Route
           path="/"
           element={
