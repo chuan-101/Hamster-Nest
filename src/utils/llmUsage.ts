@@ -1,4 +1,5 @@
 import { supabase } from '../supabase/client'
+import type { Json } from '../supabase/database.types'
 
 export type LlmUsageContext = {
   module: string | null
@@ -69,7 +70,7 @@ export const logLlmUsage = (
         cached_tokens: cachedTokens,
         cache_write_tokens: cacheWriteTokens,
         cost_usd: toNumber(usage.cost),
-        raw: usage,
+        raw: usage as Json,
       })
       .then(
         ({ error }) => {

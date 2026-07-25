@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "check": "tsc -b && eslint .",
     "test": "node --test tests/*.test.mjs",
+    "db:types:generate": "node ./scripts/supabase-types.mjs",
+    "db:types:check": "node ./scripts/supabase-types.mjs --check",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -31,6 +33,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "supabase": "2.109.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4"

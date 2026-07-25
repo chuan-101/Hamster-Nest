@@ -19,9 +19,9 @@ export type PushSupportStatus = {
 }
 
 type PushSubscriptionRecord = {
-  auth: string | null
+  auth: string
   endpoint: string
-  p256dh: string | null
+  p256dh: string
   user_id: string
 }
 
@@ -97,12 +97,21 @@ const extractPushKey = (
 const buildSubscriptionRecord = (
   userId: string,
   subscription: PushSubscription,
-): PushSubscriptionRecord => ({
-  user_id: userId,
-  endpoint: subscription.endpoint,
-  p256dh: extractPushKey(subscription, 'p256dh'),
-  auth: extractPushKey(subscription, 'auth'),
-})
+): PushSubscriptionRecord => {
+  const p256dh = extractPushKey(subscription, 'p256dh')
+  const auth = extractPushKey(subscription, 'auth')
+
+  if (!p256dh || !auth) {
+    throw new Error('浏览器未返回完整的 Web Push 加密密钥。')
+  }
+
+  return {
+    user_id: userId,
+    endpoint: subscription.endpoint,
+    p256dh,
+    auth,
+  }
+}
 
 const requireSupabase = () => {
   if (!supabase) {

@@ -305,7 +305,7 @@ export const updateAgentFeedStatus = async (
   if (!supabase) {
     throw new Error('Supabase 未配置，请检查环境变量。')
   }
-  const patch: Partial<AgentFeedItem> =
+  const patch: { status: 'read' | 'archived'; read_at?: string } =
     status === 'read' ? { status, read_at: new Date().toISOString() } : { status }
   const { error } = await supabase
     .from('agent_feed_items')
