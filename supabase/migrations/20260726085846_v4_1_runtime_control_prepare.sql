@@ -1,3 +1,4 @@
+-- Version aligned with the production migration history recorded by Supabase.
 create or replace function public.runtime_control_prepare(
   p_action text,
   p_target_role text,

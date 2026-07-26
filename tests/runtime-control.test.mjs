@@ -9,7 +9,7 @@ const {
 } = await import('../supabase/functions/runtime-control/contract.ts')
 
 const migrationUrl = new URL(
-  '../supabase/migrations/20260726073412_v4_1_runtime_control_prepare.sql',
+  '../supabase/migrations/20260726085846_v4_1_runtime_control_prepare.sql',
   import.meta.url,
 )
 const functionUrl = new URL(

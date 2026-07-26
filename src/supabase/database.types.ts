@@ -3472,6 +3472,15 @@ export type Database = {
         }
       }
       restore_snack_post: { Args: { p_post_id: string }; Returns: undefined }
+      runtime_control_prepare: {
+        Args: {
+          p_action: string
+          p_client_id: string
+          p_confirm_running_tasks?: boolean
+          p_target_role: string
+        }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       soft_delete_snack_post: {
@@ -3621,3 +3630,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
