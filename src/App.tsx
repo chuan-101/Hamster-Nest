@@ -78,6 +78,7 @@ import NovelPage from './pages/NovelPage'
 import LoungePage from './pages/LoungePage'
 import LoungeRoomPage, { type LoungeAiConfig } from './pages/LoungeRoomPage'
 import ConversationCanaryPage from './pages/ConversationCanaryPage'
+import RuntimeControlCanaryPage from './pages/RuntimeControlCanaryPage'
 import { loadHomeSettings } from './storage/homeLayout'
 import {
   resolveSnackSystemOverlay,
@@ -1978,6 +1979,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <ConversationCanaryPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/runtime-control-canary"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <RuntimeControlCanaryPage />
             </RequireAuth>
           }
         />
