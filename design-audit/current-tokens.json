@@ -1,0 +1,4606 @@
+{
+  "meta": {
+    "project": "Hamster Nest (仓鼠窝窝) Web",
+    "generatedBy": "design-audit 前置审计（只读提取，未做任何改造）",
+    "generatedAt": "2026-07-27",
+    "gitCommit": "00a79f7 (2026-07-26)",
+    "method": "全量扫描 src/**/*.css（33 个文件，约 15,849 行）与 src/**/*.ts(x) 中的样式常量；正式 Token = 代码中真实定义的 CSS 自定义属性与 JS 样式常量；重复硬编码值按出现次数统计并附示例位置",
+    "disclaimer": "本文件忠实记录现状，不做改色、合并或升级。examples 为 文件:行号 形式的抽样出处（每项最多 4 条），count 为全仓出现总次数。单次出现的局部样式值未逐条枚举，摘要见 token-audit.md。",
+    "styleSystem": "无 Tailwind / 无 CSS-in-JS；全局 Token 定义在 src/styles/ui.css 的 :root，页面样式为纯手写 CSS 文件，另有 4 处页面/主题级局部变量与若干运行时内联注入变量"
+  },
+  "formalTokens": {
+    "globalRoot__styles_ui_css": [
+      {
+        "name": "--font-sans",
+        "value": "'Nunito', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', Arial, sans-serif",
+        "category": "typography.fontFamily",
+        "source": "src/styles/ui.css:2"
+      },
+      {
+        "name": "--font-rounded",
+        "value": "'Nunito', 'Quicksand', 'Comfortaa', 'Avenir Next Rounded', 'Arial Rounded MT Bold', var(--font-sans)",
+        "category": "typography.fontFamily",
+        "source": "src/styles/ui.css:5",
+        "note": "Quicksand/Comfortaa 等未实际加载，仅作为回退名"
+      },
+      {
+        "name": "--font-display",
+        "value": "'Rounded Mplus 1c', 'Nunito', system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
+        "category": "typography.fontFamily",
+        "source": "src/styles/ui.css:6",
+        "note": "'Rounded Mplus 1c' 未实际加载（index.html 只加载了 Nunito 与 Press Start 2P）"
+      },
+      {
+        "name": "--accent",
+        "value": "#ffd6e7",
+        "category": "color.accent",
+        "source": "src/styles/ui.css:8"
+      },
+      {
+        "name": "--accent-strong",
+        "value": "#f8bad4",
+        "category": "color.accent",
+        "source": "src/styles/ui.css:9"
+      },
+      {
+        "name": "--text-main",
+        "value": "#111827",
+        "category": "color.text",
+        "source": "src/styles/ui.css:10"
+      },
+      {
+        "name": "--text-subtle",
+        "value": "#6b7280",
+        "category": "color.text",
+        "source": "src/styles/ui.css:11"
+      },
+      {
+        "name": "--glass-bg",
+        "value": "rgba(255, 255, 255, 0.22)",
+        "category": "color.surface",
+        "source": "src/styles/ui.css:12"
+      },
+      {
+        "name": "--glass-border",
+        "value": "rgba(255, 255, 255, 0.35)",
+        "category": "color.border",
+        "source": "src/styles/ui.css:13"
+      },
+      {
+        "name": "--shadow-soft",
+        "value": "0 12px 30px rgba(0, 0, 0, 0.08)",
+        "category": "shadow",
+        "source": "src/styles/ui.css:14"
+      },
+      {
+        "name": "--radius-card",
+        "value": "28px",
+        "category": "borderRadius",
+        "source": "src/styles/ui.css:15"
+      },
+      {
+        "name": "--radius-tile",
+        "value": "20px",
+        "category": "borderRadius",
+        "source": "src/styles/ui.css:16"
+      },
+      {
+        "name": "--radius-btn",
+        "value": "16px",
+        "category": "borderRadius",
+        "source": "src/styles/ui.css:17"
+      },
+      {
+        "name": "--blur",
+        "value": "16px",
+        "category": "effect.backdropBlur",
+        "source": "src/styles/ui.css:18"
+      },
+      {
+        "name": "--page-bg",
+        "value": "linear-gradient(180deg, #fdf2f8 0%, #f8fafc 52%, #f3f4f6 100%)",
+        "category": "color.background",
+        "source": "src/styles/ui.css:19"
+      }
+    ],
+    "globalRoot__index_css": [
+      {
+        "name": "--z-popover",
+        "value": "5000",
+        "category": "zIndex",
+        "source": "src/index.css:2"
+      },
+      {
+        "name": "--blur (html.no-fx 覆盖)",
+        "value": "0px",
+        "category": "effect.backdropBlur",
+        "source": "src/index.css:69",
+        "note": "低特效模式：?noFx=1 或 VITE_NO_FX=1 时挂 html.no-fx（src/main.tsx:9-15）"
+      },
+      {
+        "name": "--page-bg (html.no-fx 覆盖)",
+        "value": "#f8fafc",
+        "category": "color.background",
+        "source": "src/index.css:70"
+      }
+    ],
+    "globalRoot__gameHud_css": {
+      "note": "游戏模式（像素风）变量，定义在 :root 上（全局作用域，gameHud.css 被引入后全局可见）",
+      "tokens": [
+        {
+          "name": "--game-shell-base",
+          "value": "#fdf4e8",
+          "category": "color.surface",
+          "source": "src/game/gameHud.css:2"
+        },
+        {
+          "name": "--game-shell-shadow",
+          "value": "#c8b8aa",
+          "category": "color.shadow",
+          "source": "src/game/gameHud.css:3"
+        },
+        {
+          "name": "--game-shell-edge",
+          "value": "#86827d",
+          "category": "color.border",
+          "source": "src/game/gameHud.css:4"
+        },
+        {
+          "name": "--game-shell-light",
+          "value": "#fffbf5",
+          "category": "color.surface",
+          "source": "src/game/gameHud.css:5"
+        },
+        {
+          "name": "--game-panel-light",
+          "value": "#fffbf5",
+          "category": "color.surface",
+          "source": "src/game/gameHud.css:6"
+        },
+        {
+          "name": "--game-panel-mid",
+          "value": "#f6d7d4",
+          "category": "color.surface",
+          "source": "src/game/gameHud.css:7"
+        },
+        {
+          "name": "--game-accent",
+          "value": "#f6d7d4",
+          "category": "color.accent",
+          "source": "src/game/gameHud.css:8"
+        },
+        {
+          "name": "--game-accent-deep",
+          "value": "#d98a7c",
+          "category": "color.accent",
+          "source": "src/game/gameHud.css:9"
+        },
+        {
+          "name": "--game-screen-outer",
+          "value": "#b8b1aa",
+          "category": "color.border",
+          "source": "src/game/gameHud.css:10"
+        },
+        {
+          "name": "--game-screen-bezel",
+          "value": "#86827d",
+          "category": "color.border",
+          "source": "src/game/gameHud.css:11"
+        },
+        {
+          "name": "--game-screen-glow",
+          "value": "#fffbf5",
+          "category": "color.surface",
+          "source": "src/game/gameHud.css:12"
+        },
+        {
+          "name": "--game-text",
+          "value": "#5a5551",
+          "category": "color.text",
+          "source": "src/game/gameHud.css:13"
+        },
+        {
+          "name": "--game-frame-border",
+          "value": "4px",
+          "category": "border.width",
+          "source": "src/game/gameHud.css:14"
+        },
+        {
+          "name": "--game-panel-border",
+          "value": "3px",
+          "category": "border.width",
+          "source": "src/game/gameHud.css:15"
+        },
+        {
+          "name": "--game-control-border",
+          "value": "3px",
+          "category": "border.width",
+          "source": "src/game/gameHud.css:16"
+        },
+        {
+          "name": "--game-pixel-radius-lg",
+          "value": "18px",
+          "category": "borderRadius",
+          "source": "src/game/gameHud.css:17"
+        },
+        {
+          "name": "--game-pixel-radius-md",
+          "value": "12px",
+          "category": "borderRadius",
+          "source": "src/game/gameHud.css:18"
+        },
+        {
+          "name": "--game-pixel-radius-sm",
+          "value": "8px",
+          "category": "borderRadius",
+          "source": "src/game/gameHud.css:19"
+        },
+        {
+          "name": "--game-frame-outline",
+          "value": "rgba(255, 251, 245, 0.94)",
+          "category": "color.border",
+          "source": "src/game/gameHud.css:20"
+        },
+        {
+          "name": "--game-frame-inner",
+          "value": "rgba(246, 215, 212, 0.42)",
+          "category": "color.border",
+          "source": "src/game/gameHud.css:21"
+        },
+        {
+          "name": "--game-shadow-drop",
+          "value": "rgba(134, 130, 125, 0.28)",
+          "category": "color.shadow",
+          "source": "src/game/gameHud.css:22"
+        },
+        {
+          "name": "--game-shadow-deep",
+          "value": "rgba(90, 85, 81, 0.18)",
+          "category": "color.shadow",
+          "source": "src/game/gameHud.css:23"
+        },
+        {
+          "name": "--game-press-shadow",
+          "value": "rgba(134, 130, 125, 0.45)",
+          "category": "color.shadow",
+          "source": "src/game/gameHud.css:24"
+        },
+        {
+          "name": "--game-screen-line",
+          "value": "rgba(134, 130, 125, 0.12)",
+          "category": "color.decorative",
+          "source": "src/game/gameHud.css:25"
+        },
+        {
+          "name": "--game-control-bg",
+          "value": "linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%)",
+          "category": "color.gradient",
+          "source": "src/game/gameHud.css:26"
+        },
+        {
+          "name": "--game-control-accent-bg",
+          "value": "linear-gradient(180deg, #f6d7d4 0%, #efc2bc 100%)",
+          "category": "color.gradient",
+          "source": "src/game/gameHud.css:27"
+        }
+      ]
+    },
+    "scoped__chat_pixel_theme": {
+      "selector": ".chat-page--pixel（游戏模式打开聊天时 chatTheme='pixel'，src/App.tsx:2123）",
+      "tokens": [
+        {
+          "name": "--pixel-border",
+          "value": "#86827d",
+          "category": "color.border",
+          "source": "src/pages/ChatPage.css:1002"
+        },
+        {
+          "name": "--pixel-shadow",
+          "value": "#c8b8aa",
+          "category": "color.shadow",
+          "source": "src/pages/ChatPage.css:1003"
+        },
+        {
+          "name": "--pixel-panel",
+          "value": "linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%)",
+          "category": "color.gradient",
+          "source": "src/pages/ChatPage.css:1004"
+        },
+        {
+          "name": "--pixel-panel-strong",
+          "value": "linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%)",
+          "category": "color.gradient",
+          "source": "src/pages/ChatPage.css:1005"
+        },
+        {
+          "name": "--pixel-panel-accent",
+          "value": "linear-gradient(180deg, #f6d7d4 0%, #efc2bc 100%)",
+          "category": "color.gradient",
+          "source": "src/pages/ChatPage.css:1006"
+        },
+        {
+          "name": "--pixel-panel-user",
+          "value": "linear-gradient(180deg, #fdf4e8 0%, #f6d7d4 100%)",
+          "category": "color.gradient",
+          "source": "src/pages/ChatPage.css:1007"
+        },
+        {
+          "name": "--pixel-text",
+          "value": "#5a5551",
+          "category": "color.text",
+          "source": "src/pages/ChatPage.css:1008"
+        },
+        {
+          "name": "--pixel-subtle",
+          "value": "#86827d",
+          "category": "color.text",
+          "source": "src/pages/ChatPage.css:1009"
+        },
+        {
+          "name": "--pixel-cream",
+          "value": "#fffbf5",
+          "category": "color.surface",
+          "source": "src/pages/ChatPage.css:1010"
+        }
+      ]
+    },
+    "scoped__archive_themes": {
+      "selector": ".archive-page（默认粉色 chuanchuan 主题）与 .archive-page--syzygy（蓝色主题）",
+      "defaultTheme": [
+        {
+          "name": "--arc-accent",
+          "value": "#ffd6e7",
+          "category": "color.accent",
+          "source": "src/pages/ArchivePage.css:3"
+        },
+        {
+          "name": "--arc-accent-strong",
+          "value": "#f5b3d2",
+          "category": "color.accent",
+          "source": "src/pages/ArchivePage.css:4"
+        },
+        {
+          "name": "--arc-soft",
+          "value": "rgba(255, 214, 231, 0.85)",
+          "category": "color.surface",
+          "source": "src/pages/ArchivePage.css:5"
+        },
+        {
+          "name": "--arc-soft-faint",
+          "value": "rgba(255, 214, 231, 0.22)",
+          "category": "color.surface",
+          "source": "src/pages/ArchivePage.css:6"
+        },
+        {
+          "name": "--arc-tile",
+          "value": "#fff3f8",
+          "category": "color.surface",
+          "source": "src/pages/ArchivePage.css:7"
+        },
+        {
+          "name": "--arc-kicker",
+          "value": "#b27f98",
+          "category": "color.text",
+          "source": "src/pages/ArchivePage.css:8"
+        },
+        {
+          "name": "--arc-heading",
+          "value": "#68485e",
+          "category": "color.text",
+          "source": "src/pages/ArchivePage.css:9"
+        },
+        {
+          "name": "--arc-text",
+          "value": "#4f3f4a",
+          "category": "color.text",
+          "source": "src/pages/ArchivePage.css:10"
+        },
+        {
+          "name": "--arc-grad-1",
+          "value": "rgba(255, 214, 231, 0.34)",
+          "category": "color.gradientStop",
+          "source": "src/pages/ArchivePage.css:11"
+        },
+        {
+          "name": "--arc-grad-2",
+          "value": "rgba(255, 239, 246, 0.82)",
+          "category": "color.gradientStop",
+          "source": "src/pages/ArchivePage.css:12"
+        },
+        {
+          "name": "--arc-grad-3",
+          "value": "rgba(253, 245, 249, 0.96)",
+          "category": "color.gradientStop",
+          "source": "src/pages/ArchivePage.css:13"
+        }
+      ],
+      "syzygyTheme": [
+        {
+          "name": "--arc-accent",
+          "value": "#cfe6ff",
+          "category": "color.accent",
+          "source": "src/pages/ArchivePage.css:30"
+        },
+        {
+          "name": "--arc-accent-strong",
+          "value": "#a7cdf5",
+          "category": "color.accent",
+          "source": "src/pages/ArchivePage.css:31"
+        },
+        {
+          "name": "--arc-soft",
+          "value": "rgba(186, 219, 255, 0.9)",
+          "category": "color.surface",
+          "source": "src/pages/ArchivePage.css:32"
+        },
+        {
+          "name": "--arc-soft-faint",
+          "value": "rgba(186, 219, 255, 0.24)",
+          "category": "color.surface",
+          "source": "src/pages/ArchivePage.css:33"
+        },
+        {
+          "name": "--arc-tile",
+          "value": "#eef6ff",
+          "category": "color.surface",
+          "source": "src/pages/ArchivePage.css:34"
+        },
+        {
+          "name": "--arc-kicker",
+          "value": "#6f88a8",
+          "category": "color.text",
+          "source": "src/pages/ArchivePage.css:35"
+        },
+        {
+          "name": "--arc-heading",
+          "value": "#3d5675",
+          "category": "color.text",
+          "source": "src/pages/ArchivePage.css:36"
+        },
+        {
+          "name": "--arc-text",
+          "value": "#3a4658",
+          "category": "color.text",
+          "source": "src/pages/ArchivePage.css:37"
+        },
+        {
+          "name": "--arc-grad-1",
+          "value": "rgba(186, 219, 255, 0.34)",
+          "category": "color.gradientStop",
+          "source": "src/pages/ArchivePage.css:38"
+        },
+        {
+          "name": "--arc-grad-2",
+          "value": "rgba(232, 243, 255, 0.85)",
+          "category": "color.gradientStop",
+          "source": "src/pages/ArchivePage.css:39"
+        },
+        {
+          "name": "--arc-grad-3",
+          "value": "rgba(244, 249, 255, 0.96)",
+          "category": "color.gradientStop",
+          "source": "src/pages/ArchivePage.css:40"
+        }
+      ]
+    },
+    "scoped__forum": [
+      {
+        "name": "--forum-reply-indent",
+        "value": "1rem",
+        "category": "spacing",
+        "source": "src/pages/ForumPage.css:920",
+        "selector": ".forum-reply-tree"
+      },
+      {
+        "name": "--forum-reply-indent-mobile",
+        "value": "0.6rem",
+        "category": "spacing",
+        "source": "src/pages/ForumPage.css:921",
+        "selector": ".forum-reply-tree"
+      }
+    ],
+    "scoped__home": [
+      {
+        "name": "--icon-tile-bg",
+        "value": "rgba(255, 255, 255, 0.65)",
+        "category": "color.surface",
+        "source": "src/pages/HomePage.css:3",
+        "selector": ".home-page",
+        "note": "运行时被用户设置覆盖"
+      },
+      {
+        "name": "--page-overlay-bg",
+        "value": "rgba(255, 255, 255, 0.2)",
+        "category": "color.overlay",
+        "source": "src/pages/HomePage.css:4",
+        "selector": ".home-page"
+      },
+      {
+        "name": "--home-background-image",
+        "value": "none",
+        "category": "asset.backgroundImage",
+        "source": "src/pages/HomePage.css:5",
+        "selector": ".home-page"
+      }
+    ]
+  },
+  "runtimeInjectedVariables": [
+    {
+      "name": "--app-background-image",
+      "value": "url(<用户上传的主页背景 DataURL>) | none",
+      "category": "asset.backgroundImage",
+      "source": "src/App.tsx:1973",
+      "note": "来自本地 IndexedDB 的用户背景，注入 .app-shell 内联样式"
+    },
+    {
+      "name": "--home-background-image",
+      "value": "url(<DataURL>) | none",
+      "category": "asset.backgroundImage",
+      "source": "src/pages/HomePage.tsx:1155-1157"
+    },
+    {
+      "name": "--icon-tile-bg",
+      "value": "rgba(r, g, b, a)（用户设置的图标底色+不透明度）",
+      "category": "color.surface",
+      "source": "src/pages/HomePage.tsx:1158（计算于 1093-1096）"
+    },
+    {
+      "name": "--page-overlay-bg",
+      "value": "rgba(r, g, b, a)（用户设置的页面遮罩）",
+      "category": "color.overlay",
+      "source": "src/pages/HomePage.tsx:1159（计算于 1098-1101）"
+    },
+    {
+      "name": "--forum-reply-depth",
+      "value": "<回复层级数字>",
+      "category": "layout.depth",
+      "source": "src/components/forum/ForumReplyTree.tsx:47",
+      "note": "配合 --forum-reply-indent 计算缩进（ForumPage.css:930,997）"
+    }
+  ],
+  "jsConstants": {
+    "homeCustomization": [
+      {
+        "name": "DEFAULT_ICON_TILE_BG_COLOR",
+        "value": "#ffffff",
+        "category": "color.surface",
+        "source": "src/pages/HomePage.tsx:72"
+      },
+      {
+        "name": "DEFAULT_ICON_TILE_BG_OPACITY",
+        "value": 0.65,
+        "category": "opacity",
+        "source": "src/pages/HomePage.tsx:73"
+      },
+      {
+        "name": "DEFAULT_PAGE_OVERLAY_COLOR",
+        "value": "#ffffff",
+        "category": "color.overlay",
+        "source": "src/pages/HomePage.tsx:74"
+      },
+      {
+        "name": "DEFAULT_PAGE_OVERLAY_OPACITY",
+        "value": 0.2,
+        "category": "opacity",
+        "source": "src/pages/HomePage.tsx:75"
+      },
+      {
+        "name": "IMAGE_WIDGET_MAX_DIMENSION",
+        "value": 1800,
+        "category": "asset.imageProcessing",
+        "source": "src/pages/HomePage.tsx:76"
+      },
+      {
+        "name": "IMAGE_WIDGET_QUALITY",
+        "value": 0.84,
+        "category": "asset.imageProcessing",
+        "source": "src/pages/HomePage.tsx:77"
+      },
+      {
+        "name": "homeBackground.maxWidth",
+        "value": 1080,
+        "category": "asset.imageProcessing",
+        "source": "src/pages/HomePage.tsx:135"
+      },
+      {
+        "name": "homeBackground.format/quality",
+        "value": "image/webp @ 0.86",
+        "category": "asset.imageProcessing",
+        "source": "src/pages/HomePage.tsx:151"
+      }
+    ],
+    "gameMode": [
+      {
+        "name": "phaser.backgroundColor",
+        "value": "#0f172a",
+        "category": "color.background",
+        "source": "src/game/config.ts:8"
+      },
+      {
+        "name": "HomeScene tint",
+        "value": "0xdbeafe",
+        "category": "color.decorative",
+        "source": "src/game/scenes/HomeScene.ts:88"
+      }
+    ],
+    "loungeRoleColors": [
+      {
+        "name": "loungeRoles[].color",
+        "value": "#2a9d8f",
+        "category": "color.roleAvatar",
+        "source": "src/constants/loungeRoles.ts:53"
+      },
+      {
+        "name": "loungeRoles[].color",
+        "value": "#f4a261",
+        "category": "color.roleAvatar",
+        "source": "src/constants/loungeRoles.ts:65"
+      },
+      {
+        "name": "loungeRoles[].color",
+        "value": "#8ab17d",
+        "category": "color.roleAvatar",
+        "source": "src/constants/loungeRoles.ts:90"
+      },
+      {
+        "name": "loungeRoles[].color",
+        "value": "#e76f51",
+        "category": "color.roleAvatar",
+        "source": "src/constants/loungeRoles.ts:102"
+      },
+      {
+        "name": "loungeRoles[].color",
+        "value": "#264653",
+        "category": "color.roleAvatar",
+        "source": "src/constants/loungeRoles.ts:114"
+      },
+      {
+        "name": "loungeRoles[].color",
+        "value": "#c9a9bb",
+        "category": "color.roleAvatar",
+        "source": "src/constants/loungeRoles.ts:166"
+      }
+    ],
+    "knowledgeGraphPalette": [
+      {
+        "name": "nodePalette",
+        "value": "#ef7b9e / #a6cf93 / #fbcfe7 / #f2b880 / #9ca3af / #6b7280 / #89c4c6",
+        "category": "color.dataViz",
+        "source": "src/pages/KnowledgeLibraryPage.tsx:56-62"
+      },
+      {
+        "name": "edge/statusPalette",
+        "value": "#d86f94 / #8b5cf6 / #0f9ca3 / #ef4444 / #2f9fa3 / #74a85f",
+        "category": "color.dataViz",
+        "source": "src/pages/KnowledgeLibraryPage.tsx:84-89"
+      },
+      {
+        "name": "canvasLabelColor",
+        "value": "#7c2d52",
+        "category": "color.dataViz",
+        "source": "src/pages/KnowledgeLibraryPage.tsx:474"
+      },
+      {
+        "name": "canvasTextColor",
+        "value": "#4f3f4a",
+        "category": "color.dataViz",
+        "source": "src/pages/KnowledgeLibraryPage.tsx:485"
+      }
+    ],
+    "pwaAndMeta": [
+      {
+        "name": "meta theme-color",
+        "value": "#fdf2f8",
+        "category": "color.platform",
+        "source": "index.html:21"
+      },
+      {
+        "name": "manifest.theme_color",
+        "value": "#1f2937",
+        "category": "color.platform",
+        "source": "public/manifest.webmanifest",
+        "note": "与 index.html theme-color (#fdf2f8) 不一致"
+      },
+      {
+        "name": "manifest.background_color",
+        "value": "#111827",
+        "category": "color.platform",
+        "source": "public/manifest.webmanifest"
+      }
+    ]
+  },
+  "typography": {
+    "loadedWebFonts": [
+      {
+        "family": "Nunito",
+        "weights": [
+          400,
+          600,
+          700,
+          800
+        ],
+        "source": "index.html:7-10 (Google Fonts)"
+      },
+      {
+        "family": "Press Start 2P",
+        "weights": [
+          "regular"
+        ],
+        "source": "index.html:11-14 (Google Fonts)",
+        "note": "src 中未发现任何使用处——疑似冗余加载，待确认"
+      },
+      {
+        "family": "DotGothic16 / VT323",
+        "weights": [
+          "regular"
+        ],
+        "source": "src/pages/ForumPage.css:1 (@import Google Fonts)",
+        "note": "仅 Forum 像素风使用（12 处 font-family 声明）"
+      }
+    ],
+    "declaredButNotLoaded": [
+      {
+        "family": "'Rounded Mplus 1c'",
+        "referencedBy": "--font-display (src/styles/ui.css:6)"
+      },
+      {
+        "family": "'Quicksand', 'Comfortaa', 'Avenir Next Rounded', 'Arial Rounded MT Bold'",
+        "referencedBy": "--font-rounded (src/styles/ui.css:5)"
+      },
+      {
+        "family": "'Noto Serif SC','Source Han Serif SC','Songti SC',serif",
+        "referencedBy": "小说阅读器正文/编辑器 src/pages/NovelPage.css:80,85（依赖系统字体）"
+      },
+      {
+        "family": "'Comic Sans MS', 'Bradley Hand', 'Marker Felt', cursive",
+        "referencedBy": "零食页手写体 src/pages/SnacksPage.css:88（依赖系统字体）"
+      }
+    ],
+    "fontSizesInUse": [
+      {
+        "value": "12px",
+        "count": 120,
+        "examples": [
+          "src/components/ReasoningPanel.css:9",
+          "src/components/SessionsDrawer.css:80",
+          "src/components/SessionsDrawer.css:178",
+          "src/components/SessionsDrawer.css:216"
+        ]
+      },
+      {
+        "value": "13px",
+        "count": 89,
+        "examples": [
+          "src/App.css:51",
+          "src/components/SessionsDrawer.css:104",
+          "src/components/SyzygyFeedEntryCard.css:142",
+          "src/game/gameHud.css:157"
+        ]
+      },
+      {
+        "value": "11px",
+        "count": 57,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:124",
+          "src/game/gameHud.css:219",
+          "src/game/gameHud.css:261",
+          "src/game/gameHud.css:296"
+        ]
+      },
+      {
+        "value": "14px",
+        "count": 55,
+        "examples": [
+          "src/components/ConfirmDialog.css:31",
+          "src/components/ConfirmDialog.css:59",
+          "src/components/SessionsDrawer.css:122",
+          "src/components/SessionsDrawer.css:164"
+        ]
+      },
+      {
+        "value": "16px",
+        "count": 21,
+        "examples": [
+          "src/App.css:26",
+          "src/components/SyzygyFeedEntryCard.css:68",
+          "src/game/gameHud.css:533",
+          "src/game/gameHud.css:1478"
+        ]
+      },
+      {
+        "value": "15px",
+        "count": 21,
+        "examples": [
+          "src/App.css:57",
+          "src/pages/AgentCouncilPage.css:16",
+          "src/pages/AgentFeedPage.css:227",
+          "src/pages/AgentFeedPage.css:382"
+        ]
+      },
+      {
+        "value": "10px",
+        "count": 18,
+        "examples": [
+          "src/game/gameHud.css:177",
+          "src/game/gameHud.css:204",
+          "src/game/gameHud.css:241",
+          "src/game/gameHud.css:774"
+        ]
+      },
+      {
+        "value": "18px",
+        "count": 12,
+        "examples": [
+          "src/components/ConfirmDialog.css:25",
+          "src/components/SessionsDrawer.css:86",
+          "src/components/SyzygyFeedEntryCard.css:118",
+          "src/pages/ArchivePage.css:603"
+        ]
+      },
+      {
+        "value": "0.78rem",
+        "count": 12,
+        "examples": [
+          "src/pages/CheckinPage.css:277",
+          "src/pages/HamsterConsolePage.css:304",
+          "src/pages/HamsterConsolePage.css:391",
+          "src/pages/HamsterConsolePage.css:513"
+        ]
+      },
+      {
+        "value": "1rem",
+        "count": 10,
+        "examples": [
+          "src/pages/AuthPage.css:147",
+          "src/pages/CheckinPage.css:209",
+          "src/pages/ForumPage.css:182",
+          "src/pages/ForumPage.css:680"
+        ]
+      },
+      {
+        "value": "0.8rem",
+        "count": 10,
+        "examples": [
+          "src/pages/AuthPage.css:177",
+          "src/pages/CheckinPage.css:180",
+          "src/pages/HamsterConsolePage.css:330",
+          "src/pages/HamsterConsolePage.css:430"
+        ]
+      },
+      {
+        "value": "0.95rem",
+        "count": 9,
+        "examples": [
+          "src/pages/AuthPage.css:90",
+          "src/pages/AuthPage.css:121",
+          "src/pages/AuthPage.css:132",
+          "src/pages/CheckinPage.css:133"
+        ]
+      },
+      {
+        "value": "0.82rem",
+        "count": 9,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:264",
+          "src/pages/HamsterConsolePage.css:294",
+          "src/pages/HamsterConsolePage.css:527",
+          "src/pages/HamsterConsolePage.css:707"
+        ]
+      },
+      {
+        "value": "0.84rem",
+        "count": 8,
+        "examples": [
+          "src/pages/CheckinPage.css:42",
+          "src/pages/HamsterConsolePage.css:93",
+          "src/pages/HamsterConsolePage.css:169",
+          "src/pages/HamsterConsolePage.css:473"
+        ]
+      },
+      {
+        "value": "22px",
+        "count": 6,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:55",
+          "src/game/gameHud.css:1340",
+          "src/pages/ChatPage.css:679",
+          "src/pages/LoungePage.css:177"
+        ]
+      },
+      {
+        "value": "9px",
+        "count": 4,
+        "examples": [
+          "src/game/gameHud.css:1369",
+          "src/game/gameHud.css:1380",
+          "src/game/gameHud.css:1388",
+          "src/pages/SnacksPage.css:546"
+        ]
+      },
+      {
+        "value": "0.9rem",
+        "count": 4,
+        "examples": [
+          "src/pages/ForumPage.css:456",
+          "src/pages/ForumPage.css:758",
+          "src/pages/HamsterConsolePage.css:67",
+          "src/pages/HomePage.css:147"
+        ]
+      },
+      {
+        "value": "13.5px",
+        "count": 3,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:107",
+          "src/pages/AgentFeedPage.css:735",
+          "src/pages/ArchivePage.css:485"
+        ]
+      },
+      {
+        "value": "0.76rem",
+        "count": 3,
+        "examples": [
+          "src/pages/CheckinPage.css:240",
+          "src/pages/HamsterConsolePage.css:593",
+          "src/pages/HamsterConsolePage.css:666"
+        ]
+      },
+      {
+        "value": "1.1rem",
+        "count": 3,
+        "examples": [
+          "src/pages/CheckinPage.css:282",
+          "src/pages/ExportPage.css:25",
+          "src/pages/ExportPage.css:61"
+        ]
+      },
+      {
+        "value": "0.92rem",
+        "count": 3,
+        "examples": [
+          "src/pages/ExportPage.css:103",
+          "src/pages/HamsterConsolePage.css:1001",
+          "src/pages/LettersPage.css:207"
+        ]
+      },
+      {
+        "value": "0.85rem",
+        "count": 3,
+        "examples": [
+          "src/pages/ExportPage.css:123",
+          "src/pages/HomePage.css:218",
+          "src/pages/HomePage.css:238"
+        ]
+      },
+      {
+        "value": "0.98rem",
+        "count": 3,
+        "examples": [
+          "src/pages/ExportPage.css:137",
+          "src/pages/ForumPage.css:331",
+          "src/pages/HamsterConsolePage.css:219"
+        ]
+      },
+      {
+        "value": "2rem",
+        "count": 3,
+        "examples": [
+          "src/pages/ForumPage.css:37",
+          "src/pages/ForumPage.css:510",
+          "src/pages/HomePage.css:354"
+        ]
+      },
+      {
+        "value": "0.72rem",
+        "count": 3,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:224",
+          "src/pages/KnowledgeLibraryPage.css:173",
+          "src/pages/KnowledgeLibraryPage.css:267"
+        ]
+      },
+      {
+        "value": "0.74rem",
+        "count": 3,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:538",
+          "src/pages/HamsterConsolePage.css:641",
+          "src/pages/HamsterConsolePage.css:953"
+        ]
+      },
+      {
+        "value": "0.9em",
+        "count": 2,
+        "examples": [
+          "src/components/ReasoningPanel.css:42",
+          "src/pages/ChatPage.css:254"
+        ]
+      },
+      {
+        "value": "12.5px",
+        "count": 2,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:119",
+          "src/pages/AgentFeedPage.css:661"
+        ]
+      },
+      {
+        "value": "20px",
+        "count": 2,
+        "examples": [
+          "src/pages/AgentFeedPage.css:139",
+          "src/pages/ChatPage.css:834"
+        ]
+      },
+      {
+        "value": "0.88rem",
+        "count": 2,
+        "examples": [
+          "src/pages/AuthPage.css:100",
+          "src/pages/HamsterConsolePage.css:935"
+        ]
+      },
+      {
+        "value": "0.92em",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:238",
+          "src/pages/WikiPage.css:160"
+        ]
+      },
+      {
+        "value": "1.02rem",
+        "count": 2,
+        "examples": [
+          "src/pages/ForumPage.css:202",
+          "src/pages/LettersPage.css:273"
+        ]
+      },
+      {
+        "value": "1.25rem",
+        "count": 2,
+        "examples": [
+          "src/pages/ForumPage.css:302",
+          "src/pages/LettersPage.css:46"
+        ]
+      },
+      {
+        "value": "1.5rem",
+        "count": 2,
+        "examples": [
+          "src/pages/ForumPage.css:411",
+          "src/pages/HamsterConsolePage.css:817"
+        ]
+      },
+      {
+        "value": "0.86rem",
+        "count": 2,
+        "examples": [
+          "src/pages/KnowledgeLibraryPage.css:366",
+          "src/pages/KnowledgeLibraryPage.css:513"
+        ]
+      },
+      {
+        "value": "24px",
+        "count": 2,
+        "examples": [
+          "src/pages/SettingsPage.css:236",
+          "src/pages/SnacksPage.css:105"
+        ]
+      }
+    ],
+    "fontSizeClamps": [
+      {
+        "value": "clamp(26px, 4vw, 34px)",
+        "count": 1,
+        "files": [
+          "src/game/gameHud.css"
+        ],
+        "examples": [
+          "src/game/gameHud.css:136"
+        ]
+      },
+      {
+        "value": "clamp(22px, 3vw, 26px)",
+        "count": 1,
+        "files": [
+          "src/game/gameHud.css"
+        ],
+        "examples": [
+          "src/game/gameHud.css:598"
+        ]
+      },
+      {
+        "value": "clamp(24px, 3vw, 28px)",
+        "count": 1,
+        "files": [
+          "src/game/gameHud.css"
+        ],
+        "examples": [
+          "src/game/gameHud.css:611"
+        ]
+      },
+      {
+        "value": "clamp(18px, 2.8vw, 21px)",
+        "count": 1,
+        "files": [
+          "src/game/gameHud.css"
+        ],
+        "examples": [
+          "src/game/gameHud.css:746"
+        ]
+      },
+      {
+        "value": "clamp(21px, 3vw, 28px)",
+        "count": 1,
+        "files": [
+          "src/game/gameHud.css"
+        ],
+        "examples": [
+          "src/game/gameHud.css:1132"
+        ]
+      },
+      {
+        "value": "clamp(18px, 4.5vw, 22px)",
+        "count": 1,
+        "files": [
+          "src/game/gameHud.css"
+        ],
+        "examples": [
+          "src/game/gameHud.css:1443"
+        ]
+      },
+      {
+        "value": "clamp(1.65rem, 3.2vw, 2.05rem)",
+        "count": 1,
+        "files": [
+          "src/pages/AuthPage.css"
+        ],
+        "examples": [
+          "src/pages/AuthPage.css:82"
+        ]
+      },
+      {
+        "value": "clamp(1.35rem, 5vw, 1.85rem)",
+        "count": 1,
+        "files": [
+          "src/pages/HamsterConsolePage.css"
+        ],
+        "examples": [
+          "src/pages/HamsterConsolePage.css:60"
+        ]
+      },
+      {
+        "value": "clamp(1.05rem, 2.5vw, 1.32rem)",
+        "count": 1,
+        "files": [
+          "src/pages/HamsterConsolePage.css"
+        ],
+        "examples": [
+          "src/pages/HamsterConsolePage.css:599"
+        ]
+      },
+      {
+        "value": "clamp(1.35rem, 4.8vw, 1.8rem)",
+        "count": 1,
+        "files": [
+          "src/pages/HomePage.css"
+        ],
+        "examples": [
+          "src/pages/HomePage.css:560"
+        ]
+      },
+      {
+        "value": "clamp(0.72rem, 2.1vw, 0.82rem)",
+        "count": 1,
+        "files": [
+          "src/pages/HomePage.css"
+        ],
+        "examples": [
+          "src/pages/HomePage.css:583"
+        ]
+      },
+      {
+        "value": "clamp(1.6rem, 4vw, 2.5rem)",
+        "count": 1,
+        "files": [
+          "src/pages/KnowledgeLibraryPage.css"
+        ],
+        "examples": [
+          "src/pages/KnowledgeLibraryPage.css:33"
+        ]
+      }
+    ],
+    "fontWeightsInUse": [
+      {
+        "value": "600",
+        "count": 89,
+        "examples": [
+          "src/App.css:52",
+          "src/components/SessionsDrawer.css:203",
+          "src/components/SyzygyFeedEntryCard.css:143",
+          "src/game/gameHud.css:1547"
+        ]
+      },
+      {
+        "value": "700",
+        "count": 79,
+        "examples": [
+          "src/components/SessionsDrawer.css:302",
+          "src/components/SyzygyFeedEntryCard.css:69",
+          "src/components/SyzygyFeedEntryCard.css:90",
+          "src/components/SyzygyFeedEntryCard.css:119"
+        ]
+      },
+      {
+        "value": "800",
+        "count": 29,
+        "examples": [
+          "src/components/SessionsDrawer.css:324",
+          "src/components/SessionsDrawer.css:410",
+          "src/game/gameHud.css:178",
+          "src/game/gameHud.css:262"
+        ]
+      },
+      {
+        "value": "500",
+        "count": 6,
+        "examples": [
+          "src/pages/ArchivePage.css:533",
+          "src/pages/ChatPage.css:564",
+          "src/pages/ChatPage.css:591",
+          "src/pages/ChatPage.css:741"
+        ]
+      },
+      {
+        "value": "400",
+        "count": 5,
+        "examples": [
+          "src/index.css:4",
+          "src/pages/ArchivePage.css:625",
+          "src/pages/ArchivePage.css:648",
+          "src/pages/ChatPage.css:681"
+        ]
+      }
+    ],
+    "lineHeightsInUse": [
+      {
+        "value": "1",
+        "count": 19,
+        "examples": [
+          "src/App.css:58",
+          "src/pages/ArchivePage.css:739",
+          "src/pages/ChatPage.css:276",
+          "src/pages/ChatPage.css:334"
+        ]
+      },
+      {
+        "value": "1.5",
+        "count": 13,
+        "examples": [
+          "src/game/gameHud.css:1548",
+          "src/game/gameHud.css:1781",
+          "src/index.css:3",
+          "src/pages/AgentCouncilPage.css:154"
+        ]
+      },
+      {
+        "value": "1.4",
+        "count": 11,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:76",
+          "src/game/gameHud.css:788",
+          "src/game/gameHud.css:1675",
+          "src/pages/ArchivePage.css:419"
+        ]
+      },
+      {
+        "value": "1.45",
+        "count": 11,
+        "examples": [
+          "src/game/gameHud.css:900",
+          "src/game/gameHud.css:971",
+          "src/game/gameHud.css:1009",
+          "src/game/gameHud.css:1142"
+        ]
+      },
+      {
+        "value": "1.2",
+        "count": 11,
+        "examples": [
+          "src/pages/ChatPage.css:598",
+          "src/pages/CheckinPage.css:44",
+          "src/pages/CheckinPage.css:186",
+          "src/pages/ForumPage.css:56"
+        ]
+      },
+      {
+        "value": "1.6",
+        "count": 7,
+        "examples": [
+          "src/components/ReasoningPanel.css:44",
+          "src/pages/AgentFeedPage.css:222",
+          "src/pages/AgentFeedPage.css:260",
+          "src/pages/ChatPage.css:182"
+        ]
+      },
+      {
+        "value": "1.55",
+        "count": 6,
+        "examples": [
+          "src/pages/AgentFeedPage.css:318",
+          "src/pages/AgentFeedPage.css:736",
+          "src/pages/HamsterConsolePage.css:626",
+          "src/pages/KnowledgeLibraryPage.css:257"
+        ]
+      },
+      {
+        "value": "1.3",
+        "count": 4,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:144",
+          "src/pages/AgentFeedPage.css:165",
+          "src/pages/NovelPage.css:9",
+          "src/pages/TodoPage.css:280"
+        ]
+      },
+      {
+        "value": "1.35",
+        "count": 4,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:600",
+          "src/pages/HamsterConsolePage.css:768",
+          "src/pages/RpRoomsPage.css:449",
+          "src/pages/TodoPage.css:186"
+        ]
+      },
+      {
+        "value": "0",
+        "count": 3,
+        "examples": [
+          "src/game/gameHud.css:538",
+          "src/game/gameHud.css:603",
+          "src/game/gameHud.css:1484"
+        ]
+      },
+      {
+        "value": "1.15",
+        "count": 3,
+        "examples": [
+          "src/pages/ForumPage.css:332",
+          "src/pages/ForumPage.css:759",
+          "src/styles/ui.css:26"
+        ]
+      },
+      {
+        "value": "1.9",
+        "count": 3,
+        "examples": [
+          "src/pages/NovelPage.css:80",
+          "src/pages/NovelPage.css:85",
+          "src/pages/WikiPage.css:140"
+        ]
+      },
+      {
+        "value": "1.75",
+        "count": 2,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:107",
+          "src/pages/NovelPage.css:47"
+        ]
+      },
+      {
+        "value": "1.85",
+        "count": 2,
+        "examples": [
+          "src/pages/ArchivePage.css:486",
+          "src/pages/WikiPage.css:186"
+        ]
+      },
+      {
+        "value": "1.65",
+        "count": 2,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:1002",
+          "src/pages/NovelPage.css:42"
+        ]
+      }
+    ],
+    "letterSpacingsInUse": [
+      {
+        "value": "0.04em",
+        "count": 8,
+        "examples": [
+          "src/game/gameHud.css:928",
+          "src/game/gameHud.css:1003",
+          "src/game/gameHud.css:1761",
+          "src/pages/AgentFeedPage.css:236"
+        ]
+      },
+      {
+        "value": "0.08em",
+        "count": 7,
+        "examples": [
+          "src/pages/AgentFeedPage.css:53",
+          "src/pages/ArchivePage.css:81",
+          "src/pages/HamsterConsolePage.css:53",
+          "src/pages/LoungePage.css:60"
+        ]
+      },
+      {
+        "value": "0.02em",
+        "count": 4,
+        "examples": [
+          "src/game/gameHud.css:700",
+          "src/pages/AuthPage.css:83",
+          "src/pages/CheckinPage.css:108",
+          "src/pages/HomePage.css:189"
+        ]
+      },
+      {
+        "value": "0.16em",
+        "count": 4,
+        "examples": [
+          "src/game/gameHud.css:776",
+          "src/game/gameHud.css:1118",
+          "src/pages/KnowledgeLibraryPage.css:41",
+          "src/pages/RpRoomPage.css:200"
+        ]
+      },
+      {
+        "value": ".08em",
+        "count": 3,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:12",
+          "src/pages/NovelPage.css:10",
+          "src/pages/WikiPage.css:52"
+        ]
+      },
+      {
+        "value": "0.01em",
+        "count": 3,
+        "examples": [
+          "src/pages/AuthPage.css:149",
+          "src/pages/HomePage.css:389",
+          "src/styles/ui.css:25"
+        ]
+      },
+      {
+        "value": "0.03em",
+        "count": 2,
+        "examples": [
+          "src/game/gameHud.css:895",
+          "src/game/gameHud.css:1720"
+        ]
+      },
+      {
+        "value": "0.12em",
+        "count": 2,
+        "examples": [
+          "src/game/gameHud.css:1086",
+          "src/pages/RpRoomsPage.css:372"
+        ]
+      },
+      {
+        "value": "0.06em",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:179"
+        ]
+      },
+      {
+        "value": "0.05em",
+        "count": 1,
+        "examples": [
+          "src/pages/ForumPage.css:511"
+        ]
+      },
+      {
+        "value": ".06em",
+        "count": 1,
+        "examples": [
+          "src/pages/NovelPage.css:78"
+        ]
+      },
+      {
+        "value": ".01em",
+        "count": 1,
+        "examples": [
+          "src/pages/NovelPage.css:80"
+        ]
+      },
+      {
+        "value": "0.14em",
+        "count": 1,
+        "examples": [
+          "src/pages/RpRoomsPage.css:73"
+        ]
+      },
+      {
+        "value": "0.5px",
+        "count": 1,
+        "examples": [
+          "src/pages/SnacksPage.css:107"
+        ]
+      }
+    ],
+    "baseRules": [
+      {
+        "rule": "#root input/textarea/select 强制 font-size:16px（防 iOS 缩放）",
+        "source": "src/index.css:78-89"
+      },
+      {
+        "rule": "body 默认 line-height:1.5 / font-weight:400 / tabular-nums",
+        "source": "src/index.css:1-26"
+      }
+    ]
+  },
+  "breakpoints": {
+    "note": "无统一断点 Token；媒体查询散布各 CSS，另有 1 处 JS matchMedia",
+    "mediaQueries": [
+      {
+        "value": "@media (max-width: 560px)",
+        "count": 17,
+        "examples": [
+          "src/components/SessionsDrawer.css:232",
+          "src/components/SessionsDrawer.css:444",
+          "src/pages/AgentFeedPage.css:794",
+          "src/pages/ArchivePage.css:751"
+        ]
+      },
+      {
+        "value": "@media (max-width: 640px)",
+        "count": 9,
+        "examples": [
+          "src/pages/CheckinPage.css:302",
+          "src/pages/ForumPage.css:381",
+          "src/pages/ForumPage.css:854",
+          "src/pages/ForumPage.css:885"
+        ]
+      },
+      {
+        "value": "@media (max-width: 760px)",
+        "count": 5,
+        "examples": [
+          "src/game/gameHud.css:1179",
+          "src/game/gameHud.css:1786",
+          "src/game/gameHud.css:1796",
+          "src/pages/HamsterConsolePage.css:650"
+        ]
+      },
+      {
+        "value": "@media (max-width: 768px)",
+        "count": 3,
+        "examples": [
+          "src/index.css:84",
+          "src/pages/ChatPage.css:517",
+          "src/styles/ui.css:160"
+        ]
+      },
+      {
+        "value": "@media (max-width: 680px)",
+        "count": 3,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:541",
+          "src/pages/HamsterConsolePage.css:656",
+          "src/pages/RpRoomsPage.css:508"
+        ]
+      },
+      {
+        "value": "@media (max-width: 480px)",
+        "count": 2,
+        "examples": [
+          "src/game/gameHud.css:1311",
+          "src/pages/LoungePage.css:659"
+        ]
+      },
+      {
+        "value": "@media (max-width: 720px)",
+        "count": 2,
+        "examples": [
+          "src/pages/ForumPage.css:864",
+          "src/pages/WikiPage.css:200"
+        ]
+      },
+      {
+        "value": "@media (max-width: 520px)",
+        "count": 2,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:353",
+          "src/pages/HamsterConsolePage.css:731"
+        ]
+      },
+      {
+        "value": "@media (max-width: 900px)",
+        "count": 2,
+        "examples": [
+          "src/pages/HomePage.css:615",
+          "src/pages/KnowledgeLibraryPage.css:393"
+        ]
+      },
+      {
+        "value": "@media (max-width: 420px)",
+        "count": 1,
+        "examples": [
+          "src/pages/HomePage.css:597"
+        ]
+      },
+      {
+        "value": "@media (min-width: 901px)",
+        "count": 1,
+        "examples": [
+          "src/pages/HomePage.css:623"
+        ]
+      },
+      {
+        "value": "@media (prefers-reduced-motion: reduce)",
+        "count": 1,
+        "examples": [
+          "src/pages/LoungePage.css:441"
+        ]
+      },
+      {
+        "value": "@media (max-width:560px)",
+        "count": 1,
+        "examples": [
+          "src/pages/NovelPage.css:94"
+        ]
+      }
+    ],
+    "jsBreakpoints": [
+      {
+        "value": "(max-width: 900px)",
+        "source": "src/pages/HomePage.tsx:248",
+        "purpose": "isMobileViewport 状态"
+      }
+    ]
+  },
+  "zIndex": {
+    "tokens": [
+      {
+        "name": "--z-popover",
+        "value": "5000",
+        "category": "zIndex",
+        "source": "src/index.css:2"
+      }
+    ],
+    "hardcodedScale": [
+      {
+        "value": "1",
+        "count": 21,
+        "examples": [
+          "src/components/SessionsDrawer.css:55",
+          "src/components/SyzygyFeedEntryCard.css:41",
+          "src/components/SyzygyFeedEntryCard.css:98",
+          "src/components/SyzygyFeedEntryCard.css:149"
+        ]
+      },
+      {
+        "value": "-1",
+        "count": 12,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:5",
+          "src/pages/AgentFeedPage.css:20",
+          "src/pages/ArchivePage.css:47",
+          "src/pages/HamsterConsolePage.css:22"
+        ]
+      },
+      {
+        "value": "20",
+        "count": 6,
+        "examples": [
+          "src/game/gameHud.css:353",
+          "src/pages/ChatPage.css:50",
+          "src/pages/KnowledgeLibraryPage.css:345",
+          "src/pages/LoungePage.css:474"
+        ]
+      },
+      {
+        "value": "0",
+        "count": 4,
+        "examples": [
+          "src/components/SessionsDrawer.css:45",
+          "src/pages/ChatPage.css:21",
+          "src/pages/HomePage.css:69",
+          "src/pages/RpRoomPage.css:33"
+        ]
+      },
+      {
+        "value": "60",
+        "count": 3,
+        "examples": [
+          "src/pages/ArchivePage.css:580",
+          "src/pages/LoungePage.css:595",
+          "src/pages/TimelinePage.css:415"
+        ]
+      },
+      {
+        "value": "12",
+        "count": 2,
+        "examples": [
+          "src/game/gameHud.css:58",
+          "src/pages/RpRoomsPage.css:21"
+        ]
+      },
+      {
+        "value": "30",
+        "count": 2,
+        "examples": [
+          "src/game/gameHud.css:706",
+          "src/pages/LettersPage.css:213"
+        ]
+      },
+      {
+        "value": "1500",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:101",
+          "src/pages/ChatPage.css:718"
+        ]
+      },
+      {
+        "value": "var(--z-popover)",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:485",
+          "src/pages/RpRoomsPage.css:410"
+        ]
+      },
+      {
+        "value": "10",
+        "count": 2,
+        "examples": [
+          "src/styles/ui.css:116",
+          "src/styles/ui.css:137"
+        ]
+      },
+      {
+        "value": "1200",
+        "count": 1,
+        "examples": [
+          "src/App.css:35"
+        ]
+      },
+      {
+        "value": "calc(var(--z-popover) + 100)",
+        "count": 1,
+        "examples": [
+          "src/components/ConfirmDialog.css:9"
+        ]
+      },
+      {
+        "value": "1600",
+        "count": 1,
+        "examples": [
+          "src/components/SessionsDrawer.css:10"
+        ]
+      },
+      {
+        "value": "1650",
+        "count": 1,
+        "examples": [
+          "src/components/SessionsDrawer.css:33"
+        ]
+      },
+      {
+        "value": "28",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:629"
+        ]
+      },
+      {
+        "value": "25",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:681"
+        ]
+      },
+      {
+        "value": "35",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:1513"
+        ]
+      },
+      {
+        "value": "40",
+        "count": 1,
+        "examples": [
+          "src/pages/ChatPage.css:478"
+        ]
+      },
+      {
+        "value": "3",
+        "count": 1,
+        "examples": [
+          "src/pages/ChatPage.css:514"
+        ]
+      },
+      {
+        "value": "-2",
+        "count": 1,
+        "examples": [
+          "src/pages/RpRoomsPage.css:49"
+        ]
+      },
+      {
+        "value": "4",
+        "count": 1,
+        "examples": [
+          "src/pages/RpRoomsPage.css:402"
+        ]
+      },
+      {
+        "value": "100",
+        "count": 1,
+        "examples": [
+          "src/pages/WalletPage.css:337"
+        ]
+      }
+    ]
+  },
+  "motion": {
+    "durations": [
+      {
+        "value": "160ms",
+        "count": 27,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:18",
+          "src/components/SyzygyFeedEntryCard.css:18",
+          "src/pages/AgentFeedPage.css:425",
+          "src/pages/AgentFeedPage.css:425"
+        ]
+      },
+      {
+        "value": "0.2s",
+        "count": 18,
+        "examples": [
+          "src/components/SessionsDrawer.css:9",
+          "src/pages/AuthPage.css:112",
+          "src/pages/AuthPage.css:112",
+          "src/pages/ExportPage.css:105"
+        ]
+      },
+      {
+        "value": "140ms",
+        "count": 17,
+        "examples": [
+          "src/pages/ArchivePage.css:253",
+          "src/pages/ArchivePage.css:253",
+          "src/pages/ArchivePage.css:368",
+          "src/pages/ArchivePage.css:368"
+        ]
+      },
+      {
+        "value": "150ms",
+        "count": 9,
+        "examples": [
+          "src/pages/AgentFeedPage.css:510",
+          "src/pages/AgentFeedPage.css:510",
+          "src/pages/AgentFeedPage.css:510",
+          "src/pages/ChatPage.css:441"
+        ]
+      },
+      {
+        "value": "0.15s",
+        "count": 8,
+        "examples": [
+          "src/game/gameHud.css:1629",
+          "src/game/gameHud.css:1705",
+          "src/game/gameHud.css:1732",
+          "src/pages/AgentFeedPage.css:248"
+        ]
+      },
+      {
+        "value": "120ms",
+        "count": 8,
+        "examples": [
+          "src/pages/ChatPage.css:566",
+          "src/pages/ChatPage.css:566",
+          "src/pages/ChatPage.css:744",
+          "src/pages/ForumPage.css:58"
+        ]
+      },
+      {
+        "value": "0.25s",
+        "count": 4,
+        "examples": [
+          "src/components/ReasoningPanel.css:25",
+          "src/components/ReasoningPanel.css:25",
+          "src/components/SessionsDrawer.css:32",
+          "src/game/gameHud.css:1533"
+        ]
+      },
+      {
+        "value": "100ms",
+        "count": 3,
+        "examples": [
+          "src/pages/ForumPage.css:58",
+          "src/pages/ForumPage.css:58",
+          "src/pages/StoryGroupPage.css:107"
+        ]
+      },
+      {
+        "value": "0.12s",
+        "count": 3,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:249",
+          "src/pages/HamsterConsolePage.css:249",
+          "src/pages/HamsterConsolePage.css:249"
+        ]
+      },
+      {
+        "value": "180ms",
+        "count": 2,
+        "examples": [
+          "src/pages/ArchivePage.css:430",
+          "src/pages/MemoryVaultPage.css:66"
+        ]
+      },
+      {
+        "value": "1.4s",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:298",
+          "src/pages/SnacksPage.css:451"
+        ]
+      },
+      {
+        "value": "0.8s",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:307",
+          "src/pages/SnacksPage.css:460"
+        ]
+      },
+      {
+        "value": "110ms",
+        "count": 2,
+        "examples": [
+          "src/pages/RpRoomPage.css:308",
+          "src/pages/RpRoomsPage.css:223"
+        ]
+      },
+      {
+        "value": "0.7s",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:1625"
+        ]
+      },
+      {
+        "value": "0.3s",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:1633"
+        ]
+      },
+      {
+        "value": "240ms",
+        "count": 1,
+        "examples": [
+          "src/pages/ArchivePage.css:53"
+        ]
+      },
+      {
+        "value": "200ms",
+        "count": 1,
+        "examples": [
+          "src/pages/ChatPage.css:682"
+        ]
+      },
+      {
+        "value": "300ms",
+        "count": 1,
+        "examples": [
+          "src/pages/CheckinPage.css:49"
+        ]
+      },
+      {
+        "value": "1.9s",
+        "count": 1,
+        "examples": [
+          "src/pages/CheckinPage.css:144"
+        ]
+      },
+      {
+        "value": "1s",
+        "count": 1,
+        "examples": [
+          "src/pages/ForumPage.css:732"
+        ]
+      },
+      {
+        "value": "280ms",
+        "count": 1,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:153"
+        ]
+      },
+      {
+        "value": "1.2s",
+        "count": 1,
+        "examples": [
+          "src/pages/LoungePage.css:406"
+        ]
+      },
+      {
+        "value": "0.18s",
+        "count": 1,
+        "examples": [
+          "src/pages/LoungePage.css:410"
+        ]
+      },
+      {
+        "value": "0.36s",
+        "count": 1,
+        "examples": [
+          "src/pages/LoungePage.css:414"
+        ]
+      }
+    ],
+    "easings": [
+      {
+        "value": "ease",
+        "count": 98,
+        "examples": [
+          "src/components/ReasoningPanel.css:25",
+          "src/components/ReasoningPanel.css:25",
+          "src/components/SessionsDrawer.css:9",
+          "src/components/SessionsDrawer.css:32"
+        ]
+      },
+      {
+        "value": "ease-in",
+        "count": 5,
+        "examples": [
+          "src/game/gameHud.css:1625",
+          "src/pages/ChatPage.css:298",
+          "src/pages/CheckinPage.css:144",
+          "src/pages/LoungePage.css:406"
+        ]
+      },
+      {
+        "value": "linear",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:307",
+          "src/pages/SnacksPage.css:460"
+        ]
+      },
+      {
+        "value": "steps(2)",
+        "count": 2,
+        "examples": [
+          "src/pages/ForumPage.css:58",
+          "src/pages/ForumPage.css:58"
+        ]
+      },
+      {
+        "value": "ease-out",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:1533"
+        ]
+      },
+      {
+        "value": "steps(1)",
+        "count": 1,
+        "examples": [
+          "src/pages/ForumPage.css:732"
+        ]
+      }
+    ],
+    "keyframes": [
+      {
+        "name": "bubble-appear",
+        "source": "src/game/gameHud.css:1594"
+      },
+      {
+        "name": "typing-bounce",
+        "source": "src/game/gameHud.css:1636"
+      },
+      {
+        "name": "message-tts-spin",
+        "source": "src/pages/ChatPage.css:310"
+      },
+      {
+        "name": "message-tts-pulse",
+        "source": "src/pages/ChatPage.css:316"
+      },
+      {
+        "name": "stamp-pulse",
+        "source": "src/pages/CheckinPage.css:290"
+      },
+      {
+        "name": "forum-pixel-cursor",
+        "source": "src/pages/ForumPage.css:736"
+      },
+      {
+        "name": "lounge-typing-bounce",
+        "source": "src/pages/LoungePage.css:417"
+      },
+      {
+        "name": "lounge-status-in",
+        "source": "src/pages/LoungePage.css:430"
+      },
+      {
+        "name": "tts-spin",
+        "source": "src/pages/SnacksPage.css:463"
+      },
+      {
+        "name": "tts-pulse",
+        "source": "src/pages/SnacksPage.css:469"
+      }
+    ],
+    "reducedMotionSupport": [
+      {
+        "query": "@media (prefers-reduced-motion: reduce)",
+        "source": [
+          [
+            "src/pages/LoungePage.css:441"
+          ]
+        ]
+      }
+    ],
+    "noFxMode": {
+      "description": "html.no-fx 全局禁用动画/过渡/滤镜/毛玻璃",
+      "source": "src/index.css:52-71, src/main.tsx:9-15"
+    }
+  },
+  "hardcodedRepeatedValues": {
+    "note": "多处重复使用、但尚未抽为 Token 的字面值（count ≥ 阈值）；完整分布与判断见 token-audit.md",
+    "colors_hex_countGte6": [
+      {
+        "value": "#fff",
+        "count": 133,
+        "examples": [
+          "src/components/ConfirmDialog.css:13",
+          "src/components/ConfirmDialog.css:52",
+          "src/components/SyzygyFeedEntryCard.css:91",
+          "src/pages/AgentCouncilPage.css:13"
+        ]
+      },
+      {
+        "value": "#ffd6e7",
+        "count": 93,
+        "examples": [
+          "src/index.css:38",
+          "src/pages/AgentCouncilPage.css:13",
+          "src/pages/AgentCouncilPage.css:30",
+          "src/pages/AgentCouncilPage.css:47"
+        ]
+      },
+      {
+        "value": "#5c5c5c",
+        "count": 74,
+        "examples": [
+          "src/pages/AgentFeedPage.css:60",
+          "src/pages/ArchivePage.css:88",
+          "src/pages/CheckinPage.css:59",
+          "src/pages/CheckinPage.css:102"
+        ]
+      },
+      {
+        "value": "#fffbf5",
+        "count": 53,
+        "examples": [
+          "src/components/SessionsDrawer.css:290",
+          "src/components/SessionsDrawer.css:366",
+          "src/components/SessionsDrawer.css:388",
+          "src/components/SessionsDrawer.css:420"
+        ]
+      },
+      {
+        "value": "#fdf4e8",
+        "count": 53,
+        "examples": [
+          "src/components/SessionsDrawer.css:343",
+          "src/components/SessionsDrawer.css:366",
+          "src/components/SessionsDrawer.css:388",
+          "src/components/SessionsDrawer.css:420"
+        ]
+      },
+      {
+        "value": "#fffdf9",
+        "count": 41,
+        "examples": [
+          "src/components/SessionsDrawer.css:263",
+          "src/components/SessionsDrawer.css:292",
+          "src/components/SessionsDrawer.css:321",
+          "src/components/SessionsDrawer.css:357"
+        ]
+      },
+      {
+        "value": "#f6d7d4",
+        "count": 39,
+        "examples": [
+          "src/components/SessionsDrawer.css:290",
+          "src/components/SessionsDrawer.css:343",
+          "src/components/SessionsDrawer.css:350",
+          "src/components/SessionsDrawer.css:396"
+        ]
+      },
+      {
+        "value": "#86827d",
+        "count": 36,
+        "examples": [
+          "src/components/SessionsDrawer.css:258",
+          "src/components/SessionsDrawer.css:287",
+          "src/components/SessionsDrawer.css:301",
+          "src/components/SessionsDrawer.css:318"
+        ]
+      },
+      {
+        "value": "#68485e",
+        "count": 31,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:70",
+          "src/pages/AgentCouncilPage.css:16",
+          "src/pages/AgentCouncilPage.css:100",
+          "src/pages/AgentCouncilPage.css:111"
+        ]
+      },
+      {
+        "value": "#7d5d70",
+        "count": 31,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:13",
+          "src/pages/AgentCouncilPage.css:26",
+          "src/pages/AgentCouncilPage.css:31",
+          "src/pages/AgentCouncilPage.css:45"
+        ]
+      },
+      {
+        "value": "#ffffff",
+        "count": 26,
+        "examples": [
+          "src/components/SessionsDrawer.css:93",
+          "src/components/SessionsDrawer.css:143",
+          "src/game/gameHud.css:570",
+          "src/pages/ArchivePage.css:107"
+        ]
+      },
+      {
+        "value": "#ffeef6",
+        "count": 22,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:14",
+          "src/pages/AgentCouncilPage.css:31",
+          "src/pages/AgentCouncilPage.css:131",
+          "src/pages/AgentFeedPage.css:80"
+        ]
+      },
+      {
+        "value": "#5c4152",
+        "count": 22,
+        "examples": [
+          "src/pages/KnowledgeLibraryPage.css:32",
+          "src/pages/KnowledgeLibraryPage.css:249",
+          "src/pages/KnowledgeLibraryPage.css:359",
+          "src/pages/NovelPage.css:9"
+        ]
+      },
+      {
+        "value": "#b27f98",
+        "count": 20,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:12",
+          "src/pages/AgentFeedPage.css:55",
+          "src/pages/AgentFeedPage.css:235",
+          "src/pages/AgentFeedPage.css:242"
+        ]
+      },
+      {
+        "value": "#ffe1ef",
+        "count": 18,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:14",
+          "src/pages/AgentCouncilPage.css:31",
+          "src/pages/AgentCouncilPage.css:131",
+          "src/pages/AgentFeedPage.css:80"
+        ]
+      },
+      {
+        "value": "#b13f4d",
+        "count": 17,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:19",
+          "src/pages/AgentCouncilPage.css:27",
+          "src/pages/AgentCouncilPage.css:55",
+          "src/pages/AgentCouncilPage.css:64"
+        ]
+      },
+      {
+        "value": "#4f3f4a",
+        "count": 16,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:12",
+          "src/pages/AgentFeedPage.css:424",
+          "src/pages/AgentFeedPage.css:655",
+          "src/pages/AgentFeedPage.css:737"
+        ]
+      },
+      {
+        "value": "#0f172a",
+        "count": 15,
+        "examples": [
+          "src/App.css:12",
+          "src/components/ConfirmDialog.css:47",
+          "src/components/ConfirmDialog.css:51",
+          "src/components/SessionsDrawer.css:111"
+        ]
+      },
+      {
+        "value": "#334155",
+        "count": 15,
+        "examples": [
+          "src/App.css:50",
+          "src/components/SessionsDrawer.css:105",
+          "src/components/SessionsDrawer.css:213",
+          "src/pages/ChatPage.css:908"
+        ]
+      },
+      {
+        "value": "#b91c1c",
+        "count": 14,
+        "examples": [
+          "src/game/gameHud.css:1020",
+          "src/pages/ChatPage.css:415",
+          "src/pages/ChatPage.css:503",
+          "src/pages/ChatPage.css:533"
+        ]
+      },
+      {
+        "value": "#ffcfe5",
+        "count": 14,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:23",
+          "src/pages/AgentCouncilPage.css:89",
+          "src/pages/AgentFeedPage.css:448",
+          "src/pages/AgentFeedPage.css:518"
+        ]
+      },
+      {
+        "value": "#8f7285",
+        "count": 13,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:20",
+          "src/pages/AgentFeedPage.css:543",
+          "src/pages/KnowledgeLibraryPage.css:210",
+          "src/pages/KnowledgeLibraryPage.css:332"
+        ]
+      },
+      {
+        "value": "#1f2937",
+        "count": 12,
+        "examples": [
+          "src/components/ConfirmDialog.css:42",
+          "src/pages/AgentCouncilPage.css:3",
+          "src/pages/AgentCouncilPage.css:30",
+          "src/pages/AgentCouncilPage.css:47"
+        ]
+      },
+      {
+        "value": "#fff7fb",
+        "count": 12,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:22",
+          "src/pages/AgentCouncilPage.css:130",
+          "src/pages/AuthPage.css:191",
+          "src/pages/ChatPage.css:282"
+        ]
+      },
+      {
+        "value": "#59354b",
+        "count": 12,
+        "examples": [
+          "src/pages/AgentFeedPage.css:449",
+          "src/pages/AgentFeedPage.css:520",
+          "src/pages/KnowledgeLibraryPage.css:156",
+          "src/pages/KnowledgeLibraryPage.css:449"
+        ]
+      },
+      {
+        "value": "#f29cc3",
+        "count": 11,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:23",
+          "src/pages/AgentCouncilPage.css:89",
+          "src/pages/AgentCouncilPage.css:131",
+          "src/pages/AgentFeedPage.css:220"
+        ]
+      },
+      {
+        "value": "#8c8c8c",
+        "count": 11,
+        "examples": [
+          "src/pages/AuthPage.css:89",
+          "src/pages/ExportPage.css:100",
+          "src/pages/ExportPage.css:124",
+          "src/pages/SettingsPage.css:86"
+        ]
+      },
+      {
+        "value": "#ffdeec",
+        "count": 10,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:23",
+          "src/pages/AgentCouncilPage.css:89",
+          "src/pages/AgentFeedPage.css:448",
+          "src/pages/HamsterConsolePage.css:462"
+        ]
+      },
+      {
+        "value": "#f5b3d2",
+        "count": 10,
+        "examples": [
+          "src/pages/AgentFeedPage.css:434",
+          "src/pages/ArchivePage.css:4",
+          "src/pages/HamsterConsolePage.css:417",
+          "src/pages/MemoPage.css:336"
+        ]
+      },
+      {
+        "value": "#f8bed9",
+        "count": 10,
+        "examples": [
+          "src/pages/AgentFeedPage.css:441",
+          "src/pages/AgentFeedPage.css:596",
+          "src/pages/KnowledgeLibraryPage.css:243",
+          "src/pages/MemoPage.css:143"
+        ]
+      },
+      {
+        "value": "#7a7078",
+        "count": 10,
+        "examples": [
+          "src/pages/ForumPage.css:12",
+          "src/pages/ForumPage.css:25",
+          "src/pages/ForumPage.css:35",
+          "src/pages/ForumPage.css:51"
+        ]
+      },
+      {
+        "value": "#5a5551",
+        "count": 8,
+        "examples": [
+          "src/components/SessionsDrawer.css:344",
+          "src/components/SessionsDrawer.css:351",
+          "src/components/SessionsDrawer.css:371",
+          "src/components/SessionsDrawer.css:402"
+        ]
+      },
+      {
+        "value": "#2f7a56",
+        "count": 8,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:18",
+          "src/pages/AgentCouncilPage.css:67",
+          "src/pages/ArchivePage.css:162",
+          "src/pages/ArchivePage.css:554"
+        ]
+      },
+      {
+        "value": "#fff5f9",
+        "count": 8,
+        "examples": [
+          "src/pages/AgentFeedPage.css:429",
+          "src/pages/AgentFeedPage.css:514",
+          "src/pages/AgentFeedPage.css:634",
+          "src/pages/TimelinePage.css:163"
+        ]
+      },
+      {
+        "value": "#a3a3a3",
+        "count": 8,
+        "examples": [
+          "src/pages/CheckinPage.css:39",
+          "src/pages/SnacksPage.css:256",
+          "src/pages/SnacksPage.css:277",
+          "src/pages/SnacksPage.css:286"
+        ]
+      },
+      {
+        "value": "#fff1f8",
+        "count": 8,
+        "examples": [
+          "src/pages/KnowledgeLibraryPage.css:117",
+          "src/pages/KnowledgeLibraryPage.css:280",
+          "src/pages/NovelPage.css:61",
+          "src/pages/RpRoomPage.css:334"
+        ]
+      },
+      {
+        "value": "#6b7280",
+        "count": 7,
+        "examples": [
+          "src/components/ReasoningPanel.css:8",
+          "src/components/ReasoningPanel.css:41",
+          "src/pages/ArchivePage.css:548",
+          "src/pages/HamsterConsolePage.css:108"
+        ]
+      },
+      {
+        "value": "#efc2bc",
+        "count": 7,
+        "examples": [
+          "src/components/SessionsDrawer.css:350",
+          "src/components/SessionsDrawer.css:396",
+          "src/game/gameHud.css:27",
+          "src/pages/ChatPage.css:1006"
+        ]
+      },
+      {
+        "value": "#f8fafc",
+        "count": 7,
+        "examples": [
+          "src/index.css:54",
+          "src/index.css:70",
+          "src/index.css:117",
+          "src/index.css:123"
+        ]
+      },
+      {
+        "value": "#76556c",
+        "count": 7,
+        "examples": [
+          "src/pages/AgentFeedPage.css:253",
+          "src/pages/AgentFeedPage.css:300",
+          "src/pages/AgentFeedPage.css:562",
+          "src/pages/MemoPage.css:108"
+        ]
+      },
+      {
+        "value": "#e4dbe8",
+        "count": 7,
+        "examples": [
+          "src/pages/NovelPage.css:8",
+          "src/pages/NovelPage.css:19",
+          "src/pages/NovelPage.css:42",
+          "src/pages/NovelPage.css:44"
+        ]
+      },
+      {
+        "value": "#c8b8aa",
+        "count": 6,
+        "examples": [
+          "src/game/gameHud.css:3",
+          "src/game/gameHud.css:393",
+          "src/game/gameHud.css:595",
+          "src/game/gameHud.css:756"
+        ]
+      },
+      {
+        "value": "#8a6b7d",
+        "count": 6,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:33",
+          "src/pages/AgentCouncilPage.css:46",
+          "src/pages/AgentCouncilPage.css:65",
+          "src/pages/AgentCouncilPage.css:88"
+        ]
+      },
+      {
+        "value": "#6b4fa3",
+        "count": 6,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:40",
+          "src/pages/AgentCouncilPage.css:66",
+          "src/pages/AgentCouncilPage.css:76",
+          "src/pages/AgentCouncilPage.css:81"
+        ]
+      },
+      {
+        "value": "#fff3f8",
+        "count": 6,
+        "examples": [
+          "src/pages/AgentFeedPage.css:442",
+          "src/pages/AgentFeedPage.css:696",
+          "src/pages/ArchivePage.css:7",
+          "src/pages/TimelinePage.css:176"
+        ]
+      },
+      {
+        "value": "#9a4b72",
+        "count": 6,
+        "examples": [
+          "src/pages/AgentFeedPage.css:464",
+          "src/pages/MemoPage.css:196",
+          "src/pages/MemoPage.css:233",
+          "src/pages/TimelinePage.css:198"
+        ]
+      },
+      {
+        "value": "#ffdcec",
+        "count": 6,
+        "examples": [
+          "src/pages/AgentFeedPage.css:518",
+          "src/pages/AgentFeedPage.css:777",
+          "src/pages/LoungePage.css:328",
+          "src/pages/MemoPage.css:372"
+        ]
+      },
+      {
+        "value": "#9ca3af",
+        "count": 6,
+        "examples": [
+          "src/pages/ChatPage.css:270",
+          "src/pages/SnacksPage.css:423",
+          "src/pages/StoryGroupPage.css:134",
+          "src/pages/StoryGroupPage.css:203"
+        ]
+      },
+      {
+        "value": "#64748b",
+        "count": 6,
+        "examples": [
+          "src/pages/ChatPage.css:877",
+          "src/pages/ChatPage.css:930",
+          "src/pages/HomePage.css:308",
+          "src/pages/RpRoomPage.css:347"
+        ]
+      },
+      {
+        "value": "#6d4e63",
+        "count": 6,
+        "examples": [
+          "src/pages/KnowledgeLibraryPage.css:190",
+          "src/pages/KnowledgeLibraryPage.css:256",
+          "src/pages/KnowledgeLibraryPage.css:310",
+          "src/pages/KnowledgeLibraryPage.css:364"
+        ]
+      }
+    ],
+    "colors_alpha_countGte6": [
+      {
+        "value": "rgba(255, 214, 231, 0.85)",
+        "count": 24,
+        "examples": [
+          "src/pages/AgentFeedPage.css:37",
+          "src/pages/AgentFeedPage.css:504",
+          "src/pages/AgentFeedPage.css:635",
+          "src/pages/ArchivePage.css:5"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.88)",
+        "count": 24,
+        "examples": [
+          "src/pages/AgentFeedPage.css:354",
+          "src/pages/AgentFeedPage.css:530",
+          "src/pages/HamsterConsolePage.css:120",
+          "src/pages/KnowledgeLibraryPage.css:14"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.9)",
+        "count": 16,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:9",
+          "src/components/SyzygyFeedEntryCard.css:57",
+          "src/pages/AgentFeedPage.css:88",
+          "src/pages/AgentFeedPage.css:190"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.35)",
+        "count": 14,
+        "examples": [
+          "src/pages/AgentFeedPage.css:435",
+          "src/pages/AgentFeedPage.css:455",
+          "src/pages/CheckinPage.css:80",
+          "src/pages/HamsterConsolePage.css:25"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.9)",
+        "count": 13,
+        "examples": [
+          "src/pages/AgentFeedPage.css:39",
+          "src/pages/ArchivePage.css:67",
+          "src/pages/AuthPage.css:31",
+          "src/pages/ChatPage.css:102"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.8)",
+        "count": 12,
+        "examples": [
+          "src/pages/AgentFeedPage.css:181",
+          "src/pages/AgentFeedPage.css:430",
+          "src/pages/AgentFeedPage.css:587",
+          "src/pages/AgentFeedPage.css:698"
+        ]
+      },
+      {
+        "value": "rgba(134, 130, 125, 0.14)",
+        "count": 11,
+        "examples": [
+          "src/components/SessionsDrawer.css:323",
+          "src/game/gameHud.css:226",
+          "src/game/gameHud.css:256",
+          "src/game/gameHud.css:454"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.24)",
+        "count": 11,
+        "examples": [
+          "src/pages/AgentFeedPage.css:40",
+          "src/pages/HamsterConsolePage.css:39",
+          "src/pages/HomePage.css:453",
+          "src/pages/KnowledgeLibraryPage.css:16"
+        ]
+      },
+      {
+        "value": "rgba(255, 239, 246, 0.82)",
+        "count": 10,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:7",
+          "src/pages/AgentFeedPage.css:24",
+          "src/pages/ArchivePage.css:12",
+          "src/pages/HamsterConsolePage.css:26"
+        ]
+      },
+      {
+        "value": "rgba(255, 252, 254, 0.96)",
+        "count": 10,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:8",
+          "src/pages/AgentFeedPage.css:25",
+          "src/pages/HamsterConsolePage.css:27",
+          "src/pages/KnowledgeLibraryPage.css:6"
+        ]
+      },
+      {
+        "value": "rgba(253, 245, 249, 0.96)",
+        "count": 10,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:8",
+          "src/pages/AgentFeedPage.css:25",
+          "src/pages/ArchivePage.css:13",
+          "src/pages/HamsterConsolePage.css:27"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.2)",
+        "count": 10,
+        "examples": [
+          "src/pages/AgentFeedPage.css:358",
+          "src/pages/HamsterConsolePage.css:123",
+          "src/pages/HamsterConsolePage.css:880",
+          "src/pages/LoungePage.css:461"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.95)",
+        "count": 10,
+        "examples": [
+          "src/pages/AgentFeedPage.css:390",
+          "src/pages/AgentFeedPage.css:423",
+          "src/pages/ChatPage.css:998",
+          "src/pages/KnowledgeLibraryPage.css:504"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.92)",
+        "count": 10,
+        "examples": [
+          "src/pages/AgentFeedPage.css:505",
+          "src/pages/ChatPage.css:726",
+          "src/pages/CheckinPage.css:262",
+          "src/pages/HomePage.css:572"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.18)",
+        "count": 10,
+        "examples": [
+          "src/pages/HomePage.css:180",
+          "src/pages/KnowledgeLibraryPage.css:239",
+          "src/pages/LoungePage.css:115",
+          "src/pages/LoungePage.css:317"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.34)",
+        "count": 9,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:6",
+          "src/pages/AgentFeedPage.css:23",
+          "src/pages/ArchivePage.css:11",
+          "src/pages/KnowledgeLibraryPage.css:4"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.72)",
+        "count": 8,
+        "examples": [
+          "src/components/SessionsDrawer.css:24",
+          "src/game/gameHud.css:1505",
+          "src/pages/AuthPage.css:60",
+          "src/pages/ChatPage.css:988"
+        ]
+      },
+      {
+        "value": "rgba(134, 130, 125, 0.4)",
+        "count": 8,
+        "examples": [
+          "src/components/SessionsDrawer.css:358",
+          "src/game/gameHud.css:696",
+          "src/game/gameHud.css:1066",
+          "src/pages/ChatPage.css:1039"
+        ]
+      },
+      {
+        "value": "rgba(134, 130, 125, 0.12)",
+        "count": 8,
+        "examples": [
+          "src/components/SessionsDrawer.css:370",
+          "src/components/SessionsDrawer.css:441",
+          "src/game/gameHud.css:25",
+          "src/game/gameHud.css:791"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.35)",
+        "count": 8,
+        "examples": [
+          "src/game/gameHud.css:516",
+          "src/pages/ChatPage.css:577",
+          "src/pages/ChatPage.css:674",
+          "src/pages/HomePage.css:99"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.8)",
+        "count": 8,
+        "examples": [
+          "src/game/gameHud.css:1089",
+          "src/pages/ExportPage.css:33",
+          "src/pages/ExportPage.css:74",
+          "src/pages/HomePage.css:297"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.65)",
+        "count": 8,
+        "examples": [
+          "src/pages/AgentFeedPage.css:547",
+          "src/pages/AuthPage.css:24",
+          "src/pages/AuthPage.css:25",
+          "src/pages/AuthPage.css:27"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.82)",
+        "count": 7,
+        "examples": [
+          "src/App.css:48",
+          "src/game/gameHud.css:225",
+          "src/game/gameHud.css:961",
+          "src/game/gameHud.css:1145"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.16)",
+        "count": 7,
+        "examples": [
+          "src/pages/AgentFeedPage.css:534",
+          "src/pages/AgentFeedPage.css:590",
+          "src/pages/HamsterConsolePage.css:573",
+          "src/pages/LoungePage.css:155"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.6)",
+        "count": 7,
+        "examples": [
+          "src/pages/ArchivePage.css:176",
+          "src/pages/ArchivePage.css:251",
+          "src/pages/ChatPage.css:629",
+          "src/pages/CheckinPage.css:174"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.85)",
+        "count": 6,
+        "examples": [
+          "src/components/SessionsDrawer.css:110",
+          "src/game/gameHud.css:190",
+          "src/game/gameHud.css:276",
+          "src/pages/AgentFeedPage.css:478"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.55)",
+        "count": 6,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:34",
+          "src/pages/CheckinPage.css:155",
+          "src/pages/MemoryVaultPage.css:248",
+          "src/pages/RpRoomsPage.css:374"
+        ]
+      },
+      {
+        "value": "rgba(134, 130, 125, 0.18)",
+        "count": 6,
+        "examples": [
+          "src/game/gameHud.css:149",
+          "src/game/gameHud.css:311",
+          "src/game/gameHud.css:326",
+          "src/game/gameHud.css:383"
+        ]
+      },
+      {
+        "value": "rgba(134, 130, 125, 0.16)",
+        "count": 6,
+        "examples": [
+          "src/game/gameHud.css:191",
+          "src/game/gameHud.css:277",
+          "src/game/gameHud.css:394",
+          "src/game/gameHud.css:596"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.5)",
+        "count": 6,
+        "examples": [
+          "src/pages/AgentFeedPage.css:104",
+          "src/pages/AgentFeedPage.css:206",
+          "src/pages/AgentFeedPage.css:419",
+          "src/pages/HomePage.css:392"
+        ]
+      },
+      {
+        "value": "rgba(255, 181, 192, 0.7)",
+        "count": 6,
+        "examples": [
+          "src/pages/AgentFeedPage.css:174",
+          "src/pages/ArchivePage.css:168",
+          "src/pages/HamsterConsolePage.css:99",
+          "src/pages/MemoPage.css:274"
+        ]
+      },
+      {
+        "value": "rgba(255, 214, 231, 0.78)",
+        "count": 6,
+        "examples": [
+          "src/pages/CheckinPage.css:267",
+          "src/pages/HamsterConsolePage.css:570",
+          "src/pages/HamsterConsolePage.css:949",
+          "src/pages/HomePage.css:177"
+        ]
+      },
+      {
+        "value": "rgba(255, 255, 255, 0.86)",
+        "count": 6,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:493",
+          "src/pages/KnowledgeLibraryPage.css:480",
+          "src/pages/LettersPage.css:82",
+          "src/pages/LettersPage.css:324"
+        ]
+      }
+    ],
+    "gradients_countGte3": [
+      {
+        "value": "linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%)",
+        "count": 33,
+        "examples": [
+          "src/components/SessionsDrawer.css:366",
+          "src/components/SessionsDrawer.css:388",
+          "src/components/SessionsDrawer.css:420",
+          "src/game/gameHud.css:26"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, #ffeef6 0%, #ffe1ef 100%)",
+        "count": 15,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:14",
+          "src/pages/AgentFeedPage.css:80",
+          "src/pages/HamsterConsolePage.css:416",
+          "src/pages/KnowledgeLibraryPage.css:110"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, #fffbf5 0%, #f6d7d4 100%)",
+        "count": 10,
+        "examples": [
+          "src/components/SessionsDrawer.css:290",
+          "src/game/gameHud.css:66",
+          "src/game/gameHud.css:98",
+          "src/game/gameHud.css:126"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, rgba(255, 252, 254, 0.96) 0%, rgba(253, 245, 249, 0.96) 100%)",
+        "count": 9,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:8",
+          "src/pages/AgentFeedPage.css:25",
+          "src/pages/HamsterConsolePage.css:27",
+          "src/pages/KnowledgeLibraryPage.css:6"
+        ]
+      },
+      {
+        "value": "linear-gradient(",
+        "count": 8,
+        "examples": [
+          "src/components/SessionsDrawer.css:275",
+          "src/game/gameHud.css:282",
+          "src/game/gameHud.css:336",
+          "src/pages/MemoPage.css:324"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, #fdf4e8 0%, #f6d7d4 100%)",
+        "count": 7,
+        "examples": [
+          "src/components/SessionsDrawer.css:343",
+          "src/game/gameHud.css:230",
+          "src/game/gameHud.css:693",
+          "src/game/gameHud.css:838"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, #f6d7d4 0%, #efc2bc 100%)",
+        "count": 7,
+        "examples": [
+          "src/components/SessionsDrawer.css:350",
+          "src/components/SessionsDrawer.css:396",
+          "src/game/gameHud.css:27",
+          "src/pages/ChatPage.css:1006"
+        ]
+      },
+      {
+        "value": "radial-gradient(circle at 10% 0%, rgba(255, 214, 231, 0.34), transparent 42%),",
+        "count": 7,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:6",
+          "src/pages/AgentFeedPage.css:23",
+          "src/pages/KnowledgeLibraryPage.css:4",
+          "src/pages/LoungePage.css:22"
+        ]
+      },
+      {
+        "value": "radial-gradient(circle at 90% 0%, rgba(255, 239, 246, 0.82), transparent 52%),",
+        "count": 7,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:7",
+          "src/pages/AgentFeedPage.css:24",
+          "src/pages/KnowledgeLibraryPage.css:5",
+          "src/pages/LoungePage.css:23"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, #ffdeec 0%, #ffcfe5 100%)",
+        "count": 7,
+        "examples": [
+          "src/pages/AgentFeedPage.css:448",
+          "src/pages/KnowledgeLibraryPage.css:155",
+          "src/pages/KnowledgeLibraryPage.css:447",
+          "src/pages/MemoPage.css:141"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, #ffdcec 0%, #ffcfe5 100%)",
+        "count": 5,
+        "examples": [
+          "src/pages/AgentFeedPage.css:518",
+          "src/pages/AgentFeedPage.css:777",
+          "src/pages/MemoPage.css:372",
+          "src/pages/TimelinePage.css:503"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, #f6d7d4 0%, #d98a7c 100%)",
+        "count": 4,
+        "examples": [
+          "src/components/SessionsDrawer.css:425",
+          "src/components/SessionsDrawer.css:436",
+          "src/game/gameHud.css:825",
+          "src/game/gameHud.css:1171"
+        ]
+      },
+      {
+        "value": "radial-gradient(circle at 1px 1px, rgba(255, 214, 231, 0.62) 1.2px, transparent 1.2px)",
+        "count": 4,
+        "examples": [
+          "src/pages/AgentFeedPage.css:366",
+          "src/pages/MemoPage.css:89",
+          "src/pages/TimelinePage.css:101",
+          "src/pages/WikiPage.css:79"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, #ffffff 0%, var(--arc-tile) 100%)",
+        "count": 4,
+        "examples": [
+          "src/pages/ArchivePage.css:107",
+          "src/pages/ArchivePage.css:145",
+          "src/pages/ArchivePage.css:225",
+          "src/pages/ArchivePage.css:680"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, rgba(255, 251, 245, 0.98) 0%, rgba(253, 244, 232, 0.98) 100%)",
+        "count": 3,
+        "examples": [
+          "src/components/SessionsDrawer.css:257",
+          "src/game/gameHud.css:1042",
+          "src/pages/ChatPage.css:1166"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg,#ffeef6 0%,#ffe1ef 100%)",
+        "count": 3,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:31",
+          "src/pages/AgentCouncilPage.css:131",
+          "src/pages/NovelPage.css:13"
+        ]
+      },
+      {
+        "value": "linear-gradient(180deg, #ffeef6 0%, #ffd9ea 100%)",
+        "count": 3,
+        "examples": [
+          "src/pages/RpRoomPage.css:300",
+          "src/pages/RpRoomsPage.css:217",
+          "src/pages/RpRoomsPage.css:468"
+        ]
+      }
+    ],
+    "borderRadius_all": [
+      {
+        "value": "999px",
+        "count": 147,
+        "examples": [
+          "src/App.css:46",
+          "src/components/ConfirmDialog.css:57",
+          "src/components/SessionsDrawer.css:95",
+          "src/components/SessionsDrawer.css:102"
+        ]
+      },
+      {
+        "value": "12px",
+        "count": 79,
+        "examples": [
+          "src/components/SessionsDrawer.css:120",
+          "src/components/SessionsDrawer.css:288",
+          "src/components/SessionsDrawer.css:386",
+          "src/pages/AgentCouncilPage.css:17"
+        ]
+      },
+      {
+        "value": "10px",
+        "count": 48,
+        "examples": [
+          "src/components/SessionsDrawer.css:364",
+          "src/game/gameHud.css:692",
+          "src/game/gameHud.css:1326",
+          "src/game/gameHud.css:1404"
+        ]
+      },
+      {
+        "value": "14px",
+        "count": 39,
+        "examples": [
+          "src/components/SessionsDrawer.css:144",
+          "src/components/SyzygyFeedEntryCard.css:111",
+          "src/game/gameHud.css:86",
+          "src/game/gameHud.css:591"
+        ]
+      },
+      {
+        "value": "18px",
+        "count": 38,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:10",
+          "src/pages/AgentCouncilPage.css:15",
+          "src/pages/AgentFeedPage.css:38",
+          "src/pages/AgentFeedPage.css:355"
+        ]
+      },
+      {
+        "value": "16px",
+        "count": 35,
+        "examples": [
+          "src/components/ConfirmDialog.css:14",
+          "src/components/SyzygyFeedEntryCard.css:54",
+          "src/game/gameHud.css:1317",
+          "src/pages/AgentFeedPage.css:589"
+        ]
+      },
+      {
+        "value": "24px",
+        "count": 17,
+        "examples": [
+          "src/game/gameHud.css:65",
+          "src/pages/AgentCouncilPage.css:5",
+          "src/pages/AgentFeedPage.css:21",
+          "src/pages/ArchivePage.css:48"
+        ]
+      },
+      {
+        "value": "20px",
+        "count": 17,
+        "examples": [
+          "src/game/gameHud.css:1185",
+          "src/pages/AgentFeedPage.css:89",
+          "src/pages/AgentFeedPage.css:191",
+          "src/pages/ArchivePage.css:589"
+        ]
+      },
+      {
+        "value": "8px",
+        "count": 15,
+        "examples": [
+          "src/components/ReasoningPanel.css:39",
+          "src/game/gameHud.css:1336",
+          "src/pages/ArchivePage.css:318",
+          "src/pages/ChatPage.css:118"
+        ]
+      },
+      {
+        "value": "var(--game-pixel-radius-md)",
+        "count": 14,
+        "examples": [
+          "src/game/gameHud.css:125",
+          "src/game/gameHud.css:141",
+          "src/game/gameHud.css:317",
+          "src/game/gameHud.css:378"
+        ]
+      },
+      {
+        "value": "0",
+        "count": 11,
+        "examples": [
+          "src/game/gameHud.css:1700",
+          "src/pages/ForumPage.css:47",
+          "src/pages/ForumPage.css:114",
+          "src/pages/ForumPage.css:486"
+        ]
+      },
+      {
+        "value": "9px",
+        "count": 8,
+        "examples": [
+          "src/components/SessionsDrawer.css:319",
+          "src/game/gameHud.css:252",
+          "src/game/gameHud.css:978",
+          "src/game/gameHud.css:1062"
+        ]
+      },
+      {
+        "value": "50%",
+        "count": 8,
+        "examples": [
+          "src/game/gameHud.css:1623",
+          "src/pages/HamsterConsolePage.css:188",
+          "src/pages/HomePage.css:433",
+          "src/pages/LoungePage.css:403"
+        ]
+      },
+      {
+        "value": "var(--game-pixel-radius-sm)",
+        "count": 6,
+        "examples": [
+          "src/game/gameHud.css:389",
+          "src/game/gameHud.css:527",
+          "src/game/gameHud.css:752",
+          "src/game/gameHud.css:785"
+        ]
+      },
+      {
+        "value": "inherit",
+        "count": 5,
+        "examples": [
+          "src/components/SessionsDrawer.css:338",
+          "src/game/gameHud.css:517",
+          "src/pages/ChatPage.css:1053",
+          "src/pages/HomePage.css:62"
+        ]
+      },
+      {
+        "value": "6px",
+        "count": 5,
+        "examples": [
+          "src/game/gameHud.css:956",
+          "src/pages/AgentCouncilPage.css:74",
+          "src/pages/AgentCouncilPage.css:114",
+          "src/pages/ChatPage.css:237"
+        ]
+      },
+      {
+        "value": "22px",
+        "count": 4,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:10",
+          "src/pages/HomePage.css:599",
+          "src/pages/KnowledgeLibraryPage.css:462",
+          "src/pages/RpRoomPage.css:459"
+        ]
+      },
+      {
+        "value": "9999px",
+        "count": 3,
+        "examples": [
+          "src/index.css:39",
+          "src/pages/AuthPage.css:44",
+          "src/pages/CheckinPage.css:40"
+        ]
+      },
+      {
+        "value": "3px",
+        "count": 2,
+        "examples": [
+          "src/components/ReasoningPanel.css:59",
+          "src/pages/MemoryVaultPage.css:169"
+        ]
+      },
+      {
+        "value": "4px",
+        "count": 2,
+        "examples": [
+          "src/game/gameHud.css:186",
+          "src/pages/SnacksPage.css:240"
+        ]
+      },
+      {
+        "value": "7px",
+        "count": 2,
+        "examples": [
+          "src/game/gameHud.css:217",
+          "src/game/gameHud.css:1375"
+        ]
+      },
+      {
+        "value": "15px",
+        "count": 2,
+        "examples": [
+          "src/pages/AuthPage.css:108",
+          "src/pages/AuthPage.css:142"
+        ]
+      },
+      {
+        "value": "var(--radius-card)",
+        "count": 2,
+        "examples": [
+          "src/pages/RpRoomPage.css:121",
+          "src/styles/ui.css:47"
+        ]
+      },
+      {
+        "value": "calc(var(--game-pixel-radius-md) - 2px)",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:111"
+        ]
+      },
+      {
+        "value": "5px",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:272"
+        ]
+      },
+      {
+        "value": "var(--game-pixel-radius-lg)",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:304"
+        ]
+      },
+      {
+        "value": "11px",
+        "count": 1,
+        "examples": [
+          "src/game/gameHud.css:1814"
+        ]
+      },
+      {
+        "value": "0 8px 8px 0",
+        "count": 1,
+        "examples": [
+          "src/pages/AgentCouncilPage.css:117"
+        ]
+      },
+      {
+        "value": "28px",
+        "count": 1,
+        "examples": [
+          "src/pages/AuthPage.css:16"
+        ]
+      },
+      {
+        "value": "0.45rem",
+        "count": 1,
+        "examples": [
+          "src/pages/ForumPage.css:653"
+        ]
+      },
+      {
+        "value": "36px",
+        "count": 1,
+        "examples": [
+          "src/pages/HomePage.css:51"
+        ]
+      },
+      {
+        "value": "26px",
+        "count": 1,
+        "examples": [
+          "src/pages/LettersPage.css:120"
+        ]
+      },
+      {
+        "value": "0 4px 4px 0",
+        "count": 1,
+        "examples": [
+          "src/pages/RpRoomsPage.css:100"
+        ]
+      },
+      {
+        "value": "16px 16px 12px 12px",
+        "count": 1,
+        "examples": [
+          "src/pages/SnacksPage.css:65"
+        ]
+      },
+      {
+        "value": "8px !important",
+        "count": 1,
+        "examples": [
+          "src/pages/StoryGroupPage.css:240"
+        ]
+      },
+      {
+        "value": "calc(var(--radius-card) + 4px)",
+        "count": 1,
+        "examples": [
+          "src/styles/ui.css:52"
+        ]
+      },
+      {
+        "value": "var(--radius-btn)",
+        "count": 1,
+        "examples": [
+          "src/styles/ui.css:60"
+        ]
+      },
+      {
+        "value": "var(--radius-tile)",
+        "count": 1,
+        "examples": [
+          "src/styles/ui.css:100"
+        ]
+      }
+    ],
+    "shadows_countGte2": [
+      {
+        "value": "var(--shadow-soft)",
+        "count": 7,
+        "examples": [
+          "src/components/SessionsDrawer.css:35",
+          "src/pages/ChatPage.css:105",
+          "src/pages/ChatPage.css:472",
+          "src/pages/ChatPage.css:727"
+        ]
+      },
+      {
+        "value": "0 8px 18px rgba(255, 214, 231, 0.24)",
+        "count": 7,
+        "examples": [
+          "src/pages/AgentFeedPage.css:40",
+          "src/pages/HamsterConsolePage.css:39",
+          "src/pages/KnowledgeLibraryPage.css:16",
+          "src/pages/LoungePage.css:39"
+        ]
+      },
+      {
+        "value": "0 0 0 2px rgba(255, 214, 231, 0.35)",
+        "count": 5,
+        "examples": [
+          "src/pages/AgentFeedPage.css:435",
+          "src/pages/MemoPage.css:337",
+          "src/pages/TimelinePage.css:169",
+          "src/pages/TimelinePage.css:477"
+        ]
+      },
+      {
+        "value": "0 10px 20px rgba(255, 214, 231, 0.2)",
+        "count": 4,
+        "examples": [
+          "src/pages/AgentFeedPage.css:358",
+          "src/pages/HamsterConsolePage.css:123",
+          "src/pages/MemoPage.css:80",
+          "src/pages/TimelinePage.css:93"
+        ]
+      },
+      {
+        "value": "0 3px 7px rgba(255, 185, 216, 0.38)",
+        "count": 4,
+        "examples": [
+          "src/pages/KnowledgeLibraryPage.css:157",
+          "src/pages/MemoPage.css:144",
+          "src/pages/RpRoomsPage.css:282",
+          "src/pages/WikiPage.css:111"
+        ]
+      },
+      {
+        "value": "0 0 0 3px rgba(255, 214, 231, 0.4)",
+        "count": 3,
+        "examples": [
+          "src/pages/AgentFeedPage.css:329",
+          "src/pages/RpRoomPage.css:288",
+          "src/pages/RpRoomsPage.css:211"
+        ]
+      },
+      {
+        "value": "0 0 0 2px var(--arc-soft-faint)",
+        "count": 3,
+        "examples": [
+          "src/pages/ArchivePage.css:353",
+          "src/pages/ArchivePage.css:640",
+          "src/pages/ArchivePage.css:705"
+        ]
+      },
+      {
+        "value": "0 6px 14px rgba(255,214,231,.14)",
+        "count": 3,
+        "examples": [
+          "src/pages/NovelPage.css:34",
+          "src/pages/NovelPage.css:55",
+          "src/pages/NovelPage.css:87"
+        ]
+      },
+      {
+        "value": "0 6px 14px rgba(249, 168, 212, 0.34)",
+        "count": 2,
+        "examples": [
+          "src/components/SessionsDrawer.css:205",
+          "src/styles/ui.css:72"
+        ]
+      },
+      {
+        "value": "inset 0 0 0 1px #fffdf9",
+        "count": 2,
+        "examples": [
+          "src/game/gameHud.css:1689",
+          "src/game/gameHud.css:1750"
+        ]
+      },
+      {
+        "value": "0 4px 10px rgba(255, 185, 216, 0.45)",
+        "count": 2,
+        "examples": [
+          "src/pages/AgentFeedPage.css:450",
+          "src/pages/TimelinePage.css:184"
+        ]
+      },
+      {
+        "value": "0 0 0 2px rgba(255, 214, 231, 0.35), 0 4px 10px rgba(255, 185, 216, 0.45)",
+        "count": 2,
+        "examples": [
+          "src/pages/AgentFeedPage.css:455",
+          "src/pages/TimelinePage.css:189"
+        ]
+      },
+      {
+        "value": "0 10px 20px rgba(255, 214, 231, 0.16)",
+        "count": 2,
+        "examples": [
+          "src/pages/AgentFeedPage.css:534",
+          "src/pages/TimelinePage.css:257"
+        ]
+      },
+      {
+        "value": "0 2px 8px rgba(255, 214, 231, 0.16)",
+        "count": 2,
+        "examples": [
+          "src/pages/AgentFeedPage.css:590",
+          "src/pages/TimelinePage.css:297"
+        ]
+      },
+      {
+        "value": "0 8px 24px rgba(15, 23, 42, 0.08)",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:173",
+          "src/pages/HomePage.css:55"
+        ]
+      },
+      {
+        "value": "0 0 0 3px rgba(249, 168, 212, 0.2)",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:297",
+          "src/pages/SnacksPage.css:450"
+        ]
+      },
+      {
+        "value": "0 0 0 3px rgba(249, 168, 212, 0.16)",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:319",
+          "src/pages/SnacksPage.css:472"
+        ]
+      },
+      {
+        "value": "0 0 0 6px rgba(249, 168, 212, 0.28)",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:323",
+          "src/pages/SnacksPage.css:476"
+        ]
+      },
+      {
+        "value": "0 10px 18px rgba(255, 182, 214, 0.45)",
+        "count": 2,
+        "examples": [
+          "src/pages/CheckinPage.css:143",
+          "src/pages/CheckinPage.css:294"
+        ]
+      },
+      {
+        "value": "2px 2px 0 0 #f2d6e4",
+        "count": 2,
+        "examples": [
+          "src/pages/ForumPage.css:296",
+          "src/pages/ForumPage.css:838"
+        ]
+      },
+      {
+        "value": "0 0 0 0 #5c5c5c",
+        "count": 2,
+        "examples": [
+          "src/pages/ForumPage.css:766",
+          "src/pages/ForumPage.css:772"
+        ]
+      },
+      {
+        "value": "0 8px 18px rgba(255, 214, 231, 0.2)",
+        "count": 2,
+        "examples": [
+          "src/pages/HamsterConsolePage.css:880",
+          "src/pages/LoungePage.css:461"
+        ]
+      },
+      {
+        "value": "0 8px 14px rgba(255, 214, 231, 0.18)",
+        "count": 2,
+        "examples": [
+          "src/pages/KnowledgeLibraryPage.css:239",
+          "src/pages/MemoPage.css:166"
+        ]
+      },
+      {
+        "value": "0 8px 18px rgba(255, 185, 216, 0.2)",
+        "count": 2,
+        "examples": [
+          "src/pages/KnowledgeLibraryPage.css:484",
+          "src/pages/RpRoomsPage.css:337"
+        ]
+      },
+      {
+        "value": "0 10px 22px rgba(255, 214, 231, 0.2)",
+        "count": 2,
+        "examples": [
+          "src/pages/RpRoomPage.css:220",
+          "src/pages/RpRoomsPage.css:158"
+        ]
+      },
+      {
+        "value": "0 6px 14px rgba(255, 185, 216, 0.4)",
+        "count": 2,
+        "examples": [
+          "src/pages/RpRoomPage.css:307",
+          "src/pages/RpRoomsPage.css:222"
+        ]
+      },
+      {
+        "value": "0 8px 18px rgba(255, 185, 216, 0.55)",
+        "count": 2,
+        "examples": [
+          "src/pages/RpRoomPage.css:313",
+          "src/pages/RpRoomsPage.css:227"
+        ]
+      },
+      {
+        "value": "0 5px 14px rgba(255, 214, 231, 0.18)",
+        "count": 2,
+        "examples": [
+          "src/pages/TodoPage.css:118",
+          "src/pages/TodoPage.css:432"
+        ]
+      },
+      {
+        "value": "0 6px 18px rgba(0, 0, 0, 0.06)",
+        "count": 2,
+        "examples": [
+          "src/styles/ui.css:121",
+          "src/styles/ui.css:143"
+        ]
+      }
+    ],
+    "backdropBlurs": [
+      {
+        "value": "var(--blur",
+        "count": 6,
+        "examples": [
+          "src/components/SessionsDrawer.css:36",
+          "src/components/SessionsDrawer.css:37",
+          "src/pages/RpRoomPage.css:125",
+          "src/pages/RpRoomPage.css:126"
+        ]
+      },
+      {
+        "value": "12px",
+        "count": 6,
+        "examples": [
+          "src/pages/AuthPage.css:33",
+          "src/pages/AuthPage.css:34",
+          "src/pages/ChatPage.css:728",
+          "src/pages/MemoryVaultPage.css:37"
+        ]
+      },
+      {
+        "value": "10px",
+        "count": 4,
+        "examples": [
+          "src/pages/MemoryVaultPage.css:197",
+          "src/pages/RpRoomsPage.css:338",
+          "src/pages/RpRoomsPage.css:339",
+          "src/pages/StoryGroupPage.css:25"
+        ]
+      },
+      {
+        "value": "8px",
+        "count": 3,
+        "examples": [
+          "src/pages/ExportPage.css:34",
+          "src/pages/ExportPage.css:35",
+          "src/pages/StoryGroupPage.css:51"
+        ]
+      },
+      {
+        "value": "1px",
+        "count": 3,
+        "examples": [
+          "src/pages/NovelPage.css:27",
+          "src/styles/ui.css:171",
+          "src/styles/ui.css:171"
+        ]
+      },
+      {
+        "value": "14px",
+        "count": 2,
+        "examples": [
+          "src/App.css:53",
+          "src/pages/LettersPage.css:20"
+        ]
+      },
+      {
+        "value": "4px",
+        "count": 2,
+        "examples": [
+          "src/components/SessionsDrawer.css:5",
+          "src/components/SessionsDrawer.css:6"
+        ]
+      },
+      {
+        "value": "2px",
+        "count": 2,
+        "examples": [
+          "src/components/SessionsDrawer.css:252",
+          "src/components/SessionsDrawer.css:253"
+        ]
+      },
+      {
+        "value": "6px",
+        "count": 2,
+        "examples": [
+          "src/pages/CheckinPage.css:47",
+          "src/pages/CheckinPage.css:48"
+        ]
+      },
+      {
+        "value": "0.2px",
+        "count": 1,
+        "examples": [
+          "src/components/SessionsDrawer.css:50"
+        ]
+      },
+      {
+        "value": "20px",
+        "count": 1,
+        "examples": [
+          "src/pages/HomePage.css:182"
+        ]
+      },
+      {
+        "value": "18px",
+        "count": 1,
+        "examples": [
+          "src/pages/KnowledgeLibraryPage.css:68"
+        ]
+      }
+    ],
+    "gaps_countGte8": [
+      {
+        "value": "8px",
+        "count": 125,
+        "examples": [
+          "src/components/ConfirmDialog.css:37",
+          "src/components/SessionsDrawer.css:186",
+          "src/components/SessionsDrawer.css:193",
+          "src/components/SessionsDrawer.css:306"
+        ]
+      },
+      {
+        "value": "10px",
+        "count": 74,
+        "examples": [
+          "src/App.css:42",
+          "src/components/SessionsDrawer.css:76",
+          "src/components/SessionsDrawer.css:138",
+          "src/components/SessionsDrawer.css:149"
+        ]
+      },
+      {
+        "value": "6px",
+        "count": 68,
+        "examples": [
+          "src/components/ReasoningPanel.css:14",
+          "src/components/SessionsDrawer.css:92",
+          "src/game/gameHud.css:145",
+          "src/game/gameHud.css:173"
+        ]
+      },
+      {
+        "value": "12px",
+        "count": 47,
+        "examples": [
+          "src/components/SessionsDrawer.css:58",
+          "src/components/SyzygyFeedEntryCard.css:6",
+          "src/components/SyzygyFeedEntryCard.css:44",
+          "src/game/gameHud.css:871"
+        ]
+      },
+      {
+        "value": "4px",
+        "count": 26,
+        "examples": [
+          "src/components/SessionsDrawer.css:404",
+          "src/game/gameHud.css:1223",
+          "src/game/gameHud.css:1345",
+          "src/game/gameHud.css:1350"
+        ]
+      },
+      {
+        "value": "5px",
+        "count": 19,
+        "examples": [
+          "src/game/gameHud.css:211",
+          "src/game/gameHud.css:375",
+          "src/game/gameHud.css:1265",
+          "src/game/gameHud.css:1331"
+        ]
+      },
+      {
+        "value": "2px",
+        "count": 18,
+        "examples": [
+          "src/components/SessionsDrawer.css:245",
+          "src/components/SyzygyFeedEntryCard.css:109",
+          "src/pages/AgentCouncilPage.css:101",
+          "src/pages/AgentFeedPage.css:45"
+        ]
+      },
+      {
+        "value": "0.55rem",
+        "count": 15,
+        "examples": [
+          "src/pages/CheckinPage.css:25",
+          "src/pages/ForumPage.css:378",
+          "src/pages/ForumPage.css:389",
+          "src/pages/ForumPage.css:791"
+        ]
+      },
+      {
+        "value": "0.6rem",
+        "count": 13,
+        "examples": [
+          "src/pages/ForumPage.css:23",
+          "src/pages/ForumPage.css:102",
+          "src/pages/ForumPage.css:498",
+          "src/pages/ForumPage.css:801"
+        ]
+      },
+      {
+        "value": "0.5rem",
+        "count": 13,
+        "examples": [
+          "src/pages/ForumPage.css:43",
+          "src/pages/ForumPage.css:268",
+          "src/pages/ForumPage.css:355",
+          "src/pages/ForumPage.css:440"
+        ]
+      },
+      {
+        "value": "0.4rem",
+        "count": 11,
+        "examples": [
+          "src/pages/ForumPage.css:119",
+          "src/pages/ForumPage.css:134",
+          "src/pages/ForumPage.css:188",
+          "src/pages/ForumPage.css:320"
+        ]
+      },
+      {
+        "value": "14px",
+        "count": 10,
+        "examples": [
+          "src/game/gameHud.css:364",
+          "src/pages/AgentCouncilPage.css:143",
+          "src/pages/AuthPage.css:21",
+          "src/pages/ExportPage.css:39"
+        ]
+      },
+      {
+        "value": "3px",
+        "count": 9,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:63",
+          "src/game/gameHud.css:769",
+          "src/game/gameHud.css:1354",
+          "src/game/gameHud.css:1410"
+        ]
+      },
+      {
+        "value": "0.35rem",
+        "count": 9,
+        "examples": [
+          "src/pages/CheckinPage.css:235",
+          "src/pages/CheckinPage.css:248",
+          "src/pages/ForumPage.css:451",
+          "src/pages/ForumPage.css:669"
+        ]
+      },
+      {
+        "value": "0.75rem",
+        "count": 8,
+        "examples": [
+          "src/pages/AgentFeedPage.css:375",
+          "src/pages/CheckinPage.css:101",
+          "src/pages/CheckinPage.css:116",
+          "src/pages/HamsterConsolePage.css:134"
+        ]
+      }
+    ],
+    "paddingMarginTop20": [
+      {
+        "value": "0",
+        "count": 235
+      },
+      {
+        "value": "12px",
+        "count": 53
+      },
+      {
+        "value": "10px",
+        "count": 50
+      },
+      {
+        "value": "8px",
+        "count": 32
+      },
+      {
+        "value": "10px 12px",
+        "count": 29
+      },
+      {
+        "value": "8px 10px",
+        "count": 28
+      },
+      {
+        "value": "6px",
+        "count": 24
+      },
+      {
+        "value": "0 auto",
+        "count": 24
+      },
+      {
+        "value": "14px",
+        "count": 22
+      },
+      {
+        "value": "7px 12px",
+        "count": 19
+      },
+      {
+        "value": "16px",
+        "count": 16
+      },
+      {
+        "value": "2px",
+        "count": 12
+      },
+      {
+        "value": "4px",
+        "count": 11
+      },
+      {
+        "value": "6px 10px",
+        "count": 11
+      },
+      {
+        "value": "1rem",
+        "count": 10
+      },
+      {
+        "value": "20px",
+        "count": 9
+      },
+      {
+        "value": "auto",
+        "count": 8
+      },
+      {
+        "value": "2px 8px",
+        "count": 7
+      },
+      {
+        "value": "0.5rem",
+        "count": 7
+      },
+      {
+        "value": "10px 14px",
+        "count": 6
+      }
+    ],
+    "opacities_countGte2": [
+      {
+        "value": "1",
+        "count": 9,
+        "examples": [
+          "src/components/ReasoningPanel.css:30",
+          "src/components/SessionsDrawer.css:14",
+          "src/game/gameHud.css:401",
+          "src/game/gameHud.css:1600"
+        ]
+      },
+      {
+        "value": "0",
+        "count": 8,
+        "examples": [
+          "src/components/ReasoningPanel.css:23",
+          "src/components/SessionsDrawer.css:7",
+          "src/game/gameHud.css:1596",
+          "src/pages/ChatPage.css:22"
+        ]
+      },
+      {
+        "value": "0.6",
+        "count": 8,
+        "examples": [
+          "src/pages/AgentFeedPage.css:788",
+          "src/pages/ArchivePage.css:686",
+          "src/pages/ExportPage.css:154",
+          "src/pages/HamsterConsolePage.css:258"
+        ]
+      },
+      {
+        "value": "0.85",
+        "count": 4,
+        "examples": [
+          "src/pages/AgentFeedPage.css:466",
+          "src/pages/AgentFeedPage.css:610",
+          "src/pages/LoungePage.css:333",
+          "src/pages/TimelinePage.css:200"
+        ]
+      },
+      {
+        "value": "0.5",
+        "count": 4,
+        "examples": [
+          "src/pages/ArchivePage.css:234",
+          "src/pages/LoungePage.css:139",
+          "src/pages/LoungePage.css:587",
+          "src/pages/SettingsPage.css:453"
+        ]
+      },
+      {
+        "value": "0.7",
+        "count": 4,
+        "examples": [
+          "src/pages/LettersPage.css:266",
+          "src/pages/LoungePage.css:444",
+          "src/pages/RpRoomPage.css:36",
+          "src/pages/RpRoomsPage.css:237"
+        ]
+      },
+      {
+        "value": "0.9",
+        "count": 3,
+        "examples": [
+          "src/components/SessionsDrawer.css:282",
+          "src/pages/LoungePage.css:426",
+          "src/pages/MemoryVaultPage.css:258"
+        ]
+      },
+      {
+        "value": "0.55",
+        "count": 3,
+        "examples": [
+          "src/game/gameHud.css:1489",
+          "src/pages/LoungePage.css:405",
+          "src/pages/RpRoomsPage.css:65"
+        ]
+      },
+      {
+        "value": "0.22",
+        "count": 2,
+        "examples": [
+          "src/components/SyzygyFeedEntryCard.css:36",
+          "src/pages/AgentFeedPage.css:208"
+        ]
+      },
+      {
+        "value": "0.88",
+        "count": 2,
+        "examples": [
+          "src/game/gameHud.css:675",
+          "src/pages/LettersPage.css:150"
+        ]
+      },
+      {
+        "value": "0.28",
+        "count": 2,
+        "examples": [
+          "src/pages/AgentFeedPage.css:368",
+          "src/pages/TimelinePage.css:103"
+        ]
+      },
+      {
+        "value": "0.68",
+        "count": 2,
+        "examples": [
+          "src/pages/AuthPage.css:167",
+          "src/pages/TodoPage.css:156"
+        ]
+      },
+      {
+        "value": "0.48",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:290",
+          "src/pages/SnacksPage.css:443"
+        ]
+      },
+      {
+        "value": "0.82",
+        "count": 2,
+        "examples": [
+          "src/pages/ChatPage.css:445",
+          "src/pages/ChatPage.css:600"
+        ]
+      },
+      {
+        "value": "0.4",
+        "count": 2,
+        "examples": [
+          "src/pages/LoungePage.css:554",
+          "src/pages/RpRoomsPage.css:169"
+        ]
+      }
+    ]
+  },
+  "tokenUsageFrequency": {
+    "note": "var(--x) 在 CSS 中的引用次数（不含定义行），用于评估 Token 实际采用度",
+    "usage": [
+      {
+        "variable": "--game-shell-edge",
+        "count": 32
+      },
+      {
+        "variable": "--game-text",
+        "count": 22
+      },
+      {
+        "variable": "--text-main",
+        "count": 21
+      },
+      {
+        "variable": "--glass-border",
+        "count": 16
+      },
+      {
+        "variable": "--game-pixel-radius-md",
+        "count": 15
+      },
+      {
+        "variable": "--text-subtle",
+        "count": 14
+      },
+      {
+        "variable": "--arc-heading",
+        "count": 13
+      },
+      {
+        "variable": "--pixel-text",
+        "count": 13
+      },
+      {
+        "variable": "--pixel-border",
+        "count": 13
+      },
+      {
+        "variable": "--page-bg",
+        "count": 12
+      },
+      {
+        "variable": "--accent",
+        "count": 12
+      },
+      {
+        "variable": "--arc-soft-faint",
+        "count": 12
+      },
+      {
+        "variable": "--arc-accent-strong",
+        "count": 10
+      },
+      {
+        "variable": "--arc-soft",
+        "count": 9
+      },
+      {
+        "variable": "--arc-tile",
+        "count": 9
+      },
+      {
+        "variable": "--font-sans",
+        "count": 8
+      },
+      {
+        "variable": "--shadow-soft",
+        "count": 7
+      },
+      {
+        "variable": "--glass-bg",
+        "count": 7
+      },
+      {
+        "variable": "--arc-accent",
+        "count": 7
+      },
+      {
+        "variable": "--blur",
+        "count": 6
+      },
+      {
+        "variable": "--accent-strong",
+        "count": 6
+      },
+      {
+        "variable": "--game-pixel-radius-sm",
+        "count": 6
+      },
+      {
+        "variable": "--game-control-accent-bg",
+        "count": 5
+      },
+      {
+        "variable": "--arc-text",
+        "count": 5
+      },
+      {
+        "variable": "--game-panel-border",
+        "count": 4
+      },
+      {
+        "variable": "--game-control-bg",
+        "count": 4
+      },
+      {
+        "variable": "--font-rounded",
+        "count": 4
+      },
+      {
+        "variable": "--z-popover",
+        "count": 3
+      },
+      {
+        "variable": "--pixel-subtle",
+        "count": 3
+      },
+      {
+        "variable": "--radius-card",
+        "count": 3
+      },
+      {
+        "variable": "--game-control-border",
+        "count": 2
+      },
+      {
+        "variable": "--arc-kicker",
+        "count": 2
+      },
+      {
+        "variable": "--forum-reply-depth",
+        "count": 2
+      },
+      {
+        "variable": "--app-background-image",
+        "count": 1
+      },
+      {
+        "variable": "--game-shell-base",
+        "count": 1
+      },
+      {
+        "variable": "--game-frame-border",
+        "count": 1
+      },
+      {
+        "variable": "--game-shell-light",
+        "count": 1
+      },
+      {
+        "variable": "--game-shell-shadow",
+        "count": 1
+      },
+      {
+        "variable": "--game-shadow-drop",
+        "count": 1
+      },
+      {
+        "variable": "--game-panel-light",
+        "count": 1
+      },
+      {
+        "variable": "--game-frame-outline",
+        "count": 1
+      },
+      {
+        "variable": "--game-frame-inner",
+        "count": 1
+      },
+      {
+        "variable": "--game-accent",
+        "count": 1
+      },
+      {
+        "variable": "--game-pixel-radius-lg",
+        "count": 1
+      },
+      {
+        "variable": "--game-screen-outer",
+        "count": 1
+      },
+      {
+        "variable": "--game-screen-bezel",
+        "count": 1
+      },
+      {
+        "variable": "--game-screen-glow",
+        "count": 1
+      },
+      {
+        "variable": "--game-screen-line",
+        "count": 1
+      },
+      {
+        "variable": "--arc-grad-1",
+        "count": 1
+      },
+      {
+        "variable": "--arc-grad-2",
+        "count": 1
+      },
+      {
+        "variable": "--arc-grad-3",
+        "count": 1
+      },
+      {
+        "variable": "--pixel-panel-strong",
+        "count": 1
+      },
+      {
+        "variable": "--pixel-panel-user",
+        "count": 1
+      },
+      {
+        "variable": "--pixel-panel",
+        "count": 1
+      },
+      {
+        "variable": "--pixel-cream",
+        "count": 1
+      },
+      {
+        "variable": "--forum-reply-indent",
+        "count": 1
+      },
+      {
+        "variable": "--forum-reply-indent-mobile",
+        "count": 1
+      },
+      {
+        "variable": "--home-background-image",
+        "count": 1
+      },
+      {
+        "variable": "--icon-tile-bg",
+        "count": 1
+      },
+      {
+        "variable": "--font-display",
+        "count": 1
+      },
+      {
+        "variable": "--radius-btn",
+        "count": 1
+      },
+      {
+        "variable": "--radius-tile",
+        "count": 1
+      }
+    ]
+  },
+  "duplicateValueAcrossTokenNames": [
+    {
+      "value": "#ffd6e7",
+      "tokens": [
+        "--accent (src/styles/ui.css:8)",
+        "--arc-accent (src/pages/ArchivePage.css:3)"
+      ],
+      "alsoHardcoded": "93 处字面出现（含 index.css:38 滚动条）"
+    },
+    {
+      "value": "#fffbf5",
+      "tokens": [
+        "--game-shell-light (gameHud.css:5)",
+        "--game-panel-light (gameHud.css:6)",
+        "--game-screen-glow (gameHud.css:12)",
+        "--pixel-cream (ChatPage.css:1010)"
+      ],
+      "alsoHardcoded": "53 处字面出现"
+    },
+    {
+      "value": "#86827d",
+      "tokens": [
+        "--game-shell-edge (gameHud.css:4)",
+        "--game-screen-bezel (gameHud.css:11)",
+        "--pixel-border (ChatPage.css:1002)",
+        "--pixel-subtle (ChatPage.css:1009)"
+      ],
+      "alsoHardcoded": "36 处字面出现"
+    },
+    {
+      "value": "#5a5551",
+      "tokens": [
+        "--game-text (gameHud.css:13)",
+        "--pixel-text (ChatPage.css:1008)"
+      ]
+    },
+    {
+      "value": "#c8b8aa",
+      "tokens": [
+        "--game-shell-shadow (gameHud.css:3)",
+        "--pixel-shadow (ChatPage.css:1003)"
+      ]
+    },
+    {
+      "value": "#f6d7d4",
+      "tokens": [
+        "--game-panel-mid (gameHud.css:7)",
+        "--game-accent (gameHud.css:8)"
+      ],
+      "alsoHardcoded": "39 处字面出现"
+    },
+    {
+      "value": "linear-gradient(180deg, #fffbf5 0%, #fdf4e8 100%)",
+      "tokens": [
+        "--game-control-bg (gameHud.css:26)",
+        "--pixel-panel (ChatPage.css:1004)",
+        "--pixel-panel-strong (ChatPage.css:1005)"
+      ],
+      "alsoHardcoded": "33 处字面出现"
+    },
+    {
+      "value": "linear-gradient(180deg, #f6d7d4 0%, #efc2bc 100%)",
+      "tokens": [
+        "--game-control-accent-bg (gameHud.css:27)",
+        "--pixel-panel-accent (ChatPage.css:1006)"
+      ]
+    },
+    {
+      "value": "rgba(255, 255, 255, 0.65)",
+      "tokens": [
+        "--icon-tile-bg 默认值 (HomePage.css:3)",
+        "DEFAULT_ICON_TILE_BG_* 组合 (HomePage.tsx:72-73)"
+      ]
+    },
+    {
+      "value": "12px",
+      "tokens": [
+        "--game-pixel-radius-md (gameHud.css:18)"
+      ],
+      "alsoHardcoded": "border-radius:12px 字面出现 79 处"
+    },
+    {
+      "value": "8px",
+      "tokens": [
+        "--game-pixel-radius-sm (gameHud.css:19)"
+      ],
+      "alsoHardcoded": "border-radius:8px 字面出现 15 处"
+    },
+    {
+      "value": "18px",
+      "tokens": [
+        "--game-pixel-radius-lg (gameHud.css:17)"
+      ],
+      "alsoHardcoded": "border-radius:18px 字面出现 38 处"
+    }
+  ],
+  "inconsistencies": [
+    {
+      "issue": "index.css 对 --text-main 的回退值是 #0f172a，而 --text-main 实际定义为 #111827",
+      "sources": [
+        "src/index.css:5",
+        "src/styles/ui.css:10"
+      ]
+    },
+    {
+      "issue": "App.css .app-shell 直接写 color:#0f172a，未走 --text-main",
+      "sources": [
+        "src/App.css:12"
+      ]
+    },
+    {
+      "issue": "PWA manifest theme_color #1f2937 / background_color #111827 与 index.html theme-color #fdf2f8 及粉色系视觉不一致",
+      "sources": [
+        "public/manifest.webmanifest",
+        "index.html:21"
+      ]
+    },
+    {
+      "issue": "--accent-strong (#f8bad4) 与 --arc-accent-strong (#f5b3d2) 语义相同但取值不同",
+      "sources": [
+        "src/styles/ui.css:9",
+        "src/pages/ArchivePage.css:4"
+      ]
+    },
+    {
+      "issue": "圆角 Token --radius-card/tile/btn 在 ui.css 之外几乎未被引用（分别 3/1/1 次），全仓 border-radius 以字面值为主（999px×147、12px×79 等）",
+      "sources": [
+        "src/styles/ui.css:15-17"
+      ]
+    },
+    {
+      "issue": "游戏模式变量 --game-* 定义在 :root 全局作用域而非 .game-* 容器",
+      "sources": [
+        "src/game/gameHud.css:1-28"
+      ]
+    },
+    {
+      "issue": "Press Start 2P 字体在 index.html 加载但代码中未发现使用",
+      "sources": [
+        "index.html:11-14"
+      ]
+    },
+    {
+      "issue": "断点值散布（420/480/520/560/640/680/720/760/768/900/901px），无统一 Token；560px 与 640px 为事实主断点",
+      "sources": [
+        "详见 breakpoints.mediaQueries"
+      ]
+    }
+  ]
+}
