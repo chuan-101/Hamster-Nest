@@ -7,6 +7,7 @@ const {
   MAX_CONVERSATION_CONTENT_LENGTH,
   normalizeConversationDispatchRequest,
   OpenAiSseAccumulator,
+  resolveConversationDispatchHttpStatus,
 } = await import('../supabase/functions/conversation-dispatch/contract.ts')
 const {
   isConversationTaskCancelResult,
@@ -98,6 +99,12 @@ test('CORS contract exposes canonical message identifiers', () => {
   assert.match(headers['Access-Control-Allow-Headers'], /authorization/u)
 })
 
+test('settled dispatch HTTP status distinguishes queued, completed, and failed replies', () => {
+  assert.equal(resolveConversationDispatchHttpStatus('generating'), 202)
+  assert.equal(resolveConversationDispatchHttpStatus('completed'), 200)
+  assert.equal(resolveConversationDispatchHttpStatus('failed'), 409)
+})
+
 test('RPC remains an authenticated SECURITY INVOKER atomic claim', async () => {
   const sql = await readFile(migrationUrl, 'utf8')
 
@@ -164,6 +171,10 @@ test('Edge handler re-verifies the owner before using the service-only durable R
   assert.match(source, /getSupabaseAdminKey\(\)/u)
   assert.match(source, /\.rpc\('conversation_dispatch_prepare_durable'/u)
   assert.match(source, /p_user_id: userId/u)
+  assert.match(
+    source,
+    /dispatch\.handler === 'cli'[\s\S]*?resolveConversationDispatchHttpStatus\(dispatch\.reply\.delivery_state\)/u,
+  )
   assert.match(source, /EdgeRuntime\.waitUntil\(streamWork\)/u)
   assert.ok(source.indexOf('getOwnerUserId()') < source.indexOf('getSupabaseAdminKey()'))
   assert.equal(source.match(/new URL\('\/functions\/v1\/openrouter-chat'/gu)?.length, 1)
