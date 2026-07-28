@@ -22,7 +22,7 @@ const functionUrl = new URL(
   import.meta.url,
 )
 const durableMigrationUrl = new URL(
-  '../supabase/migrations/20260728120622_v4_1_conversation_cli_durable_tasks.sql',
+  '../supabase/migrations/20260728131144_v4_1_conversation_cli_durable_tasks.sql',
   import.meta.url,
 )
 const cancelFunctionUrl = new URL(

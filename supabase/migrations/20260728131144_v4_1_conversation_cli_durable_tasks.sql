@@ -1,3 +1,4 @@
+-- Production migration history: 20260728131144.
 -- V4.1 W1 / 3.2b1: make CLI conversation execution durable before the mini
 -- listener claims a command. The existing authenticated prepare RPC remains
 -- compatible while the Edge Function migrates to the service-role-only wrapper.
