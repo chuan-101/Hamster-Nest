@@ -3389,6 +3389,19 @@ export type Database = {
         Args: { p_scope: string; p_user_id: string }
         Returns: number
       }
+      conversation_dispatch_cancel_pending: {
+        Args: { p_task_id: string; p_user_id: string }
+        Returns: Json
+      }
+      conversation_dispatch_complete_reply: {
+        Args: {
+          p_completed_at?: string
+          p_content: string
+          p_task_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       conversation_dispatch_prepare: {
         Args: {
           p_client_created_at?: string
@@ -3397,6 +3410,18 @@ export type Database = {
           p_retry_failed?: boolean
           p_session_id: string
           p_target_sender_keys?: string[]
+        }
+        Returns: Json
+      }
+      conversation_dispatch_prepare_durable: {
+        Args: {
+          p_client_created_at?: string
+          p_client_id: string
+          p_content: string
+          p_retry_failed?: boolean
+          p_session_id: string
+          p_target_sender_keys?: string[]
+          p_user_id: string
         }
         Returns: Json
       }
