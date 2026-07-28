@@ -9,6 +9,7 @@ import {
   isAllowedConversationOrigin,
   normalizeConversationDispatchRequest,
   OpenAiSseAccumulator,
+  resolveConversationDispatchHttpStatus,
 } from './contract.ts'
 
 declare const EdgeRuntime:
@@ -510,16 +511,21 @@ Deno.serve(async (request) => {
   }
 
   if (dispatch.handler === 'cli') {
-    return jsonResponse(basePayload, 202, corsHeaders, dispatch)
+    return jsonResponse(
+      basePayload,
+      resolveConversationDispatchHttpStatus(dispatch.reply.delivery_state),
+      corsHeaders,
+      dispatch,
+    )
   }
 
   if (!dispatch.should_execute) {
-    const status = dispatch.reply.delivery_state === 'completed'
-      ? 200
-      : dispatch.reply.delivery_state === 'generating'
-      ? 202
-      : 409
-    return jsonResponse(basePayload, status, corsHeaders, dispatch)
+    return jsonResponse(
+      basePayload,
+      resolveConversationDispatchHttpStatus(dispatch.reply.delivery_state),
+      corsHeaders,
+      dispatch,
+    )
   }
 
   let modelRequest

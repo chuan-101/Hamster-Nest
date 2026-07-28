@@ -16,6 +16,8 @@ export type ConversationDispatchRequest = {
   retry_failed: boolean
 }
 
+export type ConversationDeliveryState = 'generating' | 'completed' | 'failed'
+
 export type ConversationDispatchPrepareResult = {
   schema_version: 1
   handler: 'api' | 'cli'
@@ -27,7 +29,7 @@ export type ConversationDispatchPrepareResult = {
   }
   reply: {
     id: string
-    delivery_state: 'generating' | 'completed' | 'failed'
+    delivery_state: ConversationDeliveryState
     delivery_attempt: number
   }
   command: null | {
@@ -43,6 +45,11 @@ export type ConversationDispatchPrepareResult = {
   should_execute: boolean
   was_duplicate: boolean
 }
+
+export const resolveConversationDispatchHttpStatus = (
+  deliveryState: ConversationDeliveryState,
+): 200 | 202 | 409 =>
+  deliveryState === 'completed' ? 200 : deliveryState === 'generating' ? 202 : 409
 
 export class ConversationDispatchRequestError extends Error {
   constructor(message: string) {
