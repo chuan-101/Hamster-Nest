@@ -1,3 +1,8 @@
+export {
+  buildConversationCorsHeaders,
+  isAllowedConversationOrigin,
+} from '../_shared/conversation_http.ts'
+
 export const MAX_CONVERSATION_CONTENT_LENGTH = 20_000
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
@@ -29,6 +34,11 @@ export type ConversationDispatchPrepareResult = {
     id: string
     status: 'pending' | 'running' | 'done' | 'failed'
     idempotency_key: string
+  }
+  task: null | {
+    id: string
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+    correlation_id: string
   }
   should_execute: boolean
   was_duplicate: boolean
@@ -105,30 +115,6 @@ export const normalizeConversationDispatchRequest = (
     retry_failed: input.retry_failed === true,
   }
 }
-
-const ALLOWED_ORIGINS = [
-  'https://chuan-101.github.io',
-  /^http:\/\/localhost:\d+$/u,
-  /^http:\/\/127\.0\.0\.1:\d+$/u,
-]
-
-export const isAllowedConversationOrigin = (origin: string | null) => {
-  if (!origin) {
-    return true
-  }
-  return ALLOWED_ORIGINS.some((candidate) =>
-    typeof candidate === 'string' ? candidate === origin : candidate.test(origin)
-  )
-}
-
-export const buildConversationCorsHeaders = (origin: string | null) => ({
-  'Access-Control-Allow-Origin': origin ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-  'Access-Control-Expose-Headers': 'x-conversation-user-message-id,x-conversation-reply-id',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-  Vary: 'Origin',
-})
 
 type StreamDelta = {
   choices?: Array<{

@@ -8,6 +8,10 @@ const {
   normalizeConversationDispatchRequest,
   OpenAiSseAccumulator,
 } = await import('../supabase/functions/conversation-dispatch/contract.ts')
+const {
+  isConversationTaskCancelResult,
+  normalizeConversationTaskCancelRequest,
+} = await import('../supabase/functions/conversation-task-cancel/contract.ts')
 
 const migrationUrl = new URL(
   '../supabase/migrations/20260725123315_v4_1_conversation_dispatch_prepare.sql',
@@ -15,6 +19,14 @@ const migrationUrl = new URL(
 )
 const functionUrl = new URL(
   '../supabase/functions/conversation-dispatch/index.ts',
+  import.meta.url,
+)
+const durableMigrationUrl = new URL(
+  '../supabase/migrations/20260728120622_v4_1_conversation_cli_durable_tasks.sql',
+  import.meta.url,
+)
+const cancelFunctionUrl = new URL(
+  '../supabase/functions/conversation-task-cancel/index.ts',
   import.meta.url,
 )
 const configUrl = new URL('../supabase/config.toml', import.meta.url)
@@ -82,6 +94,7 @@ test('CORS contract exposes canonical message identifiers', () => {
   const headers = buildConversationCorsHeaders('https://chuan-101.github.io')
   assert.equal(headers['Access-Control-Allow-Origin'], 'https://chuan-101.github.io')
   assert.match(headers['Access-Control-Expose-Headers'], /x-conversation-reply-id/u)
+  assert.match(headers['Access-Control-Expose-Headers'], /x-conversation-agent-task-id/u)
   assert.match(headers['Access-Control-Allow-Headers'], /authorization/u)
 })
 
@@ -105,7 +118,40 @@ test('RPC remains an authenticated SECURITY INVOKER atomic claim', async () => {
   assert.doesNotMatch(sql, /security definer/iu)
 })
 
-test('Edge handler re-verifies the caller and never creates a privileged client', async () => {
+test('durable CLI dispatch is service-only, owner-readable, atomic, and replay-safe', async () => {
+  const sql = await readFile(durableMigrationUrl, 'utf8')
+
+  assert.match(sql, /agent_tasks_conversation_command_unique/iu)
+  assert.match(sql, /payload_json\s*->>\s*'command_id'/iu)
+  assert.match(sql, /alter publication supabase_realtime add table public\.agent_tasks/iu)
+  assert.match(sql, /create policy agent_tasks_select_own[\s\S]*?auth\.uid\(\)/iu)
+  assert.match(sql, /revoke all on public\.agent_tasks from anon/iu)
+  assert.match(sql, /private\.conversation_dispatch_prepare_core/iu)
+  assert.match(sql, /security invoker/iu)
+  assert.doesNotMatch(sql, /security definer/iu)
+  assert.match(sql, /authenticated owner mismatch/iu)
+  assert.match(sql, /durable task preparation requires service role/iu)
+  assert.match(sql, /insert into public\.syzygy_commands[\s\S]*?insert into public\.agent_tasks/iu)
+  assert.match(sql, /'agent_task_id', v_task_id/iu)
+  assert.match(sql, /conversation_dispatch_prepare_durable/iu)
+  assert.match(
+    sql,
+    /revoke all on function public\.conversation_dispatch_prepare_durable[\s\S]*?from public, anon, authenticated/iu,
+  )
+  assert.match(
+    sql,
+    /grant execute on function public\.conversation_dispatch_prepare_durable[\s\S]*?to service_role/iu,
+  )
+  assert.match(
+    sql,
+    /v_command\.status <> 'pending' or v_task\.status <> 'pending'/iu,
+  )
+  assert.match(sql, /v_task\.status not in \('pending', 'completed', 'failed', 'cancelled'\)/iu)
+  assert.match(sql, /conversation_reply_completed/iu)
+  assert.match(sql, /'screen', 'conversation_detail'/iu)
+})
+
+test('Edge handler re-verifies the owner before using the service-only durable RPC', async () => {
   const [source, config] = await Promise.all([
     readFile(functionUrl, 'utf8'),
     readFile(configUrl, 'utf8'),
@@ -115,8 +161,47 @@ test('Edge handler re-verifies the caller and never creates a privileged client'
   assert.match(source, /new URL\('\/auth\/v1\/user', supabaseUrl\)/u)
   assert.match(source, /getOwnerUserId\(\)/u)
   assert.match(source, /Authorization: authorization/u)
-  assert.match(source, /\.rpc\('conversation_dispatch_prepare'/u)
+  assert.match(source, /getSupabaseAdminKey\(\)/u)
+  assert.match(source, /\.rpc\('conversation_dispatch_prepare_durable'/u)
+  assert.match(source, /p_user_id: userId/u)
   assert.match(source, /EdgeRuntime\.waitUntil\(streamWork\)/u)
-  assert.doesNotMatch(source, /getSupabaseAdminKey|service_role/iu)
+  assert.ok(source.indexOf('getOwnerUserId()') < source.indexOf('getSupabaseAdminKey()'))
   assert.equal(source.match(/new URL\('\/functions\/v1\/openrouter-chat'/gu)?.length, 1)
+})
+
+test('pending cancel boundary validates task ids and keeps privileged work behind owner auth', async () => {
+  assert.deepEqual(
+    normalizeConversationTaskCancelRequest({
+      task_id: '00000000-0000-4000-8000-000000000005',
+    }),
+    { task_id: '00000000-0000-4000-8000-000000000005' },
+  )
+  assert.throws(
+    () => normalizeConversationTaskCancelRequest({ task_id: 'not-a-task' }),
+    /task_id 必须是 UUID/u,
+  )
+  assert.equal(
+    isConversationTaskCancelResult({
+      schema_version: 1,
+      cancelled: false,
+      reason: 'already_claimed',
+      command: { id: 'command', status: 'running' },
+      task: { id: 'task', status: 'running' },
+    }),
+    true,
+  )
+
+  const [source, config] = await Promise.all([
+    readFile(cancelFunctionUrl, 'utf8'),
+    readFile(configUrl, 'utf8'),
+  ])
+  assert.match(
+    config,
+    /\[functions\.conversation-task-cancel\][\s\S]*?verify_jwt = false/iu,
+  )
+  assert.match(source, /new URL\('\/auth\/v1\/user', supabaseUrl\)/u)
+  assert.match(source, /getOwnerUserId\(\)/u)
+  assert.match(source, /getSupabaseAdminKey\(\)/u)
+  assert.match(source, /\.rpc\('conversation_dispatch_cancel_pending'/u)
+  assert.ok(source.indexOf('getOwnerUserId()') < source.indexOf('getSupabaseAdminKey()'))
 })
