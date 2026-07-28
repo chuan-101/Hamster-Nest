@@ -70,6 +70,11 @@ verify_jwt = false
 import_map = "./functions/conversation-dispatch/deno.json"
 entrypoint = "./functions/conversation-dispatch/index.ts"
 
+[functions.conversation-task-cancel]
+verify_jwt = false
+import_map = "./functions/conversation-task-cancel/deno.json"
+entrypoint = "./functions/conversation-task-cancel/index.ts"
+
 [functions.runtime-control]
 verify_jwt = true
 import_map = "./functions/runtime-control/deno.json"

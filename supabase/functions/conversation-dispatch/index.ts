@@ -1,6 +1,7 @@
 import '@supabase/functions-js/edge-runtime.d.ts'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getOwnerUserId } from '../_shared/owner.ts'
+import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 import {
   buildConversationCorsHeaders,
   type ConversationDispatchPrepareResult,
@@ -63,6 +64,9 @@ const jsonResponse = (
         ? {
           'x-conversation-user-message-id': dispatch.user_message.id,
           'x-conversation-reply-id': dispatch.reply.id,
+          ...(dispatch.task
+            ? { 'x-conversation-agent-task-id': dispatch.task.id }
+            : {}),
         }
         : {}),
       'Content-Type': 'application/json; charset=utf-8',
@@ -78,12 +82,37 @@ const isDispatchPrepareResult = (
   const result = value as Record<string, unknown>
   const userMessage = result.user_message as Record<string, unknown> | undefined
   const reply = result.reply as Record<string, unknown> | undefined
+  const command = result.command as Record<string, unknown> | null | undefined
+  const task = result.task as Record<string, unknown> | null | undefined
+  const userMessageId = typeof userMessage?.id === 'string' ? userMessage.id : ''
+  const validReply = Boolean(
+    reply &&
+      typeof reply.id === 'string' &&
+      ['generating', 'completed', 'failed'].includes(String(reply.delivery_state)) &&
+      Number.isInteger(reply.delivery_attempt) &&
+      Number(reply.delivery_attempt) >= 1,
+  )
+  const validCliEnvelope = Boolean(
+    command &&
+      typeof command.id === 'string' &&
+      ['pending', 'running', 'done', 'failed'].includes(String(command.status)) &&
+      typeof command.idempotency_key === 'string' &&
+      task &&
+      typeof task.id === 'string' &&
+      ['pending', 'running', 'completed', 'failed', 'cancelled'].includes(
+        String(task.status),
+      ) &&
+      task.correlation_id === userMessageId,
+  )
   return (
     result.schema_version === 1 &&
     (result.handler === 'api' || result.handler === 'cli') &&
     typeof result.responder_sender_key === 'string' &&
-    Boolean(userMessage && typeof userMessage.id === 'string') &&
-    Boolean(reply && typeof reply.id === 'string') &&
+    Boolean(userMessageId) &&
+    validReply &&
+    (result.handler === 'api'
+      ? command === null && task === null
+      : validCliEnvelope) &&
     typeof result.should_execute === 'boolean' &&
     typeof result.was_duplicate === 'boolean'
   )
@@ -420,7 +449,21 @@ Deno.serve(async (request) => {
     },
   })
 
-  const { data, error } = await client.rpc('conversation_dispatch_prepare', {
+  let serviceClient: UserClient
+  try {
+    serviceClient = createClient(supabaseUrl, getSupabaseAdminKey(), {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  } catch (error) {
+    console.error('[conversation-dispatch] privileged RPC client unavailable', error)
+    return jsonResponse({ error: '服务未配置' }, 500, corsHeaders)
+  }
+
+  const { data, error } = await serviceClient.rpc('conversation_dispatch_prepare_durable', {
+    p_user_id: userId,
     p_session_id: payload.session_id,
     p_client_id: payload.client_id,
     p_content: payload.content,
@@ -461,6 +504,7 @@ Deno.serve(async (request) => {
     user_message: dispatch.user_message,
     reply: dispatch.reply,
     command: dispatch.command,
+    task: dispatch.task,
     should_execute: dispatch.should_execute,
     was_duplicate: dispatch.was_duplicate,
   }
@@ -595,6 +639,9 @@ Deno.serve(async (request) => {
       ...corsHeaders,
       'x-conversation-user-message-id': dispatch.user_message.id,
       'x-conversation-reply-id': dispatch.reply.id,
+      ...(dispatch.task
+        ? { 'x-conversation-agent-task-id': dispatch.task.id }
+        : {}),
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
