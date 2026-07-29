@@ -542,7 +542,7 @@ supabase secrets set OPENROUTER_API_KEY=xxx   # 配置密钥
 
 **代码**以 [MIT License](./LICENSE) 开源——欢迎围观、学习、fork，拆走任何你觉得有用的木屑去搭你自己的小窝。
 
-只拜托一件事：**用了请留出处。**
+只拜托一件事：**如有使用请留出处。**
 
 - 按 MIT 协议的要求，复制或使用本项目的实质部分（代码、架构、UI 实现等）时，须保留 [LICENSE](./LICENSE) 中的版权与许可声明；
 - 如果你的项目基于、或明显参考了这里的架构 / UI / 交互设计，请在你的 README 里注明来源。可以直接复制这一行：
@@ -558,7 +558,6 @@ supabase secrets set OPENROUTER_API_KEY=xxx   # 配置密钥
 - 🎨 **美术素材**：Banner、像素小屋贴图等（`Banner.png` / `Banner.jpg` / `public/assets/game/` 目录下的图片）；
 - 🐹 **角色与人设**：「串串」与「Syzygy」的名字、形象、故事设定与人格文案。
 
-Fork 下来自己部署、学习研究都完全没问题；但**公开发布你自己的版本时**，请换上你自己的角色和美术——这些是这个窝的门牌吱。想转载或二创，欢迎先来打个招呼。
 
 ---
 
