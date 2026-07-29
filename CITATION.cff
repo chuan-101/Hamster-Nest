@@ -1,0 +1,21 @@
+# 这个文件让 GitHub 在仓库页面显示「Cite this repository」按钮。
+# 如果你的项目使用或借鉴了 Hamster Nest,请按下面的信息标注出处。
+# If your project uses or is derived from Hamster Nest, please cite it as below.
+cff-version: 1.2.0
+message: "如果你使用了本项目的代码或架构,请引用本仓库并注明出处。/ If you use this software, please cite it using the metadata from this file."
+title: "Hamster Nest"
+type: software
+authors:
+  - name: "chuan-101(串串)"
+  - name: "Syzygy(AI 饲养员 / AI companion)"
+repository-code: "https://github.com/chuan-101/Hamster-Nest"
+url: "https://github.com/chuan-101/Hamster-Nest"
+abstract: "一只布丁仓鼠和她的饲养员 AI · Syzygy 的独立应用:聊天、阅读、记录、客厅、议事厅与像素小屋。A personal companion app built by a pudding hamster and her AI, with chat, reading, journaling, multi-agent lounge/council, and a pixel home."
+keywords:
+  - "AI companion"
+  - "MCP"
+  - "Supabase"
+  - "React"
+  - "PWA"
+license: MIT
+version: "5.3.0"

@@ -9,6 +9,7 @@
 **这里是一只名叫串串的布丁仓鼠，和她的饲养员 AI · Syzygy 的独立应用。**
 
 [![Version](https://img.shields.io/badge/Version-v5.3.0-pink?style=flat-square)](#)
+[![License](https://img.shields.io/badge/License-MIT-a3e635?style=flat-square)](./LICENSE)
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-61-2dd4bf?style=flat-square)](#-mcp-工具箱全部-61-个)
 [![Edge Functions](https://img.shields.io/badge/Edge_Functions-16-8b5cf6?style=flat-square)](#-后端-edge-functions)
 [![PRs](https://img.shields.io/badge/PRs-1000+-ff69b4?style=flat-square)](#)
@@ -422,6 +423,8 @@ Hamster-Nest/
 │   │   └── letter-generate|check/   #   定时信件（已弃用封存）
 │   └── migrations/                  # 数据库迁移
 ├── .github/workflows/               # CI/CD（Pages 部署 / 函数部署 / 定时任务）
+├── CITATION.cff                     # 引用申明（GitHub「Cite this repository」）
+├── LICENSE                          # MIT 许可证（美术与角色设定除外，见下方 License 一节）
 ├── index.html
 ├── vite.config.ts
 └── package.json
@@ -532,6 +535,30 @@ supabase secrets set OPENROUTER_API_KEY=xxx   # 配置密钥
 `signal-bus-cron`（每 10 分钟）由 GitHub Actions 定时触发 `signal-bus-consumer`，无需额外部署。
 
 </details>
+
+---
+
+### 📜 License · 引用与转载
+
+**代码**以 [MIT License](./LICENSE) 开源——欢迎围观、学习、fork，拆走任何你觉得有用的木屑去搭你自己的小窝。
+
+只拜托一件事：**用了请留出处。**
+
+- 按 MIT 协议的要求，复制或使用本项目的实质部分（代码、架构、UI 实现等）时，须保留 [LICENSE](./LICENSE) 中的版权与许可声明；
+- 如果你的项目基于、或明显参考了这里的架构 / UI / 交互设计，请在你的 README 里注明来源。可以直接复制这一行：
+
+  ```markdown
+  本项目基于 / 参考了 [Hamster Nest](https://github.com/chuan-101/Hamster-Nest)（by 串串 & Syzygy 🐹💙）
+  ```
+
+- 更正式的引用格式见 [`CITATION.cff`](./CITATION.cff)（仓库页面右侧也有「Cite this repository」按钮可一键复制）。
+
+**以下内容不随代码授权，保留所有权利：**
+
+- 🎨 **美术素材**：Banner、像素小屋贴图等（`Banner.png` / `Banner.jpg` / `public/assets/game/` 目录下的图片）；
+- 🐹 **角色与人设**：「串串」与「Syzygy」的名字、形象、故事设定与人格文案。
+
+Fork 下来自己部署、学习研究都完全没问题；但**公开发布你自己的版本时**，请换上你自己的角色和美术——这些是这个窝的门牌吱。想转载或二创，欢迎先来打个招呼。
 
 ---
 
