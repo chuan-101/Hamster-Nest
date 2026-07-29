@@ -928,6 +928,60 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_profiles: {
+        Row: {
+          active: boolean
+          context_recipe: Json
+          conversation_kind: string
+          created_at: string
+          default_responder_port_key: string
+          handler: string
+          id: string
+          participant_port_keys: string[]
+          profile_key: string
+          rules_prompt_name: string | null
+          session_policy: string
+          singleton_session_key: string | null
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          context_recipe: Json
+          conversation_kind: string
+          created_at?: string
+          default_responder_port_key: string
+          handler: string
+          id?: string
+          participant_port_keys: string[]
+          profile_key: string
+          rules_prompt_name?: string | null
+          session_policy: string
+          singleton_session_key?: string | null
+          updated_at?: string
+          user_id: string
+          version: number
+        }
+        Update: {
+          active?: boolean
+          context_recipe?: Json
+          conversation_kind?: string
+          created_at?: string
+          default_responder_port_key?: string
+          handler?: string
+          id?: string
+          participant_port_keys?: string[]
+          profile_key?: string
+          rules_prompt_name?: string | null
+          session_policy?: string
+          singleton_session_key?: string | null
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       council_categories: {
         Row: {
           key: string
@@ -1302,6 +1356,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      generation_ports: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          identity_prompt_name: string
+          model_channel_name: string | null
+          port_key: string
+          runtime_kind: string
+          sop_ref: string | null
+          sop_source: string | null
+          style_prompt_name: string | null
+          target_role: string | null
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          identity_prompt_name: string
+          model_channel_name?: string | null
+          port_key: string
+          runtime_kind: string
+          sop_ref?: string | null
+          sop_source?: string | null
+          style_prompt_name?: string | null
+          target_role?: string | null
+          updated_at?: string
+          user_id: string
+          version: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          identity_prompt_name?: string
+          model_channel_name?: string | null
+          port_key?: string
+          runtime_kind?: string
+          sop_ref?: string | null
+          sop_source?: string | null
+          style_prompt_name?: string | null
+          target_role?: string | null
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_ports_model_channel_fkey"
+            columns: ["user_id", "model_channel_name"]
+            isOneToOne: false
+            referencedRelation: "channel_config"
+            referencedColumns: ["user_id", "channel_name"]
+          },
+        ]
       }
       ideas: {
         Row: {
@@ -2614,6 +2727,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           conversation_kind: string
+          conversation_profile_key: string | null
           created_at: string
           handler: string
           id: string
@@ -2629,6 +2743,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           conversation_kind?: string
+          conversation_profile_key?: string | null
           created_at?: string
           handler?: string
           id?: string
@@ -2644,6 +2759,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           conversation_kind?: string
+          conversation_profile_key?: string | null
           created_at?: string
           handler?: string
           id?: string
@@ -3425,6 +3541,73 @@ export type Database = {
         }
         Returns: Json
       }
+      conversation_profile_publish: {
+        Args: {
+          p_context_recipe: Json
+          p_conversation_kind: string
+          p_default_responder_port_key: string
+          p_expected_active_version?: number
+          p_handler: string
+          p_participant_port_keys: string[]
+          p_profile_key: string
+          p_rules_prompt_name: string
+          p_session_policy: string
+          p_singleton_session_key: string
+        }
+        Returns: {
+          active: boolean
+          context_recipe: Json
+          conversation_kind: string
+          created_at: string
+          default_responder_port_key: string
+          handler: string
+          id: string
+          participant_port_keys: string[]
+          profile_key: string
+          rules_prompt_name: string | null
+          session_policy: string
+          singleton_session_key: string | null
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "conversation_profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      conversation_session_create: {
+        Args: {
+          p_display_config?: Json
+          p_profile_key: string
+          p_session_id: string
+          p_title: string
+        }
+        Returns: {
+          archived_at: string | null
+          conversation_kind: string
+          conversation_profile_key: string | null
+          created_at: string
+          handler: string
+          id: string
+          is_archived: boolean
+          override_model: string | null
+          override_reasoning: boolean | null
+          routing_config: Json
+          session_key: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sessions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       council_submit_report: {
         Args: {
           p_artifacts?: string[]
@@ -3442,6 +3625,41 @@ export type Database = {
       exchange_points_to_coins: {
         Args: { p_points: number; p_user_id?: string }
         Returns: Json
+      }
+      generation_port_publish: {
+        Args: {
+          p_expected_active_version?: number
+          p_identity_prompt_name: string
+          p_model_channel_name: string
+          p_port_key: string
+          p_runtime_kind: string
+          p_sop_ref: string
+          p_sop_source: string
+          p_style_prompt_name: string
+          p_target_role: string
+        }
+        Returns: {
+          active: boolean
+          created_at: string
+          id: string
+          identity_prompt_name: string
+          model_channel_name: string | null
+          port_key: string
+          runtime_kind: string
+          sop_ref: string | null
+          sop_source: string | null
+          style_prompt_name: string | null
+          target_role: string | null
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "generation_ports"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       get_forum_thread_replies_tree: {
         Args: { p_thread_id: string }
