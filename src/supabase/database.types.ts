@@ -3688,6 +3688,31 @@ export type Database = {
         Args: { p_message_id: string; p_worker_id: string }
         Returns: boolean
       }
+      prompt_template_publish: {
+        Args: {
+          p_category: string
+          p_content: string
+          p_expected_active_version?: number
+          p_name: string
+        }
+        Returns: {
+          active: boolean
+          category: string
+          content: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "prompt_templates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reset_stuck_wechat_messages: {
         Args: { p_max_retries?: number; p_timeout_minutes?: number }
         Returns: number

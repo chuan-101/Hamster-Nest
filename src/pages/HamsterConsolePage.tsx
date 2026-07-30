@@ -42,7 +42,7 @@ type PromptTemplateRow = {
   name: string
   category: 'base' | 'scenario' | 'style' | string
   content: string
-  version: number | null
+  version: number
   active: boolean
 }
 
@@ -262,6 +262,11 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const activeTemplate = useMemo(
     () => promptTemplates.find((item) => item.id === activeTemplateId) ?? null,
     [promptTemplates, activeTemplateId],
+  )
+  const hasPromptDraftChanges = Boolean(
+    activeTemplate &&
+      templateDraft.trim() &&
+      templateDraft !== activeTemplate.content,
   )
   const codexControlState = useMemo(() => toCodexControlViewState(codexControlRow), [codexControlRow])
 
@@ -705,24 +710,30 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
 
   const handleSaveTemplate = async () => {
     if (!supabase || !activeTemplate) return
+    if (!templateDraft.trim() || templateDraft === activeTemplate.content) return
     setSavingTemplateId(activeTemplate.id)
 
-    const { error } = await supabase
-      .from('prompt_templates')
-      .update({ content: templateDraft })
-      .eq('id', activeTemplate.id)
-      .eq('user_id', scopedUserId)
+    const { data, error } = await supabase.rpc('prompt_template_publish', {
+      p_name: activeTemplate.name,
+      p_category: activeTemplate.category,
+      p_content: templateDraft,
+      p_expected_active_version: activeTemplate.version,
+    })
 
     setSavingTemplateId(null)
-    if (error) {
-      setErrorMessage(error.message)
+    if (error || !data) {
+      setErrorMessage(error?.message ?? 'Prompt 发布未返回新版本')
       return
     }
 
     setPromptTemplates((current) =>
-      current.map((item) => (item.id === activeTemplate.id ? { ...item, content: templateDraft } : item)),
+      current
+        .map((item) => (item.id === activeTemplate.id ? data : item))
+        .sort((left, right) => left.name.localeCompare(right.name)),
     )
-    showToast(`Prompt 已保存：${activeTemplate.name}`)
+    setActiveTemplateId(data.id)
+    setTemplateDraft(data.content)
+    showToast(`Prompt 已发布：${data.name} v${data.version}`)
   }
 
   const toggleSection = (sectionId: string) => {
@@ -1084,16 +1095,26 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                   <>
                     <div className="hamster-console-template-meta">
                       <span>{activeTemplate.name}</span>
-                      <span>v{activeTemplate.version ?? '-'}</span>
+                      <span>当前 active · v{activeTemplate.version}</span>
                     </div>
+                    <p className="hamster-console-card__hint">
+                      发布会创建不可变的新版本；旧版本保留用于审计与回滚。
+                    </p>
                     <textarea
                       className="textarea-glass hamster-console-template-editor"
                       rows={12}
                       value={templateDraft}
                       onChange={(event) => setTemplateDraft(event.target.value)}
                     />
-                    <button className="btn-primary" onClick={() => void handleSaveTemplate()} disabled={savingTemplateId === activeTemplate.id}>
-                      {savingTemplateId === activeTemplate.id ? '保存中...' : '保存 Prompt'}
+                    <button
+                      className="btn-primary"
+                      onClick={() => void handleSaveTemplate()}
+                      disabled={
+                        savingTemplateId === activeTemplate.id ||
+                        !hasPromptDraftChanges
+                      }
+                    >
+                      {savingTemplateId === activeTemplate.id ? '发布中...' : '发布新版本'}
                     </button>
                   </>
                 ) : (

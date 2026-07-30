@@ -11,6 +11,12 @@ import {
   OpenAiSseAccumulator,
   resolveConversationDispatchHttpStatus,
 } from './contract.ts'
+import {
+  composeConversationSystemPrompt,
+  type ConversationPromptNames,
+  type ConversationPromptRow,
+  resolveConversationProfileKey,
+} from './prompt.ts'
 
 declare const EdgeRuntime:
   | {
@@ -20,6 +26,8 @@ declare const EdgeRuntime:
 
 type SessionRow = {
   id: string
+  session_key: string | null
+  conversation_profile_key: string | null
   override_model: string | null
   override_reasoning: boolean | null
 }
@@ -41,6 +49,16 @@ type MessageRow = {
   created_at: string
 }
 
+type ConversationProfileRow = {
+  default_responder_port_key: string
+  rules_prompt_name: string | null
+}
+
+type GenerationPortRow = {
+  identity_prompt_name: string
+  style_prompt_name: string | null
+}
+
 // This Edge bundle intentionally stays decoupled from the 100 KB generated
 // browser type file; request/row contracts above provide the narrow boundary.
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -50,6 +68,69 @@ type UserClient = SupabaseClient<any, 'public', 'public', any, any>
 
 const HISTORY_LIMIT = 200
 const STREAM_PERSIST_INTERVAL_MS = 450
+
+const loadActiveConversationPrompt = async (
+  client: UserClient,
+  userId: string,
+  session: SessionRow,
+  legacySystemPrompt: string,
+) => {
+  const profileKey = resolveConversationProfileKey({
+    conversationProfileKey: session.conversation_profile_key,
+    sessionKey: session.session_key,
+  })
+  const profileResult = await client
+    .from('conversation_profiles')
+    .select('default_responder_port_key,rules_prompt_name')
+    .eq('user_id', userId)
+    .eq('profile_key', profileKey)
+    .eq('active', true)
+    .maybeSingle<ConversationProfileRow>()
+
+  if (profileResult.error || !profileResult.data) {
+    return legacySystemPrompt.trim()
+  }
+
+  const portResult = await client
+    .from('generation_ports')
+    .select('identity_prompt_name,style_prompt_name')
+    .eq('user_id', userId)
+    .eq('port_key', profileResult.data.default_responder_port_key)
+    .eq('active', true)
+    .maybeSingle<GenerationPortRow>()
+
+  if (portResult.error || !portResult.data) {
+    return legacySystemPrompt.trim()
+  }
+
+  const promptNames: ConversationPromptNames = {
+    identityPromptName: portResult.data.identity_prompt_name,
+    stylePromptName: portResult.data.style_prompt_name,
+    rulesPromptName: profileResult.data.rules_prompt_name,
+  }
+  const requiredPromptNames = [
+    promptNames.identityPromptName,
+    promptNames.stylePromptName,
+    promptNames.rulesPromptName,
+  ].filter((name): name is string => Boolean(name))
+  const promptsResult = await client
+    .from('prompt_templates')
+    .select('name,content,version')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .in('name', requiredPromptNames)
+    .returns<ConversationPromptRow[]>()
+
+  if (promptsResult.error) {
+    return legacySystemPrompt.trim()
+  }
+
+  return composeConversationSystemPrompt({
+    names: promptNames,
+    activePrompts: promptsResult.data ?? [],
+    legacySystemPrompt,
+  })
+}
 
 const jsonResponse = (
   payload: Record<string, unknown>,
@@ -194,7 +275,9 @@ const loadConversationRequest = async (
   const [sessionResult, settingsResult, messagesResult] = await Promise.all([
     client
       .from('sessions')
-      .select('id,override_model,override_reasoning')
+      .select(
+        'id,session_key,conversation_profile_key,override_model,override_reasoning',
+      )
       .eq('id', sessionId)
       .eq('user_id', userId)
       .maybeSingle<SessionRow>(),
@@ -227,6 +310,12 @@ const loadConversationRequest = async (
 
   const session = sessionResult.data
   const settings = settingsResult.data
+  const systemPrompt = await loadActiveConversationPrompt(
+    client,
+    userId,
+    session,
+    settings.system_prompt,
+  )
   const canonicalMessages = [...(messagesResult.data ?? [])]
     .reverse()
     .filter((message) => {
@@ -246,7 +335,6 @@ const loadConversationRequest = async (
       content: message.content,
     }))
 
-  const systemPrompt = settings.system_prompt.trim()
   const messages = [
     ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
     ...canonicalMessages,
