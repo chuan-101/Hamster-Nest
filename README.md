@@ -10,7 +10,7 @@
 
 [![Version](https://img.shields.io/badge/Version-v5.3.0-pink?style=flat-square)](#)
 [![License](https://img.shields.io/badge/License-MIT-a3e635?style=flat-square)](./LICENSE)
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-61-2dd4bf?style=flat-square)](#-mcp-工具箱全部-61-个)
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-63-2dd4bf?style=flat-square)](#-mcp-工具箱全部-63-个)
 [![Edge Functions](https://img.shields.io/badge/Edge_Functions-16-8b5cf6?style=flat-square)](#-后端-edge-functions)
 [![PRs](https://img.shields.io/badge/PRs-1000+-ff69b4?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-可装进手机-f59e0b?style=flat-square)](#)
@@ -110,7 +110,7 @@
 | `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 | 10 |
 | `hamster-lounge-mcp` | 仓鼠客厅 · 论坛 · 议事厅 | 14 |
 | `hamster-life-mcp` | 高德地图 · 瑞幸 · 麦当劳 · TTS 语音 | 7 |
-| `hamster-print-mcp` | 远程打印投递 · 打印状态 | 2 |
+| `hamster-print-mcp` | Mac mini 动作 · 远程打印 · X/Twitter 发帖 | 4 |
 
 **AI 模型：** 统一经 **OpenRouter / 自定义 Provider** 接入（`llm_providers` 表按用户配置），不绑定任何单一模型；支持深度思考、长上下文压缩、工具循环。
 
@@ -196,7 +196,7 @@ codex exec ... 或 claude -p ...
 
 ---
 
-### 🧰 MCP 工具箱（全部 61 个）
+### 🧰 MCP 工具箱（全部 63 个）
 
 > 每个 MCP 服务器都是一个独立的 Supabase Edge Function，走 JSON-RPC / MCP Streamable HTTP。
 > 鉴权优先使用 `x-hamster-mcp-key` 请求头（timing-safe 比对）或 Supabase Auth Header；`?key=` 仅为旧客户端迁移期兼容，避免新凭证进入 URL / Access Log。
@@ -290,14 +290,16 @@ codex exec ... 或 claude -p ...
 </details>
 
 <details>
-<summary><b>🖨️ hamster-print-mcp</b> — 远程打印（2）</summary>
+<summary><b>🖨️ hamster-print-mcp</b> — Mac mini 动作 · 打印 · X/Twitter（4）</summary>
 
-> 所有端口统一投递 `print_document`，不经过 Codex CLI。Supabase 是任务真相源，Mac mini 常驻 worker 负责真实打印。
+> 所有端口统一把已确认的本地动作投递到 Supabase，不经过 Codex CLI。Supabase 是任务真相源，Mac mini 常驻 worker 负责真实打印或通过 OpenCLI 发布推文。
 
 | 工具 | 作用 |
 |:---|:---|
 | `print_document` | 经显式确认后投递打印任务；按 request id / 同日同内容幂等，长文自动拆成一个多页 PDF |
 | `get_print_status` | 按任务 UUID 或 request id 查询等待、领取、完成、失败及页数 / CUPS 结果 |
+| `post_tweet` | 经显式确认后投递文字推文；固定为 X/Twitter post 动作，按 request id / 同日同内容幂等 |
+| `get_tweet_status` | 按任务 UUID 或 request id 查询等待、领取、完成、失败及推文 ID / URL |
 
 </details>
 
@@ -412,7 +414,7 @@ Hamster-Nest/
 │   │   ├── hamster-reading-mcp/     #   阅读 · 书摘 · 旁批
 │   │   ├── hamster-lounge-mcp/      #   客厅 · 论坛 · 议事厅
 │   │   ├── hamster-life-mcp/        #   地图 · 咖啡 · 麦当劳 · TTS
-│   │   ├── hamster-print-mcp/       #   远程打印投递 · 状态查询
+│   │   ├── hamster-print-mcp/       #   Mac mini 动作 · 打印 / 发推投递与状态查询
 │   │   ├── openrouter-chat/         #   LLM 对话网关（受保护函数）
 │   │   ├── openrouter-models/       #   模型列表
 │   │   ├── memory-extract/          #   记忆抽取
