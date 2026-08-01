@@ -194,6 +194,23 @@ test('Web editor publishes a new version instead of updating Prompt content', as
   assert.match(source, /旧版本保留用于审计与回滚/u)
 })
 
+test('Web editor locks Prompt selection and drafting while a publish is pending', async () => {
+  const source = await readFile(consoleUrl, 'utf8')
+  const editorStart = source.indexOf('aria-label="Prompt 编辑器"')
+  const editorEnd = source.indexOf('\n          <section', editorStart)
+  const editor = source.slice(editorStart, editorEnd)
+
+  assert.notEqual(editorStart, -1)
+  assert.match(
+    editor,
+    /onClick=\{\(\) => handleSelectTemplate\(template\.id\)\}[\s\S]*?disabled=\{savingTemplateId !== null\}/u,
+  )
+  assert.match(
+    editor,
+    /className="textarea-glass hamster-console-template-editor"[\s\S]*?disabled=\{savingTemplateId !== null\}/u,
+  )
+})
+
 test('API dispatch prefers active profile Prompt layers with legacy fallback', async () => {
   const source = await readFile(dispatchUrl, 'utf8')
 

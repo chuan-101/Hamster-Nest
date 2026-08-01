@@ -1083,6 +1083,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                         key={template.id}
                         className={`hamster-template-item ${isActive ? 'active' : ''}`}
                         onClick={() => handleSelectTemplate(template.id)}
+                        disabled={savingTemplateId !== null}
                       >
                         <span>{template.name}</span>
                         <small>{categoryLabelMap[template.category] ?? template.category}</small>
@@ -1105,6 +1106,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                       rows={12}
                       value={templateDraft}
                       onChange={(event) => setTemplateDraft(event.target.value)}
+                      disabled={savingTemplateId !== null}
                     />
                     <button
                       className="btn-primary"
