@@ -17,6 +17,13 @@ import {
   type ConversationPromptRow,
   resolveConversationProfileKey,
 } from './prompt.ts'
+import {
+  type ContextMessageRow,
+  parseConversationContextRecipe,
+  resolveHistoryTokenBudget,
+  selectNewestContextWindow,
+  startOfShanghaiDayIso,
+} from './context.ts'
 
 declare const EdgeRuntime:
   | {
@@ -39,19 +46,15 @@ type UserSettingsRow = {
   top_p: number
   max_tokens: number
   chat_reasoning_enabled: boolean
+  compression_trigger_ratio: number | null
 }
 
-type MessageRow = {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  meta: Record<string, unknown> | null
-  created_at: string
-}
+type MessageRow = ContextMessageRow
 
 type ConversationProfileRow = {
   default_responder_port_key: string
   rules_prompt_name: string | null
+  context_recipe: unknown
 }
 
 type GenerationPortRow = {
@@ -66,14 +69,13 @@ type GenerationPortRow = {
 type UserClient = SupabaseClient<any, 'public', 'public', any, any>
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-const HISTORY_LIMIT = 200
+const HISTORY_PAGE_SIZE = 100
 const STREAM_PERSIST_INTERVAL_MS = 450
 
-const loadActiveConversationPrompt = async (
+const loadActiveConversationProfile = async (
   client: UserClient,
   userId: string,
   session: SessionRow,
-  legacySystemPrompt: string,
 ) => {
   const profileKey = resolveConversationProfileKey({
     conversationProfileKey: session.conversation_profile_key,
@@ -81,21 +83,32 @@ const loadActiveConversationPrompt = async (
   })
   const profileResult = await client
     .from('conversation_profiles')
-    .select('default_responder_port_key,rules_prompt_name')
+    .select('default_responder_port_key,rules_prompt_name,context_recipe')
     .eq('user_id', userId)
     .eq('profile_key', profileKey)
     .eq('active', true)
     .maybeSingle<ConversationProfileRow>()
 
   if (profileResult.error || !profileResult.data) {
-    return legacySystemPrompt.trim()
+    throw new Error(
+      `active conversation profile load failed: ${profileResult.error?.code ?? 'not_found'}`,
+    )
   }
 
+  return { profileKey, profile: profileResult.data }
+}
+
+const loadActiveConversationPrompt = async (
+  client: UserClient,
+  userId: string,
+  profile: ConversationProfileRow,
+  legacySystemPrompt: string,
+) => {
   const portResult = await client
     .from('generation_ports')
     .select('identity_prompt_name,style_prompt_name')
     .eq('user_id', userId)
-    .eq('port_key', profileResult.data.default_responder_port_key)
+    .eq('port_key', profile.default_responder_port_key)
     .eq('active', true)
     .maybeSingle<GenerationPortRow>()
 
@@ -106,7 +119,7 @@ const loadActiveConversationPrompt = async (
   const promptNames: ConversationPromptNames = {
     identityPromptName: portResult.data.identity_prompt_name,
     stylePromptName: portResult.data.style_prompt_name,
-    rulesPromptName: profileResult.data.rules_prompt_name,
+    rulesPromptName: profile.rules_prompt_name,
   }
   const requiredPromptNames = [
     promptNames.identityPromptName,
@@ -130,6 +143,73 @@ const loadActiveConversationPrompt = async (
     activePrompts: promptsResult.data ?? [],
     legacySystemPrompt,
   })
+}
+
+const loadConversationHistory = async ({
+  client,
+  userId,
+  sessionId,
+  epochStart,
+  tokenBudget,
+  requiredMessageId,
+  excludedMessageId,
+}: {
+  client: UserClient
+  userId: string
+  sessionId: string
+  epochStart: string | null
+  tokenBudget: number
+  requiredMessageId: string
+  excludedMessageId: string
+}) => {
+  const candidates: MessageRow[] = []
+  let cursor: { createdAt: string; id: string } | null = null
+
+  while (true) {
+    let query = client
+      .from('messages')
+      .select('id,role,content,meta,created_at')
+      .eq('session_id', sessionId)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(HISTORY_PAGE_SIZE)
+
+    if (epochStart) {
+      query = query.gte('created_at', epochStart)
+    }
+    if (cursor) {
+      query = query.or(
+        `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+      )
+    }
+
+    const result = await query.returns<MessageRow[]>()
+    if (result.error) {
+      throw new Error(`message history load failed: ${result.error.code ?? 'unknown'}`)
+    }
+
+    const page = result.data ?? []
+    candidates.push(...page)
+    const selection = selectNewestContextWindow({
+      newestFirst: candidates,
+      tokenBudget,
+      requiredMessageId,
+      excludedMessageIds: [excludedMessageId],
+    })
+    if (selection.reachedBudget || page.length < HISTORY_PAGE_SIZE) {
+      if (!selection.containsRequiredMessage) {
+        throw new Error('canonical user message was not found inside its context boundary')
+      }
+      return [...selection.newestFirst].reverse()
+    }
+
+    const last = page.at(-1)
+    if (!last) {
+      throw new Error('message history pagination stopped before the canonical user message')
+    }
+    cursor = { createdAt: last.created_at, id: last.id }
+  }
 }
 
 const jsonResponse = (
@@ -272,7 +352,7 @@ const loadConversationRequest = async (
   sessionId: string,
   userId: string,
 ) => {
-  const [sessionResult, settingsResult, messagesResult] = await Promise.all([
+  const [sessionResult, settingsResult] = await Promise.all([
     client
       .from('sessions')
       .select(
@@ -284,18 +364,10 @@ const loadConversationRequest = async (
     client
       .from('user_settings')
       .select(
-        'default_model,system_prompt,temperature,top_p,max_tokens,chat_reasoning_enabled',
+        'default_model,system_prompt,temperature,top_p,max_tokens,chat_reasoning_enabled,compression_trigger_ratio',
       )
       .eq('user_id', userId)
       .maybeSingle<UserSettingsRow>(),
-    client
-      .from('messages')
-      .select('id,role,content,meta,created_at')
-      .eq('session_id', sessionId)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(HISTORY_LIMIT)
-      .returns<MessageRow[]>(),
   ])
 
   if (sessionResult.error || !sessionResult.data) {
@@ -304,32 +376,37 @@ const loadConversationRequest = async (
   if (settingsResult.error || !settingsResult.data) {
     throw new Error(`settings load failed: ${settingsResult.error?.code ?? 'not_found'}`)
   }
-  if (messagesResult.error) {
-    throw new Error(`message history load failed: ${messagesResult.error.code ?? 'unknown'}`)
-  }
-
   const session = sessionResult.data
   const settings = settingsResult.data
-  const systemPrompt = await loadActiveConversationPrompt(
+  const { profileKey, profile } = await loadActiveConversationProfile(
     client,
     userId,
     session,
+  )
+  const systemPrompt = await loadActiveConversationPrompt(
+    client,
+    userId,
+    profile,
     settings.system_prompt,
   )
-  const canonicalMessages = [...(messagesResult.data ?? [])]
-    .reverse()
-    .filter((message) => {
-      if (message.id === dispatch.reply.id) {
-        return false
-      }
-      if (message.role !== 'assistant') {
-        return true
-      }
-      const state = message.meta && typeof message.meta.delivery_state === 'string'
-        ? message.meta.delivery_state
-        : null
-      return state !== 'generating' && state !== 'failed'
-    })
+  const contextRecipe = parseConversationContextRecipe(profile.context_recipe)
+  const tokenBudget = resolveHistoryTokenBudget({
+    systemPrompt,
+    maxOutputTokens: settings.max_tokens,
+    triggerRatio: settings.compression_trigger_ratio,
+  })
+  const epochStart = contextRecipe.epoch === 'asia_shanghai_day'
+    ? startOfShanghaiDayIso(dispatch.user_message.created_at)
+    : null
+  const canonicalMessages = (await loadConversationHistory({
+    client,
+    userId,
+    sessionId,
+    epochStart,
+    tokenBudget,
+    requiredMessageId: dispatch.user_message.id,
+    excludedMessageId: dispatch.reply.id,
+  }))
     .map((message) => ({
       role: message.role,
       content: message.content,
@@ -347,6 +424,18 @@ const loadConversationRequest = async (
     temperature: settings.temperature,
     top_p: settings.top_p,
     max_tokens: settings.max_tokens,
+    extra: {
+      canonical_context: {
+        version: 1,
+        managed_by: 'conversation-dispatch',
+        profile_key: profileKey,
+        recipe_version: contextRecipe.version,
+        history_scope: contextRecipe.history_scope,
+        epoch: contextRecipe.epoch,
+        selection: contextRecipe.selection,
+        external_sources: contextRecipe.external_sources,
+      },
+    },
   }
 }
 
