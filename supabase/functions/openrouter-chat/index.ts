@@ -2,6 +2,10 @@ import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { consumeQuota } from '../_shared/quota.ts'
 import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
+import {
+  resolveCompressionModule,
+  shouldInjectChitchatMemory,
+} from './context-contract.ts'
 
 const DAILY_QUOTA = 1000
 
@@ -427,20 +431,7 @@ const buildUpstreamHeaders = (
 }
 
 const shouldInjectSyzygyFeedMemory = (payload: OpenRouterPayload) => payload.module === 'syzygy-feed'
-
-const shouldInjectChitchatMemory = (payload: OpenRouterPayload) =>
-  !payload.module || payload.module === 'chitchat'
-
 const shouldInjectBubbleChatMemory = (payload: OpenRouterPayload) => payload.module === 'bubble-chat'
-const resolveCompressionModule = (payload: OpenRouterPayload): 'chat' | 'rp' | null => {
-  if (!payload.module || payload.module === 'chitchat') {
-    return 'chat'
-  }
-  if (payload.module === 'rp-room') {
-    return 'rp'
-  }
-  return null
-}
 
 const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_CHAT = 20
 const DEFAULT_RECENT_UNCOMPRESSED_MESSAGES_RP = 10
