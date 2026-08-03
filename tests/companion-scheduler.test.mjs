@@ -3,11 +3,11 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 const migrationUrl = new URL(
-  '../supabase/migrations/20260802111329_v4_1_companion_scheduler_canonical.sql',
+  '../supabase/migrations/20260803125308_v4_1_companion_scheduler_canonical.sql',
   import.meta.url,
 )
 const rollbackUrl = new URL(
-  '../supabase/rollback-contracts/20260802111329_v4_1_companion_scheduler_canonical.sql',
+  '../supabase/rollback-contracts/20260803125308_v4_1_companion_scheduler_canonical.sql',
   import.meta.url,
 )
 

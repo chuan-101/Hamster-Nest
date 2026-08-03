@@ -42,14 +42,14 @@ const fixtureSql = await readFile(
 const migrationSql = await readFile(
   path.join(
     repoRoot,
-    'supabase/migrations/20260802111329_v4_1_companion_scheduler_canonical.sql',
+    'supabase/migrations/20260803125308_v4_1_companion_scheduler_canonical.sql',
   ),
   'utf8',
 )
 const rollbackSql = await readFile(
   path.join(
     repoRoot,
-    'supabase/rollback-contracts/20260802111329_v4_1_companion_scheduler_canonical.sql',
+    'supabase/rollback-contracts/20260803125308_v4_1_companion_scheduler_canonical.sql',
   ),
   'utf8',
 )

@@ -1,4 +1,4 @@
--- Rollback contract for 20260802111329_v4_1_companion_scheduler_canonical.sql.
+-- Rollback contract for 20260803125308_v4_1_companion_scheduler_canonical.sql.
 --
 -- This removes the local scheduler publish surface and nullable audit columns.
 -- Canonical messages and agent_events already published by the forward migration

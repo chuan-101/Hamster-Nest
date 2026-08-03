@@ -786,8 +786,8 @@ export type Database = {
           input_summary: string | null
           model: string | null
           raw_output: string | null
-          topic_fingerprint: string | null
           tokens_used: number | null
+          topic_fingerprint: string | null
           user_id: string
           wechat_message_id: string | null
         }
@@ -804,8 +804,8 @@ export type Database = {
           input_summary?: string | null
           model?: string | null
           raw_output?: string | null
-          topic_fingerprint?: string | null
           tokens_used?: number | null
+          topic_fingerprint?: string | null
           user_id?: string
           wechat_message_id?: string | null
         }
@@ -822,8 +822,8 @@ export type Database = {
           input_summary?: string | null
           model?: string | null
           raw_output?: string | null
-          topic_fingerprint?: string | null
           tokens_used?: number | null
+          topic_fingerprint?: string | null
           user_id?: string
           wechat_message_id?: string | null
         }
@@ -3535,19 +3535,6 @@ export type Database = {
         Args: { p_scope: string; p_user_id: string }
         Returns: number
       }
-      conversation_dispatch_cancel_pending: {
-        Args: { p_task_id: string; p_user_id: string }
-        Returns: Json
-      }
-      conversation_dispatch_complete_reply: {
-        Args: {
-          p_completed_at?: string
-          p_content: string
-          p_task_id: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
       conversation_companion_publish_proactive: {
         Args: {
           p_client_id: string
@@ -3560,6 +3547,19 @@ export type Database = {
           p_raw_output: string
           p_tokens_used: number
           p_topic_fingerprint: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      conversation_dispatch_cancel_pending: {
+        Args: { p_task_id: string; p_user_id: string }
+        Returns: Json
+      }
+      conversation_dispatch_complete_reply: {
+        Args: {
+          p_completed_at?: string
+          p_content: string
+          p_task_id: string
           p_user_id: string
         }
         Returns: Json
