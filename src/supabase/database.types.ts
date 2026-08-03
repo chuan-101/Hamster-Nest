@@ -774,45 +774,75 @@ export type Database = {
       }
       checkin_logs: {
         Row: {
+          canonical_event_id: number | null
+          canonical_message_id: string | null
           checkin_time: string
           created_at: string
           decision: string
           error_detail: string | null
+          generation_audit: Json
           id: string
+          idempotency_key: string | null
           input_summary: string | null
           model: string | null
           raw_output: string | null
           tokens_used: number | null
+          topic_fingerprint: string | null
           user_id: string
           wechat_message_id: string | null
         }
         Insert: {
+          canonical_event_id?: number | null
+          canonical_message_id?: string | null
           checkin_time?: string
           created_at?: string
           decision?: string
           error_detail?: string | null
+          generation_audit?: Json
           id?: string
+          idempotency_key?: string | null
           input_summary?: string | null
           model?: string | null
           raw_output?: string | null
           tokens_used?: number | null
+          topic_fingerprint?: string | null
           user_id?: string
           wechat_message_id?: string | null
         }
         Update: {
+          canonical_event_id?: number | null
+          canonical_message_id?: string | null
           checkin_time?: string
           created_at?: string
           decision?: string
           error_detail?: string | null
+          generation_audit?: Json
           id?: string
+          idempotency_key?: string | null
           input_summary?: string | null
           model?: string | null
           raw_output?: string | null
           tokens_used?: number | null
+          topic_fingerprint?: string | null
           user_id?: string
           wechat_message_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "checkin_logs_canonical_event_fkey"
+            columns: ["canonical_event_id"]
+            isOneToOne: false
+            referencedRelation: "agent_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkin_logs_canonical_message_fkey"
+            columns: ["canonical_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       checkins: {
         Row: {
@@ -3504,6 +3534,22 @@ export type Database = {
       consume_usage_quota: {
         Args: { p_scope: string; p_user_id: string }
         Returns: number
+      }
+      conversation_companion_publish_proactive: {
+        Args: {
+          p_client_id: string
+          p_content: string
+          p_generated_at: string
+          p_generation_audit: Json
+          p_importance?: string
+          p_input_summary: string
+          p_model: string
+          p_raw_output: string
+          p_tokens_used: number
+          p_topic_fingerprint: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       conversation_dispatch_cancel_pending: {
         Args: { p_task_id: string; p_user_id: string }
