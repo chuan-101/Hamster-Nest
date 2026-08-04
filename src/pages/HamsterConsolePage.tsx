@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { Link } from 'react-router-dom'
+import {
+  applyPromptRecommendation,
+  getPromptRecommendationLabel,
+  getPromptTemplateLabel,
+} from '../lib/promptPresentation'
 import { supabase } from '../supabase/client'
 import type { Json } from '../supabase/database.types'
 import './HamsterConsolePage.css'
@@ -147,6 +152,17 @@ const categoryLabelMap: Record<string, string> = {
   style: '风格',
 }
 
+const companionPromptNames = [
+  'syzygy_base',
+  'app_companion_reply_style',
+  'checkin_day',
+  'checkin_night',
+] as const
+
+const wechatPromptNames = ['wechat_reply_style'] as const
+const companionPromptNameSet = new Set<string>(companionPromptNames)
+const wechatPromptNameSet = new Set<string>(wechatPromptNames)
+
 const formatJson = (value: unknown) => JSON.stringify(value ?? {}, null, 2)
 
 const formatDateTime = (value: string | null) => {
@@ -236,7 +252,9 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   const [expandedSection, setExpandedSection] = useState('mini-control')
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     mini: true,
-    wechat: true,
+    companion: true,
+    prompts: false,
+    wechat: false,
     v3: true,
   })
   const [codexControlRow, setCodexControlRow] = useState<CodexControlRow | null>(null)
@@ -309,6 +327,30 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     if (summaryModel) merged.add(summaryModel)
     return Array.from(merged)
   }, [availableModels, channels, agentForm.wechat_context_summary_model])
+  const companionChannel = channels.find((item) => item.channel_name === 'app_companion') ?? null
+  const backupChannels = channels.filter((item) => item.channel_name !== 'app_companion')
+  const companionPromptTemplates = companionPromptNames
+    .map((name) => promptTemplates.find((template) => template.name === name))
+    .filter((template): template is PromptTemplateRow => Boolean(template))
+  const otherPromptTemplates = promptTemplates.filter(
+    (template) =>
+      !companionPromptNameSet.has(template.name) &&
+      !wechatPromptNameSet.has(template.name),
+  )
+  const wechatPromptTemplates = wechatPromptNames
+    .map((name) => promptTemplates.find((template) => template.name === name))
+    .filter((template): template is PromptTemplateRow => Boolean(template))
+  const activeCompanionTemplate = activeTemplate && companionPromptNameSet.has(activeTemplate.name)
+    ? activeTemplate
+    : null
+  const activeOtherTemplate = activeTemplate && otherPromptTemplates.some(
+      (template) => template.id === activeTemplate.id,
+    )
+    ? activeTemplate
+    : null
+  const activeWechatTemplate = activeTemplate && wechatPromptNameSet.has(activeTemplate.name)
+    ? activeTemplate
+    : null
 
   const showToast = useCallback((message: string) => {
     setToast(message)
@@ -708,6 +750,20 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     setTemplateDraft(template?.content ?? '')
   }
 
+  const handleApplyPromptRecommendation = () => {
+    if (!activeTemplate) return
+    const recommendedDraft = applyPromptRecommendation(
+      activeTemplate.name,
+      templateDraft,
+    )
+    if (recommendedDraft === templateDraft) {
+      showToast('当前草稿已经符合这项整理规则')
+      return
+    }
+    setTemplateDraft(recommendedDraft)
+    showToast('建议内容已填入草稿；确认后再发布新版本')
+  }
+
   const handleSaveTemplate = async () => {
     if (!supabase || !activeTemplate) return
     if (!templateDraft.trim() || templateDraft === activeTemplate.content) return
@@ -733,14 +789,14 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
     )
     setActiveTemplateId(data.id)
     setTemplateDraft(data.content)
-    showToast(`Prompt 已发布：${data.name} v${data.version}`)
+    showToast(`Prompt 已发布：${getPromptTemplateLabel(data.name)} v${data.version}`)
   }
 
   const toggleSection = (sectionId: string) => {
     setExpandedSection((current) => (current === sectionId ? '' : sectionId))
   }
 
-  const toggleGroup = (groupId: 'mini' | 'wechat' | 'v3') => {
+  const toggleGroup = (groupId: 'mini' | 'companion' | 'prompts' | 'wechat' | 'v3') => {
     setExpandedGroups((current) => ({ ...current, [groupId]: !current[groupId] }))
   }
 
@@ -872,9 +928,248 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
           </section>
 
 
-          <section className="hamster-console-card glass-card hamster-console-group" aria-label="微信 API 配置">
+          <section className="hamster-console-card glass-card hamster-console-group" aria-label="24h 陪伴配置">
+            <button className="hamster-console-accordion__header" onClick={() => toggleGroup('companion')}>
+              <div><h2>24h 陪伴配置</h2><small>回复与主动联系共用模型 / Prompt / 同一会话上下文</small></div>
+              <span>{expandedGroups.companion ? '▼' : '▶'}</span>
+            </button>
+            <div className={`hamster-console-accordion__content ${expandedGroups.companion ? 'expanded' : ''}`}>
+              <div className="hamster-console-accordion__inner hamster-console-nested-stack">
+                <section className="hamster-console-card glass-card" aria-label="24h 陪伴模型">
+                  <div className="hamster-console-accordion__inner">
+                    <h2>统一模型</h2>
+                    <p className="hamster-console-card__hint">
+                      App 回复与主动联系共用这一模型；保存后两条路径一起切换。
+                    </p>
+                    {companionChannel ? (
+                      <div className="hamster-console-channel-row">
+                        <div className="hamster-console-channel-title">
+                          24h 陪伴统一模型
+                          <small>内部通道：app_companion</small>
+                        </div>
+                        <select
+                          className="input-glass"
+                          value={companionChannel.active_model ?? modelOptions[0] ?? ''}
+                          onChange={(event) => handleChannelModelChange('app_companion', event.target.value)}
+                        >
+                          {modelOptions.map((model) => (
+                            <option key={model} value={model}>{model}</option>
+                          ))}
+                        </select>
+                        <button
+                          className="btn-primary"
+                          onClick={() => void handleSaveChannelModel('app_companion')}
+                          disabled={savingChannelName === 'app_companion'}
+                        >
+                          {savingChannelName === 'app_companion' ? '保存中...' : '保存统一模型'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="hamster-console-card__hint">未找到 24h 陪伴模型通道；运行端会拒绝悄悄回退到另一模型。</p>
+                    )}
+                  </div>
+                </section>
+
+                <section className="hamster-console-card glass-card" aria-label="24h 主动联系设置">
+                  <button className="hamster-console-accordion__header" onClick={() => toggleSection('checkin-settings')}>
+                    <h2>主动联系节奏</h2>
+                    <span>{expandedSection === 'checkin-settings' ? '▼' : '▶'}</span>
+                  </button>
+                  <div className={`hamster-console-accordion__content ${expandedSection === 'checkin-settings' ? 'expanded' : ''}`}>
+                    <div className="hamster-console-accordion__inner">
+                      <p className="hamster-console-card__hint">
+                        这里只负责 App 内 24h 陪伴，不执行外部发布或记录任务。
+                      </p>
+                      <div className="hamster-console-toggle">
+                        <span>启用主动联系</span>
+                        <button
+                          className={`hamster-toggle ${agentSettings?.checkin_enabled ? 'enabled' : ''}`}
+                          onClick={() =>
+                            setAgentSettings((current) => (current ? { ...current, checkin_enabled: !current.checkin_enabled } : current))
+                          }
+                          disabled={!agentSettings}
+                        >
+                          {agentSettings?.checkin_enabled ? '开启' : '关闭'}
+                        </button>
+                      </div>
+                      <div className="hamster-console-form-grid">
+                        {[
+                          ['day_mode_start_hour', '日间开始'],
+                          ['day_mode_end_hour', '日间结束'],
+                          ['day_min_interval_minutes', '日间最小间隔(分)'],
+                          ['day_max_interval_minutes', '日间最大间隔(分)'],
+                          ['night_mode_start_hour', '夜间开始'],
+                          ['night_mode_end_hour', '夜间结束'],
+                          ['night_min_interval_minutes', '夜间最小间隔(分)'],
+                          ['night_max_interval_minutes', '夜间最大间隔(分)'],
+                          ['quiet_hours_start_hour', '静默开始(可空)'],
+                          ['quiet_hours_end_hour', '静默结束(可空)'],
+                          ['cooldown_after_interaction_minutes', '互动后冷却(分)'],
+                          ['max_daily_checkins_day', '日间每天上限'],
+                          ['max_daily_checkins_night', '夜间每天上限'],
+                        ].map(([field, label]) => (
+                          <label className="hamster-console-input" key={field}>
+                            <span>{label}</span>
+                            <input
+                              className="input-glass"
+                              type="number"
+                              inputMode="numeric"
+                              value={agentForm[field] ?? ''}
+                              onChange={(event) => handleAgentFieldChange(field, event.target.value)}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <label className="hamster-console-input">
+                        <span>每渠道计划（JSON）</span>
+                        <textarea
+                          className="textarea-glass hamster-console-json"
+                          rows={7}
+                          value={perChannelScheduleText}
+                          onChange={(event) => setPerChannelScheduleText(event.target.value)}
+                        />
+                      </label>
+                      <button className="btn-primary" onClick={() => void handleSaveAgentSettings()} disabled={savingAgentSettings || !agentSettings}>
+                        {savingAgentSettings ? '保存中...' : '保存主动联系设置'}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="hamster-console-card glass-card" aria-label="24h 陪伴 Prompt">
+                  <div className="hamster-console-accordion__inner">
+                    <h2>陪伴 Prompt</h2>
+                    <p className="hamster-console-card__hint">
+                      身份、App 语气和昼夜主动联系四层均为不可变版本发布；历史版本继续保留。
+                    </p>
+                    <div className="hamster-console-template-list">
+                      {companionPromptTemplates.map((template) => (
+                        <button
+                          key={template.id}
+                          className={`hamster-template-item ${template.id === activeTemplateId ? 'active' : ''}`}
+                          onClick={() => handleSelectTemplate(template.id)}
+                          disabled={savingTemplateId !== null}
+                        >
+                          <span>{getPromptTemplateLabel(template.name)}</span>
+                          <small>active · v{template.version}</small>
+                        </button>
+                      ))}
+                    </div>
+                    {activeCompanionTemplate ? (
+                      <>
+                        <div className="hamster-console-template-meta">
+                          <span>{getPromptTemplateLabel(activeCompanionTemplate.name)}</span>
+                          <span>当前 active · v{activeCompanionTemplate.version}</span>
+                        </div>
+                        <p className="hamster-console-card__hint">
+                          内部键：{activeCompanionTemplate.name}。发布会创建不可变的新版本；旧版本保留用于审计与回滚。
+                        </p>
+                        <textarea
+                          className="textarea-glass hamster-console-template-editor"
+                          rows={12}
+                          value={templateDraft}
+                          onChange={(event) => setTemplateDraft(event.target.value)}
+                          disabled={savingTemplateId !== null}
+                        />
+                        {getPromptRecommendationLabel(activeCompanionTemplate.name) ? (
+                          <button
+                            className="btn-secondary"
+                            onClick={handleApplyPromptRecommendation}
+                            disabled={savingTemplateId !== null}
+                          >
+                            {getPromptRecommendationLabel(activeCompanionTemplate.name)}
+                          </button>
+                        ) : null}
+                        <button
+                          className="btn-primary"
+                          onClick={() => void handleSaveTemplate()}
+                          disabled={savingTemplateId === activeCompanionTemplate.id || !hasPromptDraftChanges}
+                        >
+                          {savingTemplateId === activeCompanionTemplate.id ? '发布中...' : '发布陪伴 Prompt 新版本'}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="hamster-console-card__hint">从上方选择一层 Prompt 后编辑。</p>
+                    )}
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
+
+
+          <section className="hamster-console-card glass-card hamster-console-group" aria-label="其他聊天 Prompt">
+            <button className="hamster-console-accordion__header" onClick={() => toggleGroup('prompts')}>
+              <div><h2>其他聊天 Prompt</h2><small>普通 App、CLI 与沙发规则；中文名称展示，内部键保留审计</small></div>
+              <span>{expandedGroups.prompts ? '▼' : '▶'}</span>
+            </button>
+            <div className={`hamster-console-accordion__content ${expandedGroups.prompts ? 'expanded' : ''}`}>
+              <div className="hamster-console-accordion__inner">
+                <section className="hamster-console-card glass-card" aria-label="Prompt 编辑器">
+                  <div className="hamster-console-accordion__inner">
+                    <div className="hamster-console-template-list">
+                      {otherPromptTemplates.map((template) => {
+                        const isActive = template.id === activeTemplateId
+                        return (
+                          <button
+                            key={template.id}
+                            className={`hamster-template-item ${isActive ? 'active' : ''}`}
+                            onClick={() => handleSelectTemplate(template.id)}
+                            disabled={savingTemplateId !== null}
+                          >
+                            <span>{getPromptTemplateLabel(template.name)}</span>
+                            <small>{categoryLabelMap[template.category] ?? template.category} · v{template.version}</small>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {activeOtherTemplate ? (
+                      <>
+                        <div className="hamster-console-template-meta">
+                          <span>{getPromptTemplateLabel(activeOtherTemplate.name)}</span>
+                          <span>当前 active · v{activeOtherTemplate.version}</span>
+                        </div>
+                        <p className="hamster-console-card__hint">
+                          内部键：{activeOtherTemplate.name}。发布会创建不可变的新版本；旧版本保留用于审计与回滚。
+                        </p>
+                        <textarea
+                          className="textarea-glass hamster-console-template-editor"
+                          rows={12}
+                          value={templateDraft}
+                          onChange={(event) => setTemplateDraft(event.target.value)}
+                          disabled={savingTemplateId !== null}
+                        />
+                        {getPromptRecommendationLabel(activeOtherTemplate.name) ? (
+                          <button
+                            className="btn-secondary"
+                            onClick={handleApplyPromptRecommendation}
+                            disabled={savingTemplateId !== null}
+                          >
+                            {getPromptRecommendationLabel(activeOtherTemplate.name)}
+                          </button>
+                        ) : null}
+                        <button
+                          className="btn-primary"
+                          onClick={() => void handleSaveTemplate()}
+                          disabled={savingTemplateId === activeOtherTemplate.id || !hasPromptDraftChanges}
+                        >
+                          {savingTemplateId === activeOtherTemplate.id ? '发布中...' : '发布 Prompt 新版本'}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="hamster-console-card__hint">从上方选择一项后编辑。</p>
+                    )}
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
+
+
+          <section className="hamster-console-card glass-card hamster-console-group" aria-label="微信 API 备份配置">
             <button className="hamster-console-accordion__header" onClick={() => toggleGroup('wechat')}>
-              <div><h2>微信 API 配置</h2><small>模型 / 主动消息 / 上下文 / Prompt</small></div>
+              <div><h2>微信 API 备份配置</h2><small>旧模型 / 上下文 / Prompt；链路完整保留，默认沉底</small></div>
               <span>{expandedGroups.wechat ? '▼' : '▶'}</span>
             </button>
             <div className={`hamster-console-accordion__content ${expandedGroups.wechat ? 'expanded' : ''}`}>
@@ -899,7 +1194,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                   </button>
                 </div>
                 <div className="hamster-console-channel-list">
-                  {channels.map((row) => (
+                  {backupChannels.map((row) => (
                     <div className="hamster-console-channel-row" key={row.channel_name}>
                       <div className="hamster-console-channel-title">{row.channel_name}</div>
                       <select
@@ -921,72 +1216,6 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="hamster-console-card glass-card" aria-label="主动消息设置">
-            <button className="hamster-console-accordion__header" onClick={() => toggleSection('checkin-settings')}>
-              <h2>主动消息设置</h2>
-              <span>{expandedSection === 'checkin-settings' ? '▼' : '▶'}</span>
-            </button>
-            <div className={`hamster-console-accordion__content ${expandedSection === 'checkin-settings' ? 'expanded' : ''}`}>
-              <div className="hamster-console-accordion__inner">
-                <div className="hamster-console-toggle">
-                  <span>checkin_enabled</span>
-                  <button
-                    className={`hamster-toggle ${agentSettings?.checkin_enabled ? 'enabled' : ''}`}
-                    onClick={() =>
-                      setAgentSettings((current) => (current ? { ...current, checkin_enabled: !current.checkin_enabled } : current))
-                    }
-                    disabled={!agentSettings}
-                  >
-                    {agentSettings?.checkin_enabled ? '开启' : '关闭'}
-                  </button>
-                </div>
-
-                <div className="hamster-console-form-grid">
-                  {[
-                    ['day_mode_start_hour', '日间开始'],
-                    ['day_mode_end_hour', '日间结束'],
-                    ['day_min_interval_minutes', '日间最小间隔(分)'],
-                    ['day_max_interval_minutes', '日间最大间隔(分)'],
-                    ['night_mode_start_hour', '夜间开始'],
-                    ['night_mode_end_hour', '夜间结束'],
-                    ['night_min_interval_minutes', '夜间最小间隔(分)'],
-                    ['night_max_interval_minutes', '夜间最大间隔(分)'],
-                    ['quiet_hours_start_hour', '静默开始(可空)'],
-                    ['quiet_hours_end_hour', '静默结束(可空)'],
-                    ['cooldown_after_interaction_minutes', '互动后冷却(分)'],
-                    ['max_daily_checkins_day', '日间每天上限'],
-                    ['max_daily_checkins_night', '夜间每天上限'],
-                  ].map(([field, label]) => (
-                    <label className="hamster-console-input" key={field}>
-                      <span>{label}</span>
-                      <input
-                        className="input-glass"
-                        type="number"
-                        inputMode="numeric"
-                        value={agentForm[field] ?? ''}
-                        onChange={(event) => handleAgentFieldChange(field, event.target.value)}
-                      />
-                    </label>
-                  ))}
-                </div>
-
-                <label className="hamster-console-input">
-                  <span>每渠道计划（JSON）</span>
-                  <textarea
-                    className="textarea-glass hamster-console-json"
-                    rows={7}
-                    value={perChannelScheduleText}
-                    onChange={(event) => setPerChannelScheduleText(event.target.value)}
-                  />
-                </label>
-
-                <button className="btn-primary" onClick={() => void handleSaveAgentSettings()} disabled={savingAgentSettings || !agentSettings}>
-                  {savingAgentSettings ? '保存中...' : '保存主动消息设置'}
-                </button>
               </div>
             </div>
           </section>
@@ -1068,15 +1297,15 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
             </div>
           </section>
 
-          <section className="hamster-console-card glass-card" aria-label="Prompt 编辑器">
+          <section className="hamster-console-card glass-card" aria-label="微信备份 Prompt">
             <button className="hamster-console-accordion__header" onClick={() => toggleSection('prompt-editor')}>
-              <h2>Prompt 编辑器</h2>
+              <h2>微信回复 Prompt</h2>
               <span>{expandedSection === 'prompt-editor' ? '▼' : '▶'}</span>
             </button>
             <div className={`hamster-console-accordion__content ${expandedSection === 'prompt-editor' ? 'expanded' : ''}`}>
               <div className="hamster-console-accordion__inner">
                 <div className="hamster-console-template-list">
-                  {promptTemplates.map((template) => {
+                  {wechatPromptTemplates.map((template) => {
                     const isActive = template.id === activeTemplateId
                     return (
                       <button
@@ -1085,21 +1314,21 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                         onClick={() => handleSelectTemplate(template.id)}
                         disabled={savingTemplateId !== null}
                       >
-                        <span>{template.name}</span>
-                        <small>{categoryLabelMap[template.category] ?? template.category}</small>
+                        <span>{getPromptTemplateLabel(template.name)}</span>
+                        <small>{categoryLabelMap[template.category] ?? template.category} · v{template.version}</small>
                       </button>
                     )
                   })}
                 </div>
 
-                {activeTemplate ? (
+                {activeWechatTemplate ? (
                   <>
                     <div className="hamster-console-template-meta">
-                      <span>{activeTemplate.name}</span>
-                      <span>当前 active · v{activeTemplate.version}</span>
+                      <span>{getPromptTemplateLabel(activeWechatTemplate.name)}</span>
+                      <span>当前 active · v{activeWechatTemplate.version}</span>
                     </div>
                     <p className="hamster-console-card__hint">
-                      发布会创建不可变的新版本；旧版本保留用于审计与回滚。
+                      内部键：{activeWechatTemplate.name}。这是微信 transport 的备份风格，不影响 App 陪伴 Prompt。
                     </p>
                     <textarea
                       className="textarea-glass hamster-console-template-editor"
@@ -1112,15 +1341,15 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                       className="btn-primary"
                       onClick={() => void handleSaveTemplate()}
                       disabled={
-                        savingTemplateId === activeTemplate.id ||
+                        savingTemplateId === activeWechatTemplate.id ||
                         !hasPromptDraftChanges
                       }
                     >
-                      {savingTemplateId === activeTemplate.id ? '发布中...' : '发布新版本'}
+                      {savingTemplateId === activeWechatTemplate.id ? '发布中...' : '发布微信 Prompt 新版本'}
                     </button>
                   </>
                 ) : (
-                  <p className="hamster-console-card__hint">暂无 active prompt 模板。</p>
+                  <p className="hamster-console-card__hint">选择微信回复风格后编辑。</p>
                 )}
               </div>
             </div>
