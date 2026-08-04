@@ -24,6 +24,10 @@ import {
   selectNewestContextWindow,
   startOfShanghaiDayIso,
 } from './context.ts'
+import {
+  buildCurrentShanghaiTimePrompt,
+  withCanonicalMessageTimestamp,
+} from './model-context.ts'
 
 declare const EdgeRuntime:
   | {
@@ -60,6 +64,11 @@ type ConversationProfileRow = {
 type GenerationPortRow = {
   identity_prompt_name: string
   style_prompt_name: string | null
+  model_channel_name: string | null
+}
+
+type ChannelConfigRow = {
+  active_model: string
 }
 
 // This Edge bundle intentionally stays decoupled from the 100 KB generated
@@ -98,22 +107,26 @@ const loadActiveConversationProfile = async (
   return { profileKey, profile: profileResult.data }
 }
 
-const loadActiveConversationPrompt = async (
+const loadActiveConversationGeneration = async (
   client: UserClient,
   userId: string,
+  profileKey: string,
   profile: ConversationProfileRow,
   legacySystemPrompt: string,
 ) => {
   const portResult = await client
     .from('generation_ports')
-    .select('identity_prompt_name,style_prompt_name')
+    .select('identity_prompt_name,style_prompt_name,model_channel_name')
     .eq('user_id', userId)
     .eq('port_key', profile.default_responder_port_key)
     .eq('active', true)
     .maybeSingle<GenerationPortRow>()
 
   if (portResult.error || !portResult.data) {
-    return legacySystemPrompt.trim()
+    if (profileKey === 'app_companion') {
+      throw new Error('active app companion generation port was not found')
+    }
+    return { systemPrompt: legacySystemPrompt.trim(), activeModel: null }
   }
 
   const promptNames: ConversationPromptNames = {
@@ -126,23 +139,39 @@ const loadActiveConversationPrompt = async (
     promptNames.stylePromptName,
     promptNames.rulesPromptName,
   ].filter((name): name is string => Boolean(name))
-  const promptsResult = await client
-    .from('prompt_templates')
-    .select('name,content,version')
-    .eq('user_id', userId)
-    .eq('active', true)
-    .in('name', requiredPromptNames)
-    .returns<ConversationPromptRow[]>()
+  const [promptsResult, channelResult] = await Promise.all([
+    client
+      .from('prompt_templates')
+      .select('name,content,version')
+      .eq('user_id', userId)
+      .eq('active', true)
+      .in('name', requiredPromptNames)
+      .returns<ConversationPromptRow[]>(),
+    portResult.data.model_channel_name
+      ? client
+        .from('channel_config')
+        .select('active_model')
+        .eq('user_id', userId)
+        .eq('channel_name', portResult.data.model_channel_name)
+        .maybeSingle<ChannelConfigRow>()
+      : Promise.resolve({ data: null, error: null }),
+  ])
 
-  if (promptsResult.error) {
-    return legacySystemPrompt.trim()
+  const activeModel = channelResult.data?.active_model?.trim() || null
+  if (profileKey === 'app_companion' && (channelResult.error || !activeModel)) {
+    throw new Error('active app companion model channel was not found')
   }
 
-  return composeConversationSystemPrompt({
-    names: promptNames,
-    activePrompts: promptsResult.data ?? [],
-    legacySystemPrompt,
-  })
+  return {
+    systemPrompt: promptsResult.error
+      ? legacySystemPrompt.trim()
+      : composeConversationSystemPrompt({
+        names: promptNames,
+        activePrompts: promptsResult.data ?? [],
+        legacySystemPrompt,
+      }),
+    activeModel,
+  }
 }
 
 const loadConversationHistory = async ({
@@ -346,6 +375,39 @@ const persistReply = async (
   }
 }
 
+const publishApiReplyCompletedEvent = async (
+  client: UserClient,
+  userId: string,
+  sessionId: string,
+  dispatch: ConversationDispatchPrepareResult,
+) => {
+  const { error } = await client.from('agent_events').insert({
+    user_id: userId,
+    actor: dispatch.responder_sender_key,
+    event_type: 'conversation_reply_completed',
+    entity_type: 'conversation_reply',
+    entity_id: dispatch.reply.id,
+    title: 'Syzygy · 陪伴回复了你',
+    payload: {
+      schema_version: 1,
+      screen: 'conversation_detail',
+      params: { id: sessionId },
+      url: `/#/chat?session=${sessionId}`,
+      session_id: sessionId,
+      user_message_id: dispatch.user_message.id,
+      reply_id: dispatch.reply.id,
+      responder_sender_key: dispatch.responder_sender_key,
+    },
+    importance: 'normal',
+  })
+
+  // The partial unique index on (user_id, event_type, entity_id) makes a retry
+  // safe. A duplicate means the first completion already created the push fact.
+  if (error && error.code !== '23505') {
+    throw new Error(`reply completion event failed: ${error.code ?? 'unknown'}`)
+  }
+}
+
 const loadConversationRequest = async (
   client: UserClient,
   dispatch: ConversationDispatchPrepareResult,
@@ -383,12 +445,14 @@ const loadConversationRequest = async (
     userId,
     session,
   )
-  const systemPrompt = await loadActiveConversationPrompt(
+  const generation = await loadActiveConversationGeneration(
     client,
     userId,
+    profileKey,
     profile,
     settings.system_prompt,
   )
+  const systemPrompt = generation.systemPrompt
   const contextRecipe = parseConversationContextRecipe(profile.context_recipe)
   const tokenBudget = resolveHistoryTokenBudget({
     systemPrompt,
@@ -409,17 +473,23 @@ const loadConversationRequest = async (
   }))
     .map((message) => ({
       role: message.role,
-      content: message.content,
+      content: withCanonicalMessageTimestamp(message.content, message.created_at),
     }))
 
   const messages = [
     ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+    {
+      role: 'system' as const,
+      content: buildCurrentShanghaiTimePrompt(),
+    },
     ...canonicalMessages,
   ]
 
   return {
     messages,
-    model: session.override_model?.trim() || settings.default_model,
+    model: profileKey === 'app_companion'
+      ? generation.activeModel
+      : session.override_model?.trim() || generation.activeModel || settings.default_model,
     reasoning: session.override_reasoning ?? settings.chat_reasoning_enabled,
     temperature: settings.temperature,
     top_p: settings.top_p,
@@ -443,7 +513,9 @@ const proxyAndPersistStream = async (
   upstreamBody: ReadableStream<Uint8Array>,
   writable: WritableStream<Uint8Array>,
   client: UserClient,
+  eventClient: UserClient,
   userId: string,
+  sessionId: string,
   dispatch: ConversationDispatchPrepareResult,
 ) => {
   const reader = upstreamBody.getReader()
@@ -495,6 +567,13 @@ const proxyAndPersistStream = async (
       'completed',
       { model: accumulator.model },
     )
+    try {
+      await publishApiReplyCompletedEvent(eventClient, userId, sessionId, dispatch)
+    } catch (eventError) {
+      // Canonical reply completion must not be rolled back to failed merely
+      // because the secondary push fact could not be published.
+      console.error('[conversation-dispatch] failed to publish reply completion event', eventError)
+    }
     await writer.close()
   } catch (error) {
     const errorCode = error instanceof Error && error.message === 'EMPTY_MODEL_CONTENT'
@@ -806,7 +885,9 @@ Deno.serve(async (request) => {
     upstream.body,
     writable,
     client,
+    serviceClient,
     userId,
+    payload.session_id,
     dispatch,
   )
 

@@ -385,10 +385,17 @@
 
 .hamster-console-channel-title {
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #7a5e6f;
   font-size: 0.78rem;
+}
+
+.hamster-console-channel-title small {
+  display: block;
+  margin-top: 0.2rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: #a48698;
 }
 
 .hamster-console-toggle {

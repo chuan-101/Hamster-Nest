@@ -16,14 +16,19 @@
 // immediately; Beijing quiet hours [23:00, 08:00) suppress everything except
 // urgent. Digest/merge pushes for normal importance are V4.1 scope.
 // Every attempt lands in notification_events (queued/sent/failed/skipped).
-// Push content carries title + entity id + routing data only — never
-// sensitive bodies, tokens, or raw payloads (红线清单 11).
+// Conversation pushes may carry a user-authorized, bounded model-content preview.
+// Tokens and raw event payloads never enter visible notification content.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { timingSafeEqual } from '../_shared/auth.ts'
 import { consumeQuota } from '../_shared/quota.ts'
 import { getBeijingDate } from '../_shared/time.ts'
 import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
+import {
+  normalizeConversationPushPreview,
+  resolvePushTitle,
+  supportsConversationPushPreview,
+} from './preview.ts'
 
 const PUSH_DAILY_LIMIT = 200
 const QUIET_HOUR_START = 23 // 北京时区静默时段 [23:00, 08:00)，urgent 豁免
@@ -104,6 +109,21 @@ const buildNavigationData = (event: AgentEvent) => {
   return { screen, params, url }
 }
 
+const loadConversationPreview = async (
+  supabase: ReturnType<typeof serviceClient>,
+  event: AgentEvent,
+) => {
+  if (!event.entity_id || !supportsConversationPushPreview(event.entity_type)) return null
+  const { data, error } = await supabase
+    .from('messages')
+    .select('content')
+    .eq('id', event.entity_id)
+    .eq('user_id', event.user_id)
+    .maybeSingle()
+  if (error || typeof data?.content !== 'string') return null
+  return normalizeConversationPushPreview(data.content)
+}
+
 const disableToken = async (
   supabase: ReturnType<typeof serviceClient>,
   expoPushToken: string,
@@ -172,6 +192,7 @@ const dispatchEvent = async (
   }
 
   const data = buildNavigationData(event)
+  const preview = await loadConversationPreview(supabase, event)
   const isApproval = event.entity_type === 'approval_request'
   const highPriority = event.importance === 'high' || event.importance === 'urgent'
 
@@ -193,7 +214,8 @@ const dispatchEvent = async (
 
   const messages = tokens.map((token) => ({
     to: token.expo_push_token,
-    title: event.title,
+    title: resolvePushTitle(event.title, event.entity_type),
+    ...(preview ? { body: preview } : {}),
     data,
     sound: 'default',
     priority: highPriority ? 'high' : 'default',
