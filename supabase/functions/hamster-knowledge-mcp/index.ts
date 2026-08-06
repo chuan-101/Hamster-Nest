@@ -1,6 +1,13 @@
 import { z } from 'npm:zod@^4.1.13'
 import { clampLimit, errorResult, jsonResult, serveMcp, supabase, USER_ID } from '../_shared/mcp_common.ts'
 
+// 学习库（/knowledge 页面）三张表都没有 user_id 列，属主由部署环境保证，查询无需按用户过滤。
+const learningNodeTypes = z.enum(['concept', 'question', 'insight', 'source', 'quote', 'note', 'application'])
+const learningEdgeTypes = z.enum(['association', 'derivation', 'contradiction', 'application', 'reference', 'question'])
+const LEARNING_NODE_COLUMNS = 'id, folder_id, node_type, title, content, tags, metadata, created_at, updated_at'
+const LEARNING_EDGE_COLUMNS = 'id, from_node_id, to_node_id, edge_type, description, strength, created_at'
+const clampStrength = (strength: number) => Math.min(Math.max(Math.round(strength), 1), 5)
+
 serveMcp('hamster-knowledge-mcp', (server) => {
   server.registerTool('search_wiki', {
     title: 'Search Wiki',
@@ -218,6 +225,218 @@ serveMcp('hamster-knowledge-mcp', (server) => {
       if (error) return errorResult(error)
       if (!data || data.length === 0) return { content: [{ type: 'text' as const, text: `Error: archive not found: ${id}` }] }
       return { content: [{ type: 'text' as const, text: `档案已更新: ${JSON.stringify(data[0])}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('list_learning_folders', {
+    title: 'List Learning Folders',
+    description: '列出学习库全部文件夹（树结构通过 parent_id 表达），附每个文件夹的节点数。只读工具。',
+    inputSchema: {},
+  }, async () => {
+    try {
+      const { data, error } = await supabase.from('knowledge_folders').select('id, name, description, icon, parent_id, sort_order, created_at, updated_at, learning_nodes(count)').order('sort_order', { ascending: true }).order('created_at', { ascending: true })
+      if (error) return errorResult(error)
+      const folders = (data ?? []).map(({ learning_nodes, ...folder }) => ({ ...folder, node_count: learning_nodes?.[0]?.count ?? 0 }))
+      return jsonResult(folders)
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('add_learning_folder', {
+    title: 'Add Learning Folder',
+    description: '新建学习库文件夹。可用 parent_id 挂到已有文件夹下形成树结构。',
+    inputSchema: {
+      name: z.string().describe('文件夹名称'),
+      icon: z.string().optional().describe('展示图标（emoji），默认 📁'),
+      description: z.string().optional().describe('文件夹说明'),
+      parent_id: z.string().optional().describe('父文件夹 UUID，顶层不传'),
+      sort_order: z.number().optional().describe('排序序号，默认0'),
+    },
+  }, async ({ name, icon, description, parent_id, sort_order }) => {
+    try {
+      if (!name.trim()) return { content: [{ type: 'text' as const, text: 'Error: 文件夹名称不能为空' }] }
+      const row: Record<string, unknown> = { name: name.trim(), icon: icon?.trim() || '📁', sort_order: sort_order ?? 0 }
+      if (description !== undefined) row.description = description
+      if (parent_id) row.parent_id = parent_id
+      const { data, error } = await supabase.from('knowledge_folders').insert(row).select('id, name, description, icon, parent_id, sort_order, created_at, updated_at').single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `学习库文件夹已创建: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('read_learning_nodes', {
+    title: 'Read Learning Nodes',
+    description: '读取学习库节点列表（附所属文件夹名），可按文件夹和节点类型筛选，按更新时间倒序。只读工具。',
+    inputSchema: {
+      folder_id: z.string().optional().describe('文件夹 UUID（用 list_learning_folders 查询）；传 none 只看未归档节点，不传则不限文件夹'),
+      node_type: learningNodeTypes.optional().describe('节点类型筛选：concept 概念 / question 问题 / insight 洞见 / source 资料 / quote 摘录 / note 笔记 / application 应用'),
+      limit: z.number().optional().describe('返回数量上限，默认20，最大100'),
+    },
+  }, async ({ folder_id, node_type, limit }) => {
+    try {
+      const safeLimit = clampLimit(limit, 20, 100)
+      let q = supabase.from('learning_nodes').select(`${LEARNING_NODE_COLUMNS}, knowledge_folders(name)`).order('updated_at', { ascending: false }).limit(safeLimit)
+      if (folder_id === 'none') q = q.is('folder_id', null)
+      else if (folder_id) q = q.eq('folder_id', folder_id)
+      if (node_type) q = q.eq('node_type', node_type)
+      const { data, error } = await q
+      if (error) return errorResult(error)
+      return jsonResult(data)
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('search_learning_nodes', {
+    title: 'Search Learning Nodes',
+    description: '按关键词搜索学习库节点，匹配标题、正文和标签。只读工具。',
+    inputSchema: {
+      query: z.string().describe('搜索关键词'),
+      node_type: learningNodeTypes.optional().describe('限定节点类型'),
+      limit: z.number().optional().describe('返回数量上限，默认10，最大50'),
+    },
+  }, async ({ query, node_type, limit }) => {
+    try {
+      const safeLimit = clampLimit(limit, 10, 50)
+      let q = supabase.from('learning_nodes').select(`${LEARNING_NODE_COLUMNS}, knowledge_folders(name)`).or(`title.ilike.%${query}%,content.ilike.%${query}%,tags.cs.{${query}}`).order('updated_at', { ascending: false }).limit(safeLimit)
+      if (node_type) q = q.eq('node_type', node_type)
+      const { data, error } = await q
+      if (error) return errorResult(error)
+      return jsonResult(data)
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('add_learning_node', {
+    title: 'Add Learning Node',
+    description: '新建学习库节点。写入前建议先用 search_learning_nodes 查重。metadata 按类型约定填写：question 用 status(open/exploring/resolved)+answer，application 用 project+status(idea/in_progress/done)，source 用 url+author，quote 用 origin+page，concept 用 source，insight/note 无约定字段。',
+    inputSchema: {
+      node_type: learningNodeTypes.describe('节点类型：concept 概念 / question 问题 / insight 洞见 / source 资料 / quote 摘录 / note 笔记 / application 应用'),
+      title: z.string().describe('节点标题'),
+      content: z.string().optional().describe('节点正文'),
+      tags: z.array(z.string()).optional().describe('标签数组，默认空'),
+      folder_id: z.string().optional().describe('所属文件夹 UUID（用 list_learning_folders 查询），不传则不归档'),
+      metadata: z.record(z.string(), z.string()).optional().describe('按节点类型约定的附加字段（字符串键值对）'),
+    },
+  }, async ({ node_type, title, content, tags, folder_id, metadata }) => {
+    try {
+      if (!title.trim()) return { content: [{ type: 'text' as const, text: 'Error: 节点标题不能为空' }] }
+      const { data, error } = await supabase.from('learning_nodes').insert({
+        node_type,
+        title: title.trim(),
+        content: content?.trim() || null,
+        tags: tags ?? [],
+        folder_id: folder_id || null,
+        metadata: metadata ?? {},
+      }).select(LEARNING_NODE_COLUMNS).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `学习节点已创建: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('update_learning_node', {
+    title: 'Update Learning Node',
+    description: '更新已有学习库节点：标题、正文、标签、文件夹或 metadata，至少传一项。content / tags / metadata 为整体替换，改前建议先读取原值；节点类型创建后不可修改。',
+    inputSchema: {
+      id: z.string().describe('节点 UUID（用 search_learning_nodes / read_learning_nodes 查询）'),
+      title: z.string().optional().describe('新标题'),
+      content: z.string().optional().describe('新正文（整体替换）'),
+      tags: z.array(z.string()).optional().describe('新标签数组（整体替换）'),
+      folder_id: z.string().optional().describe('新文件夹 UUID，传 none 移出文件夹'),
+      metadata: z.record(z.string(), z.string()).optional().describe('新 metadata（整体替换）'),
+    },
+  }, async ({ id, title, content, tags, folder_id, metadata }) => {
+    try {
+      if (title === undefined && content === undefined && tags === undefined && folder_id === undefined && metadata === undefined) {
+        return { content: [{ type: 'text' as const, text: 'Error: title / content / tags / folder_id / metadata 至少需要提供一项' }] }
+      }
+      if (title !== undefined && !title.trim()) return { content: [{ type: 'text' as const, text: 'Error: 节点标题不能为空' }] }
+      const updates: Record<string, unknown> = {}
+      if (title !== undefined) updates.title = title.trim()
+      if (content !== undefined) updates.content = content.trim() || null
+      if (tags !== undefined) updates.tags = tags
+      if (folder_id !== undefined) updates.folder_id = folder_id === 'none' ? null : folder_id
+      if (metadata !== undefined) updates.metadata = metadata
+      const { data, error } = await supabase.from('learning_nodes').update(updates).eq('id', id).select(LEARNING_NODE_COLUMNS)
+      if (error) return errorResult(error)
+      if (!data || data.length === 0) return { content: [{ type: 'text' as const, text: `Error: 未找到学习节点: ${id}` }] }
+      return { content: [{ type: 'text' as const, text: `学习节点已更新: ${JSON.stringify(data[0])}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('read_learning_edges', {
+    title: 'Read Learning Edges',
+    description: '读取某个学习节点的全部连边（双向），带两端节点的标题和类型。只读工具。',
+    inputSchema: {
+      node_id: z.string().describe('节点 UUID'),
+      limit: z.number().optional().describe('返回数量上限，默认20，最大100'),
+    },
+  }, async ({ node_id, limit }) => {
+    try {
+      const safeLimit = clampLimit(limit, 20, 100)
+      const { data, error } = await supabase.from('learning_edges').select(`${LEARNING_EDGE_COLUMNS}, from_node:learning_nodes!learning_edges_from_node_id_fkey(id, title, node_type), to_node:learning_nodes!learning_edges_to_node_id_fkey(id, title, node_type)`).or(`from_node_id.eq.${node_id},to_node_id.eq.${node_id}`).order('created_at', { ascending: false }).limit(safeLimit)
+      if (error) return errorResult(error)
+      return jsonResult(data)
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('add_learning_edge', {
+    title: 'Add Learning Edge',
+    description: '在两个学习节点之间新建连边（有方向 from→to）。类型：association 关联 / derivation 推导 / contradiction 矛盾 / application 应用 / reference 引用 / question 提问。',
+    inputSchema: {
+      from_node_id: z.string().describe('起点节点 UUID'),
+      to_node_id: z.string().describe('终点节点 UUID'),
+      edge_type: learningEdgeTypes.describe('连边类型'),
+      description: z.string().optional().describe('连边说明（为什么关联）'),
+      strength: z.number().optional().describe('联想强度 1-5，默认3'),
+    },
+  }, async ({ from_node_id, to_node_id, edge_type, description, strength }) => {
+    try {
+      if (from_node_id === to_node_id) return { content: [{ type: 'text' as const, text: 'Error: 不允许建立自连边' }] }
+      const row: Record<string, unknown> = { from_node_id, to_node_id, edge_type, strength: clampStrength(strength ?? 3) }
+      if (description !== undefined) row.description = description
+      const { data, error } = await supabase.from('learning_edges').insert(row).select(LEARNING_EDGE_COLUMNS).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `连边已创建: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('update_learning_edge', {
+    title: 'Update Learning Edge',
+    description: '更新已有连边的类型、说明或强度，至少传一项。连边两端节点不可修改。',
+    inputSchema: {
+      id: z.string().describe('连边 UUID（用 read_learning_edges 查询）'),
+      edge_type: learningEdgeTypes.optional().describe('新连边类型'),
+      description: z.string().optional().describe('新说明'),
+      strength: z.number().optional().describe('新联想强度 1-5'),
+    },
+  }, async ({ id, edge_type, description, strength }) => {
+    try {
+      if (edge_type === undefined && description === undefined && strength === undefined) {
+        return { content: [{ type: 'text' as const, text: 'Error: edge_type / description / strength 至少需要提供一项' }] }
+      }
+      const updates: Record<string, unknown> = {}
+      if (edge_type !== undefined) updates.edge_type = edge_type
+      if (description !== undefined) updates.description = description
+      if (strength !== undefined) updates.strength = clampStrength(strength)
+      const { data, error } = await supabase.from('learning_edges').update(updates).eq('id', id).select(LEARNING_EDGE_COLUMNS)
+      if (error) return errorResult(error)
+      if (!data || data.length === 0) return { content: [{ type: 'text' as const, text: `Error: 未找到连边: ${id}` }] }
+      return { content: [{ type: 'text' as const, text: `连边已更新: ${JSON.stringify(data[0])}` }] }
     } catch (err) {
       return errorResult(err)
     }
