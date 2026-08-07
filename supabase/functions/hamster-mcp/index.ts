@@ -13,6 +13,10 @@ const MEMO_COLUMNS = 'id, content, source, is_pinned, created_at, updated_at'
 const SYZYGY_POST_COLUMNS = 'id, content, model_id, created_at, updated_at'
 const SYZYGY_REPLY_COLUMNS = 'id, post_id, author_role, content, model_id, created_at'
 const SYZYGY_REPLY_ROLE_SCHEMA = z.enum(['user', 'ai'])
+const TODO_COLUMNS = 'id, date, title, notes, status, todo_type, event_date, created_by, sort_order, created_at, completed_at'
+const TODO_CREATED_BY_SCHEMA = z.enum(['串串', 'syzygy'])
+const TODO_TYPE_SCHEMA = z.enum(['short_term', 'long_term'])
+const DEFAULT_TODO_CATEGORY_NAME = '🐹今日待办'
 
 const shanghaiDateString = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -123,6 +127,29 @@ const replaceMemoTagLinks = async (entryId: string, tagIds: string[]) => {
 const withTagNames = async (entries: Record<string, unknown>[]) => {
   const tagNames = await fetchTagNamesByEntryIds(entries.map((entry) => entry.id as string))
   return entries.map((entry) => ({ ...entry, tags: tagNames.get(entry.id as string) ?? [] }))
+}
+
+type TodoCategoryRef = { id: string; name: string }
+
+// 待办分类按日期分组（每天通常只有一个俏皮命名的分类）。未指定名字时优先挂到
+// 当天已有的第一个分类；指定的名字不存在、或当天还没有分类时自动创建。
+const resolveTodoCategory = async (date: string, name: string | undefined): Promise<TodoCategoryRef> => {
+  const trimmed = name?.trim() ?? ''
+  let query = supabase.from('todo_categories').select('id, name').eq('user_id', USER_ID).eq('date', date)
+  if (trimmed) query = query.eq('name', trimmed)
+  const { data: existing, error: findError } = await query.order('sort_order', { ascending: true }).limit(1).maybeSingle()
+  if (findError) throw findError
+  if (existing) return existing as TodoCategoryRef
+  const { count, error: countError } = await supabase.from('todo_categories').select('id', { count: 'exact', head: true }).eq('user_id', USER_ID).eq('date', date)
+  if (countError) throw countError
+  const { data: created, error: createError } = await supabase.from('todo_categories').insert({
+    user_id: USER_ID,
+    date,
+    name: trimmed || DEFAULT_TODO_CATEGORY_NAME,
+    sort_order: count ?? 0,
+  }).select('id, name').single()
+  if (createError || !created) throw createError ?? new Error('创建待办分类失败')
+  return created as TodoCategoryRef
 }
 
 serveMcp('hamster-mcp', (server) => {
@@ -283,18 +310,84 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('read_todos', {
     title: 'Read Todos',
-    description: '读取待办事项列表。默认返回所有状态的20条。',
+    description: '读取待办事项列表。默认返回所有状态的20条；返回的 id 可用于 complete_todo。',
     inputSchema: {
-      status: z.string().optional().describe('筛选状态: pending / completed / all，默认all'),
+      status: z.enum(['pending', 'in_progress', 'completed', 'all']).optional().describe('筛选状态: pending / in_progress / completed / all，默认all'),
       limit: z.number().optional().describe('返回数量，默认20'),
     },
   }, async ({ status, limit }) => {
-    let q = supabase.from('todos').select('id, date, title, notes, status, created_by, sort_order, created_at, completed_at, todo_categories(name)').eq('user_id', USER_ID).order('date', { ascending: false }).limit(limit ?? 20)
+    let q = supabase.from('todos').select(`${TODO_COLUMNS}, todo_categories(name)`).eq('user_id', USER_ID).order('date', { ascending: false }).limit(limit ?? 20)
     const fs = status ?? 'all'
     if (fs !== 'all') q = q.eq('status', fs)
     const { data, error } = await q
     if (error) return errorResult(error)
     return jsonResult(data)
+  })
+
+  server.registerTool('add_todo', {
+    title: 'Add Todo',
+    description: '新增一条待办事项。分类按日期分组：不传 category 时挂到当天第一个分类（当天还没有分类时自动创建「🐹今日待办」），传了不存在的分类名也会自动创建。长期待办传 todo_type=long_term，可带目标日期 event_date。适用动作关键词：待办 / todo / 记个待办 / 添加待办。',
+    inputSchema: {
+      title: z.string().describe('待办标题'),
+      date: z.string().optional().describe('所属日期 YYYY-MM-DD，默认今天（上海时区）'),
+      category: z.string().optional().describe('分类名；默认当天第一个分类，不存在的分类会自动创建'),
+      notes: z.string().optional().describe('备注（可选）'),
+      todo_type: TODO_TYPE_SCHEMA.optional().describe('待办类型：short_term 近期（默认）/ long_term 长期'),
+      event_date: z.string().optional().describe('目标日期 YYYY-MM-DD，仅 long_term 生效'),
+      created_by: TODO_CREATED_BY_SCHEMA.optional().describe('创建者：串串 / syzygy，默认 syzygy'),
+    },
+  }, async ({ title, date, category, notes, todo_type, event_date, created_by }) => {
+    try {
+      const trimmedTitle = title.trim()
+      if (!trimmedTitle) return { content: [{ type: 'text' as const, text: 'Error: 待办标题不能为空' }] }
+      const targetDate = date?.trim() || shanghaiDateString()
+      const type = todo_type ?? 'short_term'
+      const categoryRow = await resolveTodoCategory(targetDate, category)
+      const { count, error: countError } = await supabase.from('todos').select('id', { count: 'exact', head: true }).eq('user_id', USER_ID).eq('category_id', categoryRow.id)
+      if (countError) return errorResult(countError)
+      const { data, error } = await supabase.from('todos').insert({
+        user_id: USER_ID,
+        category_id: categoryRow.id,
+        date: targetDate,
+        title: trimmedTitle,
+        notes: notes?.trim() || null,
+        status: 'pending',
+        todo_type: type,
+        // 与 Web 端一致：仅长期待办保留目标日期，近期待办不写 event_date。
+        event_date: type === 'long_term' ? event_date?.trim() || null : null,
+        created_by: created_by ?? 'syzygy',
+        sort_order: count ?? 0,
+      }).select(TODO_COLUMNS).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `已添加: ${JSON.stringify({ ...data, category: categoryRow.name }, null, 2)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('complete_todo', {
+    title: 'Complete Todo',
+    description: '把一条待办标记为已完成（status=completed 并记录 completed_at）。id 先用 read_todos 查询；已完成的待办会原样返回并提示，不会重复更新。',
+    inputSchema: {
+      id: z.string().describe('待办 UUID（用 read_todos 查询）'),
+    },
+  }, async ({ id }) => {
+    try {
+      const { data: existing, error: findError } = await supabase.from('todos').select(`${TODO_COLUMNS}, todo_categories(name)`).eq('user_id', USER_ID).eq('id', id).maybeSingle()
+      if (findError) return errorResult(findError)
+      if (!existing) return { content: [{ type: 'text' as const, text: `Error: 未找到待办: ${id}` }] }
+      if ((existing as Record<string, unknown>).status === 'completed') {
+        return { content: [{ type: 'text' as const, text: `该待办已是完成状态: ${JSON.stringify(existing, null, 2)}` }] }
+      }
+      const { data, error } = await supabase.from('todos').update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      }).eq('user_id', USER_ID).eq('id', id).select(`${TODO_COLUMNS}, todo_categories(name)`).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `已完成: ${JSON.stringify(data, null, 2)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
   })
 
   server.registerTool('list_memos', {
