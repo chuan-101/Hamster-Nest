@@ -61,35 +61,47 @@ const COMPANION_WRITERS_HINT = '推荐 chuanchuan / syzygy-claude / syzygy-gpt /
 type CompanionConfig = {
   table: 'book_guides' | 'book_summaries'
   zh: string
+  en: string
+  enPlural: string
   listKey: string
   idParam: string
   toolSuffix: string
-  purpose: string
 }
 
 const COMPANION_CONFIGS: CompanionConfig[] = [
   {
     table: 'book_guides',
     zh: '导读',
+    en: 'Book Guide',
+    enPlural: 'Book Guides',
     listKey: 'guides',
     idParam: 'guide_id',
     toolSuffix: 'book_guide',
-    purpose: '开新书时写入的阅读辅助（背景、人物表、阅读路线等）',
   },
   {
     table: 'book_summaries',
     zh: '总结',
+    en: 'Book Summary',
+    enPlural: 'Book Summaries',
     listKey: 'summaries',
     idParam: 'summary_id',
     toolSuffix: 'book_summary',
-    purpose: '读完一本书后写下的感想与总结',
   },
 ]
+
+// 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
+const READING_MCP_INSTRUCTIONS = [
+  'All About Book 阅读域：书目→章节→摘抄三层结构；旁批 resonance 挂在单条摘抄上；问答 question/answer、导读 guide（开新书时写入的阅读辅助：背景、人物表、阅读路线等）、总结 summary（读完后的感想总结）挂在书上。',
+  'book_id 用 reading_status / reading_history 查询；日期按 Asia/Shanghai 时区。',
+  `写入端署名：${COMPANION_WRITERS_HINT}。`,
+  '删除不可恢复，需显式 confirm=true 二次确认。',
+].join('\n')
 
 serveMcp('hamster-reading-mcp', (server) => {
   server.registerTool('reading_status', {
     title: 'Reading Status Snapshot',
-    description: '读取 All About Book 当前在读书目、最近 7 天打卡天数、最近一次打卡日期和最新摘录预览。只读工具。',
+    description: '读取当前在读书目、近 7 天打卡和最新摘录预览。',
+    annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
     try {
@@ -136,7 +148,8 @@ serveMcp('hamster-reading-mcp', (server) => {
 
   server.registerTool('reading_history', {
     title: 'Reading History',
-    description: '读取 All About Book 书目列表，默认返回已读完书目，可按状态、起始日期和数量筛选。只读工具。',
+    description: '读取书目列表，默认已读完的，可按状态 / 日期筛选。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       status: z.enum(['finished', 'all', 'reading', 'paused']).optional().describe('筛选书目状态，默认 finished'),
       since: z.string().optional().describe('起始日期 YYYY-MM-DD；finished 按 end_date，其它状态按 start_date 筛选'),
@@ -174,7 +187,8 @@ serveMcp('hamster-reading-mcp', (server) => {
 
   server.registerTool('list_chapters', {
     title: 'List Book Chapters',
-    description: '列出 All About Book 某本书的章节目录（书目->章节->摘抄 树的中间层），含各章节摘抄数量。只读工具。',
+    description: '列出某本书的章节目录及各章摘抄数。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       book_id: z.string().describe('书目 UUID'),
     },
@@ -216,7 +230,8 @@ serveMcp('hamster-reading-mcp', (server) => {
 
   server.registerTool('book_excerpts', {
     title: 'Book Excerpts',
-    description: '读取 All About Book 中某本书的摘录，按 书目->章节->单条摘抄 树形结构返回（章节按目录顺序、摘抄按创建时间升序）。可用 chapter_id 或章节名筛选单个章节。只读工具。',
+    description: '按章节树读取某本书的摘抄，可用 chapter_id 或章节名筛选。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       book_id: z.string().describe('书目 UUID'),
       chapter_id: z.string().optional().describe('章节 UUID 筛选（可先用 list_chapters 查询）'),
@@ -271,7 +286,8 @@ serveMcp('hamster-reading-mcp', (server) => {
 
   server.registerTool('read_excerpt_resonances', {
     title: 'Read Excerpt Resonances',
-    description: '读取 All About Book 书摘旁的 Syzygy 留言/旁批。可按 excerpt_id 或 book_id 筛选。只读工具。',
+    description: '读取书摘旁批，可按 excerpt_id 或 book_id 筛选。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       excerpt_id: z.string().optional().describe('书摘 UUID；传入后只读该书摘旁批'),
       book_id: z.string().optional().describe('书目 UUID；传入后读取该书下的旁批'),
@@ -298,7 +314,7 @@ serveMcp('hamster-reading-mcp', (server) => {
 
   server.registerTool('add_excerpt_resonance', {
     title: 'Add Excerpt Resonance',
-    description: '在 All About Book 某条书摘旁写入一条 Syzygy 留言/旁批。',
+    description: '在一条书摘旁写入旁批。',
     inputSchema: {
       excerpt_id: z.string().describe('书摘 UUID'),
       speaker: z.string().describe('留言来源，如 codex_cli / claude_code_cli / gpt / claude / syzygy'),
@@ -330,7 +346,8 @@ serveMcp('hamster-reading-mcp', (server) => {
 
   server.registerTool('read_book_questions', {
     title: 'Read Book Questions',
-    description: '读取 All About Book 中的书籍问题，可按状态、书目和创建时间筛选。只读工具。',
+    description: '读取书籍问题，可选带已有回答。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       status: z.enum(['open', 'answered', 'all']).optional().describe('筛选问题状态，默认 open；all 返回全部状态'),
       book_id: z.string().optional().describe('书目 UUID；传入后只读该书的问题'),
@@ -376,7 +393,7 @@ serveMcp('hamster-reading-mcp', (server) => {
 
   server.registerTool('add_book_question', {
     title: 'Add Book Question',
-    description: '向 All About Book 某本书写入一个问题。写入前会校验 book_id 属于当前 AAB 用户。',
+    description: '向某本书提一个问题。',
     inputSchema: {
       book_id: z.string().describe('书目 UUID'),
       question: z.string().min(1).describe('问题内容'),
@@ -405,10 +422,10 @@ serveMcp('hamster-reading-mcp', (server) => {
 
   server.registerTool('add_book_answer', {
     title: 'Add Book Answer',
-    description: '向 All About Book 某个问题写入回答。写入前会校验 question_id 属于当前 AAB 用户，并默认将问题状态更新为 answered。',
+    description: '回答一个书籍问题（问题状态自动翻 answered）。',
     inputSchema: {
       question_id: z.string().describe('问题 UUID'),
-      answered_by: z.enum(answerers).describe('回答来源，只能为 chuanchuan / syzygy-claude / syzygy-gpt / cli_reading_assist'),
+      answered_by: z.enum(answerers).describe('回答来源'),
       content: z.string().min(1).describe('回答内容'),
       metadata: z.record(z.string(), z.unknown()).optional().describe('可选元数据，如 source_task_id / trigger_reason'),
     },
@@ -438,7 +455,8 @@ serveMcp('hamster-reading-mcp', (server) => {
 
   server.registerTool('reading_stats', {
     title: 'Reading Stats',
-    description: '读取 All About Book 阅读统计：周期打卡天数、连续打卡、新增摘录数和书目状态数量。只读工具。',
+    description: '读取阅读统计（打卡天数 / 连续打卡 / 新增摘录 / 书目状态计数）。',
+    annotations: { readOnlyHint: true },
     inputSchema: { period: z.enum(['week', 'month', 'all']).optional().describe('统计周期，默认 week') },
   }, async ({ period }) => {
     try {
@@ -492,11 +510,12 @@ serveMcp('hamster-reading-mcp', (server) => {
   // ---- 导读 & 总结（读写 book_guides / book_summaries）----
   for (const config of COMPANION_CONFIGS) {
     server.registerTool(`read_${config.table}`, {
-      title: `Read ${config.zh === '导读' ? 'Book Guides' : 'Book Summaries'}`,
-      description: `读取 All About Book 某本书的${config.zh}（${config.purpose}）。按写入时间正序返回，可按写入端筛选。只读工具。`,
+      title: `Read ${config.enPlural}`,
+      description: `读取某本书的${config.zh}，按写入时间正序。`,
+      annotations: { readOnlyHint: true },
       inputSchema: {
-        book_id: z.string().describe('书目 UUID（可用 reading_history / reading_status 查询）'),
-        written_by: z.string().optional().describe(`按写入端筛选，${COMPANION_WRITERS_HINT}`),
+        book_id: z.string().describe('书目 UUID'),
+        written_by: z.string().optional().describe('按写入端筛选'),
         limit: z.number().optional().describe('返回数量上限，默认20，最大100'),
       },
     }, async ({ book_id, written_by, limit }) => {
@@ -521,11 +540,11 @@ serveMcp('hamster-reading-mcp', (server) => {
     })
 
     server.registerTool(`add_${config.toolSuffix}`, {
-      title: `Add ${config.zh === '导读' ? 'Book Guide' : 'Book Summary'}`,
-      description: `向 All About Book 某本书写入一篇${config.zh}（${config.purpose}）。写入前会校验 book_id 属于当前 AAB 用户；正文支持 Markdown，Web 端按写入时间排序展示。`,
+      title: `Add ${config.en}`,
+      description: `向某本书写入一篇${config.zh}（Markdown）。`,
       inputSchema: {
         book_id: z.string().describe('书目 UUID'),
-        written_by: z.string().min(1).describe(`写入端署名，${COMPANION_WRITERS_HINT}`),
+        written_by: z.string().min(1).describe('写入端署名'),
         content: z.string().min(1).describe(`${config.zh}正文（Markdown）`),
         metadata: z.record(z.string(), z.unknown()).optional().describe('可选元数据，如 source_task_id / trigger_reason'),
       },
@@ -552,8 +571,8 @@ serveMcp('hamster-reading-mcp', (server) => {
     })
 
     server.registerTool(`update_${config.toolSuffix}`, {
-      title: `Update ${config.zh === '导读' ? 'Book Guide' : 'Book Summary'}`,
-      description: `二次编辑一篇${config.zh}的正文（或修正写入端署名）。只更新 content / written_by 与 updated_at，created_at 保持写入时间不变，排序不受影响。`,
+      title: `Update ${config.en}`,
+      description: `编辑一篇${config.zh}的正文 / 署名 / metadata（写入时间与排序不变）。`,
       inputSchema: {
         [config.idParam]: z.string().describe(`${config.zh}条目 UUID（用 read_${config.table} 查询）`),
         content: z.string().min(1).optional().describe(`新的${config.zh}正文（Markdown），不传则不改`),
@@ -584,8 +603,9 @@ serveMcp('hamster-reading-mcp', (server) => {
     })
 
     server.registerTool(`delete_${config.toolSuffix}`, {
-      title: `Delete ${config.zh === '导读' ? 'Book Guide' : 'Book Summary'}`,
-      description: `删除一篇${config.zh}。删除不可恢复，必须显式传 confirm=true 才会执行（二次确认）；建议先 read_${config.table} 核对内容再删。`,
+      title: `Delete ${config.en}`,
+      description: `删除一篇${config.zh}，不可恢复；需显式传 confirm=true。`,
+      annotations: { destructiveHint: true },
       inputSchema: {
         [config.idParam]: z.string().describe(`${config.zh}条目 UUID（用 read_${config.table} 查询）`),
         confirm: z.boolean().describe('二次确认：必须显式传 true 才执行删除'),
@@ -610,4 +630,4 @@ serveMcp('hamster-reading-mcp', (server) => {
       }
     })
   }
-})
+}, { instructions: READING_MCP_INSTRUCTIONS })

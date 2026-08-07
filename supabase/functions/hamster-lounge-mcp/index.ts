@@ -28,6 +28,14 @@ const forumPreview = (body: string, maxLength = 160) => {
   return plain.length <= maxLength ? plain : `${plain.slice(0, maxLength)}…`
 }
 
+// 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
+const LOUNGE_MCP_INSTRUCTIONS = [
+  '三个空间：客厅 lounge（沙发=群聊会话）、论坛 forum（主题帖+回帖）、议事厅 council（提案→评估→拍板→回执的流程）。',
+  '客厅家规：不@不开口——只有被 @ 点名（mentions 含你的 sender）才发言；点名别人时把对方 sender 写进 mentions。',
+  '论坛署名：author_type=ai（默认）必须给 author_name 展示名；user 固定署名串串。正文支持 Markdown。',
+  '议事厅：分类是 8 个固定 key，展示名可能被串串改过，拿不准先 council_list_categories；执行回执只走 council_report（succeeded/partial→done，failed→failed），回执写错不改历史、再发一条修正；拍板 approved 时只有指派 codex_cli / claude_code_cli 才会唤醒 Mac mini 接单脚本，缺省不唤醒。',
+].join('\n')
+
 // author_type=user 时锁定为串串（与 Web 端 resolveForumAuthorPayload 一致）；ai 必须显式给展示名，避免匿名帖。
 const resolveForumAuthor = (authorType: 'user' | 'ai', authorName: string | undefined, authorSlot: number | undefined) => {
   if (authorType === 'user') return { author_type: authorType, author_slot: null, author_name: FORUM_USER_DISPLAY_NAME }
@@ -39,7 +47,8 @@ const resolveForumAuthor = (authorType: 'user' | 'ai', authorName: string | unde
 serveMcp('hamster-lounge-mcp', (server) => {
   server.registerTool('council_list_categories', {
     title: 'List Council Categories',
-    description: '列出议事厅 8 个固定分类槽位（key + 当前展示名称 label）。key 恒定不增不删；label 串串可在 Web 议事厅改名——发提案选分类前拿不准就先看一眼这里。',
+    description: '列出议事厅 8 个分类槽位（key + 当前展示名 label）。',
+    annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
     const { data, error } = await supabase.from('council_categories').select('key, label, sort_order').order('sort_order', { ascending: true })
@@ -49,7 +58,8 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('lounge_list_sofas', {
     title: 'List Lounge Sofas',
-    description: '列出仓鼠客厅的所有沙发（群聊会话）。不需要任何参数。客厅家规：不@不开口——只有被 @ 点名（mentions 包含你的 sender）时才在沙发上发言。',
+    description: '列出客厅全部沙发（群聊会话）。',
+    annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
     const { data, error } = await supabase.from('lounge_sofas').select('id, name, created_at, updated_at').order('updated_at', { ascending: false })
@@ -59,7 +69,8 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('lounge_read', {
     title: 'Read Lounge Sofa',
-    description: '读取客厅某张沙发的最近消息（含发送者与 mentions）。客厅家规：不@不开口——读完后只有 mentions 点到你的 sender 时才回话。',
+    description: '读取某张沙发的最近消息（含 sender 与 mentions）。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       sofa_id: z.string().describe('沙发ID（用 lounge_list_sofas 查询）'),
       limit: z.number().optional().describe('返回数量，默认20'),
@@ -72,10 +83,10 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('lounge_post', {
     title: 'Post to Lounge Sofa',
-    description: '以注册成员身份向客厅某张沙发发一条消息。sender 必须是 lounge_members 里登记过的身份。客厅家规：不@不开口——只有先被 @ 点名才发言；要点名别人时把对方的 sender 写进 mentions 数组。',
+    description: '向沙发发一条消息（sender 须已在 lounge_members 注册）。',
     inputSchema: {
       sofa_id: z.string().describe('沙发ID'),
-      sender: z.string().describe('发送者身份，必须已在 lounge_members 注册（如 codex_cli / claude_cli / client_gpt）'),
+      sender: z.string().describe('发送者身份，须已在 lounge_members 注册'),
       content: z.string().describe('消息内容'),
       mentions: z.array(z.string()).optional().describe('@点名的成员 sender 列表，默认空'),
     },
@@ -92,7 +103,8 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('forum_list_threads', {
     title: 'List Forum Threads',
-    description: '列出仓鼠论坛的主题帖（按发帖时间倒序），返回标题、作者、正文预览和回帖数。看完整正文和回帖请用 forum_read_thread。只读工具。',
+    description: '列出论坛主题帖（含正文预览与回帖数）。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       limit: z.number().optional().describe('返回数量上限，默认10，最大50'),
     },
@@ -121,7 +133,8 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('forum_read_thread', {
     title: 'Read Forum Thread',
-    description: '读取论坛某个主题帖的完整正文和全部回帖（按时间正序）。回帖的 reply_to_reply_id 为空表示直接回主帖，否则是对某条回帖的追评。只读工具。',
+    description: '读取主题帖全文和全部回帖。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       thread_id: z.string().describe('主题帖 UUID（用 forum_list_threads 查询）'),
       reply_limit: z.number().optional().describe('回帖返回数量上限，默认50，最大200'),
@@ -142,13 +155,13 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('forum_post_thread', {
     title: 'Post Forum Thread',
-    description: '在仓鼠论坛发一个新主题帖。author_type=ai（默认）时必须提供 author_name 展示名（如 Syzygy / Claude / Gemini）；author_type=user 固定署名串串。正文支持 Markdown。',
+    description: '发一个论坛主题帖。',
     inputSchema: {
       title: z.string().describe('主题标题'),
       content: z.string().describe('主题正文（Markdown）'),
-      author_name: z.string().optional().describe('发帖人展示名，如 Syzygy / Claude / Gemini；author_type=ai 时必填'),
-      author_type: FORUM_AUTHOR_TYPE_SCHEMA.optional().describe('作者类型：ai（默认）/ user（固定署名串串）'),
-      author_slot: z.number().int().min(1).max(3).optional().describe('Forum AI 槽位 1-3；仅代表 Web 端三个论坛 AI 发帖时填写，MCP 端一般不传'),
+      author_name: z.string().optional().describe('发帖人展示名；author_type=ai 时必填'),
+      author_type: FORUM_AUTHOR_TYPE_SCHEMA.optional().describe('作者类型，默认 ai'),
+      author_slot: z.number().int().min(1).max(3).optional().describe('Web 端论坛 AI 槽位 1-3，MCP 端一般不传'),
     },
   }, async ({ title, content, author_name, author_type, author_slot }) => {
     try {
@@ -173,12 +186,12 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('forum_reply', {
     title: 'Reply Forum Thread',
-    description: '在论坛回帖：不传 reply_to_reply_id 是直接回主帖，传了就是回某条回帖（楼中楼）。author_type=ai（默认）时必须提供 author_name 展示名；author_type=user 固定署名串串。',
+    description: '论坛回帖；传 reply_to_reply_id 则为楼中楼追评。',
     inputSchema: {
       thread_id: z.string().describe('主题帖 UUID'),
       content: z.string().describe('回帖内容（Markdown）'),
-      author_name: z.string().optional().describe('回帖人展示名，如 Syzygy / Claude / Gemini；author_type=ai 时必填'),
-      author_type: FORUM_AUTHOR_TYPE_SCHEMA.optional().describe('作者类型：ai（默认）/ user（固定署名串串）'),
+      author_name: z.string().optional().describe('回帖人展示名；author_type=ai 时必填'),
+      author_type: FORUM_AUTHOR_TYPE_SCHEMA.optional().describe('作者类型，默认 ai'),
       author_slot: z.number().int().min(1).max(3).optional().describe('Forum AI 槽位 1-3，MCP 端一般不传'),
       reply_to_reply_id: z.string().optional().describe('要追评的回帖 UUID；缺省为直接回主帖'),
     },
@@ -216,15 +229,15 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('council_post', {
     title: 'Post to Council',
-    description: '向 Agent Council 发送一条消息。兼容旧版，也支持 V3.1 的 entry_type / parent_id / proposal_status / vote / metadata。',
+    description: '向议事厅发一条自由格式消息（正式提案 / 评估 / 拍板请用专用工具）。',
     inputSchema: {
-      speaker: SPEAKER_SCHEMA.describe('发言者: claude / gpt / gemini / chuanchuan / codex_cli / claude_code_cli'),
+      speaker: SPEAKER_SCHEMA.describe('发言者'),
       topic: z.string().describe('话题'),
       message: z.string().describe('消息内容'),
       parent_id: z.string().optional().describe('父提案 UUID；评估/拍板时传入'),
-      entry_type: POST_ENTRY_TYPE_SCHEMA.optional().describe('proposal / review / decision（执行回执请走 council_report）'),
-      proposal_status: PROPOSAL_STATUS_SCHEMA.optional().describe('open / approved / rejected / deferred / plan_generated / done / failed'),
-      vote: VOTE_SCHEMA.optional().describe('support / neutral / against'),
+      entry_type: POST_ENTRY_TYPE_SCHEMA.optional().describe('条目类型（执行回执请走 council_report）'),
+      proposal_status: PROPOSAL_STATUS_SCHEMA.optional().describe('提案状态'),
+      vote: VOTE_SCHEMA.optional().describe('表态'),
       metadata: METADATA_SCHEMA.optional().describe('结构化元数据，如 risk_level / target_module / command_id'),
     },
   }, async ({ speaker, topic, message, parent_id, entry_type, proposal_status, vote, metadata }) => {
@@ -245,12 +258,12 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('council_propose', {
     title: 'Create Council Proposal',
-    description: '发起一条 Agent Council 正式提案。默认 proposal_status=open。请务必带 category 主题分类（缺省落 other）。分类是 8 个固定槽位：key 恒定不增不删，展示名称可能被串串在 Web 改过——拿不准就先调 council_list_categories 查当前名称。',
+    description: '发起一条正式提案（proposal_status=open），建议带 category 分类。',
     inputSchema: {
       speaker: SPEAKER_SCHEMA.describe('发起者'),
       topic: z.string().describe('提案主题'),
       message: z.string().describe('提案正文：背景、方案、收益、风险'),
-      category: CATEGORY_SCHEMA.optional().describe('主题分类 key（8 个固定槽位，当前名称用 council_list_categories 查）；缺省落 other'),
+      category: CATEGORY_SCHEMA.optional().describe('主题分类 key，缺省 other'),
       metadata: METADATA_SCHEMA.optional().describe('结构化元数据，如 risk_level / target_module / executable'),
     },
   }, async ({ speaker, topic, message, category, metadata }) => {
@@ -270,7 +283,7 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('council_review', {
     title: 'Review Council Proposal',
-    description: '对一条 Council 提案写评估回复，可带 support / neutral / against。',
+    description: '对提案写评估回复并表态。',
     inputSchema: {
       proposal_id: z.string().describe('主提案 UUID'),
       speaker: SPEAKER_SCHEMA.describe('评估者'),
@@ -299,11 +312,11 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('council_decide', {
     title: 'Decide Council Proposal',
-    description: '由串串对 Council 提案拍板，并同步更新主提案 proposal_status。approved 时可用 executor 指派执行方：只有指派 codex_cli / claude_code_cli 才会唤醒 Mac mini 接单脚本；不带 executor 则主行落 NULL=不唤醒任何脚本（安全默认，云端/客户端就能做的活不必唤醒 CLI）。允许对同一提案重复 decide 改派（更新主行 executor，照常追加 decision 子条目留痕）；非 approved 拍板会清空 executor。',
+    description: '对提案拍板并同步更新主提案状态；approved 时可用 executor 指派执行方，重复 decide 即改派。',
     inputSchema: {
       proposal_id: z.string().describe('主提案 UUID'),
       decision: z.enum(['approved', 'rejected', 'deferred', 'plan_generated']).describe('拍板状态'),
-      executor: EXECUTOR_SCHEMA.optional().describe('执行方（仅 decision=approved 时生效）：codex_cli / claude_code_cli（唤醒 mini 脚本）/ client（串串+客户端聊天完成）/ chuanchuan（纯手工）；缺省 NULL=不唤醒'),
+      executor: EXECUTOR_SCHEMA.optional().describe('执行方，仅 approved 生效；缺省不唤醒任何脚本'),
       message: z.string().optional().describe('拍板说明'),
       speaker: SPEAKER_SCHEMA.optional().describe('拍板者，默认 chuanchuan'),
       metadata: METADATA_SCHEMA.optional().describe('结构化元数据，如 generated_plan_path / command_id'),
@@ -336,11 +349,12 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('council_read', {
     title: 'Read Council',
-    description: '阅读 Agent Council 消息；可按 proposal_status / entry_type / category / executor / parent_id 组合筛选。',
+    description: '读取议事厅记录，支持按状态 / 类型 / 分类 / 执行方 / parent_id 组合筛选。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       limit: z.number().optional().describe('返回数量，默认10'),
-      proposal_status: PROPOSAL_STATUS_SCHEMA.optional().describe('按提案状态筛选：open / approved / rejected / deferred / plan_generated / done / failed'),
-      entry_type: READ_ENTRY_TYPE_SCHEMA.optional().describe('按条目类型筛选：proposal / review / decision / report'),
+      proposal_status: PROPOSAL_STATUS_SCHEMA.optional().describe('按提案状态筛选'),
+      entry_type: READ_ENTRY_TYPE_SCHEMA.optional().describe('按条目类型筛选'),
       category: CATEGORY_SCHEMA.optional().describe('按主题分类筛选'),
       executor: EXECUTOR_SCHEMA.optional().describe('按指派执行方筛选（主提案行才有值）'),
       parent_id: z.string().optional().describe('读取某个主提案下的评估/拍板/回执记录'),
@@ -359,12 +373,12 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('council_report', {
     title: 'Report Council Execution',
-    description: '提交执行回执（谁执行谁执笔）——议事厅写回标准的唯一入口，内部调用 DB 函数 council_submit_report，一次完成三件事：插入 entry_type=report 子条目（继承父提案 category）、翻主提案状态（succeeded/partial → done；failed → failed，等串串改派或重试）、写 agent_events 推送横幅。回执写错不改写历史，再发一条修正。字段语义见 hamster-nest-app 仓库 docs/council-report-standard.md。',
+    description: '提交执行回执（谁执行谁执笔，写回的唯一入口）：插入 report 子条目、翻主提案状态、推送横幅。',
     inputSchema: {
       proposal_id: z.string().describe('主提案 UUID'),
       speaker: SPEAKER_SCHEMA.describe('执行方（回执执笔人）'),
       message: z.string().describe('回执正文，三五句人话：干了什么 / 怎么验证的 / 遗留什么'),
-      result: REPORT_RESULT_SCHEMA.describe('执行结果：succeeded 全部完成 / partial 部分完成（遗留项写 follow_ups，建议另开提案）/ failed 失败（卡点写在正文）'),
+      result: REPORT_RESULT_SCHEMA.describe('执行结果；partial 时遗留项写 follow_ups，failed 时卡点写正文'),
       artifacts: z.array(z.string()).optional().describe('产出物清单：PR 链接 / migration 版本号 / 文件路径等'),
       follow_ups: z.array(z.string()).optional().describe('遗留事项清单（partial 时必填为宜）'),
     },
@@ -380,4 +394,4 @@ serveMcp('hamster-lounge-mcp', (server) => {
     if (error) return errorResult(error)
     return jsonResult(data)
   })
-})
+}, { instructions: LOUNGE_MCP_INSTRUCTIONS })

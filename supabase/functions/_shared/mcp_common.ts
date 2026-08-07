@@ -7,7 +7,7 @@ import { isMcpKeyAuthorized } from './mcp_key_auth.ts'
 import { getOwnerUserId } from './owner.ts'
 import { getSupabaseAdminKey } from './supabase_secret.ts'
 
-export const MCP_VERSION = '5.13.0'
+export const MCP_VERSION = '5.14.0'
 export const USER_ID = getOwnerUserId()
 
 export const supabase = createClient(
@@ -67,13 +67,26 @@ export const errorResult = (err: unknown) => {
 export const clampLimit = (limit: number | undefined, fallback: number, max: number) =>
   Math.min(Math.max(limit ?? fallback, 1), max)
 
+type ServeMcpOptions = {
+  serverName?: string
+  // 随 initialize 握手下发一次的服务器级使用说明：放跨工具的共性约定（时区、枚举语义、
+  // 写入习惯等），工具描述里只留"做什么"。不是所有客户端都会注入 instructions，
+  // 关键触发时机仍由各客户端的系统提示负责。
+  instructions?: string
+}
+
 export function serveMcp(
   functionName: string,
   registerTools: (server: McpServer) => void,
-  serverName = 'hamster-nest',
+  options: string | ServeMcpOptions = {},
 ) {
+  const { serverName = 'hamster-nest', instructions } =
+    typeof options === 'string' ? { serverName: options, instructions: undefined } : options
   const app = new Hono().basePath(`/${functionName}`)
-  const server = new McpServer({ name: serverName, version: MCP_VERSION })
+  const server = new McpServer(
+    { name: serverName, version: MCP_VERSION },
+    instructions ? { instructions } : undefined,
+  )
 
   app.use('*', async (c, next) => {
     const origin = c.req.header('origin') ?? null

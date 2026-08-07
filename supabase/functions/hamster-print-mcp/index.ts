@@ -62,10 +62,17 @@ const enqueueJob = async (
   return { created: false, job: racedJob }
 }
 
+// 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
+const PRINT_MCP_INSTRUCTIONS = [
+  '外设动作域：任务投递到 syzygy_commands 队列，由 Mac mini 常驻 worker 领取执行；状态用对应 get_*_status 查询（pending=等待领取 / running=已领取 / done=完成 / failed=失败）。',
+  'print_document / post_tweet 是真实世界动作：只有串串明确要求时才调用，confirmed 必须为 true；同一 request_id 或同日同内容默认幂等，重试请复用同一个 request_id。',
+].join('\n')
+
 serveMcp('hamster-print-mcp', (server) => {
   server.registerTool('print_document', {
     title: 'Print Document',
-    description: '把长文作为标准打印任务投递到 Supabase，由 Mac mini 常驻 worker 自动领取、按真实字体测量拆成多页 PDF，再送入本机打印队列。只有串串明确要求真实打印时才能调用；confirmed 必须为 true。同一 request_id 或同日同内容默认幂等，不会因网络重试重复打印。',
+    description: '把长文投递为真实打印任务（Mac mini 拆页生成 PDF 送打印队列）。仅在串串明确要求时调用，confirmed 必须为 true。',
+    annotations: { openWorldHint: true },
     inputSchema: {
       title: z.string().min(1).max(120).describe('打印标题，最长 120 字符'),
       content: z.string().min(1).max(MAX_PRINT_CONTENT_LENGTH).describe(`打印正文，最长 ${MAX_PRINT_CONTENT_LENGTH} 字符；长文会自动拆页`),
@@ -110,7 +117,8 @@ serveMcp('hamster-print-mcp', (server) => {
 
   server.registerTool('get_print_status', {
     title: 'Get Print Status',
-    description: '查询 hamster-print-mcp 投递的打印任务状态。pending=等待 Mac mini，running=已领取，done=已生成并送入 CUPS，failed=失败。只读工具。',
+    description: '查询打印任务状态。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       command_id: z.string().uuid().optional().describe('print_document 返回的任务 UUID'),
       request_id: z.string().max(120).optional().describe('print_document 使用的 request_id'),
@@ -142,7 +150,8 @@ serveMcp('hamster-print-mcp', (server) => {
 
   server.registerTool('post_tweet', {
     title: 'Post Tweet',
-    description: '把一条文字推文投递到 Supabase，由 Mac mini 常驻 worker 通过 OpenCLI 发布到 X/Twitter。只有串串明确要求真实发布时才能调用；confirmed 必须为 true。同一 request_id 或同日同内容默认幂等，避免网络重试造成重复推文。',
+    description: '把推文投递给 Mac mini worker 真实发布到 X/Twitter。仅在串串明确要求时调用，confirmed 必须为 true。',
+    annotations: { openWorldHint: true },
     inputSchema: {
       text: z.string().min(1).refine(
         (value) => countTweetCharacters(value.replace(/\r\n?/gu, '\n').trim()) <= MAX_TWEET_TEXT_LENGTH,
@@ -179,7 +188,8 @@ serveMcp('hamster-print-mcp', (server) => {
 
   server.registerTool('get_tweet_status', {
     title: 'Get Tweet Status',
-    description: '查询 hamster-print-mcp 投递的推文任务状态。pending=等待 Mac mini，running=已领取，done=已发布并返回推文 ID/URL，failed=失败。只读工具。',
+    description: '查询推文任务状态（done 时含推文 ID / URL）。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       command_id: z.string().uuid().optional().describe('post_tweet 返回的任务 UUID'),
       request_id: z.string().max(120).optional().describe('post_tweet 使用的 request_id'),
@@ -208,4 +218,4 @@ serveMcp('hamster-print-mcp', (server) => {
       return errorResult(err)
     }
   })
-}, 'hamster-print')
+}, { serverName: 'hamster-print', instructions: PRINT_MCP_INSTRUCTIONS })

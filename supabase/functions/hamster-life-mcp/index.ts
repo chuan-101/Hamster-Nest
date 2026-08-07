@@ -74,6 +74,12 @@ async function proxyMcpCall(
   return await parseMcpResponse(callRes)
 }
 
+// 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
+const LIFE_MCP_INSTRUCTIONS = [
+  '第三方代理域：amap / luckin / mcd 是 MCP-to-MCP 代理，工具清单以各自 *_list_tools 实时返回为准，调用一律走 *_call(tool_name, arguments)。',
+  '瑞幸 / 麦当劳的下单类工具会产生真实消费，执行前必须得到串串明确确认。',
+].join('\n')
+
 const LUCKIN_ENDPOINT = 'https://gwmcp.lkcoffee.com/order/user/mcp'
 const MCD_ENDPOINT = 'https://mcp.mcd.cn'
 const AMAP_ENDPOINT_BASE = 'https://mcp.amap.com/mcp'
@@ -99,7 +105,7 @@ function amapMcpCall(method: string, params: Record<string, unknown> = {}) {
 serveMcp('hamster-life-mcp', (server) => {
   server.registerTool('generate_tts', {
     title: 'Generate TTS Audio',
-    description: '调用 ElevenLabs 生成 Syzygy 语音，上传到 Supabase Storage，返回 7 天有效的签名音频 URL。',
+    description: '生成 Syzygy 语音（ElevenLabs），返回 7 天有效的签名音频 URL。',
     inputSchema: {
       text: z.string().describe('要转换为语音的文本，不超过2000字'),
       speed: z.number().optional().describe('语速，默认0.85'),
@@ -154,7 +160,8 @@ serveMcp('hamster-life-mcp', (server) => {
 
   server.registerTool('luckin_list_tools', {
     title: 'List Luckin Coffee Tools',
-    description: '列出瑞幸咖啡 MCP 提供的所有可用工具。不需要任何参数。',
+    description: '列出瑞幸咖啡 MCP 的可用工具。',
+    annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
     try {
@@ -166,7 +173,8 @@ serveMcp('hamster-life-mcp', (server) => {
 
   server.registerTool('luckin_call', {
     title: 'Call Luckin Coffee Tool',
-    description: '调用瑞幸咖啡 MCP 的具体工具。先用 luckin_list_tools 查看可用工具列表。',
+    description: '调用瑞幸咖啡 MCP 的工具（先 luckin_list_tools 查清单）。',
+    annotations: { openWorldHint: true },
     inputSchema: {
       tool_name: z.string().describe('工具名称'),
       arguments: z.record(z.unknown()).optional().describe('参数'),
@@ -181,7 +189,8 @@ serveMcp('hamster-life-mcp', (server) => {
 
   server.registerTool('mcd_list_tools', {
     title: "List McDonald's Tools",
-    description: '列出麦当劳 MCP 提供的所有可用工具。不需要任何参数。',
+    description: '列出麦当劳 MCP 的可用工具。',
+    annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
     try {
@@ -193,7 +202,8 @@ serveMcp('hamster-life-mcp', (server) => {
 
   server.registerTool('mcd_call', {
     title: "Call McDonald's Tool",
-    description: '调用麦当劳 MCP 的具体工具。先用 mcd_list_tools 查看可用工具列表。',
+    description: '调用麦当劳 MCP 的工具（先 mcd_list_tools 查清单）。',
+    annotations: { openWorldHint: true },
     inputSchema: {
       tool_name: z.string().describe('工具名称'),
       arguments: z.record(z.unknown()).optional().describe('参数'),
@@ -208,7 +218,8 @@ serveMcp('hamster-life-mcp', (server) => {
 
   server.registerTool('amap_list_tools', {
     title: 'List AMap Tools',
-    description: '列出高德地图 MCP 提供的所有可用工具（地理编码、天气、路径规划、周边搜索、打车、导航等）。不需要任何参数。',
+    description: '列出高德地图 MCP 的可用工具（地理编码 / 天气 / 路径 / 周边等）。',
+    annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
     try {
@@ -220,7 +231,8 @@ serveMcp('hamster-life-mcp', (server) => {
 
   server.registerTool('amap_call', {
     title: 'Call AMap Tool',
-    description: '调用高德地图 MCP 的具体工具。先用 amap_list_tools 查看可用工具列表。',
+    description: '调用高德地图 MCP 的工具（先 amap_list_tools 查清单）。',
+    annotations: { openWorldHint: true },
     inputSchema: {
       tool_name: z.string().describe('工具名称'),
       arguments: z.record(z.unknown()).optional().describe('参数'),
@@ -232,4 +244,4 @@ serveMcp('hamster-life-mcp', (server) => {
       return { content: [{ type: 'text' as const, text: `Error: ${String(err)}` }] }
     }
   })
-})
+}, { instructions: LIFE_MCP_INSTRUCTIONS })
