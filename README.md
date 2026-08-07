@@ -214,7 +214,9 @@ codex exec ... 或 claude -p ...
 | `search_timeline` | 按关键词搜索时间轴，按日期倒序 |
 | `recent_timeline` | 取最近的时间轴条目（默认 10 条） |
 | `add_timeline` | 新增时间轴条目（日期 / 摘要 / 记录者 / 来源） |
-| `read_todos` | 读取待办列表（可筛 pending / completed / all） |
+| `read_todos` | 读取待办列表（可筛 pending / in_progress / completed / all） |
+| `add_todo` | 新增待办（分类名自动解析 / 创建，支持近期 / 长期与目标日期） |
+| `complete_todo` | 把待办标记为已完成并记录完成时间 |
 | `list_memos` | 读取中期活事实备忘录，可按标签筛选 |
 | `list_memo_tags` | 读取备忘录标签及条目计数 |
 | `add_memo` | 新增备忘录并关联标签 |
