@@ -1,23 +1,8 @@
 import { z } from 'npm:zod@^4.1.13'
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { AAB_USER_ID, getAabClient } from '../_shared/aab.ts'
 import { clampLimit, errorResult, jsonResult, serveMcp } from '../_shared/mcp_common.ts'
-import { requireUuidEnv } from '../_shared/owner.ts'
 
-const AAB_USER_ID = requireUuidEnv('AAB_USER_ID')
 const AAB_TIME_ZONE = 'Asia/Shanghai'
-
-let aabClient: ReturnType<typeof createClient> | null = null
-
-function getAabClient() {
-  if (aabClient) return aabClient
-  const url = Deno.env.get('AAB_SUPABASE_URL')
-  const serviceRoleKey = Deno.env.get('AAB_SUPABASE_SERVICE_ROLE_KEY')
-  if (!url || !serviceRoleKey) {
-    throw new Error('AAB_SUPABASE_URL or AAB_SUPABASE_SERVICE_ROLE_KEY not configured')
-  }
-  aabClient = createClient(url, serviceRoleKey)
-  return aabClient
-}
 
 const shanghaiDateString = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -402,7 +387,8 @@ serveMcp('hamster-reading-mcp', (server) => {
         question_id,
         book_id: question.book_id,
         answered_by,
-        content,
+        // 入参沿用 content，落库列是 answer（book_answers 表没有 content 列）。
+        answer: content,
         metadata: metadata ?? {},
       }).select(answerColumns).single()
       if (error) return errorResult(error)
