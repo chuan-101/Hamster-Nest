@@ -2,6 +2,8 @@
 
 > 调研日期：2026-08-07 · 基线 commit：`88df72c` · MCP_VERSION 5.13.0
 > 数据来源：源码静态扫描（`scripts/mcp-tools-inventory.mjs`）+ 本次 Claude Code 会话实际连接的 6 个已部署 server 的工具清单交叉核对。
+>
+> **执行状态（2026-08-07 更新）**：§4 路线图中的 P0 + P1 已在本分支落地（annotations / delete_memo confirm / README 对齐 / 82 个描述瘦身 / 6 份 server instructions，MCP_VERSION 5.14.0）——描述文本 24.1KB → 14.5KB（-40%）。P2 / P3 未动。
 
 ## TL;DR
 
