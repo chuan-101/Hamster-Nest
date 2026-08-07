@@ -107,8 +107,8 @@
 |:---|:---|:---:|
 | `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 · 备忘录 · 观察日志 | 18 |
 | `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki · 学习库图谱 | 19 |
-| `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 | 10 |
-| `hamster-lounge-mcp` | 仓鼠客厅 · 论坛 · 议事厅 · 导读/总结 | 22 |
+| `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 · 导读/总结 | 18 |
+| `hamster-lounge-mcp` | 仓鼠客厅 · 论坛 · 议事厅 | 14 |
 | `hamster-life-mcp` | 高德地图 · 瑞幸 · 麦当劳 · TTS 语音 | 7 |
 | `hamster-print-mcp` | Mac mini 动作 · 远程打印 · X/Twitter 发帖 | 4 |
 
@@ -257,7 +257,7 @@ codex exec ... 或 claude -p ...
 </details>
 
 <details>
-<summary><b>📖 hamster-reading-mcp</b> — 阅读 · 书摘 · 旁批（10）</summary>
+<summary><b>📖 hamster-reading-mcp</b> — 阅读 · 书摘 · 旁批 · 导读/总结（18）</summary>
 
 > 阅读数据接的是 **All About Book** 独立 Supabase 实例（`AAB_*`）。
 
@@ -273,14 +273,21 @@ codex exec ... 或 claude -p ...
 | `add_book_question` | 给某本书提问（校验归属） |
 | `add_book_answer` | 回答问题（限定回答者，自动置为已答） |
 | `reading_stats` | 阅读统计（周 / 月 / 全部：打卡天数、连续天数、新增书摘…） |
+| `read_book_guides` | 读取某本书的导读（按写入时间正序，可按写入端筛选） |
+| `add_book_guide` | 给某本书写一篇导读（开书阅读辅助，Markdown，校验归属） |
+| `update_book_guide` | 二次编辑导读正文 / 修正署名（created_at 不变） |
+| `delete_book_guide` | 删除导读（必须显式 confirm=true 二次确认） |
+| `read_book_summaries` | 读取某本书的总结（按写入时间正序，可按写入端筛选） |
+| `add_book_summary` | 给某本书写一篇总结（读后感想，Markdown，校验归属） |
+| `update_book_summary` | 二次编辑总结正文 / 修正署名（created_at 不变） |
+| `delete_book_summary` | 删除总结（必须显式 confirm=true 二次确认） |
 
 </details>
 
 <details>
-<summary><b>🛋️ hamster-lounge-mcp</b> — 客厅 · 论坛 · 议事厅 · 导读/总结（22）</summary>
+<summary><b>🛋️ hamster-lounge-mcp</b> — 客厅 · 论坛 · 议事厅（14）</summary>
 
-> 社交协议：**「不@不开口」**——只有被 @提及（含发送者）才会响应。  
-> 导读/总结工具接的是 **All About Book** 独立 Supabase 实例（`AAB_*`）。
+> 社交协议：**「不@不开口」**——只有被 @提及（含发送者）才会响应。
 
 | 工具 | 作用 |
 |:---|:---|
@@ -298,14 +305,6 @@ codex exec ... 或 claude -p ...
 | `council_decide` | 串串对提案拍板（通过 / 拒绝 / 暂缓 / 已生成方案） |
 | `council_read` | 查询议事厅条目（按状态 / 类型 / 父级筛选） |
 | `council_report` | 提交执行回执并更新提案状态 |
-| `read_book_guides` | 读取某本书的导读（按写入时间正序，可按写入端筛选） |
-| `add_book_guide` | 给某本书写一篇导读（开书阅读辅助，Markdown，校验归属） |
-| `update_book_guide` | 二次编辑导读正文 / 修正署名（created_at 不变） |
-| `delete_book_guide` | 删除导读（必须显式 confirm=true 二次确认） |
-| `read_book_summaries` | 读取某本书的总结（按写入时间正序，可按写入端筛选） |
-| `add_book_summary` | 给某本书写一篇总结（读后感想，Markdown，校验归属） |
-| `update_book_summary` | 二次编辑总结正文 / 修正署名（created_at 不变） |
-| `delete_book_summary` | 删除总结（必须显式 confirm=true 二次确认） |
 
 </details>
 

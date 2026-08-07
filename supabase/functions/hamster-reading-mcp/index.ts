@@ -50,6 +50,42 @@ const questionColumns = 'id, book_id, question, status, metadata, created_at, up
 const answerColumns = 'id, question_id, book_id, answered_by, answer, metadata, created_at, updated_at'
 const answerers = ['chuanchuan', 'syzygy-claude', 'syzygy-gpt', 'cli_reading_assist'] as const
 
+// 导读 & 总结：每本书的陪读内容，存在 book_guides / book_summaries 两张表里
+// （与 Web 端「导读」「总结」标签页共用）。written_by 推荐用书籍问答同款枚举
+// chuanchuan / syzygy-claude / syzygy-gpt / cli_reading_assist，
+// 也允许写入端自报家门（自由文本）。
+// 展示一律按 created_at（写入时间）排序，编辑只更新 content 与 updated_at。
+const companionColumns = 'id, book_id, written_by, content, metadata, created_at, updated_at'
+const COMPANION_WRITERS_HINT = '推荐 chuanchuan / syzygy-claude / syzygy-gpt / cli_reading_assist，也可自定义'
+
+type CompanionConfig = {
+  table: 'book_guides' | 'book_summaries'
+  zh: string
+  listKey: string
+  idParam: string
+  toolSuffix: string
+  purpose: string
+}
+
+const COMPANION_CONFIGS: CompanionConfig[] = [
+  {
+    table: 'book_guides',
+    zh: '导读',
+    listKey: 'guides',
+    idParam: 'guide_id',
+    toolSuffix: 'book_guide',
+    purpose: '开新书时写入的阅读辅助（背景、人物表、阅读路线等）',
+  },
+  {
+    table: 'book_summaries',
+    zh: '总结',
+    listKey: 'summaries',
+    idParam: 'summary_id',
+    toolSuffix: 'book_summary',
+    purpose: '读完一本书后写下的感想与总结',
+  },
+]
+
 serveMcp('hamster-reading-mcp', (server) => {
   server.registerTool('reading_status', {
     title: 'Reading Status Snapshot',
@@ -452,4 +488,126 @@ serveMcp('hamster-reading-mcp', (server) => {
       return errorResult(err)
     }
   })
+
+  // ---- 导读 & 总结（读写 book_guides / book_summaries）----
+  for (const config of COMPANION_CONFIGS) {
+    server.registerTool(`read_${config.table}`, {
+      title: `Read ${config.zh === '导读' ? 'Book Guides' : 'Book Summaries'}`,
+      description: `读取 All About Book 某本书的${config.zh}（${config.purpose}）。按写入时间正序返回，可按写入端筛选。只读工具。`,
+      inputSchema: {
+        book_id: z.string().describe('书目 UUID（可用 reading_history / reading_status 查询）'),
+        written_by: z.string().optional().describe(`按写入端筛选，${COMPANION_WRITERS_HINT}`),
+        limit: z.number().optional().describe('返回数量上限，默认20，最大100'),
+      },
+    }, async ({ book_id, written_by, limit }) => {
+      try {
+        const aab = getAabClient()
+        const safeLimit = clampLimit(limit, 20, 100)
+        const { data: book, error: bookError } = await aab.from('books').select('title').eq('user_id', AAB_USER_ID).eq('id', book_id).maybeSingle()
+        if (bookError) return errorResult(bookError)
+        if (!book) return { content: [{ type: 'text' as const, text: `Error: book not found: ${book_id}` }] }
+        let query = aab.from(config.table).select(companionColumns, { count: 'exact' }).eq('user_id', AAB_USER_ID).eq('book_id', book_id)
+        if (written_by) query = query.eq('written_by', written_by)
+        const { data, error, count } = await query.order('created_at', { ascending: true }).order('id', { ascending: true }).limit(safeLimit)
+        if (error) return errorResult(error)
+        return jsonResult({
+          book_title: book.title,
+          [config.listKey]: data ?? [],
+          total: count ?? data?.length ?? 0,
+        })
+      } catch (err) {
+        return errorResult(err)
+      }
+    })
+
+    server.registerTool(`add_${config.toolSuffix}`, {
+      title: `Add ${config.zh === '导读' ? 'Book Guide' : 'Book Summary'}`,
+      description: `向 All About Book 某本书写入一篇${config.zh}（${config.purpose}）。写入前会校验 book_id 属于当前 AAB 用户；正文支持 Markdown，Web 端按写入时间排序展示。`,
+      inputSchema: {
+        book_id: z.string().describe('书目 UUID'),
+        written_by: z.string().min(1).describe(`写入端署名，${COMPANION_WRITERS_HINT}`),
+        content: z.string().min(1).describe(`${config.zh}正文（Markdown）`),
+        metadata: z.record(z.string(), z.unknown()).optional().describe('可选元数据，如 source_task_id / trigger_reason'),
+      },
+    }, async ({ book_id, written_by, content, metadata }) => {
+      try {
+        const aab = getAabClient()
+        const writer = written_by.trim()
+        if (!writer) return { content: [{ type: 'text' as const, text: 'Error: written_by 不能为空' }] }
+        const { data: book, error: bookError } = await aab.from('books').select('id, title').eq('user_id', AAB_USER_ID).eq('id', book_id).maybeSingle()
+        if (bookError) return errorResult(bookError)
+        if (!book) return { content: [{ type: 'text' as const, text: `Error: book not found: ${book_id}` }] }
+        const { data, error } = await aab.from(config.table).insert({
+          user_id: AAB_USER_ID,
+          book_id,
+          written_by: writer,
+          content,
+          metadata: metadata ?? {},
+        }).select(companionColumns).single()
+        if (error) return errorResult(error)
+        return { content: [{ type: 'text' as const, text: `《${book.title}》的${config.zh}已写入: ${JSON.stringify(data)}` }] }
+      } catch (err) {
+        return errorResult(err)
+      }
+    })
+
+    server.registerTool(`update_${config.toolSuffix}`, {
+      title: `Update ${config.zh === '导读' ? 'Book Guide' : 'Book Summary'}`,
+      description: `二次编辑一篇${config.zh}的正文（或修正写入端署名）。只更新 content / written_by 与 updated_at，created_at 保持写入时间不变，排序不受影响。`,
+      inputSchema: {
+        [config.idParam]: z.string().describe(`${config.zh}条目 UUID（用 read_${config.table} 查询）`),
+        content: z.string().min(1).optional().describe(`新的${config.zh}正文（Markdown），不传则不改`),
+        written_by: z.string().min(1).optional().describe('修正写入端署名，不传则不改'),
+        metadata: z.record(z.string(), z.unknown()).optional().describe('可选元数据，传入时整体覆盖'),
+      },
+    }, async (args) => {
+      try {
+        const entryId = args[config.idParam] as string
+        const { content, written_by, metadata } = args as { content?: string; written_by?: string; metadata?: Record<string, unknown> }
+        if (content === undefined && written_by === undefined && metadata === undefined) {
+          return { content: [{ type: 'text' as const, text: 'Error: content / written_by / metadata 至少要传一项' }] }
+        }
+        const aab = getAabClient()
+        const { data: existing, error: existingError } = await aab.from(config.table).select('id').eq('user_id', AAB_USER_ID).eq('id', entryId).maybeSingle()
+        if (existingError) return errorResult(existingError)
+        if (!existing) return { content: [{ type: 'text' as const, text: `Error: ${config.zh} not found: ${entryId}` }] }
+        const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+        if (content !== undefined) patch.content = content
+        if (written_by !== undefined) patch.written_by = written_by.trim()
+        if (metadata !== undefined) patch.metadata = metadata
+        const { data, error } = await aab.from(config.table).update(patch).eq('user_id', AAB_USER_ID).eq('id', entryId).select(companionColumns).single()
+        if (error) return errorResult(error)
+        return { content: [{ type: 'text' as const, text: `${config.zh}已更新: ${JSON.stringify(data)}` }] }
+      } catch (err) {
+        return errorResult(err)
+      }
+    })
+
+    server.registerTool(`delete_${config.toolSuffix}`, {
+      title: `Delete ${config.zh === '导读' ? 'Book Guide' : 'Book Summary'}`,
+      description: `删除一篇${config.zh}。删除不可恢复，必须显式传 confirm=true 才会执行（二次确认）；建议先 read_${config.table} 核对内容再删。`,
+      inputSchema: {
+        [config.idParam]: z.string().describe(`${config.zh}条目 UUID（用 read_${config.table} 查询）`),
+        confirm: z.boolean().describe('二次确认：必须显式传 true 才执行删除'),
+      },
+    }, async (args) => {
+      try {
+        const entryId = args[config.idParam] as string
+        const confirm = args.confirm as boolean
+        if (confirm !== true) {
+          return { content: [{ type: 'text' as const, text: `Error: 删除${config.zh}需要显式传 confirm=true（删除不可恢复，请先核对内容）` }] }
+        }
+        const aab = getAabClient()
+        const { data: existing, error: existingError } = await aab.from(config.table).select(companionColumns).eq('user_id', AAB_USER_ID).eq('id', entryId).maybeSingle()
+        if (existingError) return errorResult(existingError)
+        if (!existing) return { content: [{ type: 'text' as const, text: `Error: ${config.zh} not found: ${entryId}` }] }
+        const { error } = await aab.from(config.table).delete().eq('user_id', AAB_USER_ID).eq('id', entryId)
+        if (error) return errorResult(error)
+        const preview = String(existing.content ?? '').slice(0, 60)
+        return { content: [{ type: 'text' as const, text: `${config.zh}已删除（${existing.written_by} · ${preview}${String(existing.content ?? '').length > 60 ? '…' : ''}）` }] }
+      } catch (err) {
+        return errorResult(err)
+      }
+    })
+  }
 })
