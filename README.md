@@ -196,7 +196,7 @@ codex exec ... 或 claude -p ...
 
 ---
 
-### 🧰 MCP 工具箱（全部 63 个）
+### 🧰 MCP 工具箱（全部 80 个）
 
 > 每个 MCP 服务器都是一个独立的 Supabase Edge Function，走 JSON-RPC / MCP Streamable HTTP。
 > 鉴权优先使用 `x-hamster-mcp-key` 请求头（timing-safe 比对）或 Supabase Auth Header；`?key=` 仅为旧客户端迁移期兼容，避免新凭证进入 URL / Access Log。
