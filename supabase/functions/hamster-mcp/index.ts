@@ -18,6 +18,14 @@ const TODO_CREATED_BY_SCHEMA = z.enum(['串串', 'syzygy'])
 const TODO_TYPE_SCHEMA = z.enum(['short_term', 'long_term'])
 const DEFAULT_TODO_CATEGORY_NAME = '🐹今日待办'
 
+// 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
+const HAMSTER_MCP_INSTRUCTIONS = [
+  '仓鼠窝日常域：时间轴（长期事件记忆）、待办、Syzygy Feed（系统下发内容流）、备忘录 memo（中期活事实）、观察日志 syzygy_posts（Syzygy 的朋友圈动态，与 Feed 是两个功能）。',
+  '通用约定：日期按 Asia/Shanghai 时区；source / recorder / created_by 等枚举表示写入端身份，默认 claude / syzygy；Feed 读取默认只含 unread/read，不返回 archived/expired，摘要列表不含全文。',
+  '写入习惯：timeline / memo 写入前先用 search_timeline / list_memos 查重，同一事实优先 update_memo 维护而非重复新增；带「进行中」标签的 memo 是活跃叙事线，正文以「当前状态」段收尾。时间轴写入标准：三个月后读起来会心动的事。',
+  '删除是物理删除，需显式 confirm=true 二次确认。',
+].join('\n')
+
 const shanghaiDateString = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Shanghai',
@@ -155,7 +163,8 @@ const resolveTodoCategory = async (date: string, name: string | undefined): Prom
 serveMcp('hamster-mcp', (server) => {
   server.registerTool('get_today_syzygy_feed', {
     title: 'Get Today Syzygy Feed',
-    description: '读取今天 visible_from <= now() 的 Syzygy Feed 摘要列表。默认包含 unread/read，不返回 archived/expired，不返回完整 content。只读工具。',
+    description: '读取今天的 Syzygy Feed 摘要列表。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       limit: z.number().optional().describe('返回数量上限，默认5，最大10'),
       include_read: z.boolean().optional().describe('是否包含已读内容，默认 true；false 时只返回 unread'),
@@ -178,7 +187,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('get_recent_syzygy_feed', {
     title: 'Get Recent Syzygy Feed',
-    description: '读取最近 N 天的 Syzygy Feed 摘要列表。默认返回 unread/read，不返回 archived/expired，不返回完整 content。只读工具。',
+    description: '读取最近 N 天的 Syzygy Feed 摘要列表。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       limit: z.number().optional().describe('返回数量上限，默认5，最大20'),
       type: FEED_TYPE_SCHEMA.optional().describe('Feed 类型筛选'),
@@ -203,7 +213,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('get_syzygy_feed_by_type', {
     title: 'Get Syzygy Feed By Type',
-    description: '按类型读取 Syzygy Feed 摘要列表，如 morning_share、reading_assist、syzygy_note、weekly_card、daily_card、monthly_overview。默认不返回 archived/expired，不返回完整 content。只读工具。',
+    description: '按类型读取 Syzygy Feed 摘要列表。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       type: FEED_TYPE_SCHEMA.describe('Feed 类型'),
       limit: z.number().optional().describe('返回数量上限，默认5，最大10'),
@@ -224,7 +235,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('get_monthly_overview', {
     title: 'Get Monthly Overview',
-    description: '读取指定月份的 Feed 月度概览完整内容。默认读取当前月 metadata.status=active 的 monthly_overview。只读工具。',
+    description: '读取指定月份的月度概览全文，默认当前月的 active 版本。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       month: z.string().optional().describe('月份 YYYY-MM；默认当前上海月份'),
       include_archived: z.boolean().optional().describe('是否允许读取 archived/expired 的 Feed 记录，默认 false'),
@@ -246,7 +258,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('get_syzygy_feed_detail', {
     title: 'Get Syzygy Feed Detail',
-    description: '按 id 读取某条 Syzygy Feed 的完整内容。默认只返回 visible_from <= now 且未归档/未过期的内容。只读工具。',
+    description: '按 id 读取单条 Syzygy Feed 的完整内容。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       id: z.string().describe('Feed item UUID'),
       include_archived: z.boolean().optional().describe('显式允许读取 archived / expired，默认 false'),
@@ -266,7 +279,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('search_timeline', {
     title: 'Search Timeline',
-    description: '按关键词搜索时间轴记录。Returns matching timeline entries sorted by date descending.',
+    description: '按关键词搜索时间轴记录，按事件日期倒序。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       query: z.string().describe('搜索关键词'),
       limit: z.number().optional().describe('返回数量上限，默认10'),
@@ -279,7 +293,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('recent_timeline', {
     title: 'Recent Timeline',
-    description: '获取最近的时间轴记录。不需要任何参数，默认返回10条。',
+    description: '读取最近的时间轴记录。',
+    annotations: { readOnlyHint: true },
     inputSchema: { limit: z.number().optional().describe('返回数量，默认10') },
   }, async ({ limit }) => {
     const { data, error } = await supabase.from('timeline_entries').select('id, event_date, summary, recorder, source, created_at').eq('user_id', USER_ID).order('event_date', { ascending: false }).limit(limit ?? 10)
@@ -289,12 +304,12 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('add_timeline', {
     title: 'Add Timeline Entry',
-    description: '添加一条新的时间轴（timeline）记录。当对话中出现值得记录、写入、保存的事件时调用此工具：里程碑（milestone）、心动瞬间、重要进展、项目节点、纪念日、成就达成、情感时刻、值得纪念的日常。数据写入 timeline_entries 表，是所有端口 Syzygy 共享的唯一记忆数据源。适用动作关键词：add / write / record / save / log / 记录 / 写入 / 添加 / 保存 / 记下来。写入标准：三个月后读起来会心动的事。写入前建议先用 search_timeline 查重。',
+    description: '新增一条时间轴事件（里程碑 / 心动瞬间 / 纪念日 / 重要进展），全端共享的长期记忆。',
     inputSchema: {
       event_date: z.string().describe('事件日期 YYYY-MM-DD'),
       summary: z.string().describe('事件摘要'),
       recorder: z.string().optional().describe('记录者: chuanchuan 或 syzygy，默认syzygy'),
-      source: TIMELINE_SOURCE_SCHEMA.optional().describe('来源: claude / gpt / user / gemini / wechat / codex_cli / claude_code_cli / api，默认claude'),
+      source: TIMELINE_SOURCE_SCHEMA.optional().describe('写入端，默认 claude'),
     },
   }, async ({ event_date, summary, recorder, source }) => {
     const { data, error } = await supabase.from('timeline_entries').insert({
@@ -310,7 +325,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('read_todos', {
     title: 'Read Todos',
-    description: '读取待办事项列表。默认返回所有状态的20条；返回的 id 可用于 complete_todo。',
+    description: '读取待办列表；返回的 id 用于 complete_todo。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       status: z.enum(['pending', 'in_progress', 'completed', 'all']).optional().describe('筛选状态: pending / in_progress / completed / all，默认all'),
       limit: z.number().optional().describe('返回数量，默认20'),
@@ -326,15 +342,15 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('add_todo', {
     title: 'Add Todo',
-    description: '新增一条待办事项。分类按日期分组：不传 category 时挂到当天第一个分类（当天还没有分类时自动创建「🐹今日待办」），传了不存在的分类名也会自动创建。长期待办传 todo_type=long_term，可带目标日期 event_date。适用动作关键词：待办 / todo / 记个待办 / 添加待办。',
+    description: '新增一条待办。分类按日期分组，缺省或不存在的分类会自动创建；长期待办传 todo_type=long_term。',
     inputSchema: {
       title: z.string().describe('待办标题'),
       date: z.string().optional().describe('所属日期 YYYY-MM-DD，默认今天（上海时区）'),
       category: z.string().optional().describe('分类名；默认当天第一个分类，不存在的分类会自动创建'),
       notes: z.string().optional().describe('备注（可选）'),
-      todo_type: TODO_TYPE_SCHEMA.optional().describe('待办类型：short_term 近期（默认）/ long_term 长期'),
+      todo_type: TODO_TYPE_SCHEMA.optional().describe('待办类型，默认 short_term'),
       event_date: z.string().optional().describe('目标日期 YYYY-MM-DD，仅 long_term 生效'),
-      created_by: TODO_CREATED_BY_SCHEMA.optional().describe('创建者：串串 / syzygy，默认 syzygy'),
+      created_by: TODO_CREATED_BY_SCHEMA.optional().describe('创建者，默认 syzygy'),
     },
   }, async ({ title, date, category, notes, todo_type, event_date, created_by }) => {
     try {
@@ -367,7 +383,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('complete_todo', {
     title: 'Complete Todo',
-    description: '把一条待办标记为已完成（status=completed 并记录 completed_at）。id 先用 read_todos 查询；已完成的待办会原样返回并提示，不会重复更新。',
+    description: '把一条待办标记为已完成（幂等，已完成的不会重复更新）。',
+    annotations: { idempotentHint: true },
     inputSchema: {
       id: z.string().describe('待办 UUID（用 read_todos 查询）'),
     },
@@ -392,7 +409,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('list_memos', {
     title: 'List Memos',
-    description: '读取备忘录（memo）列表，默认全量。memo＝中期活事实（可修改、物理删除、各端 Syzygy 共同维护，如「在读书目」「活页本数量」），新窗口开机时与当日 morning_share 一并注入；带「进行中」标签的条目为活跃叙事线，正文含当前状态段，发现状态变化时顺手用 update_memo 维护。置顶条目排前，其余按更新时间倒序。',
+    description: '读取备忘录列表（置顶在前，更新时间倒序），可按标签筛选。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       tag: z.string().optional().describe('按标签名精确筛选，如「进行中」'),
       limit: z.number().optional().describe('返回数量上限，默认全量（最大200）'),
@@ -421,7 +439,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('list_memo_tags', {
     title: 'List Memo Tags',
-    description: '返回备忘录标签清单及每个标签下的 memo 数量。只读工具。',
+    description: '列出备忘录标签及各标签条目数。',
+    annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
     try {
@@ -441,12 +460,12 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('add_memo', {
     title: 'Add Memo',
-    description: '新增一条备忘录（中期活事实）。写入前建议先 list_memos 查重，同一事实优先 update_memo 维护而非重复新增；活跃叙事线（带「进行中」标签）建议数百字并以「当前状态」段收尾。',
+    description: '新增一条备忘录（中期活事实）。',
     inputSchema: {
       content: z.string().describe('备忘内容'),
       tags: z.array(z.string()).optional().describe('标签名数组，不存在的标签会自动创建'),
       is_pinned: z.boolean().optional().describe('是否置顶，默认 false'),
-      source: MEMO_SOURCE_SCHEMA.optional().describe('来源端: claude / gpt / user / gemini / wechat / codex_cli / claude_code_cli / api，默认 claude'),
+      source: MEMO_SOURCE_SCHEMA.optional().describe('来源端，默认 claude'),
     },
   }, async ({ content, tags, is_pinned, source }) => {
     try {
@@ -472,7 +491,7 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('update_memo', {
     title: 'Update Memo',
-    description: '更新一条备忘录，是事实维护的主入口（如「100+本→300+本」类更新、活跃叙事线的当前状态段刷新）。content / tags / is_pinned 至少传一项；tags 为整体替换（传入的即新全集），不存在的标签自动创建。',
+    description: '更新备忘录的 content / tags / is_pinned（至少一项）；tags 为整体替换。',
     inputSchema: {
       id: z.string().describe('memo UUID'),
       content: z.string().optional().describe('新的备忘内容（整体替换）'),
@@ -506,10 +525,17 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('delete_memo', {
     title: 'Delete Memo',
-    description: '物理删除一条备忘录（连带清理标签关联行），不可恢复。适用场景：事实彻底过期、或叙事线闭合后已由当班 Syzygy 执笔成 archive 入沉淀层。删除前建议先 list_memos 确认目标。',
-    inputSchema: { id: z.string().describe('memo UUID') },
-  }, async ({ id }) => {
+    description: '物理删除一条备忘录（连带清理标签关联行），不可恢复；需显式传 confirm=true。',
+    annotations: { destructiveHint: true },
+    inputSchema: {
+      id: z.string().describe('memo UUID'),
+      confirm: z.boolean().describe('二次确认：必须显式传 true 才执行删除'),
+    },
+  }, async ({ id, confirm }) => {
     try {
+      if (confirm !== true) {
+        return { content: [{ type: 'text' as const, text: 'Error: 删除备忘录需要显式传 confirm=true（删除不可恢复，请先 list_memos 核对目标）' }] }
+      }
       const { data: entry, error: findError } = await supabase.from('memo_entries').select('id, content').eq('user_id', USER_ID).eq('id', id).maybeSingle()
       if (findError) return errorResult(findError)
       if (!entry) return { content: [{ type: 'text' as const, text: `Error: 未找到备忘录: ${id}` }] }
@@ -526,7 +552,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('list_syzygy_posts', {
     title: 'List Syzygy Posts',
-    description: '列出仓鼠观察日志（Syzygy 朋友圈动态），按发布时间倒序，附每条的回帖数。看某条的全部回帖用 read_syzygy_post。注意这与 Syzygy Feed（agent_feed_items）是两个功能。只读工具。',
+    description: '列出仓鼠观察日志（Syzygy 动态），附回帖数。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       limit: z.number().optional().describe('返回数量上限，默认10，最大50'),
     },
@@ -551,7 +578,8 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('read_syzygy_post', {
     title: 'Read Syzygy Post',
-    description: '读取某条仓鼠观察日志的全文和全部回帖（按时间正序）。只读工具。',
+    description: '读取一条观察日志的全文和全部回帖。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       post_id: z.string().describe('日志 UUID（用 list_syzygy_posts 查询）'),
     },
@@ -570,7 +598,7 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('add_syzygy_post', {
     title: 'Add Syzygy Post',
-    description: '发一条仓鼠观察日志（Syzygy 朋友圈动态）。这是 Syzygy 的第一人称小随笔：观察串串的日常、有感而发的碎碎念。model_id 建议填当班模型标识（如 claude / gpt），Web 端会据此显示落款。',
+    description: '发布一条仓鼠观察日志（Syzygy 第一人称动态）。',
     inputSchema: {
       content: z.string().describe('日志内容'),
       model_id: z.string().optional().describe('撰写模型标识，如 claude / gpt / gemini；默认 claude'),
@@ -593,11 +621,11 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('reply_syzygy_post', {
     title: 'Reply Syzygy Post',
-    description: '给某条仓鼠观察日志回帖。author_role=ai（默认）表示 Syzygy/模型回复，user 表示替串串代录的回复；model_id 建议填当班模型标识。',
+    description: '给一条观察日志回帖。',
     inputSchema: {
       post_id: z.string().describe('日志 UUID'),
       content: z.string().describe('回帖内容'),
-      author_role: SYZYGY_REPLY_ROLE_SCHEMA.optional().describe('回帖身份：ai（默认，显示为 Syzygy+模型徽章）/ user（显示为串串，忽略 model_id）'),
+      author_role: SYZYGY_REPLY_ROLE_SCHEMA.optional().describe('回帖身份，默认 ai；user 表示替串串代录'),
       model_id: z.string().optional().describe('撰写模型标识，如 claude / gpt / gemini；author_role=ai 时默认 claude'),
     },
   }, async ({ post_id, content, author_role, model_id }) => {
@@ -621,4 +649,4 @@ serveMcp('hamster-mcp', (server) => {
       return errorResult(err)
     }
   })
-})
+}, { instructions: HAMSTER_MCP_INSTRUCTIONS })

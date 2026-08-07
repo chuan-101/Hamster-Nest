@@ -8,10 +8,18 @@ const LEARNING_NODE_COLUMNS = 'id, folder_id, node_type, title, content, tags, m
 const LEARNING_EDGE_COLUMNS = 'id, from_node_id, to_node_id, edge_type, description, strength, created_at'
 const clampStrength = (strength: number) => Math.min(Math.max(Math.round(strength), 1), 5)
 
+// 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
+const KNOWLEDGE_MCP_INSTRUCTIONS = [
+  '知识域三块：Wiki（长期知识条目，status 分 draft / published）、记忆档案 archives（分类树 + 条目，scope 分 chuanchuan / syzygy）、学习库（learning 节点与有向连边的图谱 + 文件夹树）。',
+  '写入习惯：add 前先用对应的 search_* 查重，已有条目优先 update_* 维护；update 传入的 content / tags / metadata 均为整体替换，改前先读原值。',
+  '学习节点 metadata 约定：question 用 status(open/exploring/resolved)+answer；application 用 project+status(idea/in_progress/done)；source 用 url+author；quote 用 origin+page；concept 用 source。',
+].join('\n')
+
 serveMcp('hamster-knowledge-mcp', (server) => {
   server.registerTool('search_wiki', {
     title: 'Search Wiki',
-    description: '按关键词搜索Wiki知识库条目。',
+    description: '按关键词搜索 Wiki 条目。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       query: z.string().describe('搜索关键词'),
       limit: z.number().optional().describe('返回数量上限，默认10'),
@@ -24,7 +32,8 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('read_wiki', {
     title: 'Read Wiki',
-    description: '读取所有Wiki条目列表。不需要任何参数。',
+    description: '读取 Wiki 条目列表（更新时间倒序）。',
+    annotations: { readOnlyHint: true },
     inputSchema: { limit: z.number().optional().describe('返回数量，默认20') },
   }, async ({ limit }) => {
     const { data, error } = await supabase.from('wiki_entries').select('id, title, category, tags, status, updated_at').eq('user_id', USER_ID).order('updated_at', { ascending: false }).limit(limit ?? 20)
@@ -34,13 +43,13 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('add_wiki', {
     title: 'Add Wiki Entry',
-    description: '新建一条 Wiki 知识库条目。写入前建议先用 search_wiki 查重，已有同主题条目时优先用 update_wiki 维护。status 默认 draft（草稿），确认成熟的内容可直接传 published。',
+    description: '新建一条 Wiki 条目，status 默认 draft。',
     inputSchema: {
       title: z.string().describe('条目标题'),
       content: z.string().describe('条目正文（Markdown）'),
       category: z.string().optional().describe('分类名称，默认「未分类」'),
       tags: z.array(z.string()).optional().describe('标签数组，默认空'),
-      status: z.enum(['draft', 'published']).optional().describe('条目状态：draft 草稿（默认）/ published 已发布'),
+      status: z.enum(['draft', 'published']).optional().describe('条目状态，默认 draft'),
     },
   }, async ({ title, content, category, tags, status }) => {
     try {
@@ -62,7 +71,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('update_wiki', {
     title: 'Update Wiki Entry',
-    description: '更新已有的 Wiki 条目：标题、正文、分类、标签或状态（draft/published），至少传一项。content 为整体替换，改前建议先 search_wiki 拿到原文。',
+    description: '更新 Wiki 条目的标题 / 正文 / 分类 / 标签 / 状态（至少一项；正文整体替换）。',
     inputSchema: {
       id: z.string().describe('条目 UUID（用 search_wiki / read_wiki 查询）'),
       title: z.string().optional().describe('新标题'),
@@ -94,7 +103,8 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('list_archive_categories', {
     title: 'List Archive Categories',
-    description: '列出所有记忆档案分类，可按 scope 筛选（chuanchuan / syzygy）。返回分类树结构。只读工具。',
+    description: '列出记忆档案分类树，可按 scope 筛选。',
+    annotations: { readOnlyHint: true },
     inputSchema: { scope: z.enum(['chuanchuan', 'syzygy', 'all']).optional().describe('筛选 scope，默认 all') },
   }, async ({ scope }) => {
     try {
@@ -110,7 +120,8 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('read_archives', {
     title: 'Read Archives',
-    description: '按分类读取记忆档案条目，返回该分类下所有未删除的档案。只读工具。',
+    description: '按分类读取记忆档案条目。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       category_id: z.string().describe('分类 UUID'),
       limit: z.number().optional().describe('返回数量上限，默认20，最大100'),
@@ -128,7 +139,8 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('search_archives', {
     title: 'Search Archives',
-    description: '按关键词搜索记忆档案，匹配标题、内容和关键词字段。只读工具。',
+    description: '按关键词搜索记忆档案（标题 / 内容 / 关键词）。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       query: z.string().describe('搜索关键词'),
       scope: z.enum(['chuanchuan', 'syzygy', 'all']).optional().describe('限定 scope，默认 all'),
@@ -149,7 +161,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('add_archive_category', {
     title: 'Add Archive Category',
-    description: '创建新的记忆档案分类。',
+    description: '新建记忆档案分类。',
     inputSchema: {
       scope: z.enum(['chuanchuan', 'syzygy']).describe('分类所属 scope'),
       name: z.string().describe('分类名称'),
@@ -170,7 +182,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('add_archive', {
     title: 'Add Archive Entry',
-    description: '创建一条新的记忆档案条目。',
+    description: '新建一条记忆档案条目。',
     inputSchema: {
       category_id: z.string().describe('所属分类 UUID'),
       title: z.string().describe('档案标题'),
@@ -178,7 +190,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
       keywords: z.array(z.string()).optional().describe('关键词标签'),
       aliases: z.array(z.string()).optional().describe('别名列表'),
       importance: z.enum(['low', 'normal', 'high', 'critical']).optional().describe('重要程度，默认 normal'),
-      source: z.string().optional().describe('来源: manual / claude / gpt / codex，默认 manual'),
+      source: z.string().optional().describe('写入端，默认 manual'),
     },
   }, async ({ category_id, title, content, keywords, aliases, importance, source }) => {
     try {
@@ -202,7 +214,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('update_archive', {
     title: 'Update Archive Entry',
-    description: '更新已有的记忆档案条目。可修改标题、内容、关键词、别名、重要程度，或软删除。',
+    description: '更新记忆档案条目，或用 is_deleted 软删除。',
     inputSchema: {
       id: z.string().describe('档案 UUID'),
       title: z.string().optional().describe('新标题'),
@@ -232,7 +244,8 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('list_learning_folders', {
     title: 'List Learning Folders',
-    description: '列出学习库全部文件夹（树结构通过 parent_id 表达），附每个文件夹的节点数。只读工具。',
+    description: '列出学习库文件夹树，附节点数。',
+    annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
     try {
@@ -247,7 +260,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('add_learning_folder', {
     title: 'Add Learning Folder',
-    description: '新建学习库文件夹。可用 parent_id 挂到已有文件夹下形成树结构。',
+    description: '新建学习库文件夹，parent_id 可挂树。',
     inputSchema: {
       name: z.string().describe('文件夹名称'),
       icon: z.string().optional().describe('展示图标（emoji），默认 📁'),
@@ -271,10 +284,11 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('read_learning_nodes', {
     title: 'Read Learning Nodes',
-    description: '读取学习库节点列表（附所属文件夹名），可按文件夹和节点类型筛选，按更新时间倒序。只读工具。',
+    description: '读取学习库节点列表，可按文件夹和类型筛选。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       folder_id: z.string().optional().describe('文件夹 UUID（用 list_learning_folders 查询）；传 none 只看未归档节点，不传则不限文件夹'),
-      node_type: learningNodeTypes.optional().describe('节点类型筛选：concept 概念 / question 问题 / insight 洞见 / source 资料 / quote 摘录 / note 笔记 / application 应用'),
+      node_type: learningNodeTypes.optional().describe('节点类型筛选'),
       limit: z.number().optional().describe('返回数量上限，默认20，最大100'),
     },
   }, async ({ folder_id, node_type, limit }) => {
@@ -294,7 +308,8 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('search_learning_nodes', {
     title: 'Search Learning Nodes',
-    description: '按关键词搜索学习库节点，匹配标题、正文和标签。只读工具。',
+    description: '按关键词搜索学习库节点（标题 / 正文 / 标签）。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       query: z.string().describe('搜索关键词'),
       node_type: learningNodeTypes.optional().describe('限定节点类型'),
@@ -315,9 +330,9 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('add_learning_node', {
     title: 'Add Learning Node',
-    description: '新建学习库节点。写入前建议先用 search_learning_nodes 查重。metadata 按类型约定填写：question 用 status(open/exploring/resolved)+answer，application 用 project+status(idea/in_progress/done)，source 用 url+author，quote 用 origin+page，concept 用 source，insight/note 无约定字段。',
+    description: '新建学习库节点；metadata 按节点类型约定填写（见服务器说明）。',
     inputSchema: {
-      node_type: learningNodeTypes.describe('节点类型：concept 概念 / question 问题 / insight 洞见 / source 资料 / quote 摘录 / note 笔记 / application 应用'),
+      node_type: learningNodeTypes.describe('节点类型'),
       title: z.string().describe('节点标题'),
       content: z.string().optional().describe('节点正文'),
       tags: z.array(z.string()).optional().describe('标签数组，默认空'),
@@ -344,7 +359,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('update_learning_node', {
     title: 'Update Learning Node',
-    description: '更新已有学习库节点：标题、正文、标签、文件夹或 metadata，至少传一项。content / tags / metadata 为整体替换，改前建议先读取原值；节点类型创建后不可修改。',
+    description: '更新学习库节点（至少一项；content / tags / metadata 整体替换；类型不可改）。',
     inputSchema: {
       id: z.string().describe('节点 UUID（用 search_learning_nodes / read_learning_nodes 查询）'),
       title: z.string().optional().describe('新标题'),
@@ -376,7 +391,8 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('read_learning_edges', {
     title: 'Read Learning Edges',
-    description: '读取某个学习节点的全部连边（双向），带两端节点的标题和类型。只读工具。',
+    description: '读取某节点的全部连边（双向，带两端节点信息）。',
+    annotations: { readOnlyHint: true },
     inputSchema: {
       node_id: z.string().describe('节点 UUID'),
       limit: z.number().optional().describe('返回数量上限，默认20，最大100'),
@@ -394,7 +410,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('add_learning_edge', {
     title: 'Add Learning Edge',
-    description: '在两个学习节点之间新建连边（有方向 from→to）。类型：association 关联 / derivation 推导 / contradiction 矛盾 / application 应用 / reference 引用 / question 提问。',
+    description: '在两个学习节点之间新建有向连边。',
     inputSchema: {
       from_node_id: z.string().describe('起点节点 UUID'),
       to_node_id: z.string().describe('终点节点 UUID'),
@@ -417,7 +433,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
 
   server.registerTool('update_learning_edge', {
     title: 'Update Learning Edge',
-    description: '更新已有连边的类型、说明或强度，至少传一项。连边两端节点不可修改。',
+    description: '更新连边的类型 / 说明 / 强度（至少一项；两端节点不可改）。',
     inputSchema: {
       id: z.string().describe('连边 UUID（用 read_learning_edges 查询）'),
       edge_type: learningEdgeTypes.optional().describe('新连边类型'),
@@ -441,4 +457,4 @@ serveMcp('hamster-knowledge-mcp', (server) => {
       return errorResult(err)
     }
   })
-})
+}, { instructions: KNOWLEDGE_MCP_INSTRUCTIONS })

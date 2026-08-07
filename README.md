@@ -10,7 +10,7 @@
 
 [![Version](https://img.shields.io/badge/Version-v5.3.0-pink?style=flat-square)](#)
 [![License](https://img.shields.io/badge/License-MIT-a3e635?style=flat-square)](./LICENSE)
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-63-2dd4bf?style=flat-square)](#-mcp-工具箱全部-63-个)
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-82-2dd4bf?style=flat-square)](#-mcp-工具箱全部-82-个)
 [![Edge Functions](https://img.shields.io/badge/Edge_Functions-16-8b5cf6?style=flat-square)](#-后端-edge-functions)
 [![PRs](https://img.shields.io/badge/PRs-1000+-ff69b4?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-可装进手机-f59e0b?style=flat-square)](#)
@@ -105,7 +105,7 @@
 
 | MCP 服务器 | 职责 | 工具数 |
 |:---|:---|:---:|
-| `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 · 备忘录 · 观察日志 | 18 |
+| `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 · 备忘录 · 观察日志 | 20 |
 | `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki · 学习库图谱 | 19 |
 | `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 · 导读/总结 | 18 |
 | `hamster-lounge-mcp` | 仓鼠客厅 · 论坛 · 议事厅 | 14 |
@@ -196,13 +196,14 @@ codex exec ... 或 claude -p ...
 
 ---
 
-### 🧰 MCP 工具箱（全部 80 个）
+### 🧰 MCP 工具箱（全部 82 个）
 
 > 每个 MCP 服务器都是一个独立的 Supabase Edge Function，走 JSON-RPC / MCP Streamable HTTP。
 > 鉴权优先使用 `x-hamster-mcp-key` 请求头（timing-safe 比对）或 Supabase Auth Header；`?key=` 仅为旧客户端迁移期兼容，避免新凭证进入 URL / Access Log。
+> 工具清单与计数以 `npm run mcp:inventory` 的输出为准（`--live` 模式直连已部署 server 拿精确清单）；跨工具的共性约定放在各 server 的 MCP `instructions` 里随握手下发，只读 / 危险操作标注在 `annotations`（readOnlyHint / destructiveHint）。
 
 <details open>
-<summary><b>🐹 hamster-mcp</b> — 时间轴 · 待办 · Feed · 备忘录 · 观察日志（18）</summary>
+<summary><b>🐹 hamster-mcp</b> — 时间轴 · 待办 · Feed · 备忘录 · 观察日志（20）</summary>
 
 | 工具 | 作用 |
 |:---|:---|
@@ -221,7 +222,7 @@ codex exec ... 或 claude -p ...
 | `list_memo_tags` | 读取备忘录标签及条目计数 |
 | `add_memo` | 新增备忘录并关联标签 |
 | `update_memo` | 更新备忘录正文、置顶和标签 |
-| `delete_memo` | 物理删除备忘录 |
+| `delete_memo` | 物理删除备忘录（需 confirm=true 二次确认） |
 | `list_syzygy_posts` | 列出仓鼠观察日志（朋友圈动态），附回帖数 |
 | `read_syzygy_post` | 读取单条观察日志全文及全部回帖 |
 | `add_syzygy_post` | 发一条观察日志（Syzygy 第一人称随笔，带模型落款） |
