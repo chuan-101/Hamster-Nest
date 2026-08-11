@@ -25,14 +25,14 @@ const fixtureSql = await readFile(
 const migrationSql = await readFile(
   path.join(
     repoRoot,
-    'supabase/migrations/20260810123838_v4_1_cli_singleton_sessions_migrate.sql',
+    'supabase/migrations/20260811123910_v4_1_cli_singleton_sessions_migrate.sql',
   ),
   'utf8',
 )
 const rollbackSql = await readFile(
   path.join(
     repoRoot,
-    'supabase/rollback-contracts/20260810123838_v4_1_cli_singleton_sessions_migrate.sql',
+    'supabase/rollback-contracts/20260811123910_v4_1_cli_singleton_sessions_migrate.sql',
   ),
   'utf8',
 )

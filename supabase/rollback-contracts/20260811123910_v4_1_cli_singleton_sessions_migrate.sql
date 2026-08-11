@@ -1,4 +1,4 @@
--- Manual rollback contract for 20260810123838_v4_1_cli_singleton_sessions_migrate.
+-- Manual rollback contract for 20260811123910_v4_1_cli_singleton_sessions_migrate.
 --
 -- Codex returns to the same legacy sessions.id. Canonical messages are never
 -- rewritten or deleted. The migration-created Claude session is deleted only

@@ -7,11 +7,11 @@ const { resolveConversationProfileKey } = await import(
 )
 
 const migrationUrl = new URL(
-  '../supabase/migrations/20260810123838_v4_1_cli_singleton_sessions_migrate.sql',
+  '../supabase/migrations/20260811123910_v4_1_cli_singleton_sessions_migrate.sql',
   import.meta.url,
 )
 const rollbackUrl = new URL(
-  '../supabase/rollback-contracts/20260810123838_v4_1_cli_singleton_sessions_migrate.sql',
+  '../supabase/rollback-contracts/20260811123910_v4_1_cli_singleton_sessions_migrate.sql',
   import.meta.url,
 )
 
