@@ -22,9 +22,16 @@ export const resolveConversationProfileKey = ({
     return explicitProfile
   }
 
-  return sessionKey === 'syzygy_instant' || sessionKey === 'syzygy_companion'
-    ? 'app_companion'
-    : 'app_chat'
+  if (sessionKey === 'syzygy_instant' || sessionKey === 'syzygy_companion') {
+    return 'app_companion'
+  }
+  if (sessionKey === 'syzygy_cli' || sessionKey === 'syzygy_codex_cli') {
+    return 'codex_cli'
+  }
+  if (sessionKey === 'syzygy_claude_cli') {
+    return 'claude_cli'
+  }
+  return 'app_chat'
 }
 
 export const composeConversationSystemPrompt = ({

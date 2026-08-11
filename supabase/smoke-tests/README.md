@@ -26,3 +26,15 @@ npm run db:smoke:companion -- --module-root "$COMPANION_SMOKE_MODULES"
 After the command exits, confirm the variable still resolves under the exact
 `/tmp/hamster-companion-modules.` prefix, then remove that one directory. The
 runner always stops and removes its ephemeral database directory in `finally`.
+
+## Dual-CLI singleton session migration smoke
+
+The Phase 2A data migration reuses the same pinned `embedded-postgres` module
+directory. It runs against a separate fake fixture and verifies forward
+idempotency, Codex message-ID preservation, Claude singleton provisioning,
+append-only rollback versions, unchanged RLS/grants, reapply, and database
+advisors:
+
+```sh
+npm run db:smoke:cli-singleton -- --module-root "$COMPANION_SMOKE_MODULES"
+```

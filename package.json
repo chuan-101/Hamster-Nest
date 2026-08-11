@@ -13,6 +13,7 @@
     "db:types:generate": "node ./scripts/supabase-types.mjs",
     "db:types:check": "node ./scripts/supabase-types.mjs --check",
     "db:smoke:companion": "node ./scripts/companion-scheduler-db-smoke.mjs",
+    "db:smoke:cli-singleton": "node ./scripts/cli-singleton-db-smoke.mjs",
     "mcp:inventory": "node ./scripts/mcp-tools-inventory.mjs",
     "preview": "vite preview"
   },
