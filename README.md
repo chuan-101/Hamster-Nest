@@ -11,7 +11,7 @@
 [![Version](https://img.shields.io/badge/Version-v5.3.0-pink?style=flat-square)](#)
 [![License](https://img.shields.io/badge/License-MIT-a3e635?style=flat-square)](./LICENSE)
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-82-2dd4bf?style=flat-square)](#-mcp-工具箱全部-82-个)
-[![Edge Functions](https://img.shields.io/badge/Edge_Functions-16-8b5cf6?style=flat-square)](#-后端-edge-functions)
+[![Edge Functions](https://img.shields.io/badge/Edge_Functions-19-8b5cf6?style=flat-square)](#-后端-edge-functions)
 [![PRs](https://img.shields.io/badge/PRs-1000+-ff69b4?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-可装进手机-f59e0b?style=flat-square)](#)
 [![Syzygy](https://img.shields.io/badge/Syzygy-🩷_×_💙-2dd4bf?style=flat-square)](#)
@@ -194,6 +194,8 @@ codex exec ... 或 claude -p ...
 
 这样重启 Mac mini 不会丢掉任务状态：临时进程会消失，但真正的任务进度、失败原因、回复内容，都沉在 Supabase 表里。
 
+V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual CLI singleton sessions）：进程照旧即用即走，但对话记忆固定沉淀在 Supabase 里同一个会话窗口，前端也可以通过 `runtime-control` 函数一键唤醒 / 休眠它们。
+
 ---
 
 ### 🧰 MCP 工具箱（全部 82 个）
@@ -350,8 +352,12 @@ codex exec ... 或 claude -p ...
 |:---|:---|
 | `openrouter-chat` | 💬 LLM 对话网关：多模型、深度思考、工具循环、长上下文压缩、多模块历史管理 |
 | `openrouter-models` | 📋 从 OpenRouter / 自定义 Provider 拉取可用模型列表 |
+| `conversation-dispatch` | 🗨️ V4.1 会话调度网关：按会话档案组装提示词与上下文，创建持久化回复任务并流式返回模型回复 |
+| `conversation-task-cancel` | ⏹️ 取消排队中的会话回复任务（`conversation-dispatch` 的配套函数） |
 | `memory-extract` | 🧠 从近期聊天抽取长期记忆，去重并可选合并聚类 |
 | `signal-bus-consumer` | 📡 消费 Syzygy 信号总线（睡眠提醒 / 补水 / 心情检查…），可转发 WeChat |
+| `push-dispatch` | 📲 `agent_events` → Expo 推送中继：数据库触发器 / Mac mini 对账扫描经共享密钥调用，幂等并支持回执查询 |
+| `runtime-control` | 🎛️ 双 CLI 常驻会话的唤醒 / 休眠开关（Codex CLI / Claude Code CLI，带运行中任务确认） |
 | `wechat-reply` | 💬 微信桥的模型回复入口（mini-agent 以服务密钥调用） |
 | `tts-generate` | 🎤 ElevenLabs 语音生成（前端点播，流式返回音频） |
 | `device-report` | 📱 iOS 快捷指令设备状态上报（共享密钥通道） |
@@ -437,6 +443,10 @@ Hamster-Nest/
 │   │   ├── hamster-print-mcp/       #   Mac mini 动作 · 打印 / 发推投递与状态查询
 │   │   ├── openrouter-chat/         #   LLM 对话网关（受保护函数）
 │   │   ├── openrouter-models/       #   模型列表
+│   │   ├── conversation-dispatch/   #   V4.1 会话调度网关（流式回复）
+│   │   ├── conversation-task-cancel/ #  会话回复任务取消
+│   │   ├── push-dispatch/           #   agent_events → Expo 推送中继
+│   │   ├── runtime-control/         #   双 CLI 会话唤醒 / 休眠开关
 │   │   ├── memory-extract/          #   记忆抽取
 │   │   ├── signal-bus-consumer/     #   信号总线消费者
 │   │   ├── wechat-reply/            #   微信桥模型回复
