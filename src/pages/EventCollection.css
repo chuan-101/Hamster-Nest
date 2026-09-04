@@ -6,6 +6,9 @@
   margin: 0 auto;
   padding: 14px 14px 20px;
   min-height: 100dvh;
+  /* .app-shell 是固定高度的纵向 flex，不设 flex-shrink: 0 页面会被压到一屏高，
+     网格里带 overflow: hidden 的行会被压成 0（只剩 padding），表现为卡片只露一行。 */
+  flex-shrink: 0;
   display: grid;
   gap: 12px;
   align-content: start;
@@ -98,12 +101,12 @@
   padding: 12px;
   box-shadow: 0 10px 20px rgba(255, 214, 231, 0.2);
   position: relative;
-  overflow: hidden;
 }
 
 .event-intro-dot {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
   background-image: radial-gradient(circle at 1px 1px, rgba(255, 214, 231, 0.62) 1.2px, transparent 1.2px);
   background-size: 16px 16px;
