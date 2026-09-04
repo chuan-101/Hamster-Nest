@@ -1239,6 +1239,86 @@ export type Database = {
           },
         ]
       }
+      event_entries: {
+        Row: {
+          content: string
+          created_at: string
+          entry_date: string
+          id: string
+          source: string
+          thread_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          entry_date?: string
+          id?: string
+          source?: string
+          thread_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          entry_date?: string
+          id?: string
+          source?: string
+          thread_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_entries_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "event_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_threads: {
+        Row: {
+          created_at: string
+          current_status: string
+          emoji_group: string | null
+          ended_on: string | null
+          id: string
+          started_on: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_status?: string
+          emoji_group?: string | null
+          ended_on?: string | null
+          id?: string
+          started_on?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_status?: string
+          emoji_group?: string | null
+          ended_on?: string | null
+          id?: string
+          started_on?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       forum_ai_profiles: {
         Row: {
           api_base_url: string | null

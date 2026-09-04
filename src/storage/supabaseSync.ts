@@ -24,6 +24,9 @@ import type {
   ForumAuthorType,
   LetterEntry,
   LetterTriggerType,
+  EventEntry,
+  EventThread,
+  EventThreadStatus,
   MemoEntry,
   MemoSource,
   MemoTag,
@@ -161,6 +164,30 @@ type MemoTagRow = {
 type MemoEntryTagRow = {
   memo_entry_id: string
   memo_tag_id: string
+}
+
+type EventThreadRow = {
+  id: string
+  user_id: string
+  title: string
+  current_status: string
+  status: EventThreadStatus
+  emoji_group: string | null
+  started_on: string
+  ended_on: string | null
+  created_at: string
+  updated_at: string
+}
+
+type EventEntryRow = {
+  id: string
+  user_id: string
+  thread_id: string
+  entry_date: string
+  content: string
+  source: string
+  created_at: string
+  updated_at: string
 }
 
 type TimelineEntryRow = {
@@ -514,6 +541,30 @@ const mapMemoTagRow = (row: MemoTagRow): MemoTag => ({
   userId: row.user_id,
   name: row.name,
   createdAt: row.created_at,
+})
+
+const mapEventThreadRow = (row: EventThreadRow): EventThread => ({
+  id: row.id,
+  userId: row.user_id,
+  title: row.title,
+  currentStatus: row.current_status,
+  status: row.status,
+  emojiGroup: row.emoji_group,
+  startedOn: row.started_on,
+  endedOn: row.ended_on,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapEventEntryRow = (row: EventEntryRow): EventEntry => ({
+  id: row.id,
+  userId: row.user_id,
+  threadId: row.thread_id,
+  entryDate: row.entry_date,
+  content: row.content,
+  source: row.source,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 })
 
 const mapTimelineEntryRow = (row: TimelineEntryRow): TimelineEntry => ({
@@ -2731,6 +2782,207 @@ export const deleteTimelineEntry = async (entryId: string): Promise<void> => {
   }
 }
 
+
+// ── 事件集（纪事本末体）────────────────────────────────────────────────────
+
+const EVENT_THREAD_COLUMNS = 'id,user_id,title,current_status,status,emoji_group,started_on,ended_on,created_at,updated_at'
+const EVENT_ENTRY_COLUMNS = 'id,user_id,thread_id,entry_date,content,source,created_at,updated_at'
+
+export const listEventThreads = async (): Promise<EventThread[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('event_threads')
+    .select(EVENT_THREAD_COLUMNS)
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapEventThreadRow(row as EventThreadRow))
+}
+
+export const fetchEventThread = async (threadId: string): Promise<EventThread | null> => {
+  if (!supabase) {
+    return null
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('event_threads')
+    .select(EVENT_THREAD_COLUMNS)
+    .eq('user_id', userId)
+    .eq('id', threadId)
+    .maybeSingle()
+  if (error) {
+    throw error
+  }
+  return data ? mapEventThreadRow(data as EventThreadRow) : null
+}
+
+export const listEventEntryCounts = async (): Promise<Map<string, { count: number; lastEntryDate: string | null }>> => {
+  const stats = new Map<string, { count: number; lastEntryDate: string | null }>()
+  if (!supabase) {
+    return stats
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('event_entries')
+    .select('thread_id,entry_date')
+    .eq('user_id', userId)
+  if (error) {
+    throw error
+  }
+  ;((data ?? []) as Array<{ thread_id: string; entry_date: string }>).forEach((row) => {
+    const current = stats.get(row.thread_id) ?? { count: 0, lastEntryDate: null }
+    current.count += 1
+    if (!current.lastEntryDate || row.entry_date > current.lastEntryDate) {
+      current.lastEntryDate = row.entry_date
+    }
+    stats.set(row.thread_id, current)
+  })
+  return stats
+}
+
+export const createEventThread = async (payload: {
+  title: string
+  currentStatus: string
+  emojiGroup: string | null
+  startedOn: string
+}): Promise<EventThread> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('event_threads')
+    .insert({
+      user_id: userId,
+      title: payload.title,
+      current_status: payload.currentStatus,
+      emoji_group: payload.emojiGroup,
+      started_on: payload.startedOn,
+    })
+    .select(EVENT_THREAD_COLUMNS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('创建事件线失败')
+  }
+  return mapEventThreadRow(data as EventThreadRow)
+}
+
+export const updateEventThread = async (
+  threadId: string,
+  payload: Partial<{
+    title: string
+    currentStatus: string
+    emojiGroup: string | null
+    status: EventThreadStatus
+    startedOn: string
+    endedOn: string | null
+  }>,
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const patch: Record<string, unknown> = {}
+  if (payload.title !== undefined) patch.title = payload.title
+  if (payload.currentStatus !== undefined) patch.current_status = payload.currentStatus
+  if (payload.emojiGroup !== undefined) patch.emoji_group = payload.emojiGroup
+  if (payload.status !== undefined) patch.status = payload.status
+  if (payload.startedOn !== undefined) patch.started_on = payload.startedOn
+  if (payload.endedOn !== undefined) patch.ended_on = payload.endedOn
+  if (Object.keys(patch).length === 0) {
+    return
+  }
+  const { error } = await supabase.from('event_threads').update(patch).eq('id', threadId)
+  if (error) {
+    throw error
+  }
+}
+
+export const deleteEventThread = async (threadId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  // 物理删除：条目由外键 ON DELETE CASCADE 连带清理。
+  const { error } = await supabase.from('event_threads').delete().eq('id', threadId)
+  if (error) {
+    throw error
+  }
+}
+
+export const listEventEntries = async (threadId: string): Promise<EventEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('event_entries')
+    .select(EVENT_ENTRY_COLUMNS)
+    .eq('user_id', userId)
+    .eq('thread_id', threadId)
+    .order('entry_date', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapEventEntryRow(row as EventEntryRow))
+}
+
+export const createEventEntry = async (payload: {
+  threadId: string
+  entryDate: string
+  content: string
+  source?: string
+}): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase.from('event_entries').insert({
+    user_id: userId,
+    thread_id: payload.threadId,
+    entry_date: payload.entryDate,
+    content: payload.content,
+    // 仓鼠窝前端手动写入默认标记来源为 frontend。
+    source: payload.source ?? 'frontend',
+  })
+  if (error) {
+    throw error
+  }
+}
+
+export const updateEventEntry = async (
+  entryId: string,
+  payload: { entryDate: string; content: string; source?: string },
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase
+    .from('event_entries')
+    .update({
+      entry_date: payload.entryDate,
+      content: payload.content,
+      ...(payload.source ? { source: payload.source } : {}),
+    })
+    .eq('id', entryId)
+  if (error) {
+    throw error
+  }
+}
+
+export const deleteEventEntry = async (entryId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('event_entries').delete().eq('id', entryId)
+  if (error) {
+    throw error
+  }
+}
 
 export const listTodosByMonth = async (
   monthStart: string,

@@ -7,6 +7,7 @@ import {
   listTimelineEntriesByMonth,
   updateTimelineEntry,
 } from '../storage/supabaseSync'
+import { RECORD_SOURCE_OPTIONS, getRecordSourceLabel } from '../constants/recordSources'
 import './TimelinePage.css'
 
 type TimelineEditorState = {
@@ -25,34 +26,8 @@ const RECORDER_META: Record<TimelineRecorder, { emoji: string; label: string }> 
 
 const DEFAULT_SOURCE: TimelineSource = 'frontend'
 
-// 来源端标签：source 表示写入端，和 recorder（记录者）区分。
-const SOURCE_META: Record<string, { label: string }> = {
-  frontend: { label: '仓鼠窝前端' },
-  wechat_api: { label: '微信' },
-  client_gpt: { label: '客户端 GPT' },
-  client_claude: { label: '客户端 Claude' },
-  codex_cli: { label: 'Codex CLI' },
-  claude_code_cli: { label: 'Claude Code CLI' },
-  system: { label: '系统' },
-  // 历史数据里已存在的旧来源值，保留可读标签。
-  claude: { label: 'Claude' },
-  gpt: { label: 'GPT' },
-  gemini: { label: 'Gemini' },
-  user: { label: '手动' },
-}
-
-// 新建 / 编辑表单可选来源（前端约定的来源端）。
-const SOURCE_OPTIONS: TimelineSource[] = [
-  'frontend',
-  'wechat_api',
-  'client_gpt',
-  'client_claude',
-  'codex_cli',
-  'claude_code_cli',
-  'system',
-]
-
-const getSourceLabel = (source: string) => SOURCE_META[source]?.label ?? source
+const SOURCE_OPTIONS = RECORD_SOURCE_OPTIONS as TimelineSource[]
+const getSourceLabel = getRecordSourceLabel
 
 const getTodayDate = () => {
   const date = new Date()
