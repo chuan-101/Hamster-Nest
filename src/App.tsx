@@ -68,6 +68,8 @@ import LettersPage from './pages/LettersPage'
 import StoryGroupPage from './pages/StoryGroupPage'
 import MemoPage from './pages/MemoPage'
 import TimelinePage from './pages/TimelinePage'
+import EventCollectionPage from './pages/EventCollectionPage'
+import EventThreadPage from './pages/EventThreadPage'
 import TodoPage from './pages/TodoPage'
 import HamsterConsolePage from './pages/HamsterConsolePage'
 import AgentCouncilPage from './pages/AgentCouncilPage'
@@ -2284,6 +2286,22 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <TimelinePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/events"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <EventCollectionPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/events/:threadId"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <EventThreadPage />
             </RequireAuth>
           }
         />

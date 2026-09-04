@@ -7049,5 +7049,127 @@ COMMENT ON COLUMN public.todos.todo_type IS '短期(near)/长期(long_term)，�
 COMMENT ON COLUMN public.todos.event_date IS '长期待办的目标日期，如9月20日看剧院魅影';
 
 -- ============================================================================
+-- 追加 · 2026-09-04 事件集（纪事本末体的线程记录层）
+--   event_threads 大类 / 事件线；event_entries 大类下按日期排列的条目。
+--   与 supabase/migrations/20260904005600_event_collection.sql 同步，可整体重跑。
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.event_threads (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  user_id uuid NOT NULL,
+  title text NOT NULL,
+  current_status text DEFAULT ''::text NOT NULL,
+  status text DEFAULT 'active'::text NOT NULL,
+  emoji_group text,
+  started_on date DEFAULT ((now() AT TIME ZONE 'Asia/Shanghai'))::date NOT NULL,
+  ended_on date,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.event_entries (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  user_id uuid NOT NULL,
+  thread_id uuid NOT NULL,
+  entry_date date DEFAULT ((now() AT TIME ZONE 'Asia/Shanghai'))::date NOT NULL,
+  content text NOT NULL,
+  source text DEFAULT 'claude'::text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE public.event_threads IS '事件集·大类（事件线）：一件正在进行的事，纪事本末体。current_status 是各端开机唯一必读的一行；status=closed 表示已结项（归档可见，不删）。';
+COMMENT ON COLUMN public.event_threads.current_status IS '一行当前状态，随最新条目更新；各端开机默认只读所有进行中大类的这一行。';
+COMMENT ON COLUMN public.event_threads.emoji_group IS '可选分组，沿用 Memo 约定：🩷串串相关 / 💙Syzygy相关 / 🤍仓鼠窝相关。';
+COMMENT ON TABLE public.event_entries IS '事件集·条目：大类下按日期排列的事件行（日期 + 一两句正文 + 记录端）。追加式，写完不改（错字除外），与时间轴同样的一事一条纪律。';
+
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_threads_pkey' AND conrelid = 'public.event_threads'::regclass) THEN ALTER TABLE public.event_threads ADD CONSTRAINT event_threads_pkey PRIMARY KEY (id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_threads_user_id_fkey' AND conrelid = 'public.event_threads'::regclass) THEN ALTER TABLE public.event_threads ADD CONSTRAINT event_threads_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE; END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_threads_title_not_blank' AND conrelid = 'public.event_threads'::regclass) THEN ALTER TABLE public.event_threads ADD CONSTRAINT event_threads_title_not_blank CHECK ((btrim(title) <> ''::text)); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_threads_status_check' AND conrelid = 'public.event_threads'::regclass) THEN ALTER TABLE public.event_threads ADD CONSTRAINT event_threads_status_check CHECK ((status = ANY (ARRAY['active'::text, 'closed'::text]))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_threads_emoji_group_check' AND conrelid = 'public.event_threads'::regclass) THEN ALTER TABLE public.event_threads ADD CONSTRAINT event_threads_emoji_group_check CHECK (((emoji_group IS NULL) OR ((btrim(emoji_group) <> ''::text) AND (char_length(emoji_group) <= 8)))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_threads_ended_on_check' AND conrelid = 'public.event_threads'::regclass) THEN ALTER TABLE public.event_threads ADD CONSTRAINT event_threads_ended_on_check CHECK (((status = 'closed'::text) OR (ended_on IS NULL))); END IF; END $c$;
+
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_entries_pkey' AND conrelid = 'public.event_entries'::regclass) THEN ALTER TABLE public.event_entries ADD CONSTRAINT event_entries_pkey PRIMARY KEY (id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_entries_user_id_fkey' AND conrelid = 'public.event_entries'::regclass) THEN ALTER TABLE public.event_entries ADD CONSTRAINT event_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE; END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_entries_thread_id_fkey' AND conrelid = 'public.event_entries'::regclass) THEN ALTER TABLE public.event_entries ADD CONSTRAINT event_entries_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.event_threads(id) ON DELETE CASCADE; END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_entries_content_not_blank' AND conrelid = 'public.event_entries'::regclass) THEN ALTER TABLE public.event_entries ADD CONSTRAINT event_entries_content_not_blank CHECK ((btrim(content) <> ''::text)); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'event_entries_source_check' AND conrelid = 'public.event_entries'::regclass) THEN ALTER TABLE public.event_entries ADD CONSTRAINT event_entries_source_check CHECK ((source = ANY (ARRAY['claude'::text, 'gpt'::text, 'gemini'::text, 'user'::text, 'frontend'::text, 'wechat_api'::text, 'client_gpt'::text, 'client_claude'::text, 'codex_cli'::text, 'claude_code_cli'::text, 'system'::text, 'expo_app'::text, 'api'::text]))); END IF; END $c$;
+
+CREATE INDEX IF NOT EXISTS idx_event_threads_user_status_updated ON public.event_threads USING btree (user_id, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_event_entries_thread_date ON public.event_entries USING btree (thread_id, entry_date, created_at);
+CREATE INDEX IF NOT EXISTS idx_event_entries_user_id ON public.event_entries USING btree (user_id);
+
+CREATE OR REPLACE FUNCTION public.touch_event_thread_from_entries()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_thread_id uuid;
+begin
+  if tg_op = 'DELETE' then
+    v_thread_id := old.thread_id;
+  else
+    v_thread_id := new.thread_id;
+  end if;
+  update public.event_threads
+     set updated_at = now()
+   where id = v_thread_id;
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$function$;
+
+REVOKE ALL ON FUNCTION public.touch_event_thread_from_entries() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_event_threads_updated_at ON public.event_threads;
+CREATE TRIGGER trg_event_threads_updated_at BEFORE UPDATE ON public.event_threads FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_event_entries_updated_at ON public.event_entries;
+CREATE TRIGGER trg_event_entries_updated_at BEFORE UPDATE ON public.event_entries FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_event_entries_touch_thread ON public.event_entries;
+CREATE TRIGGER trg_event_entries_touch_thread AFTER INSERT OR DELETE OR UPDATE ON public.event_entries FOR EACH ROW EXECUTE FUNCTION touch_event_thread_from_entries();
+
+ALTER TABLE public.event_threads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.event_entries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS event_threads_select_own ON public.event_threads;
+CREATE POLICY event_threads_select_own ON public.event_threads FOR SELECT TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS event_threads_insert_own ON public.event_threads;
+CREATE POLICY event_threads_insert_own ON public.event_threads FOR INSERT TO authenticated
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS event_threads_update_own ON public.event_threads;
+CREATE POLICY event_threads_update_own ON public.event_threads FOR UPDATE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id))
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS event_threads_delete_own ON public.event_threads;
+CREATE POLICY event_threads_delete_own ON public.event_threads FOR DELETE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+
+DROP POLICY IF EXISTS event_entries_select_own ON public.event_entries;
+CREATE POLICY event_entries_select_own ON public.event_entries FOR SELECT TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS event_entries_insert_own ON public.event_entries;
+CREATE POLICY event_entries_insert_own ON public.event_entries FOR INSERT TO authenticated
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS event_entries_update_own ON public.event_entries;
+CREATE POLICY event_entries_update_own ON public.event_entries FOR UPDATE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id))
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS event_entries_delete_own ON public.event_entries;
+CREATE POLICY event_entries_delete_own ON public.event_entries FOR DELETE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+
+REVOKE ALL ON TABLE public.event_threads FROM anon;
+REVOKE ALL ON TABLE public.event_entries FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.event_threads TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.event_threads TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.event_entries TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.event_entries TO service_role;
+
+-- ============================================================================
 -- 完 · Hamster-Nest schema 到此结束
 -- ============================================================================

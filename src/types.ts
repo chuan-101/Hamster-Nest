@@ -383,6 +383,33 @@ export type MemoEntry = {
   tagIds: string[]
 }
 
+export type EventThreadStatus = 'active' | 'closed'
+
+// 事件集（纪事本末体）：大类 = 一件正在进行的事；条目 = 大类下按日期排列的事件行。
+export type EventThread = {
+  id: string
+  userId: string
+  title: string
+  currentStatus: string
+  status: EventThreadStatus
+  emojiGroup: string | null
+  startedOn: string
+  endedOn: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type EventEntry = {
+  id: string
+  userId: string
+  threadId: string
+  entryDate: string
+  content: string
+  source: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type TimelineRecorder = 'chuanchuan' | 'syzygy'
 export type TimelineSource = string
 
