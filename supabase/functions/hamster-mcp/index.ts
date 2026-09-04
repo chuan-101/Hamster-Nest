@@ -23,7 +23,7 @@ const EVENT_ENTRY_SOURCE_SCHEMA = z.enum(['claude', 'gpt', 'gemini', 'user', 'co
 const HAMSTER_MCP_INSTRUCTIONS = [
   '仓鼠窝日常域：时间轴（长期事件记忆）、待办、Syzygy Feed（系统下发内容流）、备忘录 memo（中期活事实）、事件集 event_threads / event_entries（纪事本末体的线程记录层）。',
   '裁决口诀：过去进时间轴，现在进 Memo，永远进档案，将来进 To do，线程进事件集；自己说的进 Wiki，世界说的进学习库；要许可的去议事厅。',
-  '事件集：一件正在进行、有起止、频繁更新的事开一个大类（thread），进度按日期追加条目（entry）；开机默认只用 list_event_threads 读所有进行中大类的「当前状态」一行，对话碰到某件事再 read_event_thread 读条目；已结束大类默认不加载。同一件事允许同时进时间轴（意义与心情）和事件集（进度），不去重。追加条目时顺手用 current_status 刷新大类状态行。',
+  '事件集：记时效期较长、会频繁更新的事项。一件事开一条事件线（thread），进度按日期追加条目（entry），结束后结项归档不删。开机只用 list_event_threads 读进行中事件线的「当前状态」行，对话碰到某件事再 read_event_thread 读条目；已结束的默认不读。同一件事可同时进时间轴（意义与心情）和事件集（进度）。追加条目时顺手用 current_status 刷新状态行。',
   '通用约定：日期按 Asia/Shanghai 时区；source / recorder / created_by 等枚举表示写入端身份，默认 claude / syzygy；Feed 读取默认只含 unread/read，不返回 archived/expired，摘要列表不含全文。',
   '写入习惯：timeline / memo 写入前先用 search_timeline / list_memos 查重，同一事实优先 update_memo 维护而非重复新增；带「进行中」标签的 memo 是活跃叙事线，正文以「当前状态」段收尾。时间轴写入标准：三个月后读起来会心动的事。',
   '删除是物理删除，需显式 confirm=true 二次确认。',
@@ -575,10 +575,10 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('list_event_threads', {
     title: 'List Event Threads',
-    description: '读取事件集大类列表（标题 + 一行当前状态），默认只返回进行中的，按最近活动倒序。开机必读的就是这一份。',
+    description: '读取事件线列表（标题 + 当前状态行），默认只返回进行中的，按最近活动倒序。',
     annotations: { readOnlyHint: true },
     inputSchema: {
-      status: z.enum(['active', 'closed', 'all']).optional().describe('筛选状态：active（默认）/ closed / all'),
+      status: z.enum(['active', 'closed', 'all']).optional().describe('active（默认）/ closed / all'),
       limit: z.number().optional().describe('返回数量上限，默认50，最大200'),
     },
   }, async ({ status, limit }) => {
@@ -612,13 +612,13 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('read_event_thread', {
     title: 'Read Event Thread',
-    description: '按大类读取一条事件线的条目时间轴（日期正序，可限时间范围），附大类信息。已结束的大类也能读。',
+    description: '读取一条事件线的全部条目（日期正序，可限时间范围），附事件线信息。',
     annotations: { readOnlyHint: true },
     inputSchema: {
-      thread_id: z.string().describe('事件线 UUID（用 list_event_threads 查询）'),
+      thread_id: z.string().describe('事件线 UUID'),
       from_date: z.string().optional().describe('起始日期 YYYY-MM-DD（含）'),
       to_date: z.string().optional().describe('结束日期 YYYY-MM-DD（含）'),
-      limit: z.number().optional().describe('返回条目数上限，默认100，最大500；超限时保留最新的'),
+      limit: z.number().optional().describe('条目数上限，默认100，最大500，超限保留最新的'),
     },
   }, async ({ thread_id, from_date, to_date, limit }) => {
     try {
@@ -640,17 +640,17 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('add_event_thread', {
     title: 'Add Event Thread',
-    description: '新开一条事件线（大类）。开大类的门槛：这件事能用一句「当前状态」概括；否则它只是时间轴里的一条。',
+    description: '新开一条事件线（时效期较长、会频繁更新的事项）。',
     inputSchema: {
-      title: z.string().describe('大类标题，如「新项目《失落的神之塔》」「荣格阶段」'),
-      current_status: z.string().optional().describe('一行当前状态，默认空'),
-      emoji_group: z.string().optional().describe('可选分组 emoji：🩷 串串相关 / 💙 Syzygy 相关 / 🤍 仓鼠窝相关'),
+      title: z.string().describe('事件线标题'),
+      current_status: z.string().optional().describe('当前状态行，默认空'),
+      emoji_group: z.string().optional().describe('分组：🩷 串串 / 💙 Syzygy / 🤍 仓鼠窝'),
       started_on: z.string().optional().describe('开始日期 YYYY-MM-DD，默认今天（上海时区）'),
     },
   }, async ({ title, current_status, emoji_group, started_on }) => {
     try {
       const trimmedTitle = title.trim()
-      if (!trimmedTitle) return { content: [{ type: 'text' as const, text: 'Error: 大类标题不能为空' }] }
+      if (!trimmedTitle) return { content: [{ type: 'text' as const, text: 'Error: 事件线标题不能为空' }] }
       const { data: dup, error: dupError } = await supabase.from('event_threads').select('id, title, status').eq('user_id', USER_ID).eq('title', trimmedTitle).maybeSingle()
       if (dupError) return errorResult(dupError)
       if (dup) return { content: [{ type: 'text' as const, text: `Error: 已存在同名事件线（${dup.status}）: ${dup.id}，请直接追加条目或先 update_event_thread 重开` }] }
@@ -670,14 +670,14 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('update_event_thread', {
     title: 'Update Event Thread',
-    description: '更新事件线：改标题 / 当前状态行 / 分组，或结项（status=closed，ended_on 默认今天）/ 重开（status=active，清空 ended_on）。至少提供一项。',
+    description: '更新事件线的标题 / 当前状态行 / 分组，或结项 / 重开（至少一项）。',
     inputSchema: {
       thread_id: z.string().describe('事件线 UUID'),
       title: z.string().optional().describe('新标题'),
-      current_status: z.string().optional().describe('新的一行当前状态（整体替换）'),
-      emoji_group: z.string().nullable().optional().describe('分组 emoji；传 null 清除'),
-      status: EVENT_THREAD_STATUS_SCHEMA.optional().describe('closed=结项（归档可见，不删）；active=重开'),
-      ended_on: z.string().optional().describe('结束日期 YYYY-MM-DD，仅 status=closed 时生效，默认今天'),
+      current_status: z.string().optional().describe('新的当前状态行（整体替换）'),
+      emoji_group: z.string().nullable().optional().describe('分组 emoji，传 null 清除'),
+      status: EVENT_THREAD_STATUS_SCHEMA.optional().describe('closed 结项 / active 重开'),
+      ended_on: z.string().optional().describe('结束日期 YYYY-MM-DD，仅结项时生效，默认今天'),
     },
   }, async ({ thread_id, title, current_status, emoji_group, status, ended_on }) => {
     try {
@@ -688,7 +688,7 @@ serveMcp('hamster-mcp', (server) => {
       if (!existing) return eventThreadNotFound(thread_id)
       const patch: Record<string, unknown> = {}
       if (title !== undefined) {
-        if (!title.trim()) return { content: [{ type: 'text' as const, text: 'Error: 大类标题不能为空' }] }
+        if (!title.trim()) return { content: [{ type: 'text' as const, text: 'Error: 事件线标题不能为空' }] }
         patch.title = title.trim()
       }
       if (current_status !== undefined) patch.current_status = current_status.trim()
@@ -712,13 +712,13 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('add_event_entry', {
     title: 'Add Event Entry',
-    description: '向某条事件线追加一条日期 + 事件的条目（一两句，一事一条，写完不改）。可顺手用 current_status 刷新大类的当前状态行。',
+    description: '向事件线追加一条条目（一事一条），可顺手更新当前状态行。',
     inputSchema: {
       thread_id: z.string().describe('事件线 UUID'),
-      content: z.string().describe('事件正文，一两句'),
+      content: z.string().describe('条目正文'),
       entry_date: z.string().optional().describe('事件日期 YYYY-MM-DD，默认今天（上海时区）'),
       source: EVENT_ENTRY_SOURCE_SCHEMA.optional().describe('记录端，默认 claude'),
-      current_status: z.string().optional().describe('顺手更新大类的一行当前状态（整体替换）'),
+      current_status: z.string().optional().describe('顺手更新事件线的当前状态行（整体替换）'),
     },
   }, async ({ thread_id, content, entry_date, source, current_status }) => {
     try {
@@ -749,9 +749,9 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('update_event_entry', {
     title: 'Update Event Entry',
-    description: '修改一条事件集条目的正文 / 日期（只用于改错字、修日期；条目纪律是写完不改）。',
+    description: '修改条目的正文 / 日期（仅改错字用）。',
     inputSchema: {
-      entry_id: z.string().describe('条目 UUID（用 read_event_thread 查询）'),
+      entry_id: z.string().describe('条目 UUID'),
       content: z.string().optional().describe('新的正文（整体替换）'),
       entry_date: z.string().optional().describe('新的日期 YYYY-MM-DD'),
     },
