@@ -7,7 +7,7 @@ import { isMcpKeyAuthorized } from './mcp_key_auth.ts'
 import { getOwnerUserId } from './owner.ts'
 import { getSupabaseAdminKey } from './supabase_secret.ts'
 
-export const MCP_VERSION = '5.15.0'
+export const MCP_VERSION = '5.16.0'
 export const USER_ID = getOwnerUserId()
 
 export const supabase = createClient(

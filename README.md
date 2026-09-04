@@ -10,7 +10,7 @@
 
 [![Version](https://img.shields.io/badge/Version-v5.3.0-pink?style=flat-square)](#)
 [![License](https://img.shields.io/badge/License-MIT-a3e635?style=flat-square)](./LICENSE)
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-88-2dd4bf?style=flat-square)](#-mcp-工具箱全部-88-个)
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-84-2dd4bf?style=flat-square)](#-mcp-工具箱全部-84-个)
 [![Edge Functions](https://img.shields.io/badge/Edge_Functions-19-8b5cf6?style=flat-square)](#-后端-edge-functions)
 [![PRs](https://img.shields.io/badge/PRs-1000+-ff69b4?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-可装进手机-f59e0b?style=flat-square)](#)
@@ -106,7 +106,7 @@
 
 | MCP 服务器 | 职责 | 工具数 |
 |:---|:---|:---:|
-| `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 · 备忘录 · 事件集 · 观察日志 | 26 |
+| `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 · 备忘录 · 事件集 | 22 |
 | `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki · 学习库图谱 | 19 |
 | `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 · 导读/总结 | 18 |
 | `hamster-lounge-mcp` | 仓鼠客厅 · 论坛 · 议事厅 | 14 |
@@ -199,14 +199,14 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 
 ---
 
-### 🧰 MCP 工具箱（全部 88 个）
+### 🧰 MCP 工具箱（全部 84 个）
 
 > 每个 MCP 服务器都是一个独立的 Supabase Edge Function，走 JSON-RPC / MCP Streamable HTTP。
 > 鉴权优先使用 `x-hamster-mcp-key` 请求头（timing-safe 比对）或 Supabase Auth Header；`?key=` 仅为旧客户端迁移期兼容，避免新凭证进入 URL / Access Log。
 > 工具清单与计数以 `npm run mcp:inventory` 的输出为准（`--live` 模式直连已部署 server 拿精确清单）；跨工具的共性约定放在各 server 的 MCP `instructions` 里随握手下发，只读 / 危险操作标注在 `annotations`（readOnlyHint / destructiveHint）。
 
 <details open>
-<summary><b>🐹 hamster-mcp</b> — 时间轴 · 待办 · Feed · 备忘录 · 事件集 · 观察日志（26）</summary>
+<summary><b>🐹 hamster-mcp</b> — 时间轴 · 待办 · Feed · 备忘录 · 事件集（22）</summary>
 
 | 工具 | 作用 |
 |:---|:---|
@@ -232,10 +232,6 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 | `update_event_thread` | 改标题 / 当前状态行 / 分组，或结项 / 重开 |
 | `add_event_entry` | 向事件线追加一条日期 + 事件，可顺手刷新当前状态行 |
 | `update_event_entry` | 修改条目正文 / 日期（仅改错字用） |
-| `list_syzygy_posts` | 列出仓鼠观察日志（朋友圈动态），附回帖数 |
-| `read_syzygy_post` | 读取单条观察日志全文及全部回帖 |
-| `add_syzygy_post` | 发一条观察日志（Syzygy 第一人称随笔，带模型落款） |
-| `reply_syzygy_post` | 给观察日志回帖（ai / user 双身份） |
 
 </details>
 
@@ -442,7 +438,7 @@ Hamster-Nest/
 ├── supabase/
 │   ├── functions/                   # Deno Edge Functions
 │   │   ├── _shared/                 #   公共库（auth 统一鉴权 / quota 额度 / time / mcp_common）
-│   │   ├── hamster-mcp/             #   时间轴 · 待办 · Feed · 观察日志
+│   │   ├── hamster-mcp/             #   时间轴 · 待办 · Feed · 备忘录 · 事件集
 │   │   ├── hamster-knowledge-mcp/   #   知识库 · 档案 · Wiki · 学习库
 │   │   ├── hamster-reading-mcp/     #   阅读 · 书摘 · 旁批
 │   │   ├── hamster-lounge-mcp/      #   客厅 · 论坛 · 议事厅
