@@ -56,6 +56,20 @@ if (checkOnly) {
 
   if (current !== generated) {
     console.error('Database types are stale. Run `npm run db:types:generate` and commit the result.')
+    // 把前几处差异打印出来：类型文件由平台管理 API 服务端生成，PostgREST 版本戳或
+    // 生成器格式变了也会触发这里，看一眼差异就知道是 schema 漂移还是平台升级。
+    const currentLines = current.split('\n')
+    const generatedLines = generated.split('\n')
+    const maxLines = Math.max(currentLines.length, generatedLines.length)
+    let shown = 0
+    for (let index = 0; index < maxLines && shown < 20; index += 1) {
+      if (currentLines[index] === generatedLines[index]) continue
+      console.error(`  line ${index + 1}:`)
+      console.error(`    committed: ${currentLines[index] ?? '<eof>'}`)
+      console.error(`    generated: ${generatedLines[index] ?? '<eof>'}`)
+      shown += 1
+    }
+    console.error(`  (committed ${currentLines.length} lines, generated ${generatedLines.length} lines)`)
     process.exit(1)
   }
 
