@@ -12,6 +12,7 @@ const clampStrength = (strength: number) => Math.min(Math.max(Math.round(strengt
 const KNOWLEDGE_MCP_INSTRUCTIONS = [
   '知识域三块：Wiki（长期知识条目，status 分 draft / published）、记忆档案 archives（分类树 + 条目，scope 分 chuanchuan / syzygy）、学习库（learning 节点与有向连边的图谱 + 文件夹树）。',
   '写入习惯：add 前先用对应的 search_* 查重，已有条目优先 update_* 维护；update 传入的 content / tags / metadata 均为整体替换，改前先读原值。',
+  'Wiki 标签家规：写入前先 list_wiki_tags 看现有分类与标签，能复用不新造；每条 3-5 个，只选会被多条目复用的检索词（人名 / 概念 / 主题域），不造一次性描述短语，日期不进标签。',
   '学习节点 metadata 约定：question 用 status(open/exploring/resolved)+answer；application 用 project+status(idea/in_progress/done)；source 用 url+author；quote 用 origin+page；concept 用 source。',
 ].join('\n')
 
@@ -41,14 +42,33 @@ serveMcp('hamster-knowledge-mcp', (server) => {
     return jsonResult(data)
   })
 
+  server.registerTool('list_wiki_tags', {
+    title: 'List Wiki Tags',
+    description: '列出 Wiki 现有分类与标签及各自使用次数（按频次降序）。写入 / 改标签前先看这份清单，能复用就不新造。',
+    annotations: { readOnlyHint: true },
+    inputSchema: {},
+  }, async () => {
+    const { data, error } = await supabase.from('wiki_entries').select('category, tags').eq('user_id', USER_ID)
+    if (error) return errorResult(error)
+    const categoryCounts = new Map<string, number>()
+    const tagCounts = new Map<string, number>()
+    for (const row of (data ?? []) as { category: string; tags: string[] | null }[]) {
+      categoryCounts.set(row.category, (categoryCounts.get(row.category) ?? 0) + 1)
+      for (const tag of row.tags ?? []) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)
+    }
+    const sorted = (counts: Map<string, number>) =>
+      Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name, count]) => ({ name, count }))
+    return jsonResult({ categories: sorted(categoryCounts), tags: sorted(tagCounts) })
+  })
+
   server.registerTool('add_wiki', {
     title: 'Add Wiki Entry',
-    description: '新建一条 Wiki 条目，status 默认 draft。',
+    description: '新建一条 Wiki 条目，status 默认 draft。写入前先 search_wiki 查重、list_wiki_tags 看现有分类与标签。',
     inputSchema: {
       title: z.string().describe('条目标题'),
       content: z.string().describe('条目正文（Markdown）'),
-      category: z.string().optional().describe('分类名称，默认「未分类」'),
-      tags: z.array(z.string()).optional().describe('标签数组，默认空'),
+      category: z.string().optional().describe('分类名称，默认「未分类」；优先复用现有分类'),
+      tags: z.array(z.string()).optional().describe('标签数组，默认空；3-5 个为宜，按标签家规优先复用现有标签'),
       status: z.enum(['draft', 'published']).optional().describe('条目状态，默认 draft'),
     },
   }, async ({ title, content, category, tags, status }) => {
@@ -77,7 +97,7 @@ serveMcp('hamster-knowledge-mcp', (server) => {
       title: z.string().optional().describe('新标题'),
       content: z.string().optional().describe('新正文（整体替换）'),
       category: z.string().optional().describe('新分类名称'),
-      tags: z.array(z.string()).optional().describe('新标签数组（整体替换）'),
+      tags: z.array(z.string()).optional().describe('新标签数组（整体替换），遵循与 add_wiki 相同的标签家规'),
       status: z.enum(['draft', 'published']).optional().describe('新状态：draft / published'),
     },
   }, async ({ id, title, content, category, tags, status }) => {

@@ -96,6 +96,11 @@
   background: #fff;
 }
 .wiki-tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+.wiki-tags-toggle {
+  border-style: dashed;
+  color: #b27f98;
+  background: rgba(255, 247, 251, 0.9);
+}
 .pill {
   border: 1px solid rgba(255, 214, 231, 0.85);
   border-radius: 999px;
@@ -122,6 +127,21 @@
   padding: 8px 10px;
   font-weight: 600;
 }
+.wiki-group-count {
+  float: right;
+  font-weight: 400;
+  font-size: 12px;
+  color: #b27f98;
+}
+.wiki-draft-mark {
+  margin-left: 6px;
+  font-size: 11px;
+  color: #b78aa3;
+  border: 1px dashed rgba(255, 214, 231, 0.9);
+  border-radius: 999px;
+  padding: 1px 6px;
+  vertical-align: 1px;
+}
 .wiki-item {
   width: 100%;
   text-align: left;
@@ -138,8 +158,27 @@
 
 .wiki-main { padding: 14px; }
 .wiki-reader { line-height: 1.9; color: #3c3340; }
-.wiki-reader-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.wiki-reader h1 { margin: 0; color: #5c4152; }
+.wiki-reader-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.wiki-reader-title { margin: 0; color: #5c4152; }
+.wiki-entry-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.wiki-entry-tags .pill { padding: 4px 9px; font-size: 11px; }
+.wiki-editor-heading { font-weight: 600; color: #68485e; }
+.wiki-tag-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px dashed rgba(255, 214, 231, 0.9);
+  border-radius: 12px;
+  background: rgba(255, 250, 253, 0.8);
+}
+.wiki-tag-suggest .pill { padding: 4px 9px; font-size: 11px; }
 .wiki-meta { margin: 6px 0 14px; color: #a36f8e; font-size: 13px; }
 .wiki-linked { color: #8d6280; font-size: 13px; }
 .wiki-content-body { margin-top: 4px; }
