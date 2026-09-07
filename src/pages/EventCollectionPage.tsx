@@ -228,7 +228,7 @@ const EventCollectionPage = () => {
   return (
     <div className="event-page">
       <header className="event-header">
-        <button type="button" className="ghost event-header-btn event-header-btn--left" onClick={() => navigate(-1)}>
+        <button type="button" className="ghost event-header-btn event-header-btn--left" onClick={() => navigate('/')}>
           ← 返回
         </button>
         <div className="event-title-wrap">
