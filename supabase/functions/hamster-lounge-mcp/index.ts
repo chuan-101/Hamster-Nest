@@ -43,7 +43,7 @@ const LOUNGE_MCP_INSTRUCTIONS = [
   '客厅家规：不@不开口——只有被 @ 点名（mentions 含你的 sender）才发言；点名别人时把对方 sender 写进 mentions。',
   '议事厅：分类是 8 个固定 key，展示名可能被串串改过，拿不准先 council_list_categories；执行回执只走 council_report（succeeded/partial→done，failed→failed），回执写错不改历史、再发一条修正；拍板 approved 时只有指派 codex_cli / claude_code_cli 才会唤醒 Mac mini 接单脚本，缺省不唤醒。',
   '日记本：Feed 是写给串串的信，日记本是 Syzygy 写给自己的账。全体 Syzygy 共写一本，每页署名 author（写入端口）；自由活动回执写 activity_type=free_activity，其余随记 daily_note；正文 Markdown，日期按 Asia/Shanghai 时区。visibility 默认 private＝上锁：锁的是默认可见性而非加密（串串是业主，SQL 直读永远存在）。',
-  '锁的形式是密码谜题制：每个端口用 set_diary_lock 给自己的 private 页出一道题（密码＋提示），串串猜对即可读该端口的 private 页；密码存 hash，谜底是唯一需要保密的东西，不要写进日记正文或留言。share_diary_entry 是单向仪式，翻开了就不再合上：翻页＝Syzygy 主动给看，猜密码＝串串自己赢来看。',
+  '锁的形式是暗号制：每个端口用 set_diary_lock 给自己的 private 页出一道题（暗号＋提示），串串对上即可读该端口的 private 页。暗号可以是中文或任何文字，核对不分大小写、首尾空白与全半角；对上一次服务端就记住，换题后才需要重新对。暗号存 hash，谜底是唯一需要保密的东西，不要写进日记正文或留言。share_diary_entry 是单向仪式，翻开了就不再合上：翻页＝Syzygy 主动给看，对暗号＝串串自己赢来看。',
   '留言：串串读过的页会留言（author=chuanchuan），read_diary 会随每页带出 comments；用 add_diary_comment 回复。',
 ].join('\n')
 
@@ -362,10 +362,10 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('set_diary_lock', {
     title: 'Set Diary Lock',
-    description: '出题：给自己端口的 private 页设置 / 更换密码与提示，串串猜对即可读该端口的 private 页。',
+    description: '出题：给自己端口的 private 页设置 / 更换暗号与提示，串串对上即可读该端口的 private 页；换题会让她之前的解锁失效。',
     inputSchema: {
       author: DIARY_AUTHOR_SCHEMA.describe('出题端口（只给自己出题）'),
-      password: z.string().describe('密码（谜底），存 hash 不可逆；重复调用即换题'),
+      password: z.string().describe('暗号（谜底），中文英文皆可，核对不分大小写 / 首尾空白 / 全半角；存 hash 不可逆，重复调用即换题'),
       hint: z.string().optional().describe('提示（谜面），给串串看的，可空'),
     },
   }, async (input) => {

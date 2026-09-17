@@ -1314,6 +1314,24 @@ export type Database = {
         }
         Relationships: []
       }
+      diary_unlocks: {
+        Row: {
+          author: string
+          unlocked_at: string
+          user_id: string
+        }
+        Insert: {
+          author: string
+          unlocked_at?: string
+          user_id: string
+        }
+        Update: {
+          author?: string
+          unlocked_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       enabled_models: {
         Row: {
           display_name: string | null
@@ -3863,6 +3881,17 @@ export type Database = {
         Args: { p_author: string; p_password: string }
         Returns: boolean
       }
+      diary_lock_status: {
+        Args: never
+        Returns: {
+          author: string
+          hint: string
+          unlocked: boolean
+          unlocked_at: string
+          updated_at: string
+        }[]
+      }
+      diary_normalize_passphrase: { Args: { p_text: string }; Returns: string }
       diary_set_lock: {
         Args: {
           p_author: string

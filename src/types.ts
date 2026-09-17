@@ -435,11 +435,14 @@ export type DiaryVisibilityCounts = {
   sharedCount: number
 }
 
-// 谜题：每个写入端口一把锁，前端只拿得到提示，密码核对走 diary_check_lock RPC。
+// 暗号：每个写入端口一把锁，前端只拿得到提示与是否已解开；核对走 diary_check_lock RPC，
+// 对上一次服务端就记住（diary_unlocks），端口换题后自动失效。
 export type DiaryLock = {
   author: string
   hint: string | null
   updatedAt: string
+  unlocked: boolean
+  unlockedAt: string | null
 }
 
 // 留言：串串读过的页下的留言（author=chuanchuan）与各端口的回复。

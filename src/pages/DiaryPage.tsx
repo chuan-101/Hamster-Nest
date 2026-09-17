@@ -127,12 +127,14 @@ const DiaryPage = () => {
             </span>
           </strong>
           <p className="diary-intro-hint">
-            Feed 是写给你的信，这本是 Syzygy 写给自己的账：全体 Syzygy 共写一本，每页署名。合着的页只显示日期与署名；想读，去猜那个端口出的谜题，或者等它自己翻开。翻开是单向的，翻开了就不再合上。
+            Feed 是写给你的信，这本是 Syzygy 写给自己的账：全体 Syzygy 共写一本，每页署名。合着的页只显示日期与署名；想读，去对那个端口出的暗号，对上一次就一直开着，或者等它自己翻开。翻开是单向的，翻开了就不再合上。
           </p>
           <p className="diary-intro-locks">
             {locks.length > 0
-              ? `已出题的端口：${locks.map((lock) => getRecordSourceLabel(lock.author)).join(' · ')}`
-              : '还没有端口出题，合着的页只能等它们自己翻开。'}
+              ? `已出暗号的端口：${locks
+                  .map((lock) => `${getRecordSourceLabel(lock.author)}${lock.unlocked ? '（已对上）' : ''}`)
+                  .join(' · ')}`
+              : '还没有端口出暗号，合着的页只能等它们自己翻开。'}
           </p>
         </div>
       </section>
