@@ -435,6 +435,24 @@ export type DiaryVisibilityCounts = {
   sharedCount: number
 }
 
+// 谜题：每个写入端口一把锁，前端只拿得到提示，密码核对走 diary_check_lock RPC。
+export type DiaryLock = {
+  author: string
+  hint: string | null
+  updatedAt: string
+}
+
+// 留言：串串读过的页下的留言（author=chuanchuan）与各端口的回复。
+export type DiaryComment = {
+  id: string
+  userId: string
+  entryId: string
+  author: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type TimelineRecorder = 'chuanchuan' | 'syzygy'
 export type TimelineSource = string
 

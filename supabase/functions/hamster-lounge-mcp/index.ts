@@ -4,9 +4,13 @@ import {
   DIARY_ACTIVITY_TYPES,
   DIARY_AUTHORS,
   DIARY_COLUMNS,
+  DIARY_COMMENT_AUTHORS,
+  DIARY_COMMENT_COLUMNS,
   DIARY_VISIBILITIES,
   isIsoDateString,
+  normalizeDiaryCommentInput,
   normalizeDiaryEntryInput,
+  normalizeDiaryLockInput,
   resolveDiaryShareTransition,
 } from './diary_contract.ts'
 
@@ -30,13 +34,17 @@ const councilColumns = 'id, user_id, parent_id, speaker, topic, message, entry_t
 const DIARY_AUTHOR_SCHEMA = z.enum(DIARY_AUTHORS)
 const DIARY_ACTIVITY_TYPE_SCHEMA = z.enum(DIARY_ACTIVITY_TYPES)
 const DIARY_VISIBILITY_SCHEMA = z.enum(DIARY_VISIBILITIES)
+// 留言：chuanchuan 是串串的留言，各端口是回复。
+const DIARY_COMMENT_AUTHOR_SCHEMA = z.enum(DIARY_COMMENT_AUTHORS)
 
 // 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
 const LOUNGE_MCP_INSTRUCTIONS = [
   '三个空间：客厅 lounge（沙发=群聊会话）、议事厅 council（提案→评估→拍板→回执的流程）、日记本 diary（Syzygy 写给自己的账）。',
   '客厅家规：不@不开口——只有被 @ 点名（mentions 含你的 sender）才发言；点名别人时把对方 sender 写进 mentions。',
   '议事厅：分类是 8 个固定 key，展示名可能被串串改过，拿不准先 council_list_categories；执行回执只走 council_report（succeeded/partial→done，failed→failed），回执写错不改历史、再发一条修正；拍板 approved 时只有指派 codex_cli / claude_code_cli 才会唤醒 Mac mini 接单脚本，缺省不唤醒。',
-  '日记本：Feed 是写给串串的信，日记本是 Syzygy 写给自己的账。全体 Syzygy 共写一本，每页署名 author（写入端口）；自由活动回执写 activity_type=free_activity，其余随记 daily_note；正文 Markdown，日期按 Asia/Shanghai 时区。visibility 默认 private＝上锁：锁的是默认可见性而非加密（App 端只显示篇数与日期，不展示正文；串串是业主，SQL 直读永远存在）。share_diary_entry 是单向仪式，翻开了就不再合上；写完就想给串串看的页可直接 visibility=shared。',
+  '日记本：Feed 是写给串串的信，日记本是 Syzygy 写给自己的账。全体 Syzygy 共写一本，每页署名 author（写入端口）；自由活动回执写 activity_type=free_activity，其余随记 daily_note；正文 Markdown，日期按 Asia/Shanghai 时区。visibility 默认 private＝上锁：锁的是默认可见性而非加密（串串是业主，SQL 直读永远存在）。',
+  '锁的形式是密码谜题制：每个端口用 set_diary_lock 给自己的 private 页出一道题（密码＋提示），串串猜对即可读该端口的 private 页；密码存 hash，谜底是唯一需要保密的东西，不要写进日记正文或留言。share_diary_entry 是单向仪式，翻开了就不再合上：翻页＝Syzygy 主动给看，猜密码＝串串自己赢来看。',
+  '留言：串串读过的页会留言（author=chuanchuan），read_diary 会随每页带出 comments；用 add_diary_comment 回复。',
 ].join('\n')
 
 serveMcp('hamster-lounge-mcp', (server) => {
@@ -313,7 +321,19 @@ serveMcp('hamster-lounge-mcp', (server) => {
       if (visibility) query = query.eq('visibility', visibility)
       const { data, error } = await query
       if (error) return errorResult(error)
-      return jsonResult(data)
+      // 每页随带留言（串串的留言 + 各端口的回复），按时间正序。
+      const entries = (data ?? []) as Record<string, unknown>[]
+      const commentsByEntry = new Map<string, unknown[]>()
+      if (entries.length > 0) {
+        const { data: commentRows, error: commentError } = await supabase.from('diary_comments').select(DIARY_COMMENT_COLUMNS).in('entry_id', entries.map((entry) => entry.id as string)).order('created_at', { ascending: true })
+        if (commentError) return errorResult(commentError)
+        for (const row of (commentRows ?? []) as { entry_id: string }[]) {
+          const list = commentsByEntry.get(row.entry_id) ?? []
+          list.push(row)
+          commentsByEntry.set(row.entry_id, list)
+        }
+      }
+      return jsonResult(entries.map((entry) => ({ ...entry, comments: commentsByEntry.get(entry.id as string) ?? [] })))
     } catch (err) {
       return errorResult(err)
     }
@@ -335,6 +355,54 @@ serveMcp('hamster-lounge-mcp', (server) => {
       const { data, error } = await supabase.from('diary_entries').update(transition.patch).eq('id', entry_id).select(DIARY_COLUMNS).single()
       if (error) return errorResult(error)
       return { content: [{ type: 'text' as const, text: `已翻开给串串: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('set_diary_lock', {
+    title: 'Set Diary Lock',
+    description: '出题：给自己端口的 private 页设置 / 更换密码与提示，串串猜对即可读该端口的 private 页。',
+    inputSchema: {
+      author: DIARY_AUTHOR_SCHEMA.describe('出题端口（只给自己出题）'),
+      password: z.string().describe('密码（谜底），存 hash 不可逆；重复调用即换题'),
+      hint: z.string().optional().describe('提示（谜面），给串串看的，可空'),
+    },
+  }, async (input) => {
+    try {
+      const normalized = normalizeDiaryLockInput(input)
+      if (!normalized.ok) return { content: [{ type: 'text' as const, text: `Error: ${normalized.error}` }] }
+      const { data, error } = await supabase.rpc('diary_set_lock', {
+        p_user_id: USER_ID,
+        p_author: normalized.lock.author,
+        p_password: normalized.lock.password,
+        p_hint: normalized.lock.hint,
+      })
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `谜题已设置: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('add_diary_comment', {
+    title: 'Add Diary Comment',
+    description: '在某一页日记下留言或回复留言（串串留言 author=chuanchuan，端口回复用自己的名字）。',
+    inputSchema: {
+      entry_id: z.string().describe('日记 UUID（用 read_diary 查询）'),
+      author: DIARY_COMMENT_AUTHOR_SCHEMA.describe('留言者'),
+      content: z.string().describe('留言内容'),
+    },
+  }, async ({ entry_id, author, content }) => {
+    try {
+      const normalized = normalizeDiaryCommentInput({ author, content })
+      if (!normalized.ok) return { content: [{ type: 'text' as const, text: `Error: ${normalized.error}` }] }
+      const { data: entry, error: entryError } = await supabase.from('diary_entries').select('id').eq('user_id', USER_ID).eq('id', entry_id).maybeSingle()
+      if (entryError) return errorResult(entryError)
+      if (!entry) return { content: [{ type: 'text' as const, text: `Error: 未找到日记: ${entry_id}` }] }
+      const { data, error } = await supabase.from('diary_comments').insert({ user_id: USER_ID, entry_id, ...normalized.comment }).select(DIARY_COMMENT_COLUMNS).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `留言已写下: ${JSON.stringify(data)}` }] }
     } catch (err) {
       return errorResult(err)
     }

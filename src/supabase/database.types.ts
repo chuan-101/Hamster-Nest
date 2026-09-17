@@ -1201,6 +1201,44 @@ export type Database = {
         }
         Relationships: []
       }
+      diary_comments: {
+        Row: {
+          author: string
+          content: string
+          created_at: string
+          entry_id: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          author?: string
+          content: string
+          created_at?: string
+          entry_id: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          author?: string
+          content?: string
+          created_at?: string
+          entry_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diary_comments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "diary_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diary_entries: {
         Row: {
           activity_type: string
@@ -1246,6 +1284,33 @@ export type Database = {
           updated_at?: string
           user_id?: string
           visibility?: string
+        }
+        Relationships: []
+      }
+      diary_locks: {
+        Row: {
+          author: string
+          created_at: string
+          hint: string | null
+          password_hash: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          author: string
+          created_at?: string
+          hint?: string | null
+          password_hash: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          hint?: string | null
+          password_hash?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -3794,6 +3859,23 @@ export type Database = {
         Returns: Json
       }
       daitch_mokotoff: { Args: { "": string }; Returns: string[] }
+      diary_check_lock: {
+        Args: { p_author: string; p_password: string }
+        Returns: boolean
+      }
+      diary_set_lock: {
+        Args: {
+          p_author: string
+          p_hint?: string
+          p_password: string
+          p_user_id: string
+        }
+        Returns: {
+          author: string
+          hint: string
+          updated_at: string
+        }[]
+      }
       dmetaphone: { Args: { "": string }; Returns: string }
       dmetaphone_alt: { Args: { "": string }; Returns: string }
       exchange_points_to_coins: {

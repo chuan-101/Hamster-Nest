@@ -71,6 +71,7 @@ import TimelinePage from './pages/TimelinePage'
 import EventCollectionPage from './pages/EventCollectionPage'
 import EventThreadPage from './pages/EventThreadPage'
 import DiaryPage from './pages/DiaryPage'
+import DiaryDayPage from './pages/DiaryDayPage'
 import TodoPage from './pages/TodoPage'
 import HamsterConsolePage from './pages/HamsterConsolePage'
 import AgentCouncilPage from './pages/AgentCouncilPage'
@@ -2311,6 +2312,14 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <DiaryPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/diary/:date"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <DiaryDayPage />
             </RequireAuth>
           }
         />

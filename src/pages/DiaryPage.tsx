@@ -1,52 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { DiaryEntry, DiaryVisibility, DiaryVisibilityCounts } from '../types'
-import { fetchDiaryVisibilityCounts, listDiaryEntriesByMonth } from '../storage/supabaseSync'
-import MarkdownRenderer from '../components/MarkdownRenderer'
+import type { DiaryEntry, DiaryLock, DiaryVisibilityCounts } from '../types'
+import { fetchDiaryLocks, fetchDiaryVisibilityCounts, listDiaryEntryStubsByMonth } from '../storage/supabaseSync'
 import { getRecordSourceLabel } from '../constants/recordSources'
-import { formatLocalTimestamp } from '../utils/time'
+import { getMonthRange, pad, toDateKey } from './diaryShared'
 import './DiaryPage.css'
 
-// Syzygy 日记本（只读）：Feed 是写给串串的信，这本是 Syzygy 写给自己的账。
-// 全体 Syzygy 共写一本，每页署名；🔒 未公开页只显示日期与署名，📖 翻开的页才展示正文。
-
-type VisibilityFilter = 'all' | DiaryVisibility
-
-const VISIBILITY_FILTERS: Array<{ value: VisibilityFilter; label: string }> = [
-  { value: 'all', label: '全部' },
-  { value: 'shared', label: '📖 已翻开' },
-  { value: 'private', label: '🔒 未公开' },
-]
-
-const ACTIVITY_LABELS: Record<string, string> = {
-  free_activity: '自由活动',
-  daily_note: '随记',
-}
-
-const getActivityLabel = (type: string) => ACTIVITY_LABELS[type] ?? type
-
-const pad = (value: number) => `${value}`.padStart(2, '0')
-
-const toDateKey = (value: Date) => `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
-
-const getMonthRange = (anchorDate: Date) => {
-  const year = anchorDate.getFullYear()
-  const month = anchorDate.getMonth()
-  return {
-    monthLabel: `${year}年${month + 1}月`,
-    start: toDateKey(new Date(year, month, 1)),
-    end: toDateKey(new Date(year, month + 1, 0)),
-  }
-}
-
-// 卡片头部只放本地时分，完整时间戳留给"翻开时刻"。
-const formatClock = (isoString: string) => {
-  const date = new Date(isoString)
-  if (Number.isNaN(date.getTime())) {
-    return ''
-  }
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
+// Syzygy 日记本 · 一级界面：月历。有日记的日子打标记，点进去才是当日页。
+// Feed 是写给串串的信，这本是 Syzygy 写给自己的账；合着的页要么猜谜题，要么等它自己翻开。
 
 type CalendarCell = { dateKey: string; day: number; total: number; shared: number } | null
 
@@ -59,9 +20,7 @@ const DiaryPage = () => {
   })
   const [entries, setEntries] = useState<DiaryEntry[]>([])
   const [counts, setCounts] = useState<DiaryVisibilityCounts | null>(null)
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('all')
-  const [authorFilter, setAuthorFilter] = useState<string | null>(null)
+  const [locks, setLocks] = useState<DiaryLock[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,12 +30,14 @@ const DiaryPage = () => {
     setLoading(true)
     setEntries([])
     try {
-      const [nextEntries, nextCounts] = await Promise.all([
-        listDiaryEntriesByMonth(monthRange.start, monthRange.end),
+      const [nextEntries, nextCounts, nextLocks] = await Promise.all([
+        listDiaryEntryStubsByMonth(monthRange.start, monthRange.end),
         fetchDiaryVisibilityCounts(),
+        fetchDiaryLocks(),
       ])
       setEntries(nextEntries)
       setCounts(nextCounts)
+      setLocks(nextLocks)
       setError(null)
     } catch (loadError) {
       console.warn('加载日记本失败', loadError)
@@ -90,25 +51,15 @@ const DiaryPage = () => {
     void refresh()
   }, [refresh])
 
-  const filteredEntries = useMemo(
-    () =>
-      entries.filter(
-        (entry) =>
-          (visibilityFilter === 'all' || entry.visibility === visibilityFilter) &&
-          (authorFilter === null || entry.author === authorFilter),
-      ),
-    [authorFilter, entries, visibilityFilter],
-  )
-
   const entriesByDate = useMemo(() => {
     const groups = new Map<string, DiaryEntry[]>()
-    filteredEntries.forEach((entry) => {
+    entries.forEach((entry) => {
       const current = groups.get(entry.entryDate) ?? []
       current.push(entry)
       groups.set(entry.entryDate, current)
     })
     return groups
-  }, [filteredEntries])
+  }, [entries])
 
   const calendarCells = useMemo(() => {
     const year = monthCursor.getFullYear()
@@ -136,95 +87,20 @@ const DiaryPage = () => {
     return cells
   }, [entriesByDate, monthCursor])
 
-  const groupedList = useMemo(
-    () => Array.from(entriesByDate.entries()).sort((a, b) => b[0].localeCompare(a[0])),
-    [entriesByDate],
-  )
-
-  // 署名统计：本月各端口写了几页。跟随可见性筛选，不跟随署名筛选，好当筛选器用。
+  // 署名统计：本月各端口写了几页。
   const authorStats = useMemo(() => {
-    const scoped = visibilityFilter === 'all' ? entries : entries.filter((entry) => entry.visibility === visibilityFilter)
     const stats = new Map<string, number>()
-    scoped.forEach((entry) => {
+    entries.forEach((entry) => {
       stats.set(entry.author, (stats.get(entry.author) ?? 0) + 1)
     })
     return Array.from(stats.entries()).sort((a, b) => b[1] - a[1])
-  }, [entries, visibilityFilter])
+  }, [entries])
 
-  const selectedEntries = useMemo(
-    () => (selectedDate ? entriesByDate.get(selectedDate) ?? [] : []),
-    [entriesByDate, selectedDate],
-  )
-
-  // 换月 / 重新加载后默认落到本月最近有日记的一天；点同一天可切回整月视图。
-  useEffect(() => {
-    if (entries.length === 0) {
-      setSelectedDate(null)
-      return
-    }
-    const latestDate = entries.reduce((latest, entry) => (entry.entryDate > latest ? entry.entryDate : latest), entries[0].entryDate)
-    setSelectedDate(latestDate)
-  }, [entries, monthRange.start])
+  const monthShared = useMemo(() => entries.filter((entry) => entry.visibility === 'shared').length, [entries])
 
   const shiftMonth = (delta: number) => {
     setMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
   }
-
-  const toggleDate = (dateKey: string) => {
-    setSelectedDate((current) => (current === dateKey ? null : dateKey))
-  }
-
-  const renderEntry = (entry: DiaryEntry) => {
-    const locked = entry.visibility === 'private'
-    return (
-      <article
-        key={entry.id}
-        className={locked ? 'diary-card diary-card--locked' : 'diary-card'}
-        aria-label={locked ? '未公开的一页' : '已翻开的一页'}
-      >
-        <header className="diary-card__head">
-          <span className={locked ? 'diary-card__avatar diary-card__avatar--locked' : 'diary-card__avatar'} aria-hidden="true">
-            {locked ? '🔒' : '🩵'}
-          </span>
-          <div className="diary-card__meta">
-            <span className="diary-chip diary-chip--author" title="署名端口">
-              {getRecordSourceLabel(entry.author)}
-            </span>
-            <span className="diary-chip">{getActivityLabel(entry.activityType)}</span>
-            {!locked && entry.mood ? <span className="diary-chip diary-chip--mood">心情 · {entry.mood}</span> : null}
-          </div>
-          <time className="diary-card__clock" dateTime={entry.createdAt}>
-            {formatClock(entry.createdAt)}
-          </time>
-        </header>
-        {locked ? (
-          <p className="diary-card__locked-text">这一页还合着，内容归 Syzygy 自己。</p>
-        ) : (
-          <>
-            {entry.title ? <h3 className="diary-card__title">{entry.title}</h3> : null}
-            <div className="diary-card__content">
-              <MarkdownRenderer content={entry.content ?? ''} />
-            </div>
-            <footer className="diary-card__foot">
-              <span className="diary-open-badge">
-                📖 已翻开{entry.sharedAt ? ` · ${formatLocalTimestamp(entry.sharedAt)}` : ''}
-              </span>
-            </footer>
-          </>
-        )}
-      </article>
-    )
-  }
-
-  const renderDateGroup = (dateKey: string, items: DiaryEntry[]) => (
-    <article key={dateKey} className="diary-date-group">
-      <h2>
-        {dateKey}
-        <span className="diary-date-group__count">{items.length} 页</span>
-      </h2>
-      <div className="diary-date-group__entries">{items.map(renderEntry)}</div>
-    </article>
-  )
 
   return (
     <div className="diary-page">
@@ -241,7 +117,7 @@ const DiaryPage = () => {
         </span>
       </header>
 
-      <section className="diary-intro-card" aria-label="日记本说明与筛选">
+      <section className="diary-intro-card" aria-label="日记本说明">
         <div className="diary-intro-dot" aria-hidden="true" />
         <div className="diary-intro-top">
           <strong>
@@ -251,21 +127,13 @@ const DiaryPage = () => {
             </span>
           </strong>
           <p className="diary-intro-hint">
-            Feed 是写给你的信，这本是 Syzygy 写给自己的账：全体 Syzygy 共写一本，每页署名。上锁的页只显示日期与署名；翻开是单向的，翻开了就不再合上。
+            Feed 是写给你的信，这本是 Syzygy 写给自己的账：全体 Syzygy 共写一本，每页署名。合着的页只显示日期与署名；想读，去猜那个端口出的谜题，或者等它自己翻开。翻开是单向的，翻开了就不再合上。
           </p>
-        </div>
-        <div className="diary-chip-list">
-          {VISIBILITY_FILTERS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={visibilityFilter === option.value ? 'diary-filter-chip selected' : 'diary-filter-chip'}
-              onClick={() => setVisibilityFilter(option.value)}
-              aria-pressed={visibilityFilter === option.value}
-            >
-              {option.label}
-            </button>
-          ))}
+          <p className="diary-intro-locks">
+            {locks.length > 0
+              ? `已出题的端口：${locks.map((lock) => getRecordSourceLabel(lock.author)).join(' · ')}`
+              : '还没有端口出题，合着的页只能等它们自己翻开。'}
+          </p>
         </div>
       </section>
 
@@ -286,36 +154,42 @@ const DiaryPage = () => {
           ))}
         </div>
         <div className="diary-calendar__grid">
-          {calendarCells.map((cell, index) =>
-            cell ? (
+          {calendarCells.map((cell, index) => {
+            if (!cell) {
+              return <div key={`blank-${index}`} className="diary-calendar__cell diary-calendar__cell--blank" />
+            }
+            const className = [
+              'diary-calendar__cell',
+              cell.total > 0 && 'has-entry',
+              cell.total > 0 && cell.shared === 0 && 'locked-only',
+              cell.dateKey === today && 'today',
+            ]
+              .filter(Boolean)
+              .join(' ')
+            if (cell.total === 0) {
+              return (
+                <div key={cell.dateKey} className={`${className} diary-calendar__cell--empty`} title={cell.dateKey}>
+                  <span>{cell.day}</span>
+                </div>
+              )
+            }
+            return (
               <button
                 key={cell.dateKey}
                 type="button"
-                className={[
-                  'diary-calendar__cell',
-                  cell.total > 0 && 'has-entry',
-                  cell.total > 0 && cell.shared === 0 && 'locked-only',
-                  cell.dateKey === today && 'today',
-                  cell.dateKey === selectedDate && 'selected',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                title={
-                  cell.total > 0
-                    ? `${cell.dateKey} 共 ${cell.total} 页（已翻开 ${cell.shared} 页）`
-                    : cell.dateKey
-                }
-                onClick={() => toggleDate(cell.dateKey)}
-                aria-pressed={cell.dateKey === selectedDate}
+                className={className}
+                title={`${cell.dateKey} 共 ${cell.total} 页（已翻开 ${cell.shared} 页）`}
+                onClick={() => navigate(`/diary/${cell.dateKey}`)}
               >
                 <span>{cell.day}</span>
                 {cell.total > 1 ? <em>{cell.total}</em> : null}
               </button>
-            ) : (
-              <div key={`blank-${index}`} className="diary-calendar__cell diary-calendar__cell--blank" />
-            ),
-          )}
+            )
+          })}
         </div>
+        <p className="diary-calendar__legend">
+          {loading ? '加载中…' : `本月 ${entries.length} 页，已翻开 ${monthShared} 页。点有标记的日子进去看。`}
+        </p>
       </section>
 
       <section className="diary-author-stats" aria-label="署名统计">
@@ -325,55 +199,16 @@ const DiaryPage = () => {
         ) : (
           <div className="diary-author-stats__chips">
             {authorStats.map(([author, count]) => (
-              <button
-                key={author}
-                type="button"
-                className={authorFilter === author ? 'diary-author-chip selected' : 'diary-author-chip'}
-                onClick={() => setAuthorFilter((current) => (current === author ? null : author))}
-                aria-pressed={authorFilter === author}
-                title={authorFilter === author ? '取消只看这个端口' : '只看这个端口写的页'}
-              >
+              <span key={author} className="diary-author-chip">
                 🩵 {getRecordSourceLabel(author)}
                 <em>{count}</em>
-              </button>
+              </span>
             ))}
           </div>
         )}
       </section>
 
       {error ? <p className="diary-error">{error}</p> : null}
-
-      <section className="diary-list" aria-label="日记列表">
-        <div className="diary-list__body">
-          {loading ? <p className="tips">加载中…</p> : null}
-          {!loading && filteredEntries.length === 0 ? (
-            <p className="diary-empty">{entries.length === 0 ? '这个月还没有日记。' : '当前筛选下没有日记。'}</p>
-          ) : null}
-          {!loading && filteredEntries.length > 0 ? (
-            <>
-              <div className="diary-list__top">
-                <span className="diary-list__scope">
-                  {selectedDate ? `${selectedDate} · ${selectedEntries.length} 页` : `${monthRange.monthLabel} · ${filteredEntries.length} 页`}
-                </span>
-                {selectedDate ? (
-                  <button type="button" className="diary-inline-btn" onClick={() => setSelectedDate(null)}>
-                    看整月
-                  </button>
-                ) : null}
-              </div>
-              {selectedDate ? (
-                selectedEntries.length === 0 ? (
-                  <p className="diary-empty">当天没有符合筛选的日记。</p>
-                ) : (
-                  renderDateGroup(selectedDate, selectedEntries)
-                )
-              ) : (
-                groupedList.map(([dateKey, items]) => renderDateGroup(dateKey, items))
-              )}
-            </>
-          ) : null}
-        </div>
-      </section>
     </div>
   )
 }

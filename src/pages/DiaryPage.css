@@ -684,3 +684,208 @@
     margin-left: auto;
   }
 }
+
+/* ── 二级界面：当日页 / 谜题卡 / 留言 ─────────── */
+
+.diary-day-title {
+  font-variant-numeric: tabular-nums;
+}
+
+.diary-intro-locks {
+  margin: 0;
+  font-size: 12px;
+  color: #b27f98;
+}
+
+.diary-calendar__legend {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: #b28ba1;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.diary-calendar__cell--empty {
+  cursor: default;
+}
+
+.diary-calendar__cell--empty:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 214, 231, 0.5);
+}
+
+.diary-notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(126, 211, 167, 0.5);
+  background: #fff;
+  font-size: 12px;
+  color: #2f7a56;
+}
+
+.diary-inline-btn--accent {
+  background: linear-gradient(180deg, #ffeef6 0%, #ffe1ef 100%);
+  font-weight: 600;
+}
+
+.diary-inline-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.diary-expand-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: #c06e97;
+  cursor: pointer;
+}
+
+.diary-expand-btn:hover {
+  color: #9a4b72;
+  text-decoration: underline;
+}
+
+.diary-riddle-card {
+  border: 1px dashed #f2a9cb;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 226, 240, 0.55), transparent 46%),
+    rgba(255, 255, 255, 0.96);
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 8px 14px rgba(255, 214, 231, 0.18);
+}
+
+.diary-riddle-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.diary-riddle-card__text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.diary-riddle-card__text strong {
+  font-size: 14px;
+  color: #5a3c4f;
+}
+
+.diary-riddle-card__hint {
+  margin: 0;
+  font-size: 13px;
+  color: #7c5a70;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.diary-riddle-form {
+  display: flex;
+  gap: 8px;
+}
+
+.diary-riddle-form input {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 12px;
+  border: 1px solid #f7c6dd;
+  padding: 9px 10px;
+  font: inherit;
+  color: #4f3f4a;
+  background: #fffafd;
+}
+
+.diary-riddle-form input:focus {
+  outline: none;
+  border-color: #f5b3d2;
+  box-shadow: 0 0 0 2px rgba(255, 214, 231, 0.35);
+}
+
+.diary-riddle-card__error {
+  margin: 0;
+  font-size: 12px;
+  color: #b13f4d;
+}
+
+.diary-comments {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 214, 231, 0.9);
+  display: grid;
+  gap: 8px;
+}
+
+.diary-comments__title {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #b27f98;
+}
+
+.diary-comment {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff8fb;
+  border: 1px solid rgba(255, 214, 231, 0.7);
+}
+
+.diary-comment__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #b28ba1;
+}
+
+.diary-comment__head .diary-expand-btn {
+  margin-left: auto;
+}
+
+.diary-comment__content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #4f3f4a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.diary-comment-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.diary-comment-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 12px;
+  border: 1px solid #f7c6dd;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #4f3f4a;
+  background: #fffafd;
+  resize: vertical;
+  min-height: 44px;
+}
+
+.diary-comment-form textarea:focus {
+  outline: none;
+  border-color: #f5b3d2;
+  box-shadow: 0 0 0 2px rgba(255, 214, 231, 0.35);
+}

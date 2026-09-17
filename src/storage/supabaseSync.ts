@@ -25,7 +25,9 @@ import type {
   LetterEntry,
   LetterTriggerType,
   DiaryActivityType,
+  DiaryComment,
   DiaryEntry,
+  DiaryLock,
   DiaryVisibility,
   DiaryVisibilityCounts,
   EventEntry,
@@ -194,8 +196,8 @@ type EventEntryRow = {
   updated_at: string
 }
 
-// 日记本：private 页只取"存在"字段，title / mood / content 一律不拉（锁住的是默认可见性）。
-type DiaryLockedRow = {
+// 日记本：合着的页只取"存在"字段，title / mood / content 一律不拉（锁住的是默认可见性）。
+type DiaryStubRow = {
   id: string
   user_id: string
   author: string
@@ -207,10 +209,20 @@ type DiaryLockedRow = {
   updated_at: string
 }
 
-type DiarySharedRow = DiaryLockedRow & {
+type DiaryFullRow = DiaryStubRow & {
   title: string | null
   content: string
   mood: string | null
+}
+
+type DiaryCommentRow = {
+  id: string
+  user_id: string
+  entry_id: string
+  author: string
+  content: string
+  created_at: string
+  updated_at: string
 }
 
 type TimelineEntryRow = {
@@ -590,7 +602,7 @@ const mapEventEntryRow = (row: EventEntryRow): EventEntry => ({
   updatedAt: row.updated_at,
 })
 
-const mapDiaryLockedRow = (row: DiaryLockedRow): DiaryEntry => ({
+const mapDiaryStubRow = (row: DiaryStubRow): DiaryEntry => ({
   id: row.id,
   userId: row.user_id,
   author: row.author,
@@ -605,11 +617,21 @@ const mapDiaryLockedRow = (row: DiaryLockedRow): DiaryEntry => ({
   updatedAt: row.updated_at,
 })
 
-const mapDiarySharedRow = (row: DiarySharedRow): DiaryEntry => ({
-  ...mapDiaryLockedRow(row),
+const mapDiaryFullRow = (row: DiaryFullRow): DiaryEntry => ({
+  ...mapDiaryStubRow(row),
   title: row.title,
   content: row.content,
   mood: row.mood,
+})
+
+const mapDiaryCommentRow = (row: DiaryCommentRow): DiaryComment => ({
+  id: row.id,
+  userId: row.user_id,
+  entryId: row.entry_id,
+  author: row.author,
+  content: row.content,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 })
 
 const mapTimelineEntryRow = (row: TimelineEntryRow): TimelineEntry => ({
@@ -2829,16 +2851,38 @@ export const deleteTimelineEntry = async (entryId: string): Promise<void> => {
 
 
 // ── Syzygy 日记本 ──────────────────────────────────────────────────────────
-// Syzygy 写给自己的账：前端只读。shared 页取全文；private 页只取署名 / 日期 / 类型，
-// 连正文都不拉——锁住的是默认可见性，前端连"偷看"的通道都不留。
+// Syzygy 写给自己的账。翻开的页取全文；合着的页默认只取署名 / 日期 / 类型，正文不拉——
+// 只有该端口出了谜题且串串已猜对（会话内解锁）时，才按端口把合着页的正文拉下来。
+// 密码是游戏层不是安全层：串串是业主，直读永远可行；谜底存 hash，靠 diary_check_lock RPC 核对。
 
-const DIARY_SHARED_COLUMNS = 'id,user_id,author,entry_date,title,content,mood,activity_type,visibility,shared_at,created_at,updated_at'
-const DIARY_LOCKED_COLUMNS = 'id,user_id,author,entry_date,activity_type,visibility,shared_at,created_at,updated_at'
+const DIARY_FULL_COLUMNS = 'id,user_id,author,entry_date,title,content,mood,activity_type,visibility,shared_at,created_at,updated_at'
+const DIARY_STUB_COLUMNS = 'id,user_id,author,entry_date,activity_type,visibility,shared_at,created_at,updated_at'
+const DIARY_COMMENT_COLUMNS = 'id,user_id,entry_id,author,content,created_at,updated_at'
 
-const compareDiaryEntriesDesc = (a: DiaryEntry, b: DiaryEntry) =>
-  b.entryDate.localeCompare(a.entryDate) || b.createdAt.localeCompare(a.createdAt)
+const compareDiaryEntriesAsc = (a: DiaryEntry, b: DiaryEntry) => a.createdAt.localeCompare(b.createdAt)
 
-export const listDiaryEntriesByMonth = async (monthStart: string, monthEnd: string): Promise<DiaryEntry[]> => {
+// 月历只需要"哪天有几页、合着还是翻开的"，一律取存根，不拉正文。
+export const listDiaryEntryStubsByMonth = async (monthStart: string, monthEnd: string): Promise<DiaryEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('diary_entries')
+    .select(DIARY_STUB_COLUMNS)
+    .eq('user_id', userId)
+    .gte('entry_date', monthStart)
+    .lte('entry_date', monthEnd)
+    .order('entry_date', { ascending: false })
+    .order('created_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapDiaryStubRow(row as DiaryStubRow))
+}
+
+// 当日页：翻开的页全文；合着的页存根；已猜对谜题的端口，其合着页也取全文。
+export const listDiaryEntriesByDate = async (date: string, unlockedAuthors: string[]): Promise<DiaryEntry[]> => {
   if (!supabase) {
     return []
   }
@@ -2846,22 +2890,16 @@ export const listDiaryEntriesByMonth = async (monthStart: string, monthEnd: stri
   const [shared, locked] = await Promise.all([
     supabase
       .from('diary_entries')
-      .select(DIARY_SHARED_COLUMNS)
+      .select(DIARY_FULL_COLUMNS)
       .eq('user_id', userId)
-      .eq('visibility', 'shared')
-      .gte('entry_date', monthStart)
-      .lte('entry_date', monthEnd)
-      .order('entry_date', { ascending: false })
-      .order('created_at', { ascending: false }),
+      .eq('entry_date', date)
+      .eq('visibility', 'shared'),
     supabase
       .from('diary_entries')
-      .select(DIARY_LOCKED_COLUMNS)
+      .select(DIARY_STUB_COLUMNS)
       .eq('user_id', userId)
-      .eq('visibility', 'private')
-      .gte('entry_date', monthStart)
-      .lte('entry_date', monthEnd)
-      .order('entry_date', { ascending: false })
-      .order('created_at', { ascending: false }),
+      .eq('entry_date', date)
+      .eq('visibility', 'private'),
   ])
   if (shared.error) {
     throw shared.error
@@ -2869,10 +2907,29 @@ export const listDiaryEntriesByMonth = async (monthStart: string, monthEnd: stri
   if (locked.error) {
     throw locked.error
   }
+  const unlocked = Array.from(new Set(unlockedAuthors))
+  const openedById = new Map<string, DiaryFullRow>()
+  if (unlocked.length > 0 && (locked.data ?? []).length > 0) {
+    const opened = await supabase
+      .from('diary_entries')
+      .select(DIARY_FULL_COLUMNS)
+      .eq('user_id', userId)
+      .eq('entry_date', date)
+      .eq('visibility', 'private')
+      .in('author', unlocked)
+    if (opened.error) {
+      throw opened.error
+    }
+    ;((opened.data ?? []) as DiaryFullRow[]).forEach((row) => openedById.set(row.id, row))
+  }
   return [
-    ...(shared.data ?? []).map((row) => mapDiarySharedRow(row as DiarySharedRow)),
-    ...(locked.data ?? []).map((row) => mapDiaryLockedRow(row as DiaryLockedRow)),
-  ].sort(compareDiaryEntriesDesc)
+    ...(shared.data ?? []).map((row) => mapDiaryFullRow(row as DiaryFullRow)),
+    ...(locked.data ?? []).map((row) => {
+      const stub = row as DiaryStubRow
+      const full = openedById.get(stub.id)
+      return full ? mapDiaryFullRow(full) : mapDiaryStubRow(stub)
+    }),
+  ].sort(compareDiaryEntriesAsc)
 }
 
 // 入口只显示篇数：🔒 未公开 N 篇 / 📖 已翻开 M 篇（存在可见，内容归 Syzygy 自己）。
@@ -2892,6 +2949,79 @@ export const fetchDiaryVisibilityCounts = async (): Promise<DiaryVisibilityCount
     throw sharedResult.error
   }
   return { privateCount: privateResult.count ?? 0, sharedCount: sharedResult.count ?? 0 }
+}
+
+// 谜题清单：只拿端口与提示，hash 不出库。
+export const fetchDiaryLocks = async (): Promise<DiaryLock[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('diary_locks')
+    .select('author,hint,updated_at')
+    .eq('user_id', userId)
+    .order('author', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => ({ author: row.author, hint: row.hint, updatedAt: row.updated_at }))
+}
+
+// 猜题：RPC 只回答对 / 错。
+export const checkDiaryLock = async (author: string, password: string): Promise<boolean> => {
+  if (!supabase) {
+    return false
+  }
+  const { data, error } = await supabase.rpc('diary_check_lock', { p_author: author, p_password: password })
+  if (error) {
+    throw error
+  }
+  return data === true
+}
+
+export const listDiaryComments = async (entryIds: string[]): Promise<DiaryComment[]> => {
+  if (!supabase || entryIds.length === 0) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('diary_comments')
+    .select(DIARY_COMMENT_COLUMNS)
+    .eq('user_id', userId)
+    .in('entry_id', entryIds)
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapDiaryCommentRow(row as DiaryCommentRow))
+}
+
+// 串串在网页端留言固定署名 chuanchuan；端口的回复走 MCP。
+export const createDiaryComment = async (entryId: string, content: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase.from('diary_comments').insert({
+    user_id: userId,
+    entry_id: entryId,
+    author: 'chuanchuan',
+    content,
+  })
+  if (error) {
+    throw error
+  }
+}
+
+export const deleteDiaryComment = async (commentId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('diary_comments').delete().eq('id', commentId)
+  if (error) {
+    throw error
+  }
 }
 
 // ── 事件集（纪事本末体）────────────────────────────────────────────────────
