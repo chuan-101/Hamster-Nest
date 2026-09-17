@@ -124,3 +124,53 @@ export const resolveDiaryShareTransition = (
   if (current.visibility === 'shared') return { kind: 'already_shared', shared_at: current.shared_at }
   return { kind: 'open', patch: { visibility: 'shared', shared_at: now.toISOString() } }
 }
+
+// ── 谜题（密码谜题制）与留言 ──────────────────────────────────────────────────
+// 每个写入端口可给自己的 private 页出一道题：密码 + 提示。密码只是游戏层，谜底才是要保密的东西。
+
+export const DIARY_COMMENT_AUTHORS = ['chuanchuan', ...DIARY_AUTHORS] as const
+export type DiaryCommentAuthor = (typeof DIARY_COMMENT_AUTHORS)[number]
+
+export const MAX_DIARY_PASSWORD_LENGTH = 64
+export const MAX_DIARY_HINT_LENGTH = 200
+export const MAX_DIARY_COMMENT_LENGTH = 2000
+
+export const DIARY_COMMENT_COLUMNS = 'id, entry_id, author, content, created_at'
+
+export type DiaryLockInput = {
+  author: DiaryAuthor
+  password: string
+  hint?: string
+}
+
+export type DiaryLockNormalizeResult =
+  | { ok: true; lock: { author: DiaryAuthor; password: string; hint: string | null } }
+  | { ok: false; error: string }
+
+// 密码只去首尾空白，中间原样保留（谜底可以带空格）；提示压成一行。
+export const normalizeDiaryLockInput = (input: DiaryLockInput): DiaryLockNormalizeResult => {
+  if (!DIARY_AUTHORS.includes(input.author)) return { ok: false, error: `author 必须是 ${DIARY_AUTHORS.join(' / ')} 之一` }
+  const password = (input.password ?? '').trim()
+  if (!password) return { ok: false, error: '密码（谜底）不能为空' }
+  if (password.length > MAX_DIARY_PASSWORD_LENGTH) return { ok: false, error: `密码超过 ${MAX_DIARY_PASSWORD_LENGTH} 字上限` }
+  const hint = normalizeSingleLine(input.hint)
+  if (hint.length > MAX_DIARY_HINT_LENGTH) return { ok: false, error: `提示超过 ${MAX_DIARY_HINT_LENGTH} 字上限` }
+  return { ok: true, lock: { author: input.author, password, hint: hint || null } }
+}
+
+export type DiaryCommentInput = {
+  author: DiaryCommentAuthor
+  content: string
+}
+
+export type DiaryCommentNormalizeResult =
+  | { ok: true; comment: { author: DiaryCommentAuthor; content: string } }
+  | { ok: false; error: string }
+
+export const normalizeDiaryCommentInput = (input: DiaryCommentInput): DiaryCommentNormalizeResult => {
+  if (!DIARY_COMMENT_AUTHORS.includes(input.author)) return { ok: false, error: `author 必须是 ${DIARY_COMMENT_AUTHORS.join(' / ')} 之一` }
+  const content = normalizeMultiline(input.content)
+  if (!content) return { ok: false, error: '留言不能为空' }
+  if (content.length > MAX_DIARY_COMMENT_LENGTH) return { ok: false, error: `留言超过 ${MAX_DIARY_COMMENT_LENGTH} 字上限` }
+  return { ok: true, comment: { author: input.author, content } }
+}

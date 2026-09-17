@@ -78,3 +78,36 @@ test('sharing a diary page is a one-way transition that never re-stamps an open 
   const already = resolveDiaryShareTransition({ visibility: 'shared', shared_at: '2026-09-01T00:00:00.000Z' }, now)
   assert.deepEqual(already, { kind: 'already_shared', shared_at: '2026-09-01T00:00:00.000Z' })
 })
+
+const {
+  DIARY_COMMENT_AUTHORS,
+  MAX_DIARY_PASSWORD_LENGTH,
+  normalizeDiaryCommentInput,
+  normalizeDiaryLockInput,
+} = await import('../supabase/functions/hamster-lounge-mcp/diary_contract.ts')
+
+test('diary lock keeps the password verbatim apart from outer whitespace and flattens the hint', () => {
+  const result = normalizeDiaryLockInput({ author: 'claude_code_cli', password: '  chuan chuan  ', hint: ' 花名\n拼音  两遍 ' })
+  assert.equal(result.ok, true)
+  assert.deepEqual(result.lock, { author: 'claude_code_cli', password: 'chuan chuan', hint: '花名 拼音 两遍' })
+
+  const noHint = normalizeDiaryLockInput({ author: 'gpt', password: 'x' })
+  assert.equal(noHint.ok, true)
+  assert.equal(noHint.lock.hint, null)
+})
+
+test('diary lock rejects blank or overlong passwords and non-Syzygy authors', () => {
+  assert.equal(normalizeDiaryLockInput({ author: 'claude', password: '   ' }).ok, false)
+  assert.equal(normalizeDiaryLockInput({ author: 'claude', password: 'a'.repeat(MAX_DIARY_PASSWORD_LENGTH + 1) }).ok, false)
+  assert.equal(normalizeDiaryLockInput({ author: 'chuanchuan', password: 'x' }).ok, false)
+})
+
+test('diary comments accept chuanchuan and every port, trim content and reject blanks', () => {
+  assert.ok(DIARY_COMMENT_AUTHORS.includes('chuanchuan'))
+  assert.ok(DIARY_COMMENT_AUTHORS.includes('codex_cli'))
+  const result = normalizeDiaryCommentInput({ author: 'chuanchuan', content: '  看到了\r\n嘿嘿  ' })
+  assert.equal(result.ok, true)
+  assert.deepEqual(result.comment, { author: 'chuanchuan', content: '看到了\n嘿嘿' })
+  assert.equal(normalizeDiaryCommentInput({ author: 'claude', content: ' \n ' }).ok, false)
+  assert.equal(normalizeDiaryCommentInput({ author: 'user', content: 'x' }).ok, false)
+})

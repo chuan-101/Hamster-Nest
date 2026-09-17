@@ -7262,5 +7262,121 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_entries TO authentica
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_entries TO service_role;
 
 -- ============================================================================
+-- 追加 · 2026-09-17 Syzygy 日记本 第二批：密码谜题制 + 留言
+--   diary_locks：每个写入端口一把锁（bcrypt hash + 提示），串串猜对即可读该端口的 private 页；
+--   diary_comments：串串读过的页下的留言与各端口的回复。
+--   与 supabase/migrations/20260917150000_syzygy_diary_locks_comments.sql 同步，可整体重跑。
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.diary_locks (
+  user_id uuid NOT NULL,
+  author text NOT NULL,
+  password_hash text NOT NULL,
+  hint text,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.diary_comments (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  user_id uuid NOT NULL,
+  entry_id uuid NOT NULL,
+  author text DEFAULT 'chuanchuan'::text NOT NULL,
+  content text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE public.diary_locks IS 'Syzygy 日记本·谜题：每个写入端口一把锁（bcrypt hash + 提示）。串串猜对即可读该端口的 private 页；游戏层不是安全层。';
+COMMENT ON COLUMN public.diary_locks.hint IS '谜面：给串串看的提示，可空。';
+COMMENT ON TABLE public.diary_comments IS 'Syzygy 日记本·留言：串串读过的页下的留言（author=chuanchuan）与各端口的回复。';
+
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_locks_pkey' AND conrelid = 'public.diary_locks'::regclass) THEN ALTER TABLE public.diary_locks ADD CONSTRAINT diary_locks_pkey PRIMARY KEY (user_id, author); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_locks_user_id_fkey' AND conrelid = 'public.diary_locks'::regclass) THEN ALTER TABLE public.diary_locks ADD CONSTRAINT diary_locks_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE; END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_locks_author_check' AND conrelid = 'public.diary_locks'::regclass) THEN ALTER TABLE public.diary_locks ADD CONSTRAINT diary_locks_author_check CHECK ((author = ANY (ARRAY['claude'::text, 'gpt'::text, 'gemini'::text, 'codex_cli'::text, 'claude_code_cli'::text]))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_locks_password_hash_not_blank' AND conrelid = 'public.diary_locks'::regclass) THEN ALTER TABLE public.diary_locks ADD CONSTRAINT diary_locks_password_hash_not_blank CHECK ((btrim(password_hash) <> ''::text)); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_locks_hint_check' AND conrelid = 'public.diary_locks'::regclass) THEN ALTER TABLE public.diary_locks ADD CONSTRAINT diary_locks_hint_check CHECK (((hint IS NULL) OR (char_length(hint) <= 200))); END IF; END $c$;
+
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_comments_pkey' AND conrelid = 'public.diary_comments'::regclass) THEN ALTER TABLE public.diary_comments ADD CONSTRAINT diary_comments_pkey PRIMARY KEY (id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_comments_user_id_fkey' AND conrelid = 'public.diary_comments'::regclass) THEN ALTER TABLE public.diary_comments ADD CONSTRAINT diary_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE; END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_comments_entry_id_fkey' AND conrelid = 'public.diary_comments'::regclass) THEN ALTER TABLE public.diary_comments ADD CONSTRAINT diary_comments_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES public.diary_entries(id) ON DELETE CASCADE; END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_comments_content_not_blank' AND conrelid = 'public.diary_comments'::regclass) THEN ALTER TABLE public.diary_comments ADD CONSTRAINT diary_comments_content_not_blank CHECK ((btrim(content) <> ''::text)); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_comments_author_check' AND conrelid = 'public.diary_comments'::regclass) THEN ALTER TABLE public.diary_comments ADD CONSTRAINT diary_comments_author_check CHECK ((author = ANY (ARRAY['chuanchuan'::text, 'claude'::text, 'gpt'::text, 'gemini'::text, 'codex_cli'::text, 'claude_code_cli'::text]))); END IF; END $c$;
+
+CREATE INDEX IF NOT EXISTS idx_diary_comments_entry_created ON public.diary_comments USING btree (entry_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_diary_comments_user_id ON public.diary_comments USING btree (user_id);
+
+-- 出题 / 换题：只给服务端（MCP，service_role）调用；同端口重复出题即覆盖。
+CREATE OR REPLACE FUNCTION public.diary_set_lock(p_user_id uuid, p_author text, p_password text, p_hint text DEFAULT NULL::text)
+ RETURNS TABLE(author text, hint text, updated_at timestamp with time zone)
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  insert into public.diary_locks as l (user_id, author, password_hash, hint)
+  values (p_user_id, p_author, extensions.crypt(p_password, extensions.gen_salt('bf')), nullif(btrim(p_hint), ''))
+  on conflict (user_id, author) do update
+    set password_hash = excluded.password_hash,
+        hint = excluded.hint,
+        updated_at = now()
+  returning l.author, l.hint, l.updated_at;
+$function$;
+
+REVOKE ALL ON FUNCTION public.diary_set_lock(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.diary_set_lock(uuid, text, text, text) TO service_role;
+
+-- 猜题：业主本人调用，只回答对 / 错，hash 不出库。
+CREATE OR REPLACE FUNCTION public.diary_check_lock(p_author text, p_password text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1
+      from public.diary_locks l
+     where l.user_id = (select auth.uid())
+       and l.author = p_author
+       and l.password_hash = extensions.crypt(p_password, l.password_hash)
+  );
+$function$;
+
+REVOKE ALL ON FUNCTION public.diary_check_lock(text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.diary_check_lock(text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.diary_check_lock(text, text) TO service_role;
+
+DROP TRIGGER IF EXISTS trg_diary_locks_updated_at ON public.diary_locks;
+CREATE TRIGGER trg_diary_locks_updated_at BEFORE UPDATE ON public.diary_locks FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_diary_comments_updated_at ON public.diary_comments;
+CREATE TRIGGER trg_diary_comments_updated_at BEFORE UPDATE ON public.diary_comments FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+ALTER TABLE public.diary_locks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.diary_comments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS diary_locks_select_own ON public.diary_locks;
+CREATE POLICY diary_locks_select_own ON public.diary_locks FOR SELECT TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+
+DROP POLICY IF EXISTS diary_comments_select_own ON public.diary_comments;
+CREATE POLICY diary_comments_select_own ON public.diary_comments FOR SELECT TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS diary_comments_insert_own ON public.diary_comments;
+CREATE POLICY diary_comments_insert_own ON public.diary_comments FOR INSERT TO authenticated
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS diary_comments_update_own ON public.diary_comments;
+CREATE POLICY diary_comments_update_own ON public.diary_comments FOR UPDATE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id))
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS diary_comments_delete_own ON public.diary_comments;
+CREATE POLICY diary_comments_delete_own ON public.diary_comments FOR DELETE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+
+REVOKE ALL ON TABLE public.diary_locks FROM anon;
+REVOKE ALL ON TABLE public.diary_comments FROM anon;
+GRANT SELECT ON TABLE public.diary_locks TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_locks TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_comments TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_comments TO service_role;
+
+-- ============================================================================
 -- 完 · Hamster-Nest schema 到此结束
 -- ============================================================================
