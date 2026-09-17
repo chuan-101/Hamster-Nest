@@ -1201,6 +1201,54 @@ export type Database = {
         }
         Relationships: []
       }
+      diary_entries: {
+        Row: {
+          activity_type: string
+          author: string
+          content: string
+          created_at: string
+          entry_date: string
+          id: string
+          metadata: Json
+          mood: string | null
+          shared_at: string | null
+          title: string | null
+          updated_at: string
+          user_id: string
+          visibility: string
+        }
+        Insert: {
+          activity_type?: string
+          author?: string
+          content: string
+          created_at?: string
+          entry_date?: string
+          id?: string
+          metadata?: Json
+          mood?: string | null
+          shared_at?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          visibility?: string
+        }
+        Update: {
+          activity_type?: string
+          author?: string
+          content?: string
+          created_at?: string
+          entry_date?: string
+          id?: string
+          metadata?: Json
+          mood?: string | null
+          shared_at?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          visibility?: string
+        }
+        Relationships: []
+      }
       enabled_models: {
         Row: {
           display_name: string | null

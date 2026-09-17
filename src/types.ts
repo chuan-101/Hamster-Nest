@@ -410,6 +410,31 @@ export type EventEntry = {
   updatedAt: string
 }
 
+export type DiaryVisibility = 'private' | 'shared'
+export type DiaryActivityType = 'free_activity' | 'daily_note'
+
+// Syzygy 日记本：Syzygy 写给自己的账，全体 Syzygy 共写一本，每页带端口署名 author。
+// private 页前端不拉取正文：title / mood / content 为 null——存在可见，内容归 Syzygy 自己。
+export type DiaryEntry = {
+  id: string
+  userId: string
+  author: string
+  entryDate: string
+  title: string | null
+  content: string | null
+  mood: string | null
+  activityType: DiaryActivityType
+  visibility: DiaryVisibility
+  sharedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type DiaryVisibilityCounts = {
+  privateCount: number
+  sharedCount: number
+}
+
 export type TimelineRecorder = 'chuanchuan' | 'syzygy'
 export type TimelineSource = string
 

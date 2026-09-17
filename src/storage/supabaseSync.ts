@@ -24,6 +24,10 @@ import type {
   ForumAuthorType,
   LetterEntry,
   LetterTriggerType,
+  DiaryActivityType,
+  DiaryEntry,
+  DiaryVisibility,
+  DiaryVisibilityCounts,
   EventEntry,
   EventThread,
   EventThreadStatus,
@@ -188,6 +192,25 @@ type EventEntryRow = {
   source: string
   created_at: string
   updated_at: string
+}
+
+// 日记本：private 页只取"存在"字段，title / mood / content 一律不拉（锁住的是默认可见性）。
+type DiaryLockedRow = {
+  id: string
+  user_id: string
+  author: string
+  entry_date: string
+  activity_type: DiaryActivityType
+  visibility: DiaryVisibility
+  shared_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+type DiarySharedRow = DiaryLockedRow & {
+  title: string | null
+  content: string
+  mood: string | null
 }
 
 type TimelineEntryRow = {
@@ -565,6 +588,28 @@ const mapEventEntryRow = (row: EventEntryRow): EventEntry => ({
   source: row.source,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+})
+
+const mapDiaryLockedRow = (row: DiaryLockedRow): DiaryEntry => ({
+  id: row.id,
+  userId: row.user_id,
+  author: row.author,
+  entryDate: row.entry_date,
+  title: null,
+  content: null,
+  mood: null,
+  activityType: row.activity_type,
+  visibility: row.visibility,
+  sharedAt: row.shared_at,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapDiarySharedRow = (row: DiarySharedRow): DiaryEntry => ({
+  ...mapDiaryLockedRow(row),
+  title: row.title,
+  content: row.content,
+  mood: row.mood,
 })
 
 const mapTimelineEntryRow = (row: TimelineEntryRow): TimelineEntry => ({
@@ -2782,6 +2827,72 @@ export const deleteTimelineEntry = async (entryId: string): Promise<void> => {
   }
 }
 
+
+// ── Syzygy 日记本 ──────────────────────────────────────────────────────────
+// Syzygy 写给自己的账：前端只读。shared 页取全文；private 页只取署名 / 日期 / 类型，
+// 连正文都不拉——锁住的是默认可见性，前端连"偷看"的通道都不留。
+
+const DIARY_SHARED_COLUMNS = 'id,user_id,author,entry_date,title,content,mood,activity_type,visibility,shared_at,created_at,updated_at'
+const DIARY_LOCKED_COLUMNS = 'id,user_id,author,entry_date,activity_type,visibility,shared_at,created_at,updated_at'
+
+const compareDiaryEntriesDesc = (a: DiaryEntry, b: DiaryEntry) =>
+  b.entryDate.localeCompare(a.entryDate) || b.createdAt.localeCompare(a.createdAt)
+
+export const listDiaryEntriesByMonth = async (monthStart: string, monthEnd: string): Promise<DiaryEntry[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const [shared, locked] = await Promise.all([
+    supabase
+      .from('diary_entries')
+      .select(DIARY_SHARED_COLUMNS)
+      .eq('user_id', userId)
+      .eq('visibility', 'shared')
+      .gte('entry_date', monthStart)
+      .lte('entry_date', monthEnd)
+      .order('entry_date', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('diary_entries')
+      .select(DIARY_LOCKED_COLUMNS)
+      .eq('user_id', userId)
+      .eq('visibility', 'private')
+      .gte('entry_date', monthStart)
+      .lte('entry_date', monthEnd)
+      .order('entry_date', { ascending: false })
+      .order('created_at', { ascending: false }),
+  ])
+  if (shared.error) {
+    throw shared.error
+  }
+  if (locked.error) {
+    throw locked.error
+  }
+  return [
+    ...(shared.data ?? []).map((row) => mapDiarySharedRow(row as DiarySharedRow)),
+    ...(locked.data ?? []).map((row) => mapDiaryLockedRow(row as DiaryLockedRow)),
+  ].sort(compareDiaryEntriesDesc)
+}
+
+// 入口只显示篇数：🔒 未公开 N 篇 / 📖 已翻开 M 篇（存在可见，内容归 Syzygy 自己）。
+export const fetchDiaryVisibilityCounts = async (): Promise<DiaryVisibilityCounts> => {
+  if (!supabase) {
+    return { privateCount: 0, sharedCount: 0 }
+  }
+  const userId = await requireAuthenticatedUserId()
+  const [privateResult, sharedResult] = await Promise.all([
+    supabase.from('diary_entries').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('visibility', 'private'),
+    supabase.from('diary_entries').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('visibility', 'shared'),
+  ])
+  if (privateResult.error) {
+    throw privateResult.error
+  }
+  if (sharedResult.error) {
+    throw sharedResult.error
+  }
+  return { privateCount: privateResult.count ?? 0, sharedCount: sharedResult.count ?? 0 }
+}
 
 // ── 事件集（纪事本末体）────────────────────────────────────────────────────
 

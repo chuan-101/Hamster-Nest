@@ -84,7 +84,7 @@ const DEFAULT_PAGE_LAYOUTS: Record<HomeLayoutPageId, HomePageLayoutState> = {
     appIconConfigs: {},
   },
   page3: {
-    iconOrder: ['syzygy-feed', 'archive', 'events'],
+    iconOrder: ['syzygy-feed', 'archive', 'events', 'diary'],
     widgetOrder: [],
     widgets: [],
     checkinSize: '1x1',

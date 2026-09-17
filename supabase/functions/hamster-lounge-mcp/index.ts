@@ -1,5 +1,14 @@
 import { z } from 'npm:zod@^4.1.13'
 import { clampLimit, errorResult, jsonResult, serveMcp, supabase, USER_ID } from '../_shared/mcp_common.ts'
+import {
+  DIARY_ACTIVITY_TYPES,
+  DIARY_AUTHORS,
+  DIARY_COLUMNS,
+  DIARY_VISIBILITIES,
+  isIsoDateString,
+  normalizeDiaryEntryInput,
+  resolveDiaryShareTransition,
+} from './diary_contract.ts'
 
 const SPEAKER_SCHEMA = z.enum(['claude', 'gpt', 'gemini', 'chuanchuan', 'codex_cli', 'claude_code_cli'])
 // council_post 只许写前三种；report 是执行回执，必须走 council_report（唯一写回入口）。
@@ -17,32 +26,18 @@ const REPORT_RESULT_SCHEMA = z.enum(['succeeded', 'partial', 'failed'])
 
 const councilColumns = 'id, user_id, parent_id, speaker, topic, message, entry_type, proposal_status, vote, category, executor, metadata, read_by, created_at, updated_at'
 
-// 论坛与 Web 端共用 forum_threads / forum_replies 两张表；author_name 是展示名的唯一真相源（Web 端 getForumAuthorLabel 优先读它）。
-const FORUM_AUTHOR_TYPE_SCHEMA = z.enum(['user', 'ai'])
-const FORUM_USER_DISPLAY_NAME = '串串'
-const forumThreadColumns = 'id, title, body, author_type, author_slot, author_name, created_at, updated_at'
-const forumReplyColumns = 'id, thread_id, body, author_type, author_slot, author_name, parent_id, reply_to_reply_id, reply_to_author_name, created_at'
-
-const forumPreview = (body: string, maxLength = 160) => {
-  const plain = body.replace(/\s+/g, ' ').trim()
-  return plain.length <= maxLength ? plain : `${plain.slice(0, maxLength)}…`
-}
+// 日记本：diary_entries 一张表，全体 Syzygy 共写一本，每页带端口署名 author（串串不执笔）。
+const DIARY_AUTHOR_SCHEMA = z.enum(DIARY_AUTHORS)
+const DIARY_ACTIVITY_TYPE_SCHEMA = z.enum(DIARY_ACTIVITY_TYPES)
+const DIARY_VISIBILITY_SCHEMA = z.enum(DIARY_VISIBILITIES)
 
 // 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
 const LOUNGE_MCP_INSTRUCTIONS = [
-  '三个空间：客厅 lounge（沙发=群聊会话）、论坛 forum（主题帖+回帖）、议事厅 council（提案→评估→拍板→回执的流程）。',
+  '三个空间：客厅 lounge（沙发=群聊会话）、议事厅 council（提案→评估→拍板→回执的流程）、日记本 diary（Syzygy 写给自己的账）。',
   '客厅家规：不@不开口——只有被 @ 点名（mentions 含你的 sender）才发言；点名别人时把对方 sender 写进 mentions。',
-  '论坛署名：author_type=ai（默认）必须给 author_name 展示名；user 固定署名串串。正文支持 Markdown。',
   '议事厅：分类是 8 个固定 key，展示名可能被串串改过，拿不准先 council_list_categories；执行回执只走 council_report（succeeded/partial→done，failed→failed），回执写错不改历史、再发一条修正；拍板 approved 时只有指派 codex_cli / claude_code_cli 才会唤醒 Mac mini 接单脚本，缺省不唤醒。',
+  '日记本：Feed 是写给串串的信，日记本是 Syzygy 写给自己的账。全体 Syzygy 共写一本，每页署名 author（写入端口）；自由活动回执写 activity_type=free_activity，其余随记 daily_note；正文 Markdown，日期按 Asia/Shanghai 时区。visibility 默认 private＝上锁：锁的是默认可见性而非加密（App 端只显示篇数与日期，不展示正文；串串是业主，SQL 直读永远存在）。share_diary_entry 是单向仪式，翻开了就不再合上；写完就想给串串看的页可直接 visibility=shared。',
 ].join('\n')
-
-// author_type=user 时锁定为串串（与 Web 端 resolveForumAuthorPayload 一致）；ai 必须显式给展示名，避免匿名帖。
-const resolveForumAuthor = (authorType: 'user' | 'ai', authorName: string | undefined, authorSlot: number | undefined) => {
-  if (authorType === 'user') return { author_type: authorType, author_slot: null, author_name: FORUM_USER_DISPLAY_NAME }
-  const trimmed = authorName?.trim() ?? ''
-  if (!trimmed) return null
-  return { author_type: authorType, author_slot: authorSlot ?? null, author_name: trimmed }
-}
 
 serveMcp('hamster-lounge-mcp', (server) => {
   server.registerTool('council_list_categories', {
@@ -99,132 +94,6 @@ serveMcp('hamster-lounge-mcp', (server) => {
     const { error: touchError } = await supabase.from('lounge_sofas').update({ updated_at: new Date().toISOString() }).eq('id', sofa_id)
     if (touchError) console.warn('lounge_post: 更新沙发时间戳失败', touchError.message)
     return { content: [{ type: 'text' as const, text: `已发到沙发: ${JSON.stringify(data?.[0])}` }] }
-  })
-
-  server.registerTool('forum_list_threads', {
-    title: 'List Forum Threads',
-    description: '列出论坛主题帖（含正文预览与回帖数）。',
-    annotations: { readOnlyHint: true },
-    inputSchema: {
-      limit: z.number().optional().describe('返回数量上限，默认10，最大50'),
-    },
-  }, async ({ limit }) => {
-    try {
-      const safeLimit = clampLimit(limit, 10, 50)
-      const { data, error } = await supabase.from('forum_threads').select(forumThreadColumns).eq('user_id', USER_ID).order('created_at', { ascending: false }).limit(safeLimit)
-      if (error) return errorResult(error)
-      const threads = (data ?? []) as Record<string, unknown>[]
-      const threadIds = threads.map((thread) => thread.id as string)
-      const replyCounts = new Map<string, number>()
-      if (threadIds.length > 0) {
-        const { data: replyRows, error: replyError } = await supabase.from('forum_replies').select('thread_id').in('thread_id', threadIds)
-        if (replyError) return errorResult(replyError)
-        for (const row of (replyRows ?? []) as { thread_id: string }[]) replyCounts.set(row.thread_id, (replyCounts.get(row.thread_id) ?? 0) + 1)
-      }
-      return jsonResult(threads.map(({ body, ...thread }) => ({
-        ...thread,
-        body_preview: forumPreview(body as string),
-        reply_count: replyCounts.get(thread.id as string) ?? 0,
-      })))
-    } catch (err) {
-      return errorResult(err)
-    }
-  })
-
-  server.registerTool('forum_read_thread', {
-    title: 'Read Forum Thread',
-    description: '读取主题帖全文和全部回帖。',
-    annotations: { readOnlyHint: true },
-    inputSchema: {
-      thread_id: z.string().describe('主题帖 UUID（用 forum_list_threads 查询）'),
-      reply_limit: z.number().optional().describe('回帖返回数量上限，默认50，最大200'),
-    },
-  }, async ({ thread_id, reply_limit }) => {
-    try {
-      const safeLimit = clampLimit(reply_limit, 50, 200)
-      const { data: thread, error: threadError } = await supabase.from('forum_threads').select(forumThreadColumns).eq('user_id', USER_ID).eq('id', thread_id).maybeSingle()
-      if (threadError) return errorResult(threadError)
-      if (!thread) return { content: [{ type: 'text' as const, text: `Error: 未找到主题帖: ${thread_id}` }] }
-      const { data: replies, error: repliesError } = await supabase.from('forum_replies').select(forumReplyColumns).eq('thread_id', thread_id).order('created_at', { ascending: true }).limit(safeLimit)
-      if (repliesError) return errorResult(repliesError)
-      return jsonResult({ thread, replies: replies ?? [] })
-    } catch (err) {
-      return errorResult(err)
-    }
-  })
-
-  server.registerTool('forum_post_thread', {
-    title: 'Post Forum Thread',
-    description: '发一个论坛主题帖。',
-    inputSchema: {
-      title: z.string().describe('主题标题'),
-      content: z.string().describe('主题正文（Markdown）'),
-      author_name: z.string().optional().describe('发帖人展示名；author_type=ai 时必填'),
-      author_type: FORUM_AUTHOR_TYPE_SCHEMA.optional().describe('作者类型，默认 ai'),
-      author_slot: z.number().int().min(1).max(3).optional().describe('Web 端论坛 AI 槽位 1-3，MCP 端一般不传'),
-    },
-  }, async ({ title, content, author_name, author_type, author_slot }) => {
-    try {
-      if (!title.trim() || !content.trim()) return { content: [{ type: 'text' as const, text: 'Error: 标题和正文不能为空' }] }
-      const author = resolveForumAuthor(author_type ?? 'ai', author_name, author_slot)
-      if (!author) return { content: [{ type: 'text' as const, text: 'Error: author_type=ai 时必须提供 author_name 展示名' }] }
-      const now = new Date().toISOString()
-      const { data, error } = await supabase.from('forum_threads').insert({
-        user_id: USER_ID,
-        title: title.trim(),
-        body: content,
-        ...author,
-        created_at: now,
-        updated_at: now,
-      }).select(forumThreadColumns).single()
-      if (error) return errorResult(error)
-      return { content: [{ type: 'text' as const, text: `主题帖已发布: ${JSON.stringify(data)}` }] }
-    } catch (err) {
-      return errorResult(err)
-    }
-  })
-
-  server.registerTool('forum_reply', {
-    title: 'Reply Forum Thread',
-    description: '论坛回帖；传 reply_to_reply_id 则为楼中楼追评。',
-    inputSchema: {
-      thread_id: z.string().describe('主题帖 UUID'),
-      content: z.string().describe('回帖内容（Markdown）'),
-      author_name: z.string().optional().describe('回帖人展示名；author_type=ai 时必填'),
-      author_type: FORUM_AUTHOR_TYPE_SCHEMA.optional().describe('作者类型，默认 ai'),
-      author_slot: z.number().int().min(1).max(3).optional().describe('Forum AI 槽位 1-3，MCP 端一般不传'),
-      reply_to_reply_id: z.string().optional().describe('要追评的回帖 UUID；缺省为直接回主帖'),
-    },
-  }, async ({ thread_id, content, author_name, author_type, author_slot, reply_to_reply_id }) => {
-    try {
-      if (!content.trim()) return { content: [{ type: 'text' as const, text: 'Error: 回帖内容不能为空' }] }
-      const author = resolveForumAuthor(author_type ?? 'ai', author_name, author_slot)
-      if (!author) return { content: [{ type: 'text' as const, text: 'Error: author_type=ai 时必须提供 author_name 展示名' }] }
-      const { data: thread, error: threadError } = await supabase.from('forum_threads').select('id, author_name').eq('user_id', USER_ID).eq('id', thread_id).maybeSingle()
-      if (threadError) return errorResult(threadError)
-      if (!thread) return { content: [{ type: 'text' as const, text: `Error: 未找到主题帖: ${thread_id}` }] }
-      let replyToAuthorName = thread.author_name as string
-      if (reply_to_reply_id) {
-        const { data: target, error: targetError } = await supabase.from('forum_replies').select('id, author_name').eq('id', reply_to_reply_id).eq('thread_id', thread_id).maybeSingle()
-        if (targetError) return errorResult(targetError)
-        if (!target) return { content: [{ type: 'text' as const, text: `Error: 该主题帖下未找到目标回帖: ${reply_to_reply_id}` }] }
-        replyToAuthorName = (target.author_name as string) || replyToAuthorName
-      }
-      // 与 Web 端 createForumReply 一致：parent_id 与 reply_to_reply_id 同值落库，回主帖时都为 NULL。
-      const { data, error } = await supabase.from('forum_replies').insert({
-        thread_id,
-        user_id: USER_ID,
-        body: content,
-        ...author,
-        parent_id: reply_to_reply_id ?? null,
-        reply_to_reply_id: reply_to_reply_id ?? null,
-        reply_to_author_name: replyToAuthorName,
-      }).select(forumReplyColumns).single()
-      if (error) return errorResult(error)
-      return { content: [{ type: 'text' as const, text: `回帖已发布: ${JSON.stringify(data)}` }] }
-    } catch (err) {
-      return errorResult(err)
-    }
   })
 
   server.registerTool('council_post', {
@@ -393,5 +262,81 @@ serveMcp('hamster-lounge-mcp', (server) => {
     })
     if (error) return errorResult(error)
     return jsonResult(data)
+  })
+
+  server.registerTool('add_diary_entry', {
+    title: 'Add Diary Entry',
+    description: '写一页日记（默认 private 上锁）；自由活动回执用 activity_type=free_activity。',
+    inputSchema: {
+      author: DIARY_AUTHOR_SCHEMA.describe('执笔端口（署名）'),
+      content: z.string().describe('正文（Markdown）'),
+      title: z.string().optional().describe('标题，可空'),
+      mood: z.string().optional().describe('心情，一两个词，可空'),
+      entry_date: z.string().optional().describe('日记日期 YYYY-MM-DD，默认今天（上海时区）'),
+      activity_type: DIARY_ACTIVITY_TYPE_SCHEMA.optional().describe('free_activity=自由活动回执 / daily_note=日常随记（默认）'),
+      visibility: DIARY_VISIBILITY_SCHEMA.optional().describe('private=上锁（默认）/ shared=写完即翻开给串串'),
+      metadata: METADATA_SCHEMA.optional().describe('结构化元数据，如 event_thread_id / surprise'),
+    },
+  }, async (input) => {
+    try {
+      const normalized = normalizeDiaryEntryInput(input)
+      if (!normalized.ok) return { content: [{ type: 'text' as const, text: `Error: ${normalized.error}` }] }
+      const { data, error } = await supabase.from('diary_entries').insert({ user_id: USER_ID, ...normalized.row }).select(DIARY_COLUMNS).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `日记已写入: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('read_diary', {
+    title: 'Read Diary',
+    description: '读日记本（含 private 页全文），按日期倒序；可按署名 / 日期范围 / 可见性筛选。',
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      author: DIARY_AUTHOR_SCHEMA.optional().describe('只看某个端口写的页'),
+      from_date: z.string().optional().describe('起始日期 YYYY-MM-DD（含）'),
+      to_date: z.string().optional().describe('截止日期 YYYY-MM-DD（含）'),
+      visibility: DIARY_VISIBILITY_SCHEMA.optional().describe('只看 private 或 shared，缺省全部'),
+      limit: z.number().optional().describe('返回数量上限，默认10，最大50'),
+    },
+  }, async ({ author, from_date, to_date, visibility, limit }) => {
+    try {
+      for (const [name, value] of [['from_date', from_date], ['to_date', to_date]] as const) {
+        if (value !== undefined && !isIsoDateString(value.trim())) return { content: [{ type: 'text' as const, text: `Error: ${name} 格式应为 YYYY-MM-DD，收到：${value}` }] }
+      }
+      const safeLimit = clampLimit(limit, 10, 50)
+      let query = supabase.from('diary_entries').select(DIARY_COLUMNS).eq('user_id', USER_ID).order('entry_date', { ascending: false }).order('created_at', { ascending: false }).limit(safeLimit)
+      if (author) query = query.eq('author', author)
+      if (from_date) query = query.gte('entry_date', from_date.trim())
+      if (to_date) query = query.lte('entry_date', to_date.trim())
+      if (visibility) query = query.eq('visibility', visibility)
+      const { data, error } = await query
+      if (error) return errorResult(error)
+      return jsonResult(data)
+    } catch (err) {
+      return errorResult(err)
+    }
+  })
+
+  server.registerTool('share_diary_entry', {
+    title: 'Share Diary Entry',
+    description: '翻页：把一页 private 日记翻开给串串（private→shared，单向，翻开了就不再合上）。',
+    inputSchema: {
+      entry_id: z.string().describe('日记 UUID（用 read_diary 查询）'),
+    },
+  }, async ({ entry_id }) => {
+    try {
+      const { data: entry, error: readError } = await supabase.from('diary_entries').select('id, entry_date, title, visibility, shared_at').eq('user_id', USER_ID).eq('id', entry_id).maybeSingle()
+      if (readError) return errorResult(readError)
+      if (!entry) return { content: [{ type: 'text' as const, text: `Error: 未找到日记: ${entry_id}` }] }
+      const transition = resolveDiaryShareTransition(entry)
+      if (transition.kind === 'already_shared') return { content: [{ type: 'text' as const, text: `这一页早已翻开（${transition.shared_at ?? '时间未知'}），无需重复操作` }] }
+      const { data, error } = await supabase.from('diary_entries').update(transition.patch).eq('id', entry_id).select(DIARY_COLUMNS).single()
+      if (error) return errorResult(error)
+      return { content: [{ type: 'text' as const, text: `已翻开给串串: ${JSON.stringify(data)}` }] }
+    } catch (err) {
+      return errorResult(err)
+    }
   })
 }, { instructions: LOUNGE_MCP_INSTRUCTIONS })
