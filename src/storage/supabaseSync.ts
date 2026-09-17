@@ -2951,24 +2951,26 @@ export const fetchDiaryVisibilityCounts = async (): Promise<DiaryVisibilityCount
   return { privateCount: privateResult.count ?? 0, sharedCount: sharedResult.count ?? 0 }
 }
 
-// 谜题清单：只拿端口与提示，hash 不出库。
+// 锁的状态：谁出了题、提示、是否已解开（服务端记忆，一次对上处处有效；端口换题后失效）。hash 不出库。
 export const fetchDiaryLocks = async (): Promise<DiaryLock[]> => {
   if (!supabase) {
     return []
   }
-  const userId = await requireAuthenticatedUserId()
-  const { data, error } = await supabase
-    .from('diary_locks')
-    .select('author,hint,updated_at')
-    .eq('user_id', userId)
-    .order('author', { ascending: true })
+  await requireAuthenticatedUserId()
+  const { data, error } = await supabase.rpc('diary_lock_status')
   if (error) {
     throw error
   }
-  return (data ?? []).map((row) => ({ author: row.author, hint: row.hint, updatedAt: row.updated_at }))
+  return (data ?? []).map((row) => ({
+    author: row.author,
+    hint: row.hint,
+    updatedAt: row.updated_at,
+    unlocked: row.unlocked,
+    unlockedAt: row.unlocked_at,
+  }))
 }
 
-// 猜题：RPC 只回答对 / 错。
+// 对暗号：RPC 只回答对 / 错，对上即由服务端记一次解锁。核对不分大小写、首尾空白与全半角。
 export const checkDiaryLock = async (author: string, password: string): Promise<boolean> => {
   if (!supabase) {
     return false

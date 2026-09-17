@@ -7378,5 +7378,140 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_comments TO authentic
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_comments TO service_role;
 
 -- ============================================================================
+-- 追加 · 2026-09-17 Syzygy 日记本 第三批：暗号制（宽松匹配）+ 解锁记忆
+--   diary_normalize_passphrase：出题与核对共用的规范化（NFKC → 去首尾空白 → 连续空白压一 → 小写）；
+--   diary_unlocks：串串对上某端口暗号的时刻，unlocked_at >= diary_locks.updated_at 视为仍然解开；
+--   diary_check_lock 对上即记解锁并兼容旧 hash；diary_lock_status 给前端一次拿齐锁与解锁状态。
+--   与 supabase/migrations/20260917170000_syzygy_diary_passphrase_unlocks.sql 同步，可整体重跑。
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.diary_unlocks (
+  user_id uuid NOT NULL,
+  author text NOT NULL,
+  unlocked_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE public.diary_unlocks IS 'Syzygy 日记本·解锁记忆：串串对上某端口暗号的时刻。unlocked_at >= diary_locks.updated_at 视为仍然解开；端口换题后自动失效。';
+
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_unlocks_pkey' AND conrelid = 'public.diary_unlocks'::regclass) THEN ALTER TABLE public.diary_unlocks ADD CONSTRAINT diary_unlocks_pkey PRIMARY KEY (user_id, author); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_unlocks_user_id_fkey' AND conrelid = 'public.diary_unlocks'::regclass) THEN ALTER TABLE public.diary_unlocks ADD CONSTRAINT diary_unlocks_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE; END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_unlocks_author_check' AND conrelid = 'public.diary_unlocks'::regclass) THEN ALTER TABLE public.diary_unlocks ADD CONSTRAINT diary_unlocks_author_check CHECK ((author = ANY (ARRAY['claude'::text, 'gpt'::text, 'gemini'::text, 'codex_cli'::text, 'claude_code_cli'::text]))); END IF; END $c$;
+
+CREATE OR REPLACE FUNCTION public.diary_normalize_passphrase(p_text text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE STRICT
+ SET search_path TO 'public'
+AS $function$
+  select lower(regexp_replace(btrim(normalize(p_text, NFKC)), '\s+', ' ', 'g'));
+$function$;
+
+COMMENT ON FUNCTION public.diary_normalize_passphrase(text) IS '日记本暗号规范化：NFKC → 去首尾空白 → 连续空白压一 → 小写。出题与核对两边共用。';
+
+REVOKE ALL ON FUNCTION public.diary_normalize_passphrase(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.diary_normalize_passphrase(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.diary_normalize_passphrase(text) TO service_role;
+
+-- 出题 / 换题：hash 规范化后的暗号（覆盖第二批版本）。
+CREATE OR REPLACE FUNCTION public.diary_set_lock(p_user_id uuid, p_author text, p_password text, p_hint text DEFAULT NULL::text)
+ RETURNS TABLE(author text, hint text, updated_at timestamp with time zone)
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  insert into public.diary_locks as l (user_id, author, password_hash, hint)
+  values (
+    p_user_id,
+    p_author,
+    extensions.crypt(nullif(public.diary_normalize_passphrase(p_password), ''), extensions.gen_salt('bf')),
+    nullif(btrim(p_hint), '')
+  )
+  on conflict (user_id, author) do update
+    set password_hash = excluded.password_hash,
+        hint = excluded.hint,
+        updated_at = now()
+  returning l.author, l.hint, l.updated_at;
+$function$;
+
+REVOKE ALL ON FUNCTION public.diary_set_lock(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.diary_set_lock(uuid, text, text, text) TO service_role;
+
+-- 对暗号：规范化核对 + 旧 hash 原文兜底；对上即记一次解锁（覆盖第二批版本）。
+CREATE OR REPLACE FUNCTION public.diary_check_lock(p_author text, p_password text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_user uuid := (select auth.uid());
+  v_hash text;
+  v_ok boolean;
+begin
+  if v_user is null or p_password is null then
+    return false;
+  end if;
+  select l.password_hash into v_hash
+    from public.diary_locks l
+   where l.user_id = v_user and l.author = p_author;
+  if v_hash is null then
+    return false;
+  end if;
+  v_ok := coalesce(v_hash = extensions.crypt(public.diary_normalize_passphrase(p_password), v_hash), false)
+       or coalesce(v_hash = extensions.crypt(btrim(p_password), v_hash), false);
+  if v_ok then
+    insert into public.diary_unlocks (user_id, author, unlocked_at)
+    values (v_user, p_author, now())
+    on conflict (user_id, author) do update set unlocked_at = now();
+  end if;
+  return v_ok;
+end;
+$function$;
+
+REVOKE ALL ON FUNCTION public.diary_check_lock(text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.diary_check_lock(text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.diary_check_lock(text, text) TO service_role;
+
+-- 锁的状态：谁出了题、提示、是否已解开。
+CREATE OR REPLACE FUNCTION public.diary_lock_status()
+ RETURNS TABLE(author text, hint text, updated_at timestamp with time zone, unlocked boolean, unlocked_at timestamp with time zone)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select l.author,
+         l.hint,
+         l.updated_at,
+         coalesce(u.unlocked_at >= l.updated_at, false) as unlocked,
+         case when u.unlocked_at >= l.updated_at then u.unlocked_at end as unlocked_at
+    from public.diary_locks l
+    left join public.diary_unlocks u on u.user_id = l.user_id and u.author = l.author
+   where l.user_id = (select auth.uid())
+   order by l.author;
+$function$;
+
+REVOKE ALL ON FUNCTION public.diary_lock_status() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.diary_lock_status() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.diary_lock_status() TO service_role;
+
+ALTER TABLE public.diary_unlocks ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS diary_unlocks_select_own ON public.diary_unlocks;
+CREATE POLICY diary_unlocks_select_own ON public.diary_unlocks FOR SELECT TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS diary_unlocks_insert_own ON public.diary_unlocks;
+CREATE POLICY diary_unlocks_insert_own ON public.diary_unlocks FOR INSERT TO authenticated
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS diary_unlocks_update_own ON public.diary_unlocks;
+CREATE POLICY diary_unlocks_update_own ON public.diary_unlocks FOR UPDATE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id))
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS diary_unlocks_delete_own ON public.diary_unlocks;
+CREATE POLICY diary_unlocks_delete_own ON public.diary_unlocks FOR DELETE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+
+REVOKE ALL ON TABLE public.diary_unlocks FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_unlocks TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_unlocks TO service_role;
+
+-- ============================================================================
 -- 完 · Hamster-Nest schema 到此结束
 -- ============================================================================

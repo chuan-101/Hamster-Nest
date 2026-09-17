@@ -44,25 +44,3 @@ export const formatClock = (isoString: string) => {
   }
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
-
-// 猜对谜题后的解锁只在本次会话有效：关掉页面，抽屉重新合上（有效期由 App 端另定）。
-const UNLOCK_STORAGE_KEY = 'hamster.diary.unlocked-authors.v1'
-
-export const readUnlockedAuthors = (): string[] => {
-  try {
-    const raw = sessionStorage.getItem(UNLOCK_STORAGE_KEY)
-    const parsed: unknown = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
-  } catch {
-    return []
-  }
-}
-
-export const storeUnlockedAuthor = (author: string) => {
-  try {
-    const next = Array.from(new Set([...readUnlockedAuthors(), author]))
-    sessionStorage.setItem(UNLOCK_STORAGE_KEY, JSON.stringify(next))
-  } catch {
-    // 私密模式等场景写不进去也无妨，只是刷新后要再猜一次。
-  }
-}
