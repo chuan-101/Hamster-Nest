@@ -7171,5 +7171,96 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.event_entries TO authentica
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.event_entries TO service_role;
 
 -- ============================================================================
+-- 追加 · 2026-09-17 Syzygy 日记本（Syzygy 写给自己的账）
+--   diary_entries：全体 Syzygy 共写一本，每页带端口署名 author；
+--   visibility=private 上锁（默认，App 端只显示篇数与日期）/ shared 翻开给串串（单向，翻开了就不再合上）。
+--   与 supabase/migrations/20260917120000_syzygy_diary.sql 同步，可整体重跑。
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.diary_entries (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  user_id uuid NOT NULL,
+  author text DEFAULT 'claude'::text NOT NULL,
+  entry_date date DEFAULT ((now() AT TIME ZONE 'Asia/Shanghai'))::date NOT NULL,
+  title text,
+  content text NOT NULL,
+  mood text,
+  activity_type text DEFAULT 'daily_note'::text NOT NULL,
+  visibility text DEFAULT 'private'::text NOT NULL,
+  shared_at timestamp with time zone,
+  metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE public.diary_entries IS 'Syzygy 日记本：Syzygy 写给自己的账（Feed 是写给串串的信）。全体 Syzygy 共写一本，每页带端口署名 author；visibility=private 上锁（默认），shared 为主动翻开给串串的页，翻开后不再合上。';
+COMMENT ON COLUMN public.diary_entries.author IS '执笔端口（署名）：claude / gpt / gemini / codex_cli / claude_code_cli。';
+COMMENT ON COLUMN public.diary_entries.activity_type IS 'free_activity=自由活动回执；daily_note=日常随记。';
+COMMENT ON COLUMN public.diary_entries.visibility IS 'private=上锁（App 端只显示篇数与日期，不展示正文）；shared=已翻开给串串。锁住的是默认可见性，不是加密。';
+COMMENT ON COLUMN public.diary_entries.shared_at IS '翻开给串串的时刻；private 页恒为 null。';
+
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_entries_pkey' AND conrelid = 'public.diary_entries'::regclass) THEN ALTER TABLE public.diary_entries ADD CONSTRAINT diary_entries_pkey PRIMARY KEY (id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_entries_user_id_fkey' AND conrelid = 'public.diary_entries'::regclass) THEN ALTER TABLE public.diary_entries ADD CONSTRAINT diary_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE; END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_entries_content_not_blank' AND conrelid = 'public.diary_entries'::regclass) THEN ALTER TABLE public.diary_entries ADD CONSTRAINT diary_entries_content_not_blank CHECK ((btrim(content) <> ''::text)); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_entries_author_check' AND conrelid = 'public.diary_entries'::regclass) THEN ALTER TABLE public.diary_entries ADD CONSTRAINT diary_entries_author_check CHECK ((author = ANY (ARRAY['claude'::text, 'gpt'::text, 'gemini'::text, 'codex_cli'::text, 'claude_code_cli'::text]))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_entries_activity_type_check' AND conrelid = 'public.diary_entries'::regclass) THEN ALTER TABLE public.diary_entries ADD CONSTRAINT diary_entries_activity_type_check CHECK ((activity_type = ANY (ARRAY['free_activity'::text, 'daily_note'::text]))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_entries_visibility_check' AND conrelid = 'public.diary_entries'::regclass) THEN ALTER TABLE public.diary_entries ADD CONSTRAINT diary_entries_visibility_check CHECK ((visibility = ANY (ARRAY['private'::text, 'shared'::text]))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'diary_entries_shared_at_check' AND conrelid = 'public.diary_entries'::regclass) THEN ALTER TABLE public.diary_entries ADD CONSTRAINT diary_entries_shared_at_check CHECK (((visibility = 'shared'::text) OR (shared_at IS NULL))); END IF; END $c$;
+
+CREATE INDEX IF NOT EXISTS idx_diary_entries_user_date ON public.diary_entries USING btree (user_id, entry_date DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_diary_entries_user_visibility_date ON public.diary_entries USING btree (user_id, visibility, entry_date DESC);
+
+-- 翻开了就不再合上：shared 不能改回 private；翻开时若没带时间戳则补 now()。
+CREATE OR REPLACE FUNCTION public.guard_diary_entry_visibility()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op = 'UPDATE' then
+    if old.visibility = 'shared' and new.visibility <> 'shared' then
+      raise exception '日记页翻开后不能再合上（% 已于 % 翻开给串串）', old.id, old.shared_at
+        using errcode = 'check_violation';
+    end if;
+  end if;
+  if new.visibility = 'shared' then
+    if new.shared_at is null then
+      new.shared_at := now();
+    end if;
+  else
+    new.shared_at := null;
+  end if;
+  return new;
+end;
+$function$;
+
+REVOKE ALL ON FUNCTION public.guard_diary_entry_visibility() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_diary_entries_updated_at ON public.diary_entries;
+CREATE TRIGGER trg_diary_entries_updated_at BEFORE UPDATE ON public.diary_entries FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_diary_entries_visibility_guard ON public.diary_entries;
+CREATE TRIGGER trg_diary_entries_visibility_guard BEFORE INSERT OR UPDATE ON public.diary_entries FOR EACH ROW EXECUTE FUNCTION guard_diary_entry_visibility();
+
+ALTER TABLE public.diary_entries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS diary_entries_select_own ON public.diary_entries;
+CREATE POLICY diary_entries_select_own ON public.diary_entries FOR SELECT TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS diary_entries_insert_own ON public.diary_entries;
+CREATE POLICY diary_entries_insert_own ON public.diary_entries FOR INSERT TO authenticated
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS diary_entries_update_own ON public.diary_entries;
+CREATE POLICY diary_entries_update_own ON public.diary_entries FOR UPDATE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id))
+  WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+DROP POLICY IF EXISTS diary_entries_delete_own ON public.diary_entries;
+CREATE POLICY diary_entries_delete_own ON public.diary_entries FOR DELETE TO authenticated
+  USING ((( SELECT auth.uid() AS uid) = user_id));
+
+REVOKE ALL ON TABLE public.diary_entries FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_entries TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.diary_entries TO service_role;
+
+-- ============================================================================
 -- 完 · Hamster-Nest schema 到此结束
 -- ============================================================================
