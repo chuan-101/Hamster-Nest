@@ -4006,6 +4006,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      council_app_mutate: {
+        Args: { p_payload: Json; p_request_id: string }
+        Returns: Json
+      }
       council_submit_report: {
         Args: {
           p_artifacts?: string[]
@@ -4014,6 +4018,20 @@ export type Database = {
           p_proposal_id: string
           p_result: string
           p_speaker: string
+        }
+        Returns: Json
+      }
+      council_worker_finish: {
+        Args: {
+          p_artifacts?: string[]
+          p_claimed_by: string
+          p_command_id: string
+          p_executor: string
+          p_follow_ups?: string[]
+          p_message: string
+          p_mode: string
+          p_proposal_id: string
+          p_result?: string
         }
         Returns: Json
       }
@@ -4046,6 +4064,7 @@ export type Database = {
           updated_at: string
         }[]
       }
+      dispatch_feed_notifications: { Args: never; Returns: number }
       dmetaphone: { Args: { "": string }; Returns: string }
       dmetaphone_alt: { Args: { "": string }; Returns: string }
       exchange_points_to_coins: {
