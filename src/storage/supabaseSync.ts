@@ -35,6 +35,11 @@ import type {
   EventThreadStatus,
   MemoEntry,
   MemoSource,
+  StashAdder,
+  StashComment,
+  StashFolder,
+  StashItem,
+  StashStatus,
   MemoTag,
   MemoryEntry,
   MemoryStatus,
@@ -628,6 +633,83 @@ const mapDiaryCommentRow = (row: DiaryCommentRow): DiaryComment => ({
   id: row.id,
   userId: row.user_id,
   entryId: row.entry_id,
+  author: row.author,
+  content: row.content,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+// 囤粮处
+type StashFolderRow = {
+  id: string
+  user_id: string
+  parent_id: string | null
+  name: string
+  icon: string | null
+  description: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+type StashItemRow = {
+  id: string
+  user_id: string
+  folder_id: string | null
+  title: string
+  url: string | null
+  content: string | null
+  tags: string[]
+  added_by: StashAdder
+  status: StashStatus
+  eaten_at: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+type StashCommentRow = {
+  id: string
+  user_id: string
+  item_id: string
+  author: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
+const mapStashFolderRow = (row: StashFolderRow): StashFolder => ({
+  id: row.id,
+  userId: row.user_id,
+  parentId: row.parent_id,
+  name: row.name,
+  icon: row.icon,
+  description: row.description,
+  sortOrder: row.sort_order,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapStashItemRow = (row: StashItemRow): StashItem => ({
+  id: row.id,
+  userId: row.user_id,
+  folderId: row.folder_id,
+  title: row.title,
+  url: row.url,
+  content: row.content,
+  tags: row.tags ?? [],
+  addedBy: row.added_by,
+  status: row.status,
+  eatenAt: row.eaten_at,
+  metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : {},
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapStashCommentRow = (row: StashCommentRow): StashComment => ({
+  id: row.id,
+  userId: row.user_id,
+  itemId: row.item_id,
   author: row.author,
   content: row.content,
   createdAt: row.created_at,
@@ -3021,6 +3103,248 @@ export const deleteDiaryComment = async (commentId: string): Promise<void> => {
     throw new Error('Supabase 客户端未配置')
   }
   const { error } = await supabase.from('diary_comments').delete().eq('id', commentId)
+  if (error) {
+    throw error
+  }
+}
+
+// ── 囤粮处 ────────────────────────────────────────────────────────────────
+// 仓鼠的颊囊：格子（自引用树）+ 粮食（链接 / 文本）+ 留言。folder_id 为空即待归仓。
+// 链接的归一化与去重键在 stash_contract.ts（与 MCP 共用同一份规则）。
+
+const STASH_FOLDER_COLUMNS = 'id,user_id,parent_id,name,icon,description,sort_order,created_at,updated_at'
+const STASH_ITEM_COLUMNS = 'id,user_id,folder_id,title,url,content,tags,added_by,status,eaten_at,metadata,created_at,updated_at'
+const STASH_COMMENT_COLUMNS = 'id,user_id,item_id,author,content,created_at,updated_at'
+
+export const listStashFolders = async (): Promise<StashFolder[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('stash_folders')
+    .select(STASH_FOLDER_COLUMNS)
+    .eq('user_id', userId)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapStashFolderRow(row as StashFolderRow))
+}
+
+// 粮食总量不大，一次拉全量：格子的计数、待归仓、搜索都在客户端算。
+export const listStashItems = async (): Promise<StashItem[]> => {
+  if (!supabase) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('stash_items')
+    .select(STASH_ITEM_COLUMNS)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapStashItemRow(row as StashItemRow))
+}
+
+export const createStashFolder = async (payload: {
+  name: string
+  icon: string | null
+  description: string | null
+  parentId: string | null
+}): Promise<StashFolder> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('stash_folders')
+    .insert({
+      user_id: userId,
+      name: payload.name,
+      icon: payload.icon,
+      description: payload.description,
+      parent_id: payload.parentId,
+    })
+    .select(STASH_FOLDER_COLUMNS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('新建格子失败')
+  }
+  return mapStashFolderRow(data as StashFolderRow)
+}
+
+export const updateStashFolder = async (
+  folderId: string,
+  payload: Partial<{ name: string; icon: string | null; description: string | null; parentId: string | null }>,
+): Promise<StashFolder> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const updates: Record<string, unknown> = {}
+  if (payload.name !== undefined) updates.name = payload.name
+  if (payload.icon !== undefined) updates.icon = payload.icon
+  if (payload.description !== undefined) updates.description = payload.description
+  if (payload.parentId !== undefined) updates.parent_id = payload.parentId
+  const { data, error } = await supabase
+    .from('stash_folders')
+    .update(updates)
+    .eq('id', folderId)
+    .select(STASH_FOLDER_COLUMNS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('更新格子失败')
+  }
+  return mapStashFolderRow(data as StashFolderRow)
+}
+
+// 删格子：库里的触发器把粮食与子格子升到上一级，一条都不删。
+export const deleteStashFolder = async (folderId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('stash_folders').delete().eq('id', folderId)
+  if (error) {
+    throw error
+  }
+}
+
+export const findStashItemByUrlKey = async (urlKey: string): Promise<StashItem | null> => {
+  if (!supabase) {
+    return null
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('stash_items')
+    .select(STASH_ITEM_COLUMNS)
+    .eq('user_id', userId)
+    .eq('url_key', urlKey)
+    .maybeSingle()
+  if (error) {
+    throw error
+  }
+  return data ? mapStashItemRow(data as StashItemRow) : null
+}
+
+export const createStashItem = async (payload: {
+  folderId: string | null
+  title: string
+  url: string | null
+  urlKey: string | null
+  content: string | null
+  tags: string[]
+}): Promise<StashItem> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('stash_items')
+    .insert({
+      user_id: userId,
+      folder_id: payload.folderId,
+      title: payload.title,
+      url: payload.url,
+      url_key: payload.urlKey,
+      content: payload.content,
+      tags: payload.tags,
+      added_by: 'chuanchuan',
+    })
+    .select(STASH_ITEM_COLUMNS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('囤粮失败')
+  }
+  return mapStashItemRow(data as StashItemRow)
+}
+
+export const updateStashItem = async (
+  itemId: string,
+  payload: Partial<{
+    folderId: string | null
+    title: string
+    url: string | null
+    urlKey: string | null
+    content: string | null
+    tags: string[]
+    status: StashStatus
+  }>,
+): Promise<StashItem> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const updates: Record<string, unknown> = {}
+  if (payload.folderId !== undefined) updates.folder_id = payload.folderId
+  if (payload.title !== undefined) updates.title = payload.title
+  if (payload.url !== undefined) updates.url = payload.url
+  if (payload.urlKey !== undefined) updates.url_key = payload.urlKey
+  if (payload.content !== undefined) updates.content = payload.content
+  if (payload.tags !== undefined) updates.tags = payload.tags
+  if (payload.status !== undefined) updates.status = payload.status
+  const { data, error } = await supabase
+    .from('stash_items')
+    .update(updates)
+    .eq('id', itemId)
+    .select(STASH_ITEM_COLUMNS)
+    .single()
+  if (error || !data) {
+    throw error ?? new Error('更新粮食失败')
+  }
+  return mapStashItemRow(data as StashItemRow)
+}
+
+export const deleteStashItem = async (itemId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('stash_items').delete().eq('id', itemId)
+  if (error) {
+    throw error
+  }
+}
+
+export const listStashComments = async (itemIds: string[]): Promise<StashComment[]> => {
+  if (!supabase || itemIds.length === 0) {
+    return []
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { data, error } = await supabase
+    .from('stash_comments')
+    .select(STASH_COMMENT_COLUMNS)
+    .eq('user_id', userId)
+    .in('item_id', itemIds)
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw error
+  }
+  return (data ?? []).map((row) => mapStashCommentRow(row as StashCommentRow))
+}
+
+// 串串在网页端留言固定署名 chuanchuan；端口的回复走 MCP。
+export const createStashComment = async (itemId: string, content: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const userId = await requireAuthenticatedUserId()
+  const { error } = await supabase.from('stash_comments').insert({
+    user_id: userId,
+    item_id: itemId,
+    author: 'chuanchuan',
+    content,
+  })
+  if (error) {
+    throw error
+  }
+}
+
+export const deleteStashComment = async (commentId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase 客户端未配置')
+  }
+  const { error } = await supabase.from('stash_comments').delete().eq('id', commentId)
   if (error) {
     throw error
   }

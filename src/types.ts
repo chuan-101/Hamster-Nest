@@ -456,6 +456,49 @@ export type DiaryComment = {
   updatedAt: string
 }
 
+// 囤粮处：仓鼠的颊囊。格子 = 自引用文件夹树；粮食 = 链接或文本，folder_id 为空即待归仓；
+// status=eaten 表示吃掉了（读过 / 看过 / 用过）。不分类型，类型语义由所在格子承担。
+export type StashStatus = 'stashed' | 'eaten'
+export type StashAdder = 'chuanchuan' | 'claude' | 'gpt' | 'gemini' | 'codex_cli' | 'claude_code_cli'
+
+export type StashFolder = {
+  id: string
+  userId: string
+  parentId: string | null
+  name: string
+  icon: string | null
+  description: string | null
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type StashItem = {
+  id: string
+  userId: string
+  folderId: string | null
+  title: string
+  url: string | null
+  content: string | null
+  tags: string[]
+  addedBy: StashAdder
+  status: StashStatus
+  eatenAt: string | null
+  metadata: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export type StashComment = {
+  id: string
+  userId: string
+  itemId: string
+  author: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type TimelineRecorder = 'chuanchuan' | 'syzygy'
 export type TimelineSource = string
 
