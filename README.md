@@ -109,7 +109,7 @@
 | MCP 服务器 | 职责 | 工具数 |
 |:---|:---|:---:|
 | `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 · 备忘录 · 事件集 | 22 |
-| `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki · 囤粮处 · 学习库图谱（退休） | 26 |
+| `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki · 囤粮处 | 17 |
 | `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 · 导读/总结 | 18 |
 | `hamster-lounge-mcp` | 仓鼠客厅 · 议事厅 · Syzygy 日记本 | 15 |
 | `hamster-life-mcp` | 高德地图 · 瑞幸 · 麦当劳 · TTS 语音 | 7 |
@@ -238,9 +238,9 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 </details>
 
 <details>
-<summary><b>📚 hamster-knowledge-mcp</b> — 知识库 · 档案 · Wiki · 囤粮处 · 学习库（26）</summary>
+<summary><b>📚 hamster-knowledge-mcp</b> — 知识库 · 档案 · Wiki · 囤粮处（17）</summary>
 
-> 囤粮处：学习库退休后的新颊囊——不连线、不分类型，格子承担分类语义；`folder_id` 为空即「待归仓」。`stash_add` 是唯一的触发型工具（冲浪 / 聊天中看到值得留的就囤），链接按归一化 `url_key` 去重，重复囤会原样返回已有那条。学习库 `*_learning_*` 工具原样保留、不再往里写。
+> 囤粮处：学习库退休后的新颊囊——不连线、不分类型，格子承担分类语义；`folder_id` 为空即「待归仓」。`stash_add` 是唯一的触发型工具（冲浪 / 聊天中看到值得留的就囤），链接按归一化 `url_key` 去重，重复囤会原样返回已有那条。学习库工具已下线（表与 `/knowledge` 页面不动，同论坛的处理方式）。
 
 | 工具 | 作用 |
 |:---|:---|
@@ -261,15 +261,6 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 | `add_archive_category` | 新建档案分类（分域 + 可选父级 / 排序） |
 | `add_archive` | 新建档案（标题 / 正文 / 关键词 / 别名 / 重要性 / 来源） |
 | `update_archive` | 更新档案，或软删除（`is_deleted`） |
-| `list_learning_folders` | 列出学习库文件夹树（含各文件夹节点数） |
-| `add_learning_folder` | 新建学习库文件夹（名称 / 图标 / 父级 / 排序） |
-| `read_learning_nodes` | 按文件夹 / 节点类型读取学习节点（`none` 看未归档） |
-| `search_learning_nodes` | 跨标题 / 正文 / 标签搜索学习节点 |
-| `add_learning_node` | 新建学习节点（概念 / 问题 / 洞见… 按类型带 metadata 约定） |
-| `update_learning_node` | 更新学习节点正文 / 标签 / 文件夹 / metadata |
-| `read_learning_edges` | 读取节点的双向连边（带两端节点标题与类型） |
-| `add_learning_edge` | 在两个节点间建连边（六种联想类型 + 强度 1-5） |
-| `update_learning_edge` | 更新连边类型 / 说明 / 强度 |
 
 </details>
 
@@ -452,7 +443,7 @@ Hamster-Nest/
 │   ├── functions/                   # Deno Edge Functions
 │   │   ├── _shared/                 #   公共库（auth 统一鉴权 / quota 额度 / time / mcp_common）
 │   │   ├── hamster-mcp/             #   时间轴 · 待办 · Feed · 备忘录 · 事件集
-│   │   ├── hamster-knowledge-mcp/   #   知识库 · 档案 · Wiki · 囤粮处 · 学习库（退休）
+│   │   ├── hamster-knowledge-mcp/   #   知识库 · 档案 · Wiki · 囤粮处
 │   │   ├── hamster-reading-mcp/     #   阅读 · 书摘 · 旁批
 │   │   ├── hamster-lounge-mcp/      #   客厅 · 议事厅 · 日记本
 │   │   ├── hamster-life-mcp/        #   地图 · 咖啡 · 麦当劳 · TTS
