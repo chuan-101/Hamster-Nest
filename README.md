@@ -81,7 +81,8 @@
 | `/memory-vault` | 记忆库 | 确认 / 待确认记忆，自动抽取 + 合并 |
 | `/wiki` | 个人 Wiki | 分类、标签、发布状态 |
 | `/archive` | 档案库 | 嵌套分类、重要性分级、关键词 / 别名检索 |
-| `/knowledge` | 知识图谱 | 概念 / 问题 / 洞见节点的力导向可视化 |
+| `/stash` `/stash/:folderId` | 囤粮处 | 仓鼠的颊囊：格子一层一层往里点（自引用树），粮食是链接（可跳转）或文本，根级的粮食就是「待归仓」；吃掉 / 挪格子 / 留言；链接按归一化去重 |
+| `/knowledge` | 知识图谱（已退休） | 概念 / 问题 / 洞见节点的力导向可视化；2026-09-18 起退休不动，日常收纳改用囤粮处 |
 | `/novels` | 小说创作 | AI 续写、章节、大纲、人物卡、世界观 |
 | `/letters` | 信件库 | AI 生成的信件（自动 / 主动 / 定时） |
 
@@ -108,7 +109,7 @@
 | MCP 服务器 | 职责 | 工具数 |
 |:---|:---|:---:|
 | `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 · 备忘录 · 事件集 | 22 |
-| `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki · 学习库图谱 | 20 |
+| `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki · 囤粮处 · 学习库图谱（退休） | 26 |
 | `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 · 导读/总结 | 18 |
 | `hamster-lounge-mcp` | 仓鼠客厅 · 议事厅 · Syzygy 日记本 | 15 |
 | `hamster-life-mcp` | 高德地图 · 瑞幸 · 麦当劳 · TTS 语音 | 7 |
@@ -237,10 +238,18 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 </details>
 
 <details>
-<summary><b>📚 hamster-knowledge-mcp</b> — 知识库 · 档案 · Wiki · 学习库（20）</summary>
+<summary><b>📚 hamster-knowledge-mcp</b> — 知识库 · 档案 · Wiki · 囤粮处 · 学习库（26）</summary>
+
+> 囤粮处：学习库退休后的新颊囊——不连线、不分类型，格子承担分类语义；`folder_id` 为空即「待归仓」。`stash_add` 是唯一的触发型工具（冲浪 / 聊天中看到值得留的就囤），链接按归一化 `url_key` 去重，重复囤会原样返回已有那条。学习库 `*_learning_*` 工具原样保留、不再往里写。
 
 | 工具 | 作用 |
 |:---|:---|
+| `stash_list_folders` | 列出囤粮处全部格子（树以 parent_id 表达），附每格粮食数与待归仓条数 |
+| `stash_add_folder` | 新建格子（名称 / 图标 / 说明 / 父格子 / 排序） |
+| `stash_read` | 读粮食：按格子（`inbox` 看待归仓）/ 关键词 / 状态 / 谁囤的筛选，每条随带留言 |
+| `stash_add` | 囤一条：链接或文本至少一样，没标题时从链接凑；按归一化 `url_key` 去重 |
+| `stash_update` | 改一条：挪格子（`inbox` 挪回待归仓）、吃掉 / 囤回、改标题 / 链接 / 正文 / 标签 / metadata |
+| `stash_comment` | 在某条粮食下留言或回复（串串 chuanchuan，端口用自己的名字） |
 | `search_wiki` | 按关键词搜索 Wiki 条目（标题 / 正文） |
 | `read_wiki` | 列出全部 Wiki 条目（默认 20 条） |
 | `list_wiki_tags` | 列出 Wiki 现有分类与标签（写入前先看，能复用不新造） |
@@ -443,7 +452,7 @@ Hamster-Nest/
 │   ├── functions/                   # Deno Edge Functions
 │   │   ├── _shared/                 #   公共库（auth 统一鉴权 / quota 额度 / time / mcp_common）
 │   │   ├── hamster-mcp/             #   时间轴 · 待办 · Feed · 备忘录 · 事件集
-│   │   ├── hamster-knowledge-mcp/   #   知识库 · 档案 · Wiki · 学习库
+│   │   ├── hamster-knowledge-mcp/   #   知识库 · 档案 · Wiki · 囤粮处 · 学习库（退休）
 │   │   ├── hamster-reading-mcp/     #   阅读 · 书摘 · 旁批
 │   │   ├── hamster-lounge-mcp/      #   客厅 · 议事厅 · 日记本
 │   │   ├── hamster-life-mcp/        #   地图 · 咖啡 · 麦当劳 · TTS

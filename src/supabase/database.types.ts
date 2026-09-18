@@ -3113,6 +3113,147 @@ export type Database = {
         }
         Relationships: []
       }
+      stash_comments: {
+        Row: {
+          author: string
+          content: string
+          created_at: string
+          id: string
+          item_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          author?: string
+          content: string
+          created_at?: string
+          id?: string
+          item_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          author?: string
+          content?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stash_comments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stash_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stash_folders: {
+        Row: {
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          name: string
+          parent_id: string | null
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          parent_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          parent_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stash_folders_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "stash_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stash_items: {
+        Row: {
+          added_by: string
+          content: string | null
+          created_at: string
+          eaten_at: string | null
+          folder_id: string | null
+          id: string
+          metadata: Json
+          status: string
+          tags: string[]
+          title: string
+          updated_at: string
+          url: string | null
+          url_key: string | null
+          user_id: string
+        }
+        Insert: {
+          added_by?: string
+          content?: string | null
+          created_at?: string
+          eaten_at?: string | null
+          folder_id?: string | null
+          id?: string
+          metadata?: Json
+          status?: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+          url?: string | null
+          url_key?: string | null
+          user_id: string
+        }
+        Update: {
+          added_by?: string
+          content?: string | null
+          created_at?: string
+          eaten_at?: string | null
+          folder_id?: string | null
+          id?: string
+          metadata?: Json
+          status?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          url?: string | null
+          url_key?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stash_items_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "stash_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       syzygy_commands: {
         Row: {
           claimed_at: string | null

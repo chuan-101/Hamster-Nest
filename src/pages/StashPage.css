@@ -1,0 +1,930 @@
+/* 囤粮处：风格对齐日记本 / 事件集（粉色系卡片），格子网格 + 粮食列表 + 编辑弹层。 */
+
+.stash-page {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 14px 14px 20px;
+  min-height: 100dvh;
+  /* .app-shell 是固定高度的纵向 flex，不设 flex-shrink: 0 页面会被压到一屏高（见事件集的同款注释）。 */
+  flex-shrink: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  color: #1f2937;
+  position: relative;
+  isolation: isolate;
+  box-sizing: border-box;
+}
+
+.stash-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 224, 200, 0.34), transparent 42%),
+    radial-gradient(circle at 90% 0%, rgba(255, 239, 246, 0.82), transparent 52%),
+    linear-gradient(180deg, rgba(255, 252, 254, 0.96) 0%, rgba(253, 245, 249, 0.96) 100%);
+}
+
+/* ── Header ───────────────────────────────────── */
+
+.stash-header {
+  position: relative;
+  min-height: 72px;
+  padding: 12px 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 18px rgba(255, 214, 231, 0.24);
+}
+
+.stash-title-wrap {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+  min-width: 0;
+}
+
+.stash-kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b27f98;
+}
+
+.stash-header .ui-title {
+  margin: 0;
+  color: #5c5c5c;
+}
+
+.stash-title {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.stash-header-btn,
+.stash-create-btn {
+  position: absolute;
+  top: 14px;
+  border-radius: 999px;
+  border: 1px solid #ffd6e7;
+  background: #fff;
+  color: #7d5d70;
+  padding: 7px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.stash-header-btn--left { left: 12px; }
+
+.stash-create-btn {
+  right: 12px;
+  background: linear-gradient(180deg, #ffeef6 0%, #ffe1ef 100%);
+  font-weight: 600;
+}
+
+.stash-create-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Intro ────────────────────────────────────── */
+
+.stash-intro-card {
+  border: 1px solid rgba(255, 214, 231, 0.88);
+  border-radius: 18px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 10px 20px rgba(255, 214, 231, 0.2);
+  position: relative;
+}
+
+.stash-intro-dot {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 214, 231, 0.62) 1.2px, transparent 1.2px);
+  background-size: 16px 16px;
+  opacity: 0.32;
+}
+
+.stash-intro-top {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.stash-intro-top strong {
+  color: #76556c;
+  font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.stash-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: #b28ba1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stash-intro-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #9a8793;
+  line-height: 1.5;
+}
+
+/* ── Breadcrumb ───────────────────────────────── */
+
+.stash-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #7c5a70;
+  padding: 0 4px;
+}
+
+.stash-breadcrumb__seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stash-breadcrumb__sep {
+  color: #d3aabf;
+}
+
+.stash-breadcrumb__link {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  font: inherit;
+  color: #c06e97;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.stash-breadcrumb__link:hover {
+  background: #fff3f8;
+  text-decoration: underline;
+}
+
+.stash-breadcrumb__current {
+  font-weight: 700;
+  color: #5a3c4f;
+  padding: 2px 4px;
+}
+
+.stash-folder-desc {
+  margin: 0;
+  padding: 0 6px;
+  font-size: 12px;
+  color: #9a8793;
+  line-height: 1.5;
+}
+
+/* ── Toolbar ──────────────────────────────────── */
+
+.stash-toolbar {
+  display: grid;
+  gap: 8px;
+}
+
+.stash-toolbar input[type='search'] {
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 14px;
+  border: 1px solid #f7c6dd;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: #4f3f4a;
+  background: #fffafd;
+}
+
+.stash-toolbar input[type='search']:focus {
+  outline: none;
+  border-color: #f5b3d2;
+  box-shadow: 0 0 0 2px rgba(255, 214, 231, 0.35);
+}
+
+.stash-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stash-filter-chip {
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #7c5a70;
+  padding: 6px 11px;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.stash-filter-chip.selected {
+  background: linear-gradient(180deg, #ffdeec 0%, #ffcfe5 100%);
+  color: #59354b;
+  border-color: #f8bed9;
+  box-shadow: 0 3px 7px rgba(255, 185, 216, 0.38);
+}
+
+/* ── Sections ─────────────────────────────────── */
+
+.stash-folders,
+.stash-items {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 214, 231, 0.88);
+  border-radius: 18px;
+  background: #fff;
+  padding: 14px;
+  box-shadow: 0 10px 20px rgba(255, 214, 231, 0.16);
+  display: grid;
+  gap: 12px;
+}
+
+.stash-section__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stash-section__top strong {
+  font-size: 14px;
+  color: #76556c;
+  font-variant-numeric: tabular-nums;
+}
+
+.stash-section__hint {
+  font-size: 11px;
+  color: #b28ba1;
+}
+
+.stash-section__empty {
+  margin: 0;
+  padding: 14px 12px;
+  border: 1px dashed rgba(255, 214, 231, 0.9);
+  border-radius: 14px;
+  background: rgba(255, 246, 251, 0.9);
+  color: #8f7285;
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ── Folder grid ──────────────────────────────── */
+
+.stash-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.stash-folder-card {
+  position: relative;
+  border: 1px solid rgba(255, 214, 231, 0.8);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 233, 210, 0.55), transparent 46%),
+    rgba(255, 255, 255, 0.96);
+  box-shadow: 0 6px 12px rgba(255, 214, 231, 0.18);
+  min-width: 0;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.stash-folder-card:hover {
+  border-color: #f8bed9;
+  transform: translateY(-1px);
+}
+
+.stash-folder-card__main {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 12px 34px 12px 12px;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  min-width: 0;
+}
+
+.stash-folder-card__icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.stash-folder-card__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #5a3c4f;
+  overflow-wrap: anywhere;
+}
+
+.stash-folder-card__count {
+  font-size: 11px;
+  color: #b28ba1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stash-folder-card__edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  background: #fff;
+  color: #9a4b72;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stash-folder-card__edit:hover {
+  background: #fff3f8;
+}
+
+/* ── Item cards ───────────────────────────────── */
+
+.stash-item-list {
+  display: grid;
+  gap: 10px;
+}
+
+.stash-item {
+  border: 1px solid rgba(255, 214, 231, 0.8);
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(255, 214, 231, 0.16);
+  min-width: 0;
+}
+
+.stash-item--eaten {
+  background: rgba(252, 248, 250, 0.94);
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.stash-item--eaten .stash-item__title {
+  color: #9a8793;
+  text-decoration: line-through;
+  text-decoration-color: rgba(154, 135, 147, 0.5);
+}
+
+.stash-item__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.stash-item__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff5f9 0%, #ffebf3 100%);
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.stash-item__title-wrap {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.stash-item__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #5a3c4f;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+a.stash-item__title:hover {
+  color: #c06e97;
+  text-decoration: underline;
+}
+
+.stash-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.stash-item__clock {
+  font-size: 11px;
+  color: #b28ba1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-top: 4px;
+}
+
+.stash-chip {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8a6b7d;
+  background: #fff3f8;
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  border-radius: 999px;
+  padding: 2px 9px;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stash-chip--author {
+  color: #6a4459;
+  background: linear-gradient(180deg, #ffeef6 0%, #ffe1ef 100%);
+}
+
+.stash-chip--host {
+  color: #5f6f8a;
+  background: #eef3ff;
+  border-color: rgba(191, 208, 255, 0.9);
+  font-weight: 500;
+}
+
+.stash-chip--eaten {
+  color: #7a5a3b;
+  background: #fff8ec;
+  border-color: rgba(250, 214, 165, 0.9);
+}
+
+.stash-chip--path {
+  color: #9a8793;
+  background: #fff;
+  font-weight: 500;
+}
+
+/* Markdown 正文：紧凑段距，长内容不撑破卡片。 */
+.stash-item__content {
+  color: #4f3f4a;
+  line-height: 1.65;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.stash-item__content > :first-child { margin-top: 0; }
+.stash-item__content > :last-child { margin-bottom: 0; }
+
+.stash-item__content p,
+.stash-item__content ul,
+.stash-item__content ol,
+.stash-item__content blockquote,
+.stash-item__content pre,
+.stash-item__content table {
+  margin: 0 0 8px;
+}
+
+.stash-item__content h1,
+.stash-item__content h2,
+.stash-item__content h3,
+.stash-item__content h4 {
+  margin: 10px 0 6px;
+  color: #5a3c4f;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.stash-item__content ul,
+.stash-item__content ol {
+  padding-left: 1.3em;
+}
+
+.stash-item__content blockquote {
+  padding: 4px 10px;
+  border-left: 3px solid #ffd6e7;
+  color: #7c5a70;
+  background: #fff8fb;
+  border-radius: 0 10px 10px 0;
+}
+
+.stash-item__content code {
+  font-size: 12.5px;
+  background: #fff3f8;
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+.stash-item__content pre {
+  padding: 10px 12px;
+  background: #fff3f8;
+  border: 1px solid rgba(255, 214, 231, 0.85);
+  border-radius: 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.stash-item__content pre code {
+  background: none;
+  padding: 0;
+}
+
+.stash-item__content a {
+  color: #c06e97;
+}
+
+.stash-item__content img {
+  max-width: 100%;
+  border-radius: 12px;
+}
+
+.stash-item__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stash-tag {
+  font-size: 11px;
+  color: #9a4b72;
+  background: #fff;
+  border: 1px dashed rgba(242, 156, 195, 0.8);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.stash-item__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 214, 231, 0.9);
+}
+
+.stash-inline-btn {
+  border: 1px solid rgba(255, 214, 231, 0.9);
+  border-radius: 999px;
+  background: #fff;
+  color: #7d5d70;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.stash-inline-btn:hover {
+  background: #fff5f9;
+}
+
+.stash-inline-btn--accent {
+  background: linear-gradient(180deg, #ffeef6 0%, #ffe1ef 100%);
+  font-weight: 600;
+}
+
+.stash-inline-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.stash-link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: #c06e97;
+  cursor: pointer;
+}
+
+.stash-link-btn:hover {
+  color: #9a4b72;
+  text-decoration: underline;
+}
+
+.stash-link-btn--danger {
+  margin-left: auto;
+  color: #b13f4d;
+}
+
+.stash-link-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.stash-move {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #8a6b7d;
+  min-width: 0;
+}
+
+.stash-move select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid rgba(255, 214, 231, 0.9);
+  border-radius: 999px;
+  background: #fff;
+  color: #7d5d70;
+  padding: 4px 22px 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  max-width: 180px;
+  text-overflow: ellipsis;
+  background-image: linear-gradient(45deg, transparent 50%, #c06e97 50%), linear-gradient(135deg, #c06e97 50%, transparent 50%);
+  background-position: calc(100% - 12px) 50%, calc(100% - 8px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+/* ── Comments ─────────────────────────────────── */
+
+.stash-comments {
+  margin-top: 2px;
+  display: grid;
+  gap: 8px;
+}
+
+.stash-comment {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff8fb;
+  border: 1px solid rgba(255, 214, 231, 0.7);
+}
+
+.stash-comment__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #b28ba1;
+}
+
+.stash-comment__head .stash-link-btn {
+  margin-left: auto;
+}
+
+.stash-comment__content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #4f3f4a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.stash-comment-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.stash-comment-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 12px;
+  border: 1px solid #f7c6dd;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #4f3f4a;
+  background: #fffafd;
+  resize: vertical;
+  min-height: 44px;
+}
+
+.stash-comment-form textarea:focus {
+  outline: none;
+  border-color: #f5b3d2;
+  box-shadow: 0 0 0 2px rgba(255, 214, 231, 0.35);
+}
+
+/* ── Notices ──────────────────────────────────── */
+
+.stash-notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(126, 211, 167, 0.5);
+  background: #fff;
+  font-size: 12px;
+  color: #2f7a56;
+}
+
+.stash-error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 181, 192, 0.7);
+  background: #fff;
+  font-size: 12px;
+  color: #b13f4d;
+}
+
+.stash-empty {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 214, 231, 0.65);
+  border-radius: 14px;
+  background: rgba(255, 246, 251, 0.9);
+  padding: 18px 16px;
+  margin: 0;
+  color: #8f7285;
+  text-align: center;
+}
+
+/* ── Editor modal ─────────────────────────────── */
+
+.stash-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(78, 56, 73, 0.34);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  z-index: 60;
+}
+
+.stash-editor {
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 36px);
+  overflow: auto;
+  background:
+    radial-gradient(circle at 0 0, rgba(255, 233, 244, 0.6), transparent 30%),
+    #fff;
+  border: 1px solid rgba(255, 214, 231, 0.9);
+  border-radius: 20px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 14px 28px rgba(255, 214, 231, 0.24);
+  box-sizing: border-box;
+}
+
+.stash-editor h2 {
+  margin: 0;
+  color: #68485e;
+  font-size: 18px;
+}
+
+.stash-editor label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  color: #76556c;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.stash-editor__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.stash-editor__row .stash-editor__icon {
+  flex: 0 0 auto;
+}
+
+.stash-editor__icon input {
+  text-align: center;
+  font-size: 20px;
+}
+
+.stash-editor input,
+.stash-editor textarea,
+.stash-editor select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid #f7c6dd;
+  padding: 10px;
+  font: inherit;
+  font-weight: 400;
+  color: #4f3f4a;
+  background: #fffafd;
+}
+
+.stash-editor textarea {
+  resize: vertical;
+}
+
+.stash-editor input:focus,
+.stash-editor textarea:focus,
+.stash-editor select:focus {
+  outline: none;
+  border-color: #f5b3d2;
+  box-shadow: 0 0 0 2px rgba(255, 214, 231, 0.35);
+}
+
+.stash-editor__error {
+  margin: 0;
+  font-size: 12px;
+  color: #b13f4d;
+}
+
+.stash-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.stash-editor__actions button {
+  border-radius: 10px;
+  border: 1px solid #ffd6e7;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.stash-editor__actions .secondary {
+  background: #fff;
+  color: #7d5d70;
+}
+
+.stash-editor__actions .danger {
+  background: #ffe8ee;
+  color: #9d3e53;
+  margin-right: auto;
+}
+
+.stash-editor__actions .primary {
+  background: linear-gradient(180deg, #ffdcec 0%, #ffcfe5 100%);
+  color: #5a3448;
+  font-weight: 600;
+}
+
+.stash-editor__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Responsive ───────────────────────────────── */
+
+@media (max-width: 560px) {
+  .stash-page {
+    padding: 12px;
+  }
+
+  .stash-header {
+    padding: 12px 80px;
+  }
+
+  .stash-header-btn,
+  .stash-create-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .stash-folder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stash-item__head {
+    flex-wrap: wrap;
+  }
+
+  .stash-item__clock {
+    margin-left: auto;
+  }
+
+  .stash-move select {
+    max-width: 140px;
+  }
+}

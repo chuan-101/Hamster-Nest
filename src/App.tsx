@@ -72,6 +72,7 @@ import EventCollectionPage from './pages/EventCollectionPage'
 import EventThreadPage from './pages/EventThreadPage'
 import DiaryPage from './pages/DiaryPage'
 import DiaryDayPage from './pages/DiaryDayPage'
+import StashPage from './pages/StashPage'
 import TodoPage from './pages/TodoPage'
 import HamsterConsolePage from './pages/HamsterConsolePage'
 import AgentCouncilPage from './pages/AgentCouncilPage'
@@ -2320,6 +2321,22 @@ const App = () => {
           element={
             <RequireAuth ready={authReady} user={user}>
               <DiaryDayPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/stash"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <StashPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/stash/:folderId"
+          element={
+            <RequireAuth ready={authReady} user={user}>
+              <StashPage />
             </RequireAuth>
           }
         />
