@@ -88,14 +88,11 @@ export const fetchLoungeSofa = async (sofaId: string): Promise<LoungeSofa | null
 export const createLoungeSofa = async (name: string): Promise<LoungeSofa> => {
   const client = requireClient()
   const { data, error } = await client
-    .from('lounge_sofas')
-    .insert({ name })
-    .select('id,name,created_at,updated_at')
-    .single()
+    .rpc('lounge_manage', { p_action: 'create', p_id: crypto.randomUUID(), p_name: name })
   if (error || !data) {
     throw error ?? new Error('创建沙发失败')
   }
-  return mapSofa(data as LoungeSofaRow)
+  return mapSofa(data as unknown as LoungeSofaRow)
 }
 
 export const renameLoungeSofa = async (sofaId: string, name: string): Promise<LoungeSofa> => {

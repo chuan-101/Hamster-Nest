@@ -2052,23 +2052,46 @@ export type Database = {
       lounge_sofas: {
         Row: {
           created_at: string
+          icon: string
+          icon_color: string
           id: string
+          kind: string
           name: string
+          session_id: string
           updated_at: string
+          user_id: string
         }
         Insert: {
           created_at?: string
+          icon?: string
+          icon_color?: string
           id?: string
+          kind?: string
           name: string
+          session_id: string
           updated_at?: string
+          user_id: string
         }
         Update: {
           created_at?: string
+          icon?: string
+          icon_color?: string
           id?: string
+          kind?: string
           name?: string
+          session_id?: string
           updated_at?: string
+          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "lounge_sofas_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       memo_entries: {
         Row: {
@@ -4125,6 +4148,55 @@ export type Database = {
         }[]
       }
       get_push_dispatch_secret: { Args: never; Returns: string }
+      lounge_claim_api: {
+        Args: { p_owner: string }
+        Returns: {
+          client_created_at: string | null
+          client_id: string | null
+          content: string
+          created_at: string
+          id: string
+          meta: Json
+          reply_to_id: string | null
+          role: string
+          sender_key: string | null
+          session_id: string
+          target_sender_keys: string[] | null
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      lounge_dispatch_prepare: {
+        Args: {
+          p_client_id: string
+          p_content: string
+          p_legacy_browser?: boolean
+          p_reply_to?: string
+          p_retry_failed?: boolean
+          p_sender?: string
+          p_session_id: string
+          p_targets?: string[]
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      lounge_manage: {
+        Args: { p_action: string; p_id: string; p_name?: string }
+        Returns: Json
+      }
+      lounge_retry_reply: {
+        Args: { p_owner: string; p_reply: string }
+        Returns: Json
+      }
+      lounge_set_appearance: {
+        Args: { p_color?: string; p_icon: string; p_id: string; p_name: string }
+        Returns: Json
+      }
       mark_wechat_message_failed: {
         Args: { p_error: string; p_message_id: string; p_worker_id: string }
         Returns: boolean

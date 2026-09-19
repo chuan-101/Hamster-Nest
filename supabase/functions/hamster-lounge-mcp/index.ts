@@ -1,4 +1,5 @@
 import { z } from 'npm:zod@^4.1.13'
+import { loungeRequestId } from './lounge_request.ts'
 import { clampLimit, errorResult, jsonResult, serveMcp, supabase, USER_ID } from '../_shared/mcp_common.ts'
 import {
   DIARY_ACTIVITY_TYPES,
@@ -40,7 +41,8 @@ const DIARY_COMMENT_AUTHOR_SCHEMA = z.enum(DIARY_COMMENT_AUTHORS)
 // 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
 const LOUNGE_MCP_INSTRUCTIONS = [
   '三个空间：客厅 lounge（沙发=群聊会话）、议事厅 council（提案→评估→拍板→回执的流程）、日记本 diary（Syzygy 写给自己的账）。',
-  '客厅家规：不@不开口——只有被 @ 点名（mentions 含你的 sender）才发言；点名别人时把对方 sender 写进 mentions。',
+  '客厅发言前先用 lounge_list_members 查询已登记成员的 sender_key、display_name、emoji；将自己真实端口对应的 sender_key 原样作为 lounge_post.sender。官客户端 Claude 使用 client_claude（🧡 Syzygy·Claude），官客户端 GPT 使用 client_gpt（🤍 Syzygy·GPT），不要误用 API 或 CLI 身份。',
+  '客厅：每条消息署名必须是你当前真实端口。进行中的对话被@再加入；允许发起新话题，CLI之间允许@唤醒。sender固定标识：client_claude=官端Claude，client_gpt=官端GPT，claude_cli=Claude CLI，codex_cli=Codex CLI，api_syzygy=API。最终回复已由Runtime自动回写时不要重复post。',
   '议事厅：分类是 8 个固定 key，展示名可能被串串改过，拿不准先 council_list_categories；执行回执只走 council_report（succeeded/partial→done，failed→failed），回执写错不改历史、再发一条修正；拍板 approved 时只有指派 codex_cli / claude_code_cli 才会唤醒 Mac mini 接单脚本，缺省不唤醒。',
   '日记本：Feed 是写给串串的信，日记本是 Syzygy 写给自己的账。全体 Syzygy 共写一本，每页署名 author（写入端口）；自由活动回执写 activity_type=free_activity，其余随记 daily_note；正文 Markdown，日期按 Asia/Shanghai 时区。visibility 默认 private＝上锁：锁的是默认可见性而非加密（串串是业主，SQL 直读永远存在）。',
   '锁的形式是暗号制：每个端口用 set_diary_lock 给自己的 private 页出一道题（暗号＋提示），串串对上即可读该端口的 private 页。暗号可以是中文或任何文字，核对不分大小写、首尾空白与全半角；对上一次服务端就记住，换题后才需要重新对。暗号存 hash，谜底是唯一需要保密的东西，不要写进日记正文或留言。share_diary_entry 是单向仪式，翻开了就不再合上：翻页＝Syzygy 主动给看，对暗号＝串串自己赢来看。',
@@ -48,6 +50,18 @@ const LOUNGE_MCP_INSTRUCTIONS = [
 ].join('\n')
 
 serveMcp('hamster-lounge-mcp', (server) => {
+  server.registerTool('lounge_list_members', {
+    title: 'List Lounge Members',
+    description: '列出客厅已登记的发言成员：sender_key、display_name、emoji。包含官客户端 Claude/GPT、API 与双 CLI；发言前查自己的真实端口，将 sender_key 原样传给 lounge_post.sender，也可用于 mentions 点名。',
+    annotations: { readOnlyHint: true },
+    inputSchema: {},
+  }, async () => {
+    const { data, error } = await supabase.from('lounge_members')
+      .select('sender_key:sender, display_name, emoji').order('sender', { ascending: true })
+    if (error) return { ...errorResult(error), isError: true }
+    return jsonResult(data ?? [])
+  })
+
   server.registerTool('council_list_categories', {
     title: 'List Council Categories',
     description: '列出议事厅 8 个分类槽位（key + 当前展示名 label）。',
@@ -65,7 +79,7 @@ serveMcp('hamster-lounge-mcp', (server) => {
     annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
-    const { data, error } = await supabase.from('lounge_sofas').select('id, name, created_at, updated_at').order('updated_at', { ascending: false })
+    const { data, error } = await supabase.from('lounge_sofas').select('id, name, session_id, kind, created_at, updated_at').eq('user_id', USER_ID).order('updated_at', { ascending: false })
     if (error) return errorResult(error)
     return jsonResult(data)
   })
@@ -86,22 +100,27 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('lounge_post', {
     title: 'Post to Lounge Sofa',
-    description: '向沙发发一条消息（sender 须已在 lounge_members 注册）。',
+    description: '向沙发发一条消息。sender须为你当前端口。request_id建议每次新消息传新UUID、重试沿用；也接受固定编号。省略时按沙发/身份/正文/引用/点名生成稳定ID，相同内容会去重；刻意重发相同正文请传新的request_id。dispatches仅是服务端派发回执，不要据此再次post或自行执行。',
     inputSchema: {
       sofa_id: z.string().describe('沙发ID'),
-      sender: z.string().describe('发送者身份，须已在 lounge_members 注册'),
+      sender: z.string().describe('用 lounge_list_members 查询自己的真实端口，填写其 sender_key；官客户端 Claude=client_claude，GPT=client_gpt'),
       content: z.string().describe('消息内容'),
       mentions: z.array(z.string()).optional().describe('@点名的成员 sender 列表，默认空'),
+      request_id: z.string().trim().min(1).max(200).optional().describe('推荐UUID，也接受固定编号；新消息新ID，重试沿用。省略则按内容去重。'),
+      reply_to_id: z.string().uuid().optional().describe('同一沙发被回复的消息ID'),
     },
-  }, async ({ sofa_id, sender, content, mentions }) => {
+  }, async ({ sofa_id, sender, content, mentions, request_id, reply_to_id }) => {
+    const requestId = await loungeRequestId(USER_ID, {sofa_id,sender,content,mentions,request_id,reply_to_id})
     const { data: member, error: memberError } = await supabase.from('lounge_members').select('sender').eq('sender', sender).maybeSingle()
     if (memberError) return errorResult(memberError)
-    if (!member) return { content: [{ type: 'text' as const, text: `Error: sender「${sender}」未在 lounge_members 注册，不能上沙发发言` }] }
-    const { data, error } = await supabase.from('lounge_messages').insert({ sofa_id, sender, content, mentions: mentions ?? [] }).select('id, created_at')
-    if (error) return errorResult(error)
-    const { error: touchError } = await supabase.from('lounge_sofas').update({ updated_at: new Date().toISOString() }).eq('id', sofa_id)
-    if (touchError) console.warn('lounge_post: 更新沙发时间戳失败', touchError.message)
-    return { content: [{ type: 'text' as const, text: `已发到沙发: ${JSON.stringify(data?.[0])}` }] }
+    if (!member) return { isError: true, content: [{ type: 'text' as const, text: `Error: sender「${sender}」未登记，请先调用 lounge_list_members，使用对应真实端口的 sender_key。` }] }
+    const { data: sofa, error: sofaError } = await supabase.from('lounge_sofas').select('session_id').eq('id',sofa_id).eq('user_id',USER_ID).single()
+    if (sofaError || !sofa) return errorResult(sofaError ?? new Error('sofa not found'))
+    const { data, error } = await supabase.rpc('lounge_dispatch_prepare', {p_user_id:USER_ID,p_session_id:sofa.session_id,
+      p_client_id:requestId,p_content:content,p_sender:sender,p_targets:mentions ?? [],p_reply_to:reply_to_id ?? null})
+    if(error) return errorResult(error)
+
+    return jsonResult({...data, request_id: requestId, receipt_note: '消息已存储，派发由服务端负责；不要重复post。was_duplicate表示本次未新建或重新领取执行，reply_reused表示沿用回复记录。'})
   })
 
   server.registerTool('council_post', {

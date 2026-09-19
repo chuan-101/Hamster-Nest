@@ -1,3 +1,5 @@
+import { isApprovedSupabaseSecretKey } from '../_shared/supabase_secret.ts'
+import { getOwnerUserId } from '../_shared/owner.ts'
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { consumeQuota } from '../_shared/quota.ts'
@@ -36,7 +38,7 @@ type OpenRouterPayload = {
 
 type StoredMessageRow = {
   id: string
-  role: 'user' | 'assistant' | 'system'
+  role: string // RP history also stores character names.
   content: string
 }
 
@@ -656,7 +658,7 @@ const formatHistoryMessagesForCompression = (
   fullHistory: StoredMessageRow[],
 ): OpenAiMessage[] => (compressionModule === 'rp'
   ? fullHistory.map((message) => ({ role: 'assistant', content: `【${message.role}】${message.content}` }))
-  : fullHistory.map((message) => ({ role: message.role, content: message.content })))
+  : fullHistory.map((message) => ({ role: message.role === 'assistant' || message.role === 'system' ? message.role : 'user', content: message.content })))
 
 const buildSummarizedMessages = (
   compressionModule: 'chat' | 'rp',
@@ -1014,7 +1016,7 @@ const maybeCompressRuntimeContext = async (
         )
         summaryText = refreshedSummary || summaryText
         if (summaryText) {
-          const { data, error } = await upsertCompressionCache(
+          const { error } = await upsertCompressionCache(
             compressionModule,
             conversationId,
             refreshBoundaryId,
@@ -1035,7 +1037,7 @@ const maybeCompressRuntimeContext = async (
               module: compressionModule,
               conversationId,
               compressedUpToMessageId: refreshBoundaryId,
-              rows: Array.isArray(data) ? data.length : 0,
+              written: true,
             })
             cacheBoundaryIndex = refreshBoundaryIndex
           }
@@ -1174,8 +1176,9 @@ serve(async (req) => {
     })
   }
 
-  let userId: string | null = null
-  try {
+  const internalLounge = isApprovedSupabaseSecretKey(apiKeyHeader)
+  let userId: string | null = internalLounge ? getOwnerUserId() : null
+  if (!internalLounge) try {
     const authUrl = new URL('/auth/v1/user', new URL(req.url).origin)
     const authResponse = await fetch(authUrl, {
       headers: {
@@ -1204,6 +1207,9 @@ serve(async (req) => {
     })
   }
 
+  if (!userId) return new Response(JSON.stringify({ error: '身份令牌无效' }), {
+    status: 401, headers: { ...buildCorsHeaders(origin), 'Content-Type': 'application/json' },
+  })
   if (userId) {
     const quota = await consumeQuota('openrouter-chat', userId, DAILY_QUOTA)
     if (!quota.allowed) {
@@ -1229,6 +1235,8 @@ serve(async (req) => {
       },
     })
   }
+
+  if (internalLounge && payload.module !== 'lounge') return new Response('Forbidden', { status: 403 })
 
   const activeProvider = userId ? await resolveActiveProviderConfig(userId) : null
   const runtimeProvider: RuntimeProviderConfig = activeProvider ?? {
@@ -1275,7 +1283,7 @@ serve(async (req) => {
     modelId: resolvedModelId,
   }
 
-  if (userId) {
+  if (userId && !internalLounge) {
     messages = await maybeInjectMemory(resolvedPayload, messages, userId, req.url, authHeader, apiKeyHeader)
     const compressionResult = await maybeCompressRuntimeContext(
       resolvedPayload,
@@ -1292,7 +1300,7 @@ serve(async (req) => {
     compressionCacheWriteErrorMessage = compressionResult.cacheWriteErrorMessage
   }
 
-  const buildRpCompressionDebugHeaders = () => {
+  const buildRpCompressionDebugHeaders = (): Record<string, string> => {
     if (!debugEnabled || compressionModule !== 'rp') {
       return {}
     }

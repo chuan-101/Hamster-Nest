@@ -1,0 +1,97 @@
+-- Run after the migration inside a transaction and always ROLLBACK.
+create or replace function private.lounge_kick() returns void language plpgsql as $$ begin return; end $$;
+do $$
+declare owner uuid; sid uuid; sid2 uuid; result jsonb; repeated jsonb; source uuid; reply uuid; second uuid;
+ request uuid:=gen_random_uuid(); bad boolean; before_count int; legacy_id uuid:=gen_random_uuid();
+begin
+ select user_id,session_id into owner,sid from public.lounge_sofas where kind='daily';
+ select session_id into sid2 from public.lounge_sofas where kind='work';
+ assert sid<>sid2,'isolated default sessions';
+ assert private.lounge_mentions('@Claude CLI Syzygy @Codex CLI @Syzygy-GPT @Syzygy-Claude') @> array['claude_cli','codex_cli','client_gpt','client_claude'],'alias normalization';
+ assert not(private.lounge_mentions('@Syzygy-GPT') @> array['api_syzygy']),'no prefix match';
+ result:=public.lounge_dispatch_prepare(owner,sid,request,'@claude_cli smoke');
+ source:=(result->'message'->>'id')::uuid;
+ assert jsonb_array_length(result->'dispatches')=1,'one explicit target';
+ assert not(result->'dispatches'->0->>'was_duplicate')::boolean,'new dispatch is not duplicate';
+ assert result->'dispatches'->0->>'execution_disposition'='queued','new receipt queued';
+ reply:=(result->'dispatches'->0->'reply'->>'id')::uuid;
+ assert (select sender_key='claude_cli' and meta->>'mention_depth'='1' from public.messages where id=reply),'reply identity';
+ repeated:=public.lounge_dispatch_prepare(owner,sid,request,'@claude_cli smoke');
+ assert repeated->'message'->>'id'=source::text,'idempotent source';
+ assert repeated->'dispatches'->0->'reply'->>'id'=reply::text,'idempotent reply';
+ assert not(repeated->'dispatches'->0->>'should_execute')::boolean,'no duplicate command';
+ assert (repeated->'dispatches'->0->>'was_duplicate')::boolean,'repeated receipt duplicate';
+ assert (select r.created_at>m.created_at from public.messages r join public.messages m on r.reply_to_id=m.id where r.id=reply),'reply strictly after source';
+ update public.messages set meta=meta||'{"delivery_state":"failed"}' where id=reply;
+ update public.syzygy_commands set status='failed',completed_at=now() where payload->>'reply_id'=reply::text;
+ update public.agent_tasks set status='failed',completed_at=now() where payload_json->>'reply_id'=reply::text;
+ repeated:=public.lounge_retry_reply(owner,reply);
+ assert repeated->>'execution_disposition'='requeued','explicit retry is requeued';
+ assert not(repeated->>'was_duplicate')::boolean and (repeated->>'should_execute')::boolean,'retry claims one new attempt';
+ assert (repeated->>'reply_reused')::boolean,'retry preserves reply identity';
+
+ bad:=false;begin perform public.lounge_dispatch_prepare(owner,sid,request,'changed');exception when unique_violation then bad:=true;end;
+ assert bad,'identity conflict';
+ bad:=false;begin perform public.lounge_dispatch_prepare(owner,sid2,gen_random_uuid(),'cross',p_reply_to=>source);exception when invalid_parameter_value then bad:=true;end;
+ assert bad,'cross sofa reply forbidden';
+ update public.messages set content='@codex_cli please reply',meta=meta||'{"delivery_state":"completed"}' where id=reply;
+ select id into second from public.messages where reply_to_id=reply and sender_key='codex_cli';
+ assert second is not null,'CLI cascade';
+ assert (select meta->>'mention_depth'='2' from public.messages where id=second),'cascade depth';
+ update public.messages set content='@claude_cli again',meta=meta||'{"delivery_state":"completed"}' where id=second;
+ assert (select importance='normal' and payload->>'screen'='lounge_detail' from public.agent_events where entity_id=reply and event_type='conversation_reply_completed'),'reply to user notifies';
+ assert (select importance='low' from public.agent_events where entity_id=second and event_type='conversation_reply_completed'),'CLI mutual reply quiet';
+ assert (select meta->>'mention_stopped'='depth_limit' from public.messages where id=second),'depth guard visible';
+ assert not exists(select 1 from public.messages where reply_to_id=second),'no loop';
+ result:=public.lounge_dispatch_prepare(owner,sid,gen_random_uuid(),'@codex_cli competing',p_reply_to=>reply);
+ assert result->'dispatches'->0->>'responder_sender_key'='claude_cli','reply wins over mention';
+ result:=public.lounge_dispatch_prepare(owner,sid,gen_random_uuid(),'hello',p_targets=>array['codex_cli']);
+ assert result->'dispatches'->0->>'responder_sender_key'='codex_cli','chip routing';
+ result:=public.lounge_dispatch_prepare(owner,sid,gen_random_uuid(),'API hello');
+ assert result->'dispatches'->0->>'responder_sender_key'='api_syzygy','API default';
+ assert (select count(*)=1 from public.lounge_claim_api(owner)),'atomic API claim';
+ assert (select count(*)=0 from public.lounge_claim_api(owner)),'API no duplicate claim';
+ result:=public.lounge_dispatch_prepare(owner,sid,gen_random_uuid(),'@codex_cli self',p_sender=>'codex_cli');
+ assert jsonb_array_length(result->'dispatches')=0,'no self wake';
+ result:=public.lounge_dispatch_prepare(owner,sid,gen_random_uuid(),'@chuanchuan notice',p_sender=>'codex_cli');
+ assert (select importance='normal' from public.agent_events where entity_id=(result->'message'->>'id')::uuid and event_type='conversation_reply_completed'),'explicit user mention notifies';
+ result:=public.lounge_dispatch_prepare(owner,sid,gen_random_uuid(),'@client_claude hello');
+ assert jsonb_array_length(result->'dispatches')=0,'official client not CLI';
+ insert into public.lounge_messages(id,sofa_id,sender,content,mentions)
+ select legacy_id,id,'chuanchuan','legacy test','{}' from public.lounge_sofas where session_id=sid;
+ assert exists(select 1 from public.messages where client_id=legacy_id),'legacy adapts canonical';
+ assert not exists(select 1 from public.messages where reply_to_id=(select id from public.messages where client_id=legacy_id)),'legacy browser API not doubled';
+ assert exists(select 1 from public.lounge_messages where id=source),'canonical mirrors old read';
+ assert exists(select 1 from public.lounge_messages where id=reply),'completed replies mirrored';
+ assert (select count(*)=1 from public.syzygy_commands where payload->>'reply_id'=reply::text),'exactly one command';
+ assert (select count(*)=1 from public.agent_tasks where payload_json->>'reply_id'=reply::text),'exactly one durable task';
+ assert not has_function_privilege('authenticated','public.lounge_dispatch_prepare(uuid,uuid,uuid,text,text,text[],uuid,boolean,boolean)','EXECUTE'),'cannot impersonate sender';
+ assert not has_function_privilege('anon','public.lounge_manage(text,uuid,text)','EXECUTE'),'anonymous management denied';
+end $$;
+select 'lounge routing, cascade, history compatibility and permissions passed' as result;
+
+select set_config('request.jwt.claim.sub',(select user_id::text from public.lounge_sofas where kind='daily' limit 1),true);
+set local role authenticated;
+do $$ declare sofa uuid:=gen_random_uuid(); sid uuid; denied boolean:=false; begin
+ insert into public.lounge_sofas(id,name) values(sofa,'legacy directory smoke') returning session_id into sid;
+ assert sid is not null,'legacy create has canonical session';
+ update public.lounge_sofas set name='renamed smoke' where id=sofa;
+ assert (select title='renamed smoke' from public.sessions where id=sid),'rename synchronizes';
+ perform public.lounge_set_appearance(sofa,'inline name','moon');
+ assert (select name='inline name' and icon='moon' from public.lounge_sofas where id=sofa),'appearance stored together';
+ assert (select title='inline name' from public.sessions where id=sid),'appearance synchronizes session';
+ begin perform public.lounge_set_appearance(sofa,'unsafe','not-an-icon');
+ exception when invalid_parameter_value then denied:=true;end;
+ assert denied,'invalid icon rejected';denied:=false;
+ begin perform public.lounge_set_appearance(gen_random_uuid(),'foreign','moon');
+ exception when no_data_found then denied:=true;end;
+ assert denied,'unknown or foreign sofa rejected';denied:=false;
+ begin
+  insert into public.messages(user_id,session_id,role,content,sender_key) values(auth.uid(),sid,'assistant','spoof','codex_cli');
+ exception when insufficient_privilege then denied:=true; end;
+ assert denied,'direct authenticated impersonation blocked';
+ delete from public.lounge_sofas where id=sofa;
+ assert not exists(select 1 from public.sessions where id=sid),'delete cleans canonical session';
+end $$;
+reset role;
+select 'authenticated sofa management and canonical write guard passed' as result;

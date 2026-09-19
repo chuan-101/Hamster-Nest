@@ -1,3 +1,4 @@
+import { handleLoungeRequest, handleLoungeWorker } from './lounge.ts'
 import '@supabase/functions-js/edge-runtime.d.ts'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getOwnerUserId } from '../_shared/owner.ts'
@@ -641,6 +642,8 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: '只支持 POST' }, 405, corsHeaders)
   }
 
+  if (request.headers.has('x-lounge-worker-secret')) return handleLoungeWorker(request)
+
   const authorization = request.headers.get('authorization')
   const apiKey = request.headers.get('apikey')
   if (!authorization || !apiKey) {
@@ -683,6 +686,9 @@ Deno.serve(async (request) => {
   if (userId !== ownerId) {
     return jsonResponse({ error: '无权访问' }, 403, corsHeaders)
   }
+
+  const loungeBody = await request.clone().json().catch(() => null)
+  if (loungeBody?.mode === 'lounge') return handleLoungeRequest(userId, loungeBody, corsHeaders)
 
   let payload
   try {
