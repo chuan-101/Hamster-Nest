@@ -3179,6 +3179,7 @@ export type Database = {
           created_at: string
           description: string | null
           icon: string | null
+          icon_color: string
           id: string
           name: string
           parent_id: string | null
@@ -3190,6 +3191,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           icon?: string | null
+          icon_color?: string
           id?: string
           name: string
           parent_id?: string | null
@@ -3201,6 +3203,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           icon?: string | null
+          icon_color?: string
           id?: string
           name?: string
           parent_id?: string | null
@@ -4280,6 +4283,46 @@ export type Database = {
       spend_coins: {
         Args: { p_amount: number; p_description: string; p_user_id?: string }
         Returns: Json
+      }
+      stash_folder_counts: {
+        Args: never
+        Returns: {
+          folder_id: string
+          stashed_count: number
+          total_count: number
+        }[]
+      }
+      stash_search_items: {
+        Args: {
+          p_before_id?: string
+          p_before_time?: string
+          p_folder_id?: string
+          p_limit?: number
+          p_search?: string
+          p_status?: string
+        }
+        Returns: {
+          added_by: string
+          content: string | null
+          created_at: string
+          eaten_at: string | null
+          folder_id: string | null
+          id: string
+          metadata: Json
+          status: string
+          tags: string[]
+          title: string
+          updated_at: string
+          url: string | null
+          url_key: string | null
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "stash_items"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       text_soundex: { Args: { "": string }; Returns: string }
       unaccent: { Args: { "": string }; Returns: string }
