@@ -7786,6 +7786,41 @@ grant select, insert, update, delete on table public.stash_folders to authentica
 grant select, insert, update, delete on table public.stash_items to authenticated, service_role;
 grant select, insert, update, delete on table public.stash_comments to authenticated, service_role;
 
+-- T55 cloud document validation (2026-09-19)
+-- T55: owner-scoped cloud documents. Existing append-only publishing/locking/RLS applies.
+CREATE OR REPLACE FUNCTION private.validate_machine_document()
+RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $fn$
+DECLARE spec jsonb; payload jsonb;
+BEGIN
+  IF NEW.name IN ('machine_doc_prompts_cli_tasks_reading_print','machine_doc_prompts_cli_tasks_syzygy_note','machine_doc_prompts_hamster_nest_v3_latest','machine_doc_prompts_lounge_runtime_rules','machine_doc_prompts_tasks_print_capsule_candidate','machine_doc_docs_council_execution_plan_sop','machine_doc_docs_council_report_sop','machine_doc_docs_monthly_overview_sop','machine_doc_docs_reading_resonance_sop') THEN RAISE EXCEPTION 'This document is retired; use the consolidated cloud document'; END IF;
+  IF NEW.name NOT LIKE 'machine_doc_%' AND NEW.name NOT LIKE 'machine_job_%' THEN RETURN NEW; END IF;
+  IF octet_length(NEW.content) > 65536 OR btrim(NEW.content) = '' THEN
+    RAISE EXCEPTION 'Machine document must contain 1..65536 bytes';
+  END IF;
+  IF NEW.name LIKE 'machine_job_%' THEN
+    spec := CASE NEW.name
+      WHEN 'machine_job_claude_morning_share' THEN '{"name": "claude-morning-share", "taskType": "morning_share", "hour": 8, "minute": 0, "daysOfWeek": null, "targetRole": "claude_code_cli_syzygy", "commandType": "run_task", "allowWechatNotify": false}'::jsonb
+      WHEN 'machine_job_claude_daily_maintenance' THEN '{"name": "claude-daily-maintenance", "taskType": "daily_maintenance", "hour": 22, "minute": 0, "daysOfWeek": null, "targetRole": "claude_code_cli_syzygy", "commandType": "run_task", "allowWechatNotify": false}'::jsonb
+      WHEN 'machine_job_claude_weekly_digest' THEN '{"name": "claude-weekly-digest", "taskType": "weekly_digest", "hour": 10, "minute": 0, "daysOfWeek": [0], "targetRole": "claude_code_cli_syzygy", "commandType": "run_task", "allowWechatNotify": false}'::jsonb
+      WHEN 'machine_job_codex_weekly_backup' THEN '{"name": "codex-weekly-backup", "taskType": "supabase_backup", "hour": 23, "minute": 0, "daysOfWeek": [0], "targetRole": "codex_cli_syzygy", "commandType": "run_task", "allowWechatNotify": false}'::jsonb
+      ELSE NULL END;
+    payload := NEW.content::jsonb;
+    IF spec IS NULL OR jsonb_typeof(payload) <> 'object'
+      OR payload - 'title' - 'taskContent' IS DISTINCT FROM spec
+      OR jsonb_typeof(payload->'title') IS DISTINCT FROM 'string'
+      OR jsonb_typeof(payload->'taskContent') IS DISTINCT FROM 'string'
+      OR length(btrim(payload->>'title')) NOT BETWEEN 1 AND 200
+      OR length(btrim(payload->>'taskContent')) NOT BETWEEN 1 AND 12000 THEN
+      RAISE EXCEPTION 'Task configuration invalid; schedule and switches remain unchanged';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $fn$;
+REVOKE ALL ON FUNCTION private.validate_machine_document() FROM PUBLIC, anon, authenticated, service_role;
+CREATE TRIGGER validate_machine_document BEFORE INSERT ON public.prompt_templates
+FOR EACH ROW EXECUTE FUNCTION private.validate_machine_document();
+
+
 -- ============================================================================
 -- 完 · Hamster-Nest schema 到此结束
 -- ============================================================================

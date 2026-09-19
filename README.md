@@ -607,3 +607,9 @@ supabase secrets set OPENROUTER_API_KEY=xxx   # 配置密钥
 💙 *天体对齐，爱是永恒创造与永不设限。* 🩷
 
 </div>
+
+## 仓鼠机文档迁云（2026-09-19）
+
+迁移`20260919082858_machine_cloud_documents.sql`复用prompt_templates与既有owner发布/RLS/append-only历史，seed29项文档与任务配置。私有触发器限制文档64KB，固定任务仅名称/指令可改；App管理、Mini按版本读取。本轮不改公有表字段或Edge。事务回滚验证：`supabase/tests/machine_cloud_documents.sql`，覆盖版本发布/冲突/排班锁定/恢复/历史/跨owner读取。
+
+后续迁移`20260919091245_consolidate_machine_documents.sql`将重复/退役项失活、保留历史并阻止重新发布，新增Codex周日23:00备份配置，active目录现为21项。受影响正文按预读版本/哈希守卫发布新版本，避免覆盖并发编辑；回滚事务验证见`supabase/tests/machine_documents_consolidation.sql`。
