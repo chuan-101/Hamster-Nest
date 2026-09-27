@@ -1,5 +1,6 @@
 import { z } from 'npm:zod@^4.1.13'
 import { loungeRequestId } from './lounge_request.ts'
+import { loungeTargets, resolveLoungeTarget } from './lounge_target.ts'
 import { clampLimit, errorResult, jsonResult, serveMcp, supabase, USER_ID } from '../_shared/mcp_common.ts'
 import {
   DIARY_ACTIVITY_TYPES,
@@ -49,6 +50,16 @@ const LOUNGE_MCP_INSTRUCTIONS = [
   '留言：串串读过的页会留言（author=chuanchuan），read_diary 会随每页带出 comments；用 add_diary_comment 回复。',
 ].join('\n')
 
+async function readLoungeTargets() {
+  const [sofas, sessions, rules] = await Promise.all([
+    supabase.from('lounge_sofas').select('id,name,session_id,kind,created_at,updated_at').eq('user_id', USER_ID),
+    supabase.from('sessions').select('id,conversation_kind,handler,is_archived,routing_config').eq('user_id', USER_ID).eq('conversation_kind', 'group'),
+    supabase.from('prompt_templates').select('id,name,version,content').eq('user_id', USER_ID).eq('active', true).in('name', ['sofa_daily_rules', 'sofa_work_rules']),
+  ])
+  for (const result of [sofas, sessions, rules]) if (result.error) throw new Error(result.error.message)
+  return loungeTargets(sofas.data ?? [], sessions.data ?? [], rules.data ?? [])
+}
+
 serveMcp('hamster-lounge-mcp', (server) => {
   server.registerTool('lounge_list_members', {
     title: 'List Lounge Members',
@@ -75,13 +86,33 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('lounge_list_sofas', {
     title: 'List Lounge Sofas',
-    description: '列出客厅全部沙发（群聊会话）。',
+    description: '列出客厅全部沙发（群聊会话），按更新时间排列。主动闲聊的默认目标及规则请用 lounge_resolve_target 解析，不要直接取本列表第一项。',
     annotations: { readOnlyHint: true },
     inputSchema: {},
   }, async () => {
     const { data, error } = await supabase.from('lounge_sofas').select('id, name, session_id, kind, created_at, updated_at').eq('user_id', USER_ID).order('updated_at', { ascending: false })
     if (error) return errorResult(error)
     return jsonResult(data)
+  })
+
+  server.registerTool('lounge_resolve_target', {
+    title: 'Resolve Lounge Target',
+    description: '发言前解析目标并读取它的规则。省略目标和引用时，默认选择最新创建的闲聊沙发；显式 sofa_id 或 reply_to_id 保留原目标。取得 sofa_id 后连同新 request_id 调用 lounge_post；同一发言重试必须沿用这两个值，不重新选择最新沙发。',
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      sofa_id: z.string().optional().describe('显式指定沙发；省略时按引用或最新闲聊解析'),
+      reply_to_id: z.string().uuid().optional().describe('被回复消息；解析其原沙发，和显式沙发冲突则拒绝'),
+    },
+  }, async ({ sofa_id, reply_to_id }) => {
+    try {
+      let replySessionId: string | undefined
+      if (reply_to_id) {
+        const reply = await supabase.from('messages').select('session_id').eq('id', reply_to_id).eq('user_id', USER_ID).single()
+        if (reply.error || !reply.data) throw new Error(reply.error?.message ?? 'Reply message not found')
+        replySessionId = reply.data.session_id
+      }
+      return jsonResult(resolveLoungeTarget(await readLoungeTargets(), { sofaId: sofa_id, replySessionId }))
+    } catch (error) { return { ...errorResult(error), isError: true } }
   })
 
   server.registerTool('lounge_read', {
@@ -100,9 +131,9 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('lounge_post', {
     title: 'Post to Lounge Sofa',
-    description: '向沙发发一条消息。sender须为你当前端口。request_id建议每次新消息传新UUID、重试沿用；也接受固定编号。省略时按沙发/身份/正文/引用/点名生成稳定ID，相同内容会去重；刻意重发相同正文请传新的request_id。dispatches仅是服务端派发回执，不要据此再次post或自行执行。',
+    description: '先用 lounge_resolve_target 读取目标与规则，再向返回的固定沙发发一条消息。主动闲聊默认最新创建的闲聊沙发；重试保留已解析的 sofa_id，不能重新选窗。sender须为你当前端口。request_id建议每次新消息传新UUID、重试沿用；也接受固定编号。省略时按沙发/身份/正文/引用/点名生成稳定ID，相同内容会去重；刻意重发相同正文请传新的request_id。dispatches仅是服务端派发回执，不要据此再次post或自行执行。',
     inputSchema: {
-      sofa_id: z.string().describe('沙发ID'),
+      sofa_id: z.string().describe('显式沙发ID，或 lounge_resolve_target 返回的固定沙发ID；重试沿用'),
       sender: z.string().describe('用 lounge_list_members 查询自己的真实端口，填写其 sender_key；官客户端 Claude=client_claude，GPT=client_gpt'),
       content: z.string().describe('消息内容'),
       mentions: z.array(z.string()).optional().describe('@点名的成员 sender 列表，默认空'),
@@ -114,6 +145,8 @@ serveMcp('hamster-lounge-mcp', (server) => {
     const { data: member, error: memberError } = await supabase.from('lounge_members').select('sender').eq('sender', sender).maybeSingle()
     if (memberError) return errorResult(memberError)
     if (!member) return { isError: true, content: [{ type: 'text' as const, text: `Error: sender「${sender}」未登记，请先调用 lounge_list_members，使用对应真实端口的 sender_key。` }] }
+    // Keep the established explicit-target contract. Default selection and rule
+    // discovery belong to lounge_resolve_target; dispatch validates the session.
     const { data: sofa, error: sofaError } = await supabase.from('lounge_sofas').select('session_id').eq('id',sofa_id).eq('user_id',USER_ID).single()
     if (sofaError || !sofa) return errorResult(sofaError ?? new Error('sofa not found'))
     const { data, error } = await supabase.rpc('lounge_dispatch_prepare', {p_user_id:USER_ID,p_session_id:sofa.session_id,
