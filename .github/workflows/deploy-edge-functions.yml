@@ -25,6 +25,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install test dependencies
+        run: npm ci
+
       - name: Run Edge auth regression tests
         run: npm test
 
