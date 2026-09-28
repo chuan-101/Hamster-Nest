@@ -196,7 +196,7 @@ const NovelPage = ({ user }: { user: User | null }) => {
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
     if (!accessToken || !anonKey) throw new Error('AI 生成失败: 登录状态异常或环境变量未配置')
     const messages = [{ role: 'user', content: prompt }]
-    const response = await fetch('https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/openrouter-chat', {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openrouter-chat`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,

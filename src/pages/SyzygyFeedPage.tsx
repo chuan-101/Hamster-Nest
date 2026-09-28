@@ -49,7 +49,7 @@ type SyzygyFeedPageProps = {
 
 const maxLength = 1000
 const TTS_TEXT_LIMIT = 2000
-const TTS_GENERATE_ENDPOINT = 'https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/tts-generate'
+const TTS_GENERATE_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tts-generate`
 
 type ReplyTtsState = 'loading' | 'playing'
 

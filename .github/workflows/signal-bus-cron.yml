@@ -7,6 +7,8 @@ on:
 
 jobs:
   trigger-signal-bus-consumer:
+    # 只在原仓库运行；Fork / 模板仓库请把下面的 URL 换成自己的项目后删掉这一行（见 docs/FORK.md）
+    if: github.repository == 'chuan-101/Hamster-Nest'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger signal-bus-consumer Edge Function
