@@ -38,11 +38,11 @@ Dashboard → Authentication → Users → Add user，用邮箱+密码创建你�
 ## 3. 运行 supabase/schema.sql
 
 用编辑器打开仓库里的 `supabase/schema.sql`，做两个全局替换：`11111111-1111-1111-1111-111111111111` → 你的 user UUID；`YOUR_PROJECT_REF` → 你的项目 ref。
-把替换后的整个文件粘贴进 SQL Editor 运行一次（约 480KB，可整体粘贴；文件幂等，报错修复后可整体重跑）。
+把替换后的整个文件粘贴进 SQL Editor 运行一次（约 550KB；文件幂等，报错修复后可整体重跑）。如果网页编辑器嫌文件太大，也可以用命令行：`psql "<Dashboard → Connect 里的连接串>" -f supabase/schema.sql`。
 
 > **已有部署报 42703（如 messages.client_id 不存在）或某张表 404 的**：在 SQL Editor 里重跑一遍 `supabase/schema.sql` 即可补齐缺表缺列（重跑前同样要做上面两个占位符替换）。
 
-> ⚠️ `schema.sql` 是截至 2026-09-19 的快照，之后还有几份迁移没并进去，会影响「客厅」，详见第 10 节「已知问题」。
+> `schema.sql` 已与线上对齐到迁移 `20260921122013_wiki_app_save`（2026-09-28 同步），**只跑这一个文件就够了，不需要再跑 `supabase/migrations/`**。它还会用 pg_cron 注册两个每分钟任务（Feed 通知派发、客厅 API 兜底唤醒），Supabase 上直接可用。
 
 > **Supabase 2026-10-30 起的新规**：`public` 里新建的表不再自动获得 Data API（PostgREST / supabase-js）权限，缺 GRANT 的表会报 `permission denied`。`schema.sql` 与 `supabase/migrations/` 里每张表都已自带 `GRANT ... TO authenticated / service_role`，照常跑即可；你自己以后加表时，请把 GRANT 写进建表的同一份 SQL（`npm test` 里的 `migration-grants` 会检查迁移目录）。
 
@@ -62,7 +62,7 @@ Dashboard → Authentication → Sign In / Up → 确认 Email 登录已启用�
 2. 仓库 Settings → Secrets and variables → Actions 里添加 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`；
 3. 处理 `deploy-pages.yml` 里的「Verify generated database types」这一步（它默认连原作者的项目，fork 里一定会失败）：改好第 9 节的 `scripts/supabase-types.mjs` 并添加 `SUPABASE_ACCESS_TOKEN` secret，**或者直接删掉这一步**；
 4. 如果你把仓库改了名，同步改 `vite.config.ts` 里的 `base: '/Hamster-Nest/'`，否则页面白屏；
-5. **把 Edge Functions 的 CORS 白名单改成你的域名**（见第 9 节），否则页面能打开，但聊天等请求全部会被浏览器拦截。本地 `npm run dev` 走 localhost，不受影响。
+5. **把你的前端域名加进 Edge Functions 的 CORS 白名单**：`supabase secrets set HAMSTER_ALLOWED_ORIGINS=https://你的用户名.github.io`（多个用英文逗号分隔，只写协议+域名，不带路径），否则页面能打开，但聊天等请求全部会被浏览器拦截。本地 `npm run dev` 走 localhost，不受影响。
 
 Edge Functions 的密钥不写文件，下一步部署后用 `supabase secrets set` 逐个配置（清单见 `.env.example` 的 Edge Functions 段，标了「可选」的用不到可不设）。
 
@@ -127,25 +127,20 @@ grep -rn "crfhiumxzmaszkapanrb\|chuan-101" --exclude-dir=node_modules --exclude-
 | `.github/workflows/deploy-pages.yml` | 推送 main 时发布 GitHub Pages | 见第 5 步 |
 | `.github/workflows/deploy-edge-functions.yml` | 推送 main 时部署函数 | 加 `SUPABASE_PROJECT_REF` / `SUPABASE_ACCESS_TOKEN` 两个 secret，或删掉 |
 | `.github/workflows/signal-bus-cron.yml` | 每 10 分钟触发 `signal-bus-consumer` | 把 URL 换成你的项目，**删掉** `if: github.repository == 'chuan-101/Hamster-Nest'` 这一行，并添加 `SIGNAL_BUS_SECRET` secret。不删的话它在 fork 里不会运行 |
-| **Edge Functions 的 CORS 白名单**：`supabase/functions/_shared/mcp_common.ts`、`_shared/conversation_http.ts`、`openrouter-chat/index.ts`、`signal-bus-consumer/index.ts`、`memory-extract/index.ts`、`runtime-control/contract.ts` | 只允许 `https://chuan-101.github.io` 和 `localhost` 调用 | **前端部署到任何非 localhost 地址都必须改**：把 `https://chuan-101.github.io` 换成你的前端域名（如 `https://你的用户名.github.io`），重新部署函数。不改的话网页聊天、客厅、MCP 工具都会被浏览器以 CORS 错误拦截。`tests/` 里对应的断言也要一起改 |
+| `supabase/functions/_shared/cors.ts` | Edge Functions 的 CORS 白名单，默认只放行 `https://chuan-101.github.io` 和 localhost | **不用改代码**：设置 secret `HAMSTER_ALLOWED_ORIGINS=https://你的域名`（见第 5 步）。想彻底去掉原站也可以改这个文件里的 `PRIMARY_BROWSER_ORIGIN` |
 | `vite.config.ts` → `base` | GitHub Pages 子路径 | 换成 `/你的仓库名/` |
 | `src/lib/pushNotifications.ts` → `WEB_PUSH_VAPID_PUBLIC_KEY` | Web 推送公钥 | `npx web-push generate-vapid-keys` 生成后换成你的公钥，私钥用 `supabase secrets set` 设置 |
-| `supabase/migrations/20260712073230_*`、`20260919062843_*` | 历史迁移里的回调 URL | 只有你按顺序重放 migrations 时才要改；只用 `schema.sql` 的话不用管 |
+| `supabase/migrations/20260712073230_*`、`20260919062843_*` | 历史迁移里的回调 URL | 只有你按顺序重放 migrations 时才要改；用 `schema.sql` 的话不用管（里面已是 `YOUR_PROJECT_REF` 占位符） |
 | `CITATION.cff`、`README.md` | 原作者的署名与介绍 | 随你 |
 
 ---
 
-## 10. 已知问题
+## 10. 注意事项
 
-1. **`schema.sql` 晚于 2026-09-19 的迁移尚未并入**。缺少的主要是：
-   - `20260919062843_lounge_canonical_groups.sql`、`20260919071324_lounge_order_receipts_icons.sql`、`20260919073328_lounge_icon_palette.sql`：客厅规范化（`lounge_manage`、`lounge_dispatch_prepare`、`lounge_claim_api` 等 RPC）。**影响：新部署在客厅里新建沙发会失败，`hamster-lounge-mcp` 的客厅发言也会报错。**
-   - `20260919103238_stash_app_read_models.sql`、`20260921120932_wiki_app_search.sql`、`20260921122013_wiki_app_save.sql`：给原作者的 iOS App 用的只读 / 保存 RPC，网页版不依赖。
-
-   补救方法：在跑完 `schema.sql` 的库上按文件名顺序执行这几份迁移。注意 `lounge_canonical_groups` 含数据迁移和不幂等的语句（`add column` 没有 `if not exists`，`drop policy` 没有 `if exists`），**只能执行一次**，失败后需要手动修；文件第 678 行附近的 URL 也要先换成你的项目。
-
-2. **种子数据**：`schema.sql` 只含结构，不含数据。`supabase/migrations/` 里带 `seed` 字样的文件包含 prompt 模板、默认联系人等种子数据，可按需在 SQL Editor 执行（执行前把里面的名字换成你们的）。
+1. **从旧版 `schema.sql` 升级的已有部署**：9/28 同步补上了客厅规范化（沙发 = 一个会话）。新库直接跑没有问题；如果你的库里已经有旧客厅沙发数据，重跑时会看到一条 `lounge_sofas 有旧数据…` 的 WARNING，这时需要先参照 `supabase/migrations/20260919062843_lounge_canonical_groups.sql` 搬迁数据（它只能执行一次，第 678 行附近的 URL 要先换成你的项目），再重跑 `schema.sql`。
+2. **种子数据**：`schema.sql` 只含结构，不含数据。`supabase/migrations/` 里带 `seed` 字样的文件包含 prompt 模板、默认联系人等种子数据，是「不用跑 migrations」的唯一例外，可按需在 SQL Editor 执行（执行前把里面的名字换成你们的）。
 3. **Web 推送**需要在 Dashboard → Vault 建一个名为 `push_dispatch_secret` 的 secret；缺失时推送触发器只告警，不影响业务写入。
-4. 这份指南**还没有在一个全新的空项目上从头完整跑过一遍**，遇到问题欢迎提 issue。
+4. `schema.sql` 已在一个带 Supabase 平台桩（auth / vault / pg_net / storage）的全新 PostgreSQL 上验证过：从零运行、重复运行、从旧版升级都能跑通，结构与线上逐项一致。但**整份指南还没有在一个真实的全新 Supabase 项目上从头走过一遍**，遇到问题欢迎提 issue。
 
 ---
 
@@ -182,9 +177,9 @@ grep -rn "crfhiumxzmaszkapanrb\|chuan-101" --exclude-dir=node_modules --exclude-
 3. 他们的 AI 和他们自己叫什么？（第 8 步要用）
 
 **推荐的操作顺序**：
-1. `grep -rn "crfhiumxzmaszkapanrb\|chuan-101" --exclude-dir=node_modules --exclude-dir=.git .`，按第 9 节逐项处理用户需要的那些（前端要上线的话，CORS 白名单是必改项）；
+1. `grep -rn "crfhiumxzmaszkapanrb\|chuan-101" --exclude-dir=node_modules --exclude-dir=.git .`，按第 9 节逐项处理用户需要的那些（前端要上线的话，记得设 `HAMSTER_ALLOWED_ORIGINS`）；
 2. 帮用户做 `schema.sql` 的两个占位符替换（**不要把替换后的文件提交回仓库**，里面有用户的 UUID）；
-3. 按第 10 节决定是否补跑那几份迁移；
+3. 新库只跑 `schema.sql`，不要再跑 `supabase/migrations/`（那是原项目的历史记录，含数据搬迁，重放会出错）；
 4. 按第 5–7 步配置环境变量和 secrets；
 5. 改名时只改展示层（第 8 步），不碰表名和机器标识。
 
@@ -192,6 +187,7 @@ grep -rn "crfhiumxzmaszkapanrb\|chuan-101" --exclude-dir=node_modules --exclude-
 - **绝不提交任何密钥**。`.env.local` 已被忽略；Edge Function 密钥只走 `supabase secrets set`，CI 密钥只走 GitHub Secrets。
 - `src/supabase/database.types.ts` 是生成文件，不要手改；用 `npm run db:types:generate` 从**用户自己的**项目生成。
 - 新建表时，`create table` 与 `grant ... to authenticated, service_role` 必须写在同一份 SQL 里（Supabase 2026-10-30 新规）。
+- 改数据库结构时，新写一份 migration，同时把最终结构同步进 `schema.sql`，并保持它可以整体重跑（`IF NOT EXISTS` / `CREATE OR REPLACE` / 先 `DROP ... IF EXISTS`）。
 - 提交前跑 `npm run check`（tsc + eslint）和 `npm test`。
 - `sender_key`、`port_key`、`target_role` 这类取值（`chuanchuan`、`syzygy_instant`、`codex_cli_syzygy`…）是被数据库约束写死的协议，不要改。
 - 本地 Runtime（第 11 节）的代码不在仓库里。不要以为它存在，也不要去仓库里找；用户需要时，按第 11 节的协议帮他们从零写。
