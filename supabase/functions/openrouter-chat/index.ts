@@ -1,5 +1,6 @@
 import { isApprovedSupabaseSecretKey } from '../_shared/supabase_secret.ts'
 import { getOwnerUserId } from '../_shared/owner.ts'
+import { isAllowedBrowserOrigin } from '../_shared/cors.ts'
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { consumeQuota } from '../_shared/quota.ts'
@@ -75,15 +76,11 @@ type RuntimeCompressionResult = {
   cacheWriteErrorMessage: string | null
 }
 
-const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]
-
 const isAllowedOrigin = (origin: string | null) => {
   if (!origin) {
     return true
   }
-  return allowedOrigins.some((pattern) =>
-    typeof pattern === 'string' ? pattern === origin : pattern.test(origin),
-  )
+  return isAllowedBrowserOrigin(origin)
 }
 
 const buildCorsHeaders = (origin: string | null) => ({

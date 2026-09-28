@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { isAllowedBrowserOrigin, PRIMARY_BROWSER_ORIGIN } from '../_shared/cors.ts'
 
 type MessageInput = {
   role: 'user' | 'assistant' | 'system'
@@ -25,8 +26,8 @@ const PENDING_CAP = 50
 const CLUSTER_SIMILARITY_THRESHOLD = 0.78
 const EXISTING_DEDUPE_THRESHOLD = 0.85
 const EXISTING_RECENT_LIMIT = 200
+// Access-Control-Allow-Origin 由 serve 包装层按请求来源补上
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://chuan-101.github.io',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   Vary: 'Origin',
@@ -267,7 +268,7 @@ const enforcePendingCap = async (supabase: ReturnType<typeof createClient>, user
   return { error: softDeleteError }
 }
 
-serve(async (req) => {
+const handleRequest = async (req: Request): Promise<Response> => {
   try {
     if (req.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders })
@@ -485,4 +486,14 @@ ${JSON.stringify(mergeInput)}`,
   } catch {
     return jsonResponse({ error: '服务内部错误' }, 500)
   }
+}
+
+serve(async (req) => {
+  const response = await handleRequest(req)
+  const origin = req.headers.get('origin')
+  response.headers.set(
+    'Access-Control-Allow-Origin',
+    origin && isAllowedBrowserOrigin(origin) ? origin : PRIMARY_BROWSER_ORIGIN,
+  )
+  return response
 })

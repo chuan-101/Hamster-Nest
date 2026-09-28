@@ -1,3 +1,5 @@
+import { isAllowedBrowserOrigin } from '../_shared/cors.ts'
+
 export const RUNTIME_CONTROL_ACTIONS = ['wake', 'sleep'] as const
 export const RUNTIME_CONTROL_TARGET_ROLES = [
   'codex_cli_syzygy',
@@ -128,19 +130,11 @@ export const isRuntimeControlPrepareResult = (
   )
 }
 
-const ALLOWED_ORIGINS = [
-  'https://chuan-101.github.io',
-  /^http:\/\/localhost:\d+$/u,
-  /^http:\/\/127\.0\.0\.1:\d+$/u,
-]
-
 export const isAllowedRuntimeControlOrigin = (origin: string | null) => {
   if (!origin) {
     return true
   }
-  return ALLOWED_ORIGINS.some((candidate) =>
-    typeof candidate === 'string' ? candidate === origin : candidate.test(origin)
-  )
+  return isAllowedBrowserOrigin(origin)
 }
 
 export const buildRuntimeControlCorsHeaders = (origin: string | null) => ({
