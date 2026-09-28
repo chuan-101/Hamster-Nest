@@ -79,10 +79,6 @@ export function serveMcp(
   const { serverName = 'hamster-nest', instructions } =
     typeof options === 'string' ? { serverName: options, instructions: undefined } : options
   const app = new Hono().basePath(`/${functionName}`)
-  const server = new McpServer(
-    { name: serverName, version: MCP_VERSION },
-    instructions ? { instructions } : undefined,
-  )
 
   app.use('*', async (c, next) => {
     const origin = c.req.header('origin') ?? null
@@ -111,9 +107,14 @@ export function serveMcp(
     }
   })
 
-  registerTools(server)
-
+  // 每个请求新建 server + transport（SDK 无状态样板）：共享一个 server 时，同一 isolate 里
+  // 并发的请求会被最后 connect 的 transport 抢走响应，其余请求一直挂起。注册只是同步建表，毫秒级。
   app.all('*', async (c) => {
+    const server = new McpServer(
+      { name: serverName, version: MCP_VERSION },
+      instructions ? { instructions } : undefined,
+    )
+    registerTools(server)
     const transport = new WebStandardStreamableHTTPServerTransport()
     await server.connect(transport)
     return transport.handleRequest(c.req.raw)
