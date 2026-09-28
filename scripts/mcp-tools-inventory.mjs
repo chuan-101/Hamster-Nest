@@ -1,5 +1,5 @@
 // MCP 工具清单盘点：核对 6 个 hamster MCP server 的工具数量与 schema 下发体积，
-// 防止 README / 文档计数漂移（详见 docs/mcp-tools-assessment.md）。
+// 防止 README / 文档计数漂移；README 里的工具数以本脚本输出为准。
 //
 // 两种模式：
 //   静态扫描（默认，无网络）——解析 supabase/functions/*-mcp/ 里的 registerTool 注册。
