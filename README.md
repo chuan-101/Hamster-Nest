@@ -536,6 +536,8 @@ Hamster-Nest/
 
 <br/>
 
+> 🍴 **Fork 了想搭自己的窝？** 请看 [docs/FORK.md](./docs/FORK.md)：哪些能直接配置、哪些要自己改、本地 Runtime 为什么不在仓库里，以及一份给 AI 助手的说明。下面是原作者自己的开发与部署笔记。
+
 **① 本地开发**
 
 ```bash
@@ -582,6 +584,8 @@ supabase secrets set OPENROUTER_API_KEY=xxx   # 配置密钥
 ### 📜 License · 引用与转载
 
 **代码**以 [MIT License](./LICENSE) 开源——欢迎围观、学习、fork，拆走任何你觉得有用的木屑去搭你自己的小窝。
+
+想照着搭一个？从 [docs/FORK.md](./docs/FORK.md) 开始。
 
 只拜托一件事：**如有使用请留出处。**
 

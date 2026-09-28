@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
+import { isAllowedBrowserOrigin } from '../_shared/cors.ts'
 
 type SignalStatus = 'pending' | 'processing' | 'processed' | 'failed' | 'expired'
 type SignalType = 'sleep_alert' | 'hydration_boost' | 'calendar_aware' | 'mood_check' | 'custom'
@@ -32,13 +33,9 @@ type ConsumePayload = {
   limit?: unknown
 }
 
-const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]
-
 const isAllowedOrigin = (origin: string | null) => {
   if (!origin) return false
-  return allowedOrigins.some((pattern) =>
-    typeof pattern === 'string' ? pattern === origin : pattern.test(origin),
-  )
+  return isAllowedBrowserOrigin(origin)
 }
 
 const timingSafeEqual = (a: string, b: string) => {

@@ -1,6 +1,7 @@
 -- ============================================================================
 -- Hamster-Nest 完整数据库结构（只含结构，不含数据）
 -- 导出时间：2026-08-28，来源：线上 Supabase 项目（PostgreSQL 17）
+-- 最近同步：2026-09-28，已与线上迁移 20260921122013_wiki_app_save 对齐（见文末同步段）
 --
 -- 用途：在一个全新 Supabase 项目的 SQL Editor 里整体粘贴运行，即可得到与
 --       原项目一致的表 / 列 / 约束 / 索引 / 函数 / 视图 / 触发器 / RLS 策略 /
@@ -16,11 +17,14 @@
 --        不替换会导致登录后读不到 / 写不进数据。
 --   2) YOUR_PROJECT_REF
 --      → 替换成你自己的项目 ref（Dashboard → Project Settings → General）。
---        只出现在 notify_push_dispatch() 的 Edge Function 回调 URL 里。
+--        只出现在 notify_push_dispatch() 与 private.lounge_kick() 的 Edge Function 回调 URL 里。
 --
 -- 其它说明：
 --   * 推送 webhook 依赖 Vault secret `push_dispatch_secret`（可选；缺失时触发器
 --     只 raise warning，不影响业务写入）。需要推送时在 Dashboard → Vault 自建。
+--     客厅 API 回复的兜底唤醒（private.lounge_kick）也读这个 secret。
+--   * 使用 pg_cron 注册两个每分钟任务（Feed 通知派发、客厅 API 兜底唤醒），
+--     见文末同步段；Supabase 上 pg_cron 可直接 create extension。
 --   * 线上库另有一个运维登录角色（cli_login_postgres，Mac mini psql 用），与
 --     应用无关、密码也无法导出，故不包含在本文件中。
 -- ============================================================================
@@ -4625,13 +4629,13 @@ begin
     else                  '❌ 议事厅回执（失败）：' || v_proposal.topic
   end;
 
-  -- screen=home 已在 App 推送白名单内（push-payload.ts），entity_id 供客户端补账定位。
+  -- Route report receipts directly to their Council detail.
   insert into public.agent_events
     (user_id, actor, event_type, entity_type, entity_id, title, payload, importance)
   values
     (v_proposal.user_id, p_speaker, 'council_report', 'council_proposal', v_proposal.id,
      v_title,
-     jsonb_build_object('screen', 'home', 'result', p_result, 'topic', v_proposal.topic),
+     jsonb_build_object('screen', 'council_detail', 'params', jsonb_build_object('id',p_proposal_id), 'result', p_result, 'topic', v_proposal.topic),
      'normal')
   returning id into v_event_id;
 
@@ -5837,15 +5841,9 @@ CREATE POLICY authenticated_all ON public.lounge_members FOR ALL TO authenticate
   USING (true)
   WITH CHECK (true);
 
+-- lounge_messages / lounge_sofas 的全开放策略已于 2026-09-19 撤销，改为按归属的策略（见文末同步段）
 DROP POLICY IF EXISTS authenticated_all ON public.lounge_messages;
-CREATE POLICY authenticated_all ON public.lounge_messages FOR ALL TO authenticated
-  USING (true)
-  WITH CHECK (true);
-
 DROP POLICY IF EXISTS authenticated_all ON public.lounge_sofas;
-CREATE POLICY authenticated_all ON public.lounge_sofas FOR ALL TO authenticated
-  USING (true)
-  WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Users can delete own memo entries" ON public.memo_entries;
 CREATE POLICY "Users can delete own memo entries" ON public.memo_entries FOR DELETE TO public
@@ -7817,9 +7815,1515 @@ BEGIN
   RETURN NEW;
 END $fn$;
 REVOKE ALL ON FUNCTION private.validate_machine_document() FROM PUBLIC, anon, authenticated, service_role;
+DROP TRIGGER IF EXISTS validate_machine_document ON public.prompt_templates;
 CREATE TRIGGER validate_machine_document BEFORE INSERT ON public.prompt_templates
 FOR EACH ROW EXECUTE FUNCTION private.validate_machine_document();
 
+
+-- ============================================================================
+-- 追加 · 2026-09-28 与线上同步：补齐 2026-09-15 ~ 09-21 未并入的迁移
+--   agent_tasks_completed_status_guard（线上迁移 20260915113545）
+--   20260918130000_feed_content_notifications      Feed 新内容推送（app_private 发件箱 + pg_cron）
+--   20260918150000_council_app_transactions        议事厅 App 事务 RPC
+--   20260918153000_council_worker_failure_receipt  议事厅执行失败回执
+--   20260919062843_lounge_canonical_groups          客厅规范化：沙发 = 会话，消息进 messages
+--   20260919071324_lounge_order_receipts_icons      客厅消息时钟、图标
+--   20260919073328_lounge_icon_palette              客厅图标配色
+--   20260919103238_stash_app_read_models            囤粮处 App 读模型
+--   20260921120932_wiki_app_search / 20260921122013_wiki_app_save   Wiki App 检索与保存
+--   本段由线上目录（pg_get_functiondef / pg_get_triggerdef / pg_get_indexdef）生成，只含结构；
+--   上述迁移里的历史数据搬迁不在此处。可整体重跑。
+-- ============================================================================
+
+-- ---------- app_private：只给 security definer 函数用的内部表 ----------
+CREATE SCHEMA IF NOT EXISTS app_private;
+REVOKE ALL ON SCHEMA app_private FROM PUBLIC, anon, authenticated;
+
+CREATE TABLE IF NOT EXISTS app_private.feed_notification_outbox (
+  feed_id uuid NOT NULL,
+  queued_at timestamp with time zone DEFAULT now() NOT NULL,
+  processed_at timestamp with time zone,
+  event_id bigint,
+  outcome text
+);
+CREATE TABLE IF NOT EXISTS app_private.council_app_requests (
+  user_id uuid NOT NULL,
+  request_id uuid NOT NULL,
+  payload jsonb NOT NULL,
+  response jsonb,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'feed_notification_outbox_pkey' AND conrelid = 'app_private.feed_notification_outbox'::regclass) THEN ALTER TABLE app_private.feed_notification_outbox ADD CONSTRAINT feed_notification_outbox_pkey PRIMARY KEY (feed_id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'feed_notification_outbox_outcome_check' AND conrelid = 'app_private.feed_notification_outbox'::regclass) THEN ALTER TABLE app_private.feed_notification_outbox ADD CONSTRAINT feed_notification_outbox_outcome_check CHECK ((outcome = ANY (ARRAY['sent_to_dispatch'::text, 'skipped'::text]))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'feed_notification_outbox_feed_id_fkey' AND conrelid = 'app_private.feed_notification_outbox'::regclass) THEN ALTER TABLE app_private.feed_notification_outbox ADD CONSTRAINT feed_notification_outbox_feed_id_fkey FOREIGN KEY (feed_id) REFERENCES public.agent_feed_items(id) ON DELETE CASCADE; END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'feed_notification_outbox_event_id_fkey' AND conrelid = 'app_private.feed_notification_outbox'::regclass) THEN ALTER TABLE app_private.feed_notification_outbox ADD CONSTRAINT feed_notification_outbox_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.agent_events(id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'council_app_requests_pkey' AND conrelid = 'app_private.council_app_requests'::regclass) THEN ALTER TABLE app_private.council_app_requests ADD CONSTRAINT council_app_requests_pkey PRIMARY KEY (user_id, request_id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'council_app_requests_user_id_fkey' AND conrelid = 'app_private.council_app_requests'::regclass) THEN ALTER TABLE app_private.council_app_requests ADD CONSTRAINT council_app_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE; END IF; END $c$;
+CREATE INDEX IF NOT EXISTS feed_notification_pending_idx ON app_private.feed_notification_outbox USING btree (queued_at) WHERE (processed_at IS NULL);
+ALTER TABLE app_private.feed_notification_outbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_private.council_app_requests ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE app_private.feed_notification_outbox FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE app_private.council_app_requests FROM PUBLIC, anon, authenticated, service_role;
+
+-- ---------- 新增列：客厅沙发 = 一个会话；沙发与囤粮处格子的图标配色 ----------
+ALTER TABLE public.lounge_sofas ADD COLUMN IF NOT EXISTS user_id uuid;
+ALTER TABLE public.lounge_sofas ADD COLUMN IF NOT EXISTS session_id uuid;
+ALTER TABLE public.lounge_sofas ADD COLUMN IF NOT EXISTS kind text DEFAULT 'custom'::text NOT NULL;
+ALTER TABLE public.lounge_sofas ADD COLUMN IF NOT EXISTS icon text DEFAULT 'sofa'::text NOT NULL;
+ALTER TABLE public.lounge_sofas ADD COLUMN IF NOT EXISTS icon_color text DEFAULT 'rose'::text NOT NULL;
+ALTER TABLE public.stash_folders ADD COLUMN IF NOT EXISTS icon_color text DEFAULT 'rose'::text NOT NULL;
+-- 新库里 lounge_sofas 是空表，直接加 NOT NULL；已有旧沙发数据的部署需先按
+-- supabase/migrations/20260919062843_lounge_canonical_groups.sql 搬迁数据，再重跑本文件。
+DO $c$ BEGIN
+  IF EXISTS (SELECT 1 FROM public.lounge_sofas WHERE user_id IS NULL OR session_id IS NULL) THEN
+    RAISE WARNING 'lounge_sofas 有旧数据缺 user_id / session_id，请先执行 20260919062843_lounge_canonical_groups.sql 的数据搬迁';
+  ELSE
+    ALTER TABLE public.lounge_sofas ALTER COLUMN user_id SET NOT NULL;
+    ALTER TABLE public.lounge_sofas ALTER COLUMN session_id SET NOT NULL;
+  END IF;
+END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lounge_sofas_session_id_key' AND conrelid = 'public.lounge_sofas'::regclass) THEN ALTER TABLE public.lounge_sofas ADD CONSTRAINT lounge_sofas_session_id_key UNIQUE (session_id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lounge_sofas_kind_check' AND conrelid = 'public.lounge_sofas'::regclass) THEN ALTER TABLE public.lounge_sofas ADD CONSTRAINT lounge_sofas_kind_check CHECK ((kind = ANY (ARRAY['daily'::text, 'work'::text, 'custom'::text]))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lounge_sofas_icon_check' AND conrelid = 'public.lounge_sofas'::regclass) THEN ALTER TABLE public.lounge_sofas ADD CONSTRAINT lounge_sofas_icon_check CHECK ((icon = ANY (ARRAY['sofa'::text, 'coffee'::text, 'sparkles'::text, 'cloud'::text, 'terminal'::text, 'code'::text, 'heart'::text, 'moon'::text]))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lounge_sofas_icon_color_check' AND conrelid = 'public.lounge_sofas'::regclass) THEN ALTER TABLE public.lounge_sofas ADD CONSTRAINT lounge_sofas_icon_color_check CHECK ((icon_color = ANY (ARRAY['rose'::text, 'lilac'::text, 'peach'::text, 'sage'::text]))); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lounge_sofas_user_id_fkey' AND conrelid = 'public.lounge_sofas'::regclass) THEN ALTER TABLE public.lounge_sofas ADD CONSTRAINT lounge_sofas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lounge_sofas_session_id_fkey' AND conrelid = 'public.lounge_sofas'::regclass) THEN ALTER TABLE public.lounge_sofas ADD CONSTRAINT lounge_sofas_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.sessions(id); END IF; END $c$;
+DO $c$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'stash_folders_icon_color_check' AND conrelid = 'public.stash_folders'::regclass) THEN ALTER TABLE public.stash_folders ADD CONSTRAINT stash_folders_icon_color_check CHECK ((icon_color = ANY (ARRAY['rose'::text, 'lilac'::text, 'peach'::text, 'sage'::text]))); END IF; END $c$;
+COMMENT ON COLUMN public.stash_folders.icon_color IS '囤粮处图标配色：rose/lilac/peach/sage；与 App 客厅调色板一致。';
+
+-- ---------- 索引 ----------
+CREATE UNIQUE INDEX IF NOT EXISTS lounge_default_sofas ON public.lounge_sofas USING btree (user_id, kind) WHERE (kind <> 'custom'::text);
+CREATE INDEX IF NOT EXISTS lounge_message_history ON public.messages USING btree (session_id, created_at DESC, id DESC) WHERE ((meta ->> 'lounge'::text) = 'true'::text);
+CREATE INDEX IF NOT EXISTS lounge_api_pending ON public.messages USING btree (created_at) WHERE ((meta ->> 'api_queue'::text) = 'pending'::text);
+CREATE INDEX IF NOT EXISTS wiki_entries_owner_created_id_idx ON public.wiki_entries USING btree (user_id, COALESCE(created_at, '1970-01-01 00:00:00+00'::timestamp with time zone) DESC, id DESC);
+
+-- ---------- 函数（private.lounge_kick 里的 YOUR_PROJECT_REF 需替换，见文件头） ----------
+CREATE OR REPLACE FUNCTION private.lounge_completed()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare targets text[]; begin
+ if new.meta->>'lounge' is distinct from 'true' or new.meta->>'delivery_state'<>'completed'
+   or old.meta->>'delivery_state'='completed' then return new; end if;
+ targets:=private.lounge_mentions(new.content);
+ update public.messages set target_sender_keys=targets where id=new.id;
+ if cardinality(targets)>0 then perform private.lounge_route(new.id); end if;
+ update public.lounge_sofas set updated_at=now() where session_id=new.session_id;
+ return new;
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_completed() FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_directory_delete()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$ begin
+ delete from public.sessions where id=old.session_id and user_id=old.user_id;
+ return old;
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_directory_delete() FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_directory_write()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare sid uuid; owner uuid; begin
+ if tg_op='INSERT' then
+  new.user_id:=coalesce(new.user_id,auth.uid());
+  if new.user_id is null or (auth.uid() is not null and new.user_id<>auth.uid()) then raise exception 'sofa owner mismatch'; end if;
+  if new.session_id is null then
+   if new.kind<>'custom' then raise exception 'custom sofa required'; end if;
+   insert into public.sessions(user_id,title,conversation_kind,handler,routing_config)
+   values(new.user_id,new.name,'group','router',jsonb_build_object('version',1,'participants',
+    jsonb_build_array('chuanchuan','api_syzygy','claude_cli','codex_cli','client_claude','client_gpt'),
+    'default_responder','api_syzygy','sofa_id',new.id,'rules_prompt_name','sofa_daily_rules')) returning id into sid;
+   new.session_id:=sid;
+  else
+   if not exists(select 1 from public.sessions where id=new.session_id and user_id=new.user_id and conversation_kind='group'
+     and routing_config->>'sofa_id'=new.id::text) then raise exception 'sofa session mismatch'; end if;
+  end if;
+ elsif tg_op='UPDATE' then
+  if new.id<>old.id or new.user_id<>old.user_id or new.session_id<>old.session_id or new.kind<>old.kind then raise exception 'sofa identity is immutable'; end if;
+  if new.name is distinct from old.name then update public.sessions set title=new.name where id=new.session_id; end if;
+ else
+  if exists(select 1 from public.messages where session_id=old.session_id and meta->>'delivery_state'='generating') then raise exception 'wait for replies before deleting'; end if;
+  return old;
+ end if;
+ if btrim(new.name)='' or length(new.name)>40 then raise exception 'invalid sofa name'; end if;
+ return new;
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_directory_write() FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$ begin
+ if current_user='authenticated' and exists(select 1 from public.sessions where id=new.session_id and conversation_kind='group') then
+  raise exception using errcode='42501',message='group writes require conversation-dispatch'; end if;
+ return new;
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_guard() FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_kick()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare secret text; begin
+ if not exists(select 1 from public.messages where meta->>'api_queue'='pending' or (meta->>'api_queue'='running' and (meta->>'api_started_at')::timestamptz<now()-interval '150 seconds')) then return; end if;
+ select decrypted_secret into secret from vault.decrypted_secrets where name='push_dispatch_secret' limit 1;
+ if secret is null then raise warning 'lounge worker secret unavailable'; return; end if;
+ perform net.http_post(url:='https://YOUR_PROJECT_REF.supabase.co/functions/v1/conversation-dispatch',
+   headers:=jsonb_build_object('Content-Type','application/json','x-lounge-worker-secret',secret),
+   body:='{"action":"lounge_worker"}'::jsonb,timeout_milliseconds:=5000);
+exception when others then raise warning 'lounge worker kick unavailable';
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_kick() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.lounge_kick() TO service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_legacy_mirror()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare sofa uuid; begin
+ if pg_trigger_depth()>1 or new.meta->>'lounge' is distinct from 'true' or new.meta->>'delivery_state'<>'completed' then return new; end if;
+ select id into sofa from public.lounge_sofas where session_id=new.session_id;
+ if sofa is null then return new; end if;
+ insert into public.lounge_messages(id,sofa_id,sender,content,mentions,meta,created_at)
+ values(new.id,sofa,new.sender_key,new.content,coalesce(new.target_sender_keys,'{}'),new.meta||jsonb_build_object('canonical_id',new.id,'reply_to_id',new.reply_to_id),new.created_at)
+ on conflict(id) do update set content=excluded.content,mentions=excluded.mentions,meta=excluded.meta;
+ return new;
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_legacy_mirror() FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_legacy_write()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare sofa public.lounge_sofas%rowtype; receipt jsonb; begin
+ if pg_trigger_depth()>1 then return new; end if;
+ select * into sofa from public.lounge_sofas where id=new.sofa_id;
+ if not found then raise exception 'sofa not found'; end if;
+ if auth.uid() is not null and (auth.uid()<>sofa.user_id or private.lounge_sender(new.sender) not in ('chuanchuan','api_syzygy')) then
+  raise exception using errcode='42501',message='legacy sender forbidden'; end if;
+ receipt:=public.lounge_dispatch_prepare(sofa.user_id,sofa.session_id,new.id,new.content,new.sender,new.mentions,null,false,true);
+ new.id:=(receipt->'message'->>'id')::uuid;
+ new.meta:=coalesce(new.meta,'{}')||jsonb_build_object('canonical_id',receipt->'message'->>'id','lounge',true);
+ return new;
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_legacy_write() FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_manage(p_action text, p_id uuid, p_name text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare owner uuid:=auth.uid(); sofa public.lounge_sofas%rowtype; sid uuid; begin
+ if owner is null then raise exception using errcode='42501',message='authentication required'; end if;
+ if p_action='create' then
+  if p_id is null or btrim(p_name)='' or length(p_name)>40 then raise exception 'invalid sofa'; end if;
+  select * into sofa from public.lounge_sofas where id=p_id;
+  if found then
+   if sofa.user_id<>owner or sofa.name<>btrim(p_name) then raise exception 'sofa request conflict'; end if;
+   return to_jsonb(sofa);
+  end if;
+  insert into public.sessions(user_id,title,conversation_kind,handler,routing_config)
+  values(owner,btrim(p_name),'group','router',jsonb_build_object('version',1,'participants',
+   jsonb_build_array('chuanchuan','api_syzygy','claude_cli','codex_cli','client_claude','client_gpt'),
+   'default_responder','api_syzygy','sofa_id',p_id,'rules_prompt_name','sofa_daily_rules')) returning id into sid;
+  insert into public.lounge_sofas(id,user_id,session_id,name) values(p_id,owner,sid,btrim(p_name)) returning * into sofa;
+ elsif p_action in ('rename','delete') then
+  select * into sofa from public.lounge_sofas where id=p_id and user_id=owner for update;
+  if not found then
+   if p_action='delete' then return '{"deleted":true}'; end if;
+   raise exception 'sofa not found';
+  end if;
+  if p_action='rename' then
+   if btrim(p_name)='' or length(p_name)>40 then raise exception 'invalid sofa name'; end if;
+   update public.lounge_sofas set name=btrim(p_name),updated_at=now() where id=p_id returning * into sofa;
+   update public.sessions set title=sofa.name where id=sofa.session_id and user_id=owner;
+  else
+   if exists(select 1 from public.messages where session_id=sofa.session_id and meta->>'delivery_state'='generating') then raise exception 'wait for replies before deleting'; end if;
+   delete from public.lounge_sofas where id=sofa.id;
+   delete from public.sessions where id=sofa.session_id and user_id=owner;
+   return '{"deleted":true}';
+  end if;
+ else raise exception 'unsupported sofa action'; end if;
+ return to_jsonb(sofa);
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_manage(text,uuid,text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.lounge_manage(text,uuid,text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION private.lounge_mentions(body text)
+ RETURNS text[]
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+ select coalesce(array_agg(distinct private.lounge_sender(m[1])),'{}'::text[])
+ from regexp_matches(body, '@(claude code cli syzygy|claude cli syzygy|claude code cli|claude cli|claude_code_cli_syzygy|claude_code_cli|claude_cli|codex cli syzygy|codex cli|codex_cli_syzygy|codex_cli|syzygy-claude|syzygy·claude|client_claude|syzygy-gpt|syzygy·gpt|client_gpt|api_syzygy|syzygy|chuanchuan|串串)(?![a-z0-9_·-])','gi') m;
+$function$;
+REVOKE ALL ON FUNCTION private.lounge_mentions(text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.lounge_mentions(text) TO service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_message_clock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+declare parent_time timestamptz;
+begin
+ if new.meta->>'lounge'='true' then
+  select created_at into parent_time from public.messages where id=new.reply_to_id and session_id=new.session_id;
+  new.created_at:=greatest(clock_timestamp(),parent_time+interval '1 microsecond');
+ end if;
+ return new;
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_message_clock() FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_notice()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare sofa public.lounge_sofas%rowtype; parent_sender text; notify_user boolean; begin
+ if new.meta->>'lounge' is distinct from 'true' or new.sender_key='chuanchuan' or new.meta->>'delivery_state'<>'completed' then return new; end if;
+ if tg_op='UPDATE' and old.meta->>'delivery_state'='completed' then return new; end if;
+ select * into sofa from public.lounge_sofas where session_id=new.session_id;
+ if not found then return new; end if;
+ select sender_key into parent_sender from public.messages where id=new.reply_to_id and session_id=new.session_id;
+ notify_user:=parent_sender='chuanchuan' or private.lounge_mentions(new.content) @> array['chuanchuan'];
+ insert into public.agent_events(user_id,actor,event_type,entity_type,entity_id,title,payload,importance)
+ values(new.user_id,new.sender_key,'conversation_reply_completed','conversation_reply',new.id,sofa.name||'有新回复',
+   jsonb_build_object('schema_version',1,'screen','lounge_detail','params',jsonb_build_object('id',sofa.id),
+    'url','/#/lounge/'||sofa.id,'session_id',new.session_id,'reply_id',new.id,'responder_sender_key',new.sender_key),
+   case when notify_user then 'normal' else 'low' end)
+ on conflict(user_id,event_type,entity_id) where event_type='conversation_reply_completed' and entity_id is not null do nothing;
+ return new;
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_notice() FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_prepare_target(p_user_id uuid, p_session_id uuid, p_client_id uuid, p_content text, p_client_created_at timestamp with time zone, p_target_sender_keys text[], p_retry_failed boolean, p_create_durable_task boolean, p_source_message_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+declare
+  v_user_id uuid := p_user_id;
+  v_session public.sessions%rowtype;
+  v_participants jsonb;
+  v_responder text;
+  v_targets text[];
+  v_user_message public.messages%rowtype;
+  v_reply public.messages%rowtype;
+  v_command public.syzygy_commands%rowtype;
+  v_task public.agent_tasks%rowtype;
+  v_reply_id uuid;
+  v_command_id uuid;
+  v_task_id uuid;
+  v_user_inserted boolean := false;
+  v_reply_inserted boolean := false;
+  v_reply_claimed boolean := false;
+  v_command_inserted boolean := false;
+  v_command_requeued boolean := false;
+  v_task_inserted boolean := false;
+  v_task_requeued boolean := false;
+  v_delivery_state text;
+  v_delivery_attempt integer := 1;
+  v_command_key text;
+  v_target_role text;
+  v_executor text;
+  v_task_status text;
+begin
+  if v_user_id is null then
+    raise exception using
+      errcode = '42501',
+      message = 'conversation_dispatch: authentication required';
+  end if;
+
+  if current_user = 'authenticated'
+     and (
+       auth.uid() is null
+       or v_user_id is distinct from auth.uid()
+     ) then
+    raise exception using
+      errcode = '42501',
+      message = 'conversation_dispatch: authenticated owner mismatch';
+  end if;
+
+  if p_create_durable_task
+     and current_user not in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception using
+      errcode = '42501',
+      message = 'conversation_dispatch: durable task preparation requires service role';
+  end if;
+
+  if p_session_id is null or p_client_id is null then
+    raise exception using
+      errcode = '22023',
+      message = 'conversation_dispatch: session_id and client_id are required';
+  end if;
+
+  if p_content is null or btrim(p_content) = '' then
+    raise exception using
+      errcode = '22023',
+      message = 'conversation_dispatch: content must not be empty';
+  end if;
+
+  if char_length(p_content) > 20000 then
+    raise exception using
+      errcode = '22023',
+      message = 'conversation_dispatch: content exceeds 20000 characters';
+  end if;
+
+  select *
+  into v_session
+  from public.sessions
+  where id = p_session_id
+    and user_id = v_user_id;
+
+  if not found then
+    raise exception using
+      errcode = 'P0002',
+      message = 'conversation_dispatch: session not found';
+  end if;
+
+  if v_session.is_archived then
+    raise exception using
+      errcode = '22023',
+      message = 'conversation_dispatch: archived session is read only';
+  end if;
+
+  if v_session.conversation_kind <> 'group'
+     or v_session.handler <> 'router' then
+    raise exception using
+      errcode = '0A000',
+      message = 'conversation_dispatch: expected a lounge group';
+  end if;
+
+  v_participants := v_session.routing_config -> 'participants';
+  if jsonb_typeof(v_participants) <> 'array'
+     or jsonb_array_length(v_participants) < 2 then
+    raise exception using
+      errcode = '22023',
+      message = 'conversation_dispatch: routing participants are invalid';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(v_participants) as participant(value)
+    where jsonb_typeof(participant.value) <> 'string'
+       or btrim(participant.value #>> '{}') = ''
+  ) then
+    raise exception using
+      errcode = '22023',
+      message = 'conversation_dispatch: participant sender keys must be nonempty strings';
+  end if;
+
+  if not (v_participants ? 'chuanchuan') then
+    raise exception using
+      errcode = '22023',
+      message = 'conversation_dispatch: chuanchuan must be a participant';
+  end if;
+
+  if p_target_sender_keys is null or cardinality(p_target_sender_keys) = 0 then
+    v_responder := nullif(btrim(v_session.routing_config ->> 'default_responder'), '');
+    v_targets := case when v_responder is null then null else array[v_responder] end;
+  else
+    if cardinality(p_target_sender_keys) <> 1
+       or exists (
+         select 1
+         from unnest(p_target_sender_keys) as target(sender_key)
+         where target.sender_key is null
+            or btrim(target.sender_key) = ''
+       ) then
+      raise exception using
+        errcode = '22023',
+        message = 'conversation_dispatch: direct sessions require exactly one target sender';
+    end if;
+
+    v_responder := btrim(p_target_sender_keys[1]);
+    v_targets := array[v_responder];
+  end if;
+
+  if v_responder is null
+     or v_responder = 'chuanchuan'
+     or not (v_participants ? v_responder) then
+    raise exception using
+      errcode = '22023',
+      message = 'conversation_dispatch: responder is not a valid participant';
+  end if;
+
+  select * into v_user_message from public.messages
+    where id=p_source_message_id and user_id=v_user_id and session_id=v_session.id;
+  if not found or v_user_message.content is distinct from p_content then
+    raise exception 'lounge source mismatch';
+  end if;
+  v_session.handler := case when v_responder in ('claude_cli','codex_cli') then 'cli' else 'api' end;
+
+  insert into public.messages (
+    user_id,
+    session_id,
+    role,
+    content,
+    meta,
+    sender_key,
+    reply_to_id
+  )
+  values (
+    v_user_id,
+    v_session.id,
+    'assistant',
+    '',
+    jsonb_build_object(
+      'schema_version', 1,
+      'source', 'conversation_dispatch',
+      'delivery_state', 'generating',
+      'delivery_attempt', 1, 'lounge', true,
+      'mention_depth', coalesce((v_user_message.meta->>'mention_depth')::int,0)+1,
+      'api_queue', case when v_session.handler='api' then 'pending' else null end
+    ),
+    v_responder,
+    v_user_message.id
+  )
+  on conflict (session_id, reply_to_id, sender_key)
+    where role = 'assistant' and reply_to_id is not null
+  do nothing
+  returning *
+  into v_reply;
+
+  v_reply_inserted := found;
+  v_reply_claimed := v_reply_inserted;
+  if v_reply_inserted then
+    v_reply_id := v_reply.id;
+  end if;
+
+  if not v_reply_inserted then
+    select *
+    into v_reply
+    from public.messages
+    where session_id = v_session.id
+      and reply_to_id = v_user_message.id
+      and sender_key = v_responder
+      and role = 'assistant'
+      and user_id = v_user_id;
+
+    if not found then
+      raise exception using
+        errcode = 'P0001',
+        message = 'conversation_dispatch: responder reply claim could not be resolved';
+    end if;
+
+    v_reply_id := v_reply.id;
+    v_delivery_state := coalesce(
+      nullif(v_reply.meta ->> 'delivery_state', ''),
+      case when btrim(v_reply.content) <> '' then 'completed' else 'failed' end
+    );
+
+    if v_delivery_state = 'failed' and p_retry_failed then
+      v_delivery_attempt := case
+        when coalesce(v_reply.meta ->> 'delivery_attempt', '') ~ '^[0-9]+$'
+          then greatest((v_reply.meta ->> 'delivery_attempt')::integer + 1, 2)
+        else 2
+      end;
+
+      update public.messages
+      set
+        content = '',
+        meta = (
+          jsonb_set(
+            jsonb_set(
+              coalesce(meta, '{}'::jsonb),
+              '{delivery_state}',
+              '"generating"'::jsonb,
+              true
+            ),
+            '{delivery_attempt}',
+            to_jsonb(v_delivery_attempt),
+            true
+          )
+          - 'delivery_error'
+          - 'delivery_error_code'
+          - 'failed_at'
+          - 'completed_at'
+          - 'model'
+        )
+      where id = v_reply_id
+        and user_id = v_user_id
+        and coalesce(meta ->> 'delivery_state', 'failed') = 'failed'
+      returning *
+      into v_reply;
+
+      v_reply_claimed := found;
+
+      if not v_reply_claimed then
+        select *
+        into v_reply
+        from public.messages
+        where id = v_reply_id
+          and user_id = v_user_id;
+      end if;
+    end if;
+  end if;
+
+  if v_session.handler = 'cli' then
+    v_target_role := case v_responder when 'codex_cli' then 'codex_cli_syzygy' else 'claude_code_cli_syzygy' end;
+
+    if v_target_role not in ('codex_cli_syzygy', 'claude_code_cli_syzygy') then
+      raise exception using
+        errcode = '22023',
+        message = 'conversation_dispatch: CLI target_role is not allowed';
+    end if;
+
+    v_executor := case v_target_role
+      when 'codex_cli_syzygy' then 'codex_cli'
+      else 'claude_code_cli'
+    end;
+    v_command_key := format(
+      'conversation:v1:%s:%s',
+      v_user_message.id,
+      v_responder
+    );
+    v_command_id := gen_random_uuid();
+    if p_create_durable_task then
+      v_task_id := gen_random_uuid();
+    end if;
+
+    insert into public.syzygy_commands (
+      id,
+      user_id,
+      command_type,
+      payload,
+      status,
+      idempotency_key
+    )
+    values (
+      v_command_id,
+      v_user_id,
+      'run_task',
+      jsonb_build_object(
+        'schema_version', 1,
+        'source', 'conversation_dispatch',
+        'target_role', v_target_role,
+        'task_type', 'conversation_message',
+        'task_content', p_content,
+        'trigger_reason', case when v_user_message.sender_key='chuanchuan' then 'user_message' else 'lounge_mention' end,
+        'conversation_kind', 'group',
+        'source_sender_key', v_user_message.sender_key,
+        'allow_wechat_notify', false,
+        'session_id', v_session.id,
+        'user_message_id', v_user_message.id,
+        'reply_id', v_reply.id,
+        'correlation_id', v_user_message.id,
+        'responder_sender_key', v_responder,
+        'idempotency_key', v_command_key
+      ) || case
+        when p_create_durable_task
+          then jsonb_build_object('agent_task_id', v_task_id)
+        else '{}'::jsonb
+      end,
+      'pending',
+      v_command_key
+    )
+    on conflict (user_id, idempotency_key)
+    do nothing
+    returning *
+    into v_command;
+
+    v_command_inserted := found;
+    if v_command_inserted then
+      v_command_id := v_command.id;
+    else
+      select *
+      into v_command
+      from public.syzygy_commands
+      where user_id = v_user_id
+        and idempotency_key = v_command_key
+      for update;
+
+      if not found
+         or v_command.command_type <> 'run_task'
+         or v_command.payload ->> 'reply_id' is distinct from v_reply.id::text then
+        raise exception using
+          errcode = '23505',
+          message = 'conversation_dispatch: CLI idempotency key conflict';
+      end if;
+
+      v_command_id := v_command.id;
+    end if;
+
+    if p_create_durable_task then
+      if nullif(v_command.payload ->> 'agent_task_id', '') is not null then
+        if (v_command.payload ->> 'agent_task_id')
+           !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' then
+          raise exception using
+            errcode = '22023',
+            message = 'conversation_dispatch: command agent_task_id is invalid';
+        end if;
+        v_task_id := (v_command.payload ->> 'agent_task_id')::uuid;
+      end if;
+
+      v_task_status := case v_command.status
+        when 'pending' then 'pending'
+        when 'running' then 'running'
+        when 'done' then 'completed'
+        else 'failed'
+      end;
+
+      insert into public.agent_tasks (
+        id,
+        user_id,
+        source,
+        executor,
+        command,
+        status,
+        payload_json,
+        correlation_id,
+        result_summary,
+        started_at,
+        completed_at
+      )
+      values (
+        v_task_id,
+        v_user_id,
+        'conversation_dispatch',
+        v_executor,
+        'run_cli_runtime_task',
+        v_task_status,
+        jsonb_build_object(
+          'schema_version', 1,
+          'source', 'conversation_dispatch',
+          'command_id', v_command.id,
+          'command_type', v_command.command_type,
+          'task_type', 'conversation_message',
+          'target_role', v_target_role,
+          'session_id', v_session.id,
+          'user_message_id', v_user_message.id,
+          'reply_id', v_reply.id,
+          'responder_sender_key', v_responder,
+          'task_content', p_content
+        ),
+        v_user_message.id,
+        case v_task_status
+          when 'pending' then v_target_role || ' queued'
+          when 'running' then v_target_role || ' running'
+          when 'completed' then v_target_role || ' completed before durable backfill'
+          else v_target_role || ' failed before durable backfill'
+        end,
+        case when v_task_status = 'running' then v_command.claimed_at else null end,
+        case when v_task_status in ('completed', 'failed')
+          then coalesce(v_command.completed_at, now())
+          else null
+        end
+      )
+      on conflict do nothing
+      returning *
+      into v_task;
+
+      v_task_inserted := found;
+      if not v_task_inserted then
+        select *
+        into v_task
+        from public.agent_tasks
+        where user_id = v_user_id
+          and source = 'conversation_dispatch'
+          and payload_json ->> 'command_id' = v_command.id::text
+        for update;
+      end if;
+
+      if not found
+         or v_task.correlation_id is distinct from v_user_message.id
+         or v_task.payload_json ->> 'reply_id' is distinct from v_reply.id::text then
+        raise exception using
+          errcode = '23505',
+          message = 'conversation_dispatch: durable task could not be resolved';
+      end if;
+
+      v_task_id := v_task.id;
+      if nullif(v_command.payload ->> 'agent_task_id', '') is null then
+        update public.syzygy_commands
+        set payload = jsonb_set(
+          coalesce(payload, '{}'::jsonb),
+          '{agent_task_id}',
+          to_jsonb(v_task.id::text),
+          true
+        )
+        where id = v_command.id
+          and user_id = v_user_id
+        returning *
+        into v_command;
+      elsif v_command.payload ->> 'agent_task_id' is distinct from v_task.id::text then
+        raise exception using
+          errcode = '23505',
+          message = 'conversation_dispatch: command and durable task ids disagree';
+      end if;
+
+      update public.messages
+      set meta = coalesce(meta, '{}'::jsonb) || jsonb_build_object(
+        'command_id', v_command.id,
+        'agent_task_id', v_task.id
+      )
+      where id = v_reply.id
+        and user_id = v_user_id
+      returning *
+      into v_reply;
+    end if;
+
+    if p_retry_failed
+       and v_reply_claimed
+       and v_command.status = 'failed' then
+      if p_create_durable_task
+         and v_task.status not in ('pending', 'completed', 'failed', 'cancelled') then
+        raise exception using
+          errcode = '55000',
+          message = 'conversation_dispatch: durable task is not retryable';
+      end if;
+
+      update public.syzygy_commands
+      set
+        status = 'pending',
+        result = null,
+        error_message = null,
+        claimed_by = null,
+        claimed_at = null,
+        completed_at = null,
+        updated_at = now()
+      where id = v_command_id
+        and user_id = v_user_id
+        and status = 'failed'
+      returning *
+      into v_command;
+
+      v_command_requeued := found;
+
+      if p_create_durable_task
+         and v_command_requeued
+         and v_task.status <> 'completed' then
+        update public.agent_tasks
+        set
+          status = 'pending',
+          result_summary = v_target_role || ' queued',
+          result_detail = null,
+          error = null,
+          started_at = null,
+          completed_at = null
+        where id = v_task_id
+          and user_id = v_user_id
+          and status in ('pending', 'failed', 'cancelled')
+        returning *
+        into v_task;
+
+        v_task_requeued := found;
+        if not v_task_requeued then
+          raise exception using
+            errcode = '55000',
+            message = 'conversation_dispatch: durable task retry lost its pending claim';
+        end if;
+      end if;
+    elsif p_retry_failed
+          and v_reply_claimed
+          and v_command.status = 'done' then
+      update public.messages
+      set meta = jsonb_set(
+        jsonb_set(
+          coalesce(meta, '{}'::jsonb),
+          '{delivery_state}',
+          '"failed"'::jsonb,
+          true
+        ),
+        '{delivery_error_code}',
+        '"CLI_COMMAND_ALREADY_DONE"'::jsonb,
+        true
+      )
+      where id = v_reply_id
+        and user_id = v_user_id
+      returning *
+      into v_reply;
+
+      v_reply_claimed := false;
+    end if;
+  end if;
+
+  v_delivery_state := coalesce(
+    nullif(v_reply.meta ->> 'delivery_state', ''),
+    case when btrim(v_reply.content) <> '' then 'completed' else 'failed' end
+  );
+  v_delivery_attempt := case
+    when coalesce(v_reply.meta ->> 'delivery_attempt', '') ~ '^[0-9]+$'
+      then greatest((v_reply.meta ->> 'delivery_attempt')::integer, 1)
+    else 1
+  end;
+
+  return jsonb_build_object(
+    'schema_version', 1,
+    'handler', v_session.handler,
+    'responder_sender_key', v_responder,
+    'target_sender_keys', to_jsonb(v_targets),
+    'user_message', jsonb_build_object(
+      'id', v_user_message.id,
+      'created_at', v_user_message.created_at
+    ),
+    'reply', jsonb_build_object(
+      'id', v_reply.id,
+      'delivery_state', v_delivery_state,
+      'delivery_attempt', v_delivery_attempt
+    ),
+    'command', case
+      when v_session.handler = 'cli' then jsonb_build_object(
+        'id', v_command.id,
+        'status', v_command.status,
+        'idempotency_key', v_command.idempotency_key
+      )
+      else null
+    end,
+    'task', case
+      when v_session.handler = 'cli' and p_create_durable_task then jsonb_build_object(
+        'id', v_task.id,
+        'status', v_task.status,
+        'correlation_id', v_task.correlation_id
+      )
+      else null
+    end,
+    'should_execute', case
+      when v_session.handler = 'api' then v_reply_claimed
+      else v_command_inserted or v_command_requeued
+    end,
+    'was_duplicate', not (case when v_session.handler='api' then v_reply_claimed else v_command_inserted or v_command_requeued end),
+    'reply_reused', not v_reply_inserted,
+    'execution_disposition', case
+      when v_command_requeued or (v_reply_claimed and not v_reply_inserted) then 'requeued'
+      when v_reply_inserted then 'queued'
+      else 'already_dispatched' end
+  );
+end
+$function$;
+REVOKE ALL ON FUNCTION private.lounge_prepare_target(uuid,uuid,uuid,text,timestamp with time zone,text[],boolean,boolean,uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.lounge_prepare_target(uuid,uuid,uuid,text,timestamp with time zone,text[],boolean,boolean,uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_route(p_message uuid, p_retry boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+declare m public.messages%rowtype; target text; dispatch jsonb; result jsonb:='[]'; begin
+ select * into m from public.messages where id=p_message for update;
+ if not found or m.meta->>'lounge' is distinct from 'true' then raise exception 'lounge source not found'; end if;
+ if coalesce((m.meta->>'mention_depth')::int,0)>=2 and m.sender_key<>'chuanchuan' then
+  update public.messages set meta=meta||'{"mention_stopped":"depth_limit"}'::jsonb where id=m.id;
+  return result;
+ end if;
+ foreach target in array coalesce(m.target_sender_keys,'{}'::text[]) loop
+  if target=m.sender_key or target not in ('claude_cli','codex_cli','api_syzygy') then continue; end if;
+  if target='api_syzygy' and m.meta->>'legacy_browser_api'='true' then continue; end if;
+  dispatch:=private.lounge_prepare_target(m.user_id,m.session_id,coalesce(m.client_id,m.id),m.content,
+     m.created_at,array[target],p_retry,true,m.id);
+  -- A failed API reply is requeued only by an explicit retry.
+  if p_retry and target='api_syzygy' and (dispatch->>'should_execute')::boolean then
+   update public.messages set meta=(meta-'api_started_at')||'{"api_queue":"pending"}'::jsonb
+     where id=(dispatch->'reply'->>'id')::uuid;
+  end if;
+  result:=result||jsonb_build_array(dispatch);
+ end loop;
+ perform private.lounge_kick();
+ return result;
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_route(uuid,boolean) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.lounge_route(uuid,boolean) TO service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_sender(value text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+  select case lower(btrim(value))
+    when '串串' then 'chuanchuan' when 'user' then 'chuanchuan'
+    when 'syzygy' then 'api_syzygy' when 'syzygy_instant' then 'api_syzygy'
+    when 'claude_code_cli_syzygy' then 'claude_cli' when 'claude code cli syzygy' then 'claude_cli'
+    when 'claude cli syzygy' then 'claude_cli' when 'claude code cli' then 'claude_cli'
+    when 'claude cli' then 'claude_cli' when 'claude_code_cli' then 'claude_cli'
+    when 'codex_cli_syzygy' then 'codex_cli' when 'codex cli syzygy' then 'codex_cli'
+    when 'codex cli' then 'codex_cli' when 'syzygy-claude' then 'client_claude'
+    when 'syzygy·claude' then 'client_claude' when 'syzygy-gpt' then 'client_gpt'
+    when 'syzygy·gpt' then 'client_gpt' else lower(btrim(value)) end;
+$function$;
+REVOKE ALL ON FUNCTION private.lounge_sender(text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.lounge_sender(text) TO service_role;
+
+CREATE OR REPLACE FUNCTION private.lounge_set_appearance(p_id uuid, p_name text, p_icon text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare owner uuid:=auth.uid(); sofa public.lounge_sofas%rowtype;
+begin
+ if owner is null then raise exception using errcode='42501',message='authentication required';end if;
+ if p_name is null or btrim(p_name)='' or length(p_name)>40 or p_icon is null
+ or p_icon not in ('sofa','coffee','sparkles','cloud','terminal','code','heart','moon') then
+  raise exception using errcode='22023',message='invalid sofa appearance';end if;
+ select * into sofa from public.lounge_sofas where id=p_id and user_id=owner for update;
+ if not found then raise exception using errcode='P0002',message='sofa not found';end if;
+ update public.lounge_sofas set name=btrim(p_name),icon=p_icon,updated_at=now() where id=sofa.id returning * into sofa;
+ update public.sessions set title=sofa.name where id=sofa.session_id and user_id=owner;
+ return to_jsonb(sofa);
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_set_appearance(uuid,text,text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.lounge_set_appearance(uuid,text,text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION private.lounge_set_appearance(p_id uuid, p_name text, p_icon text, p_color text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare sofa public.lounge_sofas%rowtype;
+begin
+ if p_color is not null and p_color not in ('rose','lilac','peach','sage') then
+  raise exception using errcode='22023',message='invalid sofa color';end if;
+ -- Existing routine checks auth.uid(), owner, name and icon before any write.
+ perform private.lounge_set_appearance(p_id,p_name,p_icon);
+ update public.lounge_sofas set icon_color=coalesce(p_color,icon_color)
+ where id=p_id and user_id=auth.uid() returning * into sofa;
+ return to_jsonb(sofa);
+end $function$;
+REVOKE ALL ON FUNCTION private.lounge_set_appearance(uuid,text,text,text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION private.lounge_set_appearance(uuid,text,text,text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.council_app_mutate(p_request_id uuid, p_payload jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  owner_id uuid := auth.uid();
+  action text := p_payload->>'action';
+  speaker text := coalesce(p_payload->>'speaker', 'chuanchuan');
+  body text := btrim(coalesce(p_payload->>'message', ''));
+  category_key text := coalesce(p_payload->>'category', 'other');
+  next_status text := p_payload->>'status';
+  next_executor text := nullif(p_payload->>'executor', '');
+  parent public.agent_council%rowtype;
+  request_row app_private.council_app_requests%rowtype;
+  created_id uuid;
+  answer jsonb;
+  old_label text;
+  next_metadata jsonb;
+begin
+  if owner_id is null or p_request_id is null or jsonb_typeof(p_payload) <> 'object' then
+    raise exception '请重新登录后再操作。';
+  end if;
+  if action is null or action not in ('proposal','review','decision','report','category','rename_category','delete','delete_legacy','confirm') then
+    raise exception '不支持的议事厅操作。';
+  end if;
+  -- INSERT conflict waits for the first transaction. Replays return its exact receipt.
+  insert into app_private.council_app_requests (user_id, request_id, payload)
+    values (owner_id, p_request_id, p_payload) on conflict do nothing;
+  select * into request_row from app_private.council_app_requests
+    where user_id = owner_id and request_id = p_request_id for update;
+  if request_row.payload <> p_payload then raise exception '这次操作内容已改变，请重新提交。'; end if;
+  if request_row.response is not null then return request_row.response; end if;
+
+  if speaker not in ('chuanchuan','claude','gpt','gemini','codex_cli','claude_code_cli') then
+    raise exception '发言身份无效。';
+  end if;
+  if action in ('proposal','review','report') and body = '' then raise exception '正文不能为空。'; end if;
+  if action in ('proposal','category','rename_category') then
+    select label into old_label from public.council_categories where key = category_key for update;
+    if not found then raise exception '分类不存在，请刷新后重试。'; end if;
+  end if;
+  if action = 'proposal' then
+    if btrim(coalesce(p_payload->>'topic','')) = '' then raise exception '请填写提案标题。'; end if;
+    insert into public.agent_council (user_id,speaker,topic,message,entry_type,proposal_status,category,metadata)
+      values (owner_id,speaker,btrim(p_payload->>'topic'),body,'proposal','open',category_key,
+        jsonb_strip_nulls(jsonb_build_object('risk_level',nullif(btrim(p_payload->>'risk_level'),''),'target_module',nullif(btrim(p_payload->>'target_module'),''))))
+      returning id into created_id;
+    answer := jsonb_build_object('proposal_id',created_id,'entry_id',created_id);
+  elsif action = 'rename_category' then
+    if btrim(coalesce(p_payload->>'label','')) = '' then raise exception '分类名称不能为空。'; end if;
+    if old_label is distinct from p_payload->>'previous_label' then raise exception '分类名称已变化，请刷新后再修改。'; end if;
+    update public.council_categories set label = btrim(p_payload->>'label') where key = category_key;
+    answer := jsonb_build_object('category',category_key);
+  else
+    select * into parent from public.agent_council
+      where id = (p_payload->>'proposal_id')::uuid and user_id = owner_id and parent_id is null for update;
+    if not found then raise exception '这条提案已不存在，或不属于当前账号。'; end if;
+    if action = 'delete_legacy' then
+      if parent.entry_type = 'proposal' then raise exception '正式提案不能按旧记录删除。'; end if;
+      delete from public.agent_council where user_id = owner_id and topic = parent.topic and parent_id is null
+        and entry_type is distinct from 'proposal'
+        and id in (select value::uuid from jsonb_array_elements_text(p_payload->'ids'));
+      answer := jsonb_build_object('proposal_id',parent.id,'deleted',true);
+    else
+      if parent.entry_type is distinct from 'proposal' then raise exception '这条记录不是正式提案。'; end if;
+      if action in ('decision','category','report','delete','confirm') then
+        if parent.updated_at is distinct from (p_payload->>'expected_updated_at')::timestamptz
+          or parent.proposal_status is distinct from p_payload->>'expected_status' then
+          raise exception '提案已有新进展，请刷新后重新操作。';
+        end if;
+      end if;
+      if action in ('decision','report','delete','confirm') and nullif(parent.metadata->>'claimed_by','') is not null then
+        raise exception '执行方正在处理这条任务，完成后再操作。';
+      end if;
+      if action = 'review' then
+        if nullif(p_payload->>'vote','') is not null and p_payload->>'vote' not in ('support','neutral','against') then raise exception '表态无效。'; end if;
+        insert into public.agent_council (user_id,parent_id,speaker,topic,message,entry_type,vote,category)
+          values (owner_id,parent.id,speaker,parent.topic,body,'review',nullif(p_payload->>'vote',''),parent.category)
+          returning id into created_id;
+      elsif action = 'decision' then
+        if next_status is null or next_status not in ('approved','rejected','deferred') then raise exception '拍板状态无效。'; end if;
+        if next_executor is not null and next_executor not in ('codex_cli','claude_code_cli','client','chuanchuan') then raise exception '执行方无效。'; end if;
+        if next_status <> 'approved' then next_executor := null; end if;
+        next_metadata := coalesce(parent.metadata,'{}'::jsonb) - 'execution_plan' - 'generated_plan_path' - 'claimed_by' - 'claimed_at' - 'claim_executor' - 'council_stage' - 'confirmed_plan_id';
+        update public.agent_council set proposal_status=next_status, executor=next_executor, metadata=next_metadata, updated_at=clock_timestamp()
+          where id=parent.id and user_id=owner_id;
+        insert into public.agent_council (user_id,parent_id,speaker,topic,message,entry_type,proposal_status,category,metadata)
+          values (owner_id,parent.id,'chuanchuan',parent.topic,coalesce(nullif(body,''),'串串已记录这次拍板。'),'decision',next_status,parent.category,
+            jsonb_strip_nulls(jsonb_build_object('decision_status',next_status,'executor',next_executor,'previous_execution_plan',parent.metadata->'execution_plan')))
+          returning id into created_id;
+      elsif action = 'confirm' then
+        if parent.proposal_status <> 'plan_generated'
+          or parent.metadata->'execution_plan'->>'entry_id' is distinct from p_payload->>'plan_id'
+          or not exists (select 1 from public.agent_council where id=(p_payload->>'plan_id')::uuid
+            and parent_id=parent.id and user_id=owner_id and metadata->>'kind'='execution_plan') then
+          raise exception '方案已变化或尚未就绪，请重新阅读后确认。';
+        end if;
+        if parent.executor not in ('codex_cli','claude_code_cli') then raise exception '请先指派 CLI 执行方。'; end if;
+        update public.agent_council set proposal_status='approved', updated_at=clock_timestamp(),
+          metadata=coalesce(metadata,'{}'::jsonb) || jsonb_build_object('council_stage','execution_confirmed','confirmed_plan_id',p_payload->>'plan_id')
+          where id=parent.id;
+        insert into public.agent_council(user_id,parent_id,speaker,topic,message,entry_type,proposal_status,category,metadata)
+          values(owner_id,parent.id,'chuanchuan',parent.topic,'串串已确认这一版方案，允许按方案执行。','decision','approved',parent.category,
+            jsonb_build_object('kind','execution_confirmation','plan_id',p_payload->>'plan_id','executor',parent.executor)) returning id into created_id;
+      elsif action = 'category' then
+        update public.agent_council set category=category_key, updated_at=clock_timestamp()
+          where user_id=owner_id and (id=parent.id or parent_id=parent.id);
+      elsif action = 'report' then
+        if coalesce(parent.proposal_status,'open') not in ('approved','plan_generated','failed','done') then raise exception '拍板后才能提交执行回执。'; end if;
+        -- Single source of truth for report + status + notification. No manual report writes.
+        answer := public.council_submit_report(parent.id,speaker,body,p_payload->>'result',
+          array(select jsonb_array_elements_text(coalesce(p_payload->'artifacts','[]'::jsonb))),
+          array(select jsonb_array_elements_text(coalesce(p_payload->'follow_ups','[]'::jsonb))));
+        created_id := (answer->>'report_id')::uuid;
+      elsif action = 'delete' then
+        delete from public.agent_council where id=parent.id and user_id=owner_id;
+      end if;
+      answer := coalesce(answer,'{}'::jsonb) || jsonb_build_object('proposal_id',parent.id,'entry_id',created_id,'deleted',action='delete');
+    end if;
+  end if;
+  answer := answer || jsonb_build_object('request_id',p_request_id,'ok',true);
+  update app_private.council_app_requests set response=answer where user_id=owner_id and request_id=p_request_id;
+  return answer;
+end;
+$function$;
+REVOKE ALL ON FUNCTION public.council_app_mutate(uuid,jsonb) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.council_app_mutate(uuid,jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.council_app_mutate(uuid,jsonb) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.council_worker_finish(p_proposal_id uuid, p_command_id uuid, p_claimed_by text, p_executor text, p_mode text, p_message text, p_result text DEFAULT NULL::text, p_artifacts text[] DEFAULT '{}'::text[], p_follow_ups text[] DEFAULT '{}'::text[])
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  parent public.agent_council%rowtype;
+  request_row app_private.council_app_requests%rowtype;
+  request_payload jsonb := jsonb_build_object('proposal',p_proposal_id,'executor',p_executor,'mode',p_mode,'message',p_message,'result',p_result,'artifacts',p_artifacts,'follow_ups',p_follow_ups);
+  entry_id uuid;
+  answer jsonb;
+begin
+  select * into parent from public.agent_council where id=p_proposal_id and entry_type='proposal' for update;
+  if not found or parent.user_id is null or p_command_id is null then raise exception 'Council proposal/command missing'; end if;
+  insert into app_private.council_app_requests(user_id,request_id,payload) values(parent.user_id,p_command_id,request_payload) on conflict do nothing;
+  select * into request_row from app_private.council_app_requests where user_id=parent.user_id and request_id=p_command_id for update;
+  if request_row.payload <> request_payload then raise exception 'Council command replay payload mismatch'; end if;
+  if request_row.response is not null then return request_row.response; end if;
+  if parent.executor is distinct from p_executor or parent.proposal_status <> 'approved'
+    or nullif(p_claimed_by,'') is null or parent.metadata->>'claimed_by' is distinct from p_claimed_by then
+    raise exception 'Council assignment or claim changed';
+  end if;
+  if btrim(coalesce(p_message,''))='' then raise exception 'Council body is empty'; end if;
+  if p_mode not in ('write_plan_only','execute_confirmed') or p_mode is null then raise exception 'Unknown Council worker mode'; end if;
+  if p_result='failed' then
+    answer:=public.council_submit_report(parent.id,p_executor,p_message,'failed',p_artifacts,p_follow_ups);
+    update public.agent_council set metadata=(coalesce(metadata,'{}'::jsonb)-'claimed_by'-'claimed_at'-'claim_executor') || jsonb_build_object('council_stage','failed') where id=parent.id;
+  elsif p_mode='write_plan_only' then
+    if parent.metadata->>'council_stage'='execution_confirmed' then raise exception 'Council execution already confirmed'; end if;
+    insert into public.agent_council(user_id,parent_id,speaker,topic,message,entry_type,category,metadata)
+      values(parent.user_id,parent.id,p_executor,parent.topic,p_message,'review',parent.category,
+        jsonb_build_object('kind','execution_plan','command_id',p_command_id)) returning id into entry_id;
+    update public.agent_council set proposal_status='plan_generated',updated_at=clock_timestamp(),
+      metadata=(coalesce(metadata,'{}'::jsonb)-'claimed_by'-'claimed_at'-'claim_executor'-'confirmed_plan_id') ||
+        jsonb_build_object('council_stage','awaiting_confirmation','execution_plan',jsonb_build_object('entry_id',entry_id,'command_id',p_command_id,'mode','council_inline','generated_at',clock_timestamp())) where id=parent.id;
+    answer:=jsonb_build_object('proposal_id',parent.id,'entry_id',entry_id,'stage','awaiting_confirmation');
+  elsif p_mode='execute_confirmed' then
+    if parent.metadata->>'council_stage' is distinct from 'execution_confirmed'
+      or parent.metadata->>'confirmed_plan_id' is distinct from parent.metadata->'execution_plan'->>'entry_id' then
+      raise exception 'Council plan was not confirmed';
+    end if;
+    answer:=public.council_submit_report(parent.id,p_executor,p_message,p_result,p_artifacts,p_follow_ups);
+    update public.agent_council set metadata=(coalesce(metadata,'{}'::jsonb)-'claimed_by'-'claimed_at'-'claim_executor') || jsonb_build_object('council_stage','reported') where id=parent.id;
+  else raise exception 'Unknown Council worker mode'; end if;
+  update app_private.council_app_requests set response=answer where user_id=parent.user_id and request_id=p_command_id;
+  return answer;
+end;
+$function$;
+REVOKE ALL ON FUNCTION public.council_worker_finish(uuid,uuid,text,text,text,text,text,text[],text[]) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.council_worker_finish(uuid,uuid,text,text,text,text,text,text[],text[]) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.dispatch_feed_notifications()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  candidate record;
+  pushed_id bigint;
+  delivered integer := 0;
+begin
+  for candidate in
+    select q.feed_id, f.user_id, f.type, f.status, f.content, f.expires_at
+    from app_private.feed_notification_outbox q
+    join public.agent_feed_items f on f.id = q.feed_id
+    where q.processed_at is null and f.visible_from <= now()
+    order by q.queued_at
+    limit 100
+    for update of q skip locked
+  loop
+    if candidate.type not in ('morning_share', 'daily_card')
+      or candidate.status <> 'unread'
+      or length(btrim(coalesce(candidate.content, ''))) = 0
+      or candidate.expires_at <= now() then
+      update app_private.feed_notification_outbox set processed_at = now(), outcome = 'skipped'
+        where feed_id = candidate.feed_id;
+      continue;
+    end if;
+    insert into public.agent_events
+      (user_id, actor, event_type, entity_type, entity_id, title, payload, importance)
+    values (
+      candidate.user_id, 'system', 'feed_content_published', 'agent_feed_item', candidate.feed_id,
+      case when candidate.type = 'morning_share' then 'Syzygy 的晨间分享已送达' else 'Syzygy 的日总结已送达' end,
+      jsonb_build_object('screen', 'feed', 'params', jsonb_build_object('id', candidate.feed_id), 'url', '/#/agent-feed'),
+      'high'
+    ) returning id into pushed_id;
+    update app_private.feed_notification_outbox set processed_at = now(), event_id = pushed_id, outcome = 'sent_to_dispatch'
+      where feed_id = candidate.feed_id;
+    delivered := delivered + 1;
+  end loop;
+  return delivered;
+end;
+$function$;
+REVOKE ALL ON FUNCTION public.dispatch_feed_notifications() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.dispatch_feed_notifications() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.enqueue_feed_notification()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  if new.type not in ('morning_share', 'daily_card') or new.status <> 'unread'
+    or length(btrim(coalesce(new.content, ''))) = 0 then return new; end if;
+  -- Editing an already published letter, read/archive actions and historical updates are silent.
+  if tg_op = 'UPDATE' and old.type in ('morning_share', 'daily_card')
+    and length(btrim(coalesce(old.content, ''))) > 0 then return new; end if;
+  insert into app_private.feed_notification_outbox (feed_id) values (new.id) on conflict do nothing;
+  perform public.dispatch_feed_notifications();
+  return new;
+end;
+$function$;
+REVOKE ALL ON FUNCTION public.enqueue_feed_notification() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.enqueue_feed_notification() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.lounge_claim_api(p_owner uuid)
+ RETURNS SETOF messages
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$ begin
+ update public.messages set meta=(meta-'api_queue')||jsonb_build_object('delivery_state','failed','delivery_error','回复超时，请重试')
+ where user_id=p_owner and meta->>'api_queue'='running' and (meta->>'api_started_at')::timestamptz<now()-interval '150 seconds';
+ return query with pending as (
+  select id from public.messages where user_id=p_owner and meta->>'api_queue'='pending'
+  order by created_at limit 3 for update skip locked
+ ) update public.messages m set meta=meta||jsonb_build_object('api_queue','running','api_started_at',now())
+ from pending where m.id=pending.id returning m.*;
+end $function$;
+REVOKE ALL ON FUNCTION public.lounge_claim_api(uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.lounge_claim_api(uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.lounge_dispatch_prepare(p_user_id uuid, p_session_id uuid, p_client_id uuid, p_content text, p_sender text DEFAULT 'chuanchuan'::text, p_targets text[] DEFAULT NULL::text[], p_reply_to uuid DEFAULT NULL::uuid, p_retry_failed boolean DEFAULT false, p_legacy_browser boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+declare s public.sessions%rowtype; m public.messages%rowtype; parent public.messages%rowtype;
+ sender text:=private.lounge_sender(p_sender); targets text[]; depth int:=0; fresh boolean; begin
+ if current_user not in ('service_role','postgres','supabase_admin') then raise exception using errcode='42501',message='service only'; end if;
+ if p_client_id is null or p_user_id is null or p_content is null or btrim(p_content)='' or length(p_content)>20000 then
+  raise exception using errcode='22023',message='invalid lounge message'; end if;
+ select * into s from public.sessions where id=p_session_id and user_id=p_user_id and conversation_kind='group' and handler='router' and not is_archived for update;
+ if not found then raise exception using errcode='P0002',message='lounge not found'; end if;
+ if not(s.routing_config->'participants' ? sender) then raise exception using errcode='22023',message='unknown sender'; end if;
+ if p_reply_to is not null then
+  select * into parent from public.messages where id=p_reply_to and user_id=p_user_id and session_id=p_session_id;
+  if not found or parent.meta->>'delivery_state' in ('generating','failed') then raise exception using errcode='22023',message='invalid reply target'; end if;
+  targets:=array[parent.sender_key];
+  if sender<>'chuanchuan' then depth:=coalesce((parent.meta->>'mention_depth')::int,0)+1; end if;
+ else
+  targets:=private.lounge_mentions(p_content);
+  if cardinality(targets)=0 then select array_agg(distinct private.lounge_sender(t)) into targets from unnest(p_targets) t; end if;
+  if coalesce(cardinality(targets),0)=0 then targets:=case when sender='chuanchuan' then array['api_syzygy'] else '{}'::text[] end; end if;
+ end if;
+ if exists(select 1 from unnest(targets) t where not(s.routing_config->'participants' ? t)) then
+  raise exception using errcode='22023',message='unknown mention target'; end if;
+ select coalesce(array_agg(t order by t),'{}') into targets from unnest(targets) t where t<>sender;
+ insert into public.messages(user_id,session_id,role,content,meta,client_id,sender_key,reply_to_id,target_sender_keys)
+ values(p_user_id,p_session_id,case when sender='chuanchuan' then 'user' else 'assistant' end,p_content,
+  jsonb_build_object('source','conversation_dispatch','lounge',true,'delivery_state','completed','mention_depth',depth,'external_post',sender<>'chuanchuan','legacy_browser_api',p_legacy_browser),
+  p_client_id,sender,p_reply_to,targets)
+ on conflict(client_id) where client_id is not null do nothing returning * into m;
+ fresh:=found;
+ if not fresh then
+  select * into m from public.messages where client_id=p_client_id and user_id=p_user_id;
+  if not found or m.session_id<>p_session_id or m.content is distinct from p_content or m.sender_key<>sender
+   or m.reply_to_id is distinct from p_reply_to or m.target_sender_keys is distinct from targets then
+   raise exception using errcode='23505',message='request identity reused with different content'; end if;
+ end if;
+ update public.sessions set updated_at=now() where id=s.id;
+ update public.lounge_sofas set updated_at=now() where session_id=s.id;
+ return jsonb_build_object('message',to_jsonb(m),'dispatches',private.lounge_route(m.id,p_retry_failed),'duplicate',not fresh);
+end $function$;
+REVOKE ALL ON FUNCTION public.lounge_dispatch_prepare(uuid,uuid,uuid,text,text,text[],uuid,boolean,boolean) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.lounge_dispatch_prepare(uuid,uuid,uuid,text,text,text[],uuid,boolean,boolean) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.lounge_manage(p_action text, p_id uuid, p_name text DEFAULT ''::text)
+ RETURNS jsonb
+ LANGUAGE sql
+ SET search_path TO ''
+AS $function$ select private.lounge_manage(p_action,p_id,p_name); $function$;
+REVOKE ALL ON FUNCTION public.lounge_manage(text,uuid,text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.lounge_manage(text,uuid,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.lounge_manage(text,uuid,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.lounge_retry_reply(p_owner uuid, p_reply uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+declare r public.messages%rowtype; source public.messages%rowtype; result jsonb; begin
+ select * into r from public.messages where id=p_reply and user_id=p_owner and meta->>'lounge'='true' for update;
+ if not found or r.reply_to_id is null or r.meta->>'delivery_state'<>'failed' then raise exception using errcode='22023',message='reply is not retryable'; end if;
+ select * into source from public.messages where id=r.reply_to_id and user_id=p_owner and session_id=r.session_id;
+ if not found then raise exception 'source not found'; end if;
+ result:=private.lounge_prepare_target(p_owner,r.session_id,coalesce(source.client_id,source.id),source.content,source.created_at,array[r.sender_key],true,true,source.id);
+ if r.sender_key='api_syzygy' and (result->>'should_execute')::boolean then
+  update public.messages set meta=(meta-'api_started_at')||'{"api_queue":"pending"}'::jsonb where id=r.id;
+  perform private.lounge_kick();
+ end if;
+ return result;
+end $function$;
+REVOKE ALL ON FUNCTION public.lounge_retry_reply(uuid,uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.lounge_retry_reply(uuid,uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.lounge_set_appearance(p_id uuid, p_name text, p_icon text, p_color text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE sql
+ SET search_path TO ''
+AS $function$ select private.lounge_set_appearance(p_id,p_name,p_icon,p_color); $function$;
+REVOKE ALL ON FUNCTION public.lounge_set_appearance(uuid,text,text,text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.lounge_set_appearance(uuid,text,text,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.lounge_set_appearance(uuid,text,text,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.normalize_agent_task_completed_status()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+begin
+  if new.status = 'running' and new.completed_at is not null then
+    new.status := 'completed';
+  end if;
+  return new;
+end;
+$function$;
+REVOKE ALL ON FUNCTION public.normalize_agent_task_completed_status() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.normalize_agent_task_completed_status() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.stash_folder_counts()
+ RETURNS TABLE(folder_id uuid, total_count bigint, stashed_count bigint)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO ''
+AS $function$
+  select i.folder_id, count(*), count(*) filter (where i.status = 'stashed')
+  from public.stash_items i where i.user_id = (select auth.uid()) group by i.folder_id;
+$function$;
+REVOKE ALL ON FUNCTION public.stash_folder_counts() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.stash_folder_counts() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.stash_folder_counts() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.stash_search_items(p_folder_id uuid DEFAULT NULL::uuid, p_search text DEFAULT ''::text, p_status text DEFAULT NULL::text, p_before_time timestamp with time zone DEFAULT NULL::timestamp with time zone, p_before_id uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 41)
+ RETURNS SETOF stash_items
+ LANGUAGE sql
+ STABLE
+ SET search_path TO ''
+AS $function$
+  select i.* from public.stash_items i
+  where i.user_id = (select auth.uid())
+    and (p_status is null or i.status = p_status)
+    and (case when btrim(coalesce(p_search,'')) = '' then i.folder_id is not distinct from p_folder_id
+      else position(lower(btrim(p_search)) in lower(i.title)) > 0
+        or position(lower(btrim(p_search)) in lower(coalesce(i.content,''))) > 0
+        or position(lower(btrim(p_search)) in lower(coalesce(i.url,''))) > 0
+        or exists (select 1 from unnest(i.tags) tag where position(lower(btrim(p_search)) in lower(tag)) > 0)
+      end)
+    and (p_before_time is null or (i.created_at,i.id) < (p_before_time,p_before_id))
+  order by i.created_at desc, i.id desc limit least(greatest(coalesce(p_limit,41),1),101);
+$function$;
+REVOKE ALL ON FUNCTION public.stash_search_items(uuid,text,text,timestamp with time zone,uuid,integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.stash_search_items(uuid,text,text,timestamp with time zone,uuid,integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.stash_search_items(uuid,text,text,timestamp with time zone,uuid,integer) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.wiki_save_entry(p_id uuid, p_fields jsonb, p_base jsonb DEFAULT NULL::jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+declare
+  owner_id uuid := auth.uid(); current_row public.wiki_entries; desired jsonb; current_fields jsonb;
+  field_tags text[];
+begin
+  if owner_id is null then raise exception 'Sign in required' using errcode = '42501'; end if;
+  if p_id is null or jsonb_typeof(p_fields) is distinct from 'object'
+    or jsonb_typeof(p_fields->'title') is distinct from 'string'
+    or jsonb_typeof(p_fields->'category') is distinct from 'string'
+    or jsonb_typeof(p_fields->'content') is distinct from 'string'
+    or jsonb_typeof(p_fields->'tags') is distinct from 'array'
+    or coalesce(p_fields->>'status','') not in ('draft','published')
+    or btrim(p_fields->>'title') = '' or btrim(p_fields->>'category') = ''
+  then raise exception 'Invalid Wiki fields' using errcode = '22023'; end if;
+  if exists(select 1 from jsonb_array_elements(p_fields->'tags') t where jsonb_typeof(t) <> 'string')
+  then raise exception 'Invalid tags' using errcode = '22023'; end if;
+  select coalesce(array_agg(t), '{}'::text[]) into field_tags from jsonb_array_elements_text(p_fields->'tags') t;
+  desired := jsonb_build_object('title',p_fields->>'title','category',p_fields->>'category','content',p_fields->>'content','tags',field_tags,'status',p_fields->>'status');
+  if p_base is null then
+    insert into public.wiki_entries(id,user_id,title,category,content,tags,status)
+    values(p_id,owner_id,p_fields->>'title',p_fields->>'category',p_fields->>'content',field_tags,p_fields->>'status')
+    on conflict(id) do nothing;
+  end if;
+  select * into current_row from public.wiki_entries where id=p_id and user_id=owner_id for update;
+  if not found then raise exception 'Wiki entry is missing or inaccessible' using errcode = '40001'; end if;
+  current_fields := jsonb_build_object('title',current_row.title,'category',current_row.category,'content',current_row.content,'tags',current_row.tags,'status',current_row.status);
+  if current_fields = desired then return p_id; end if;
+  if p_base is null or not (p_base @> jsonb_build_object('id',p_id,'user_id',owner_id))
+    or current_fields is distinct from (p_base - 'id' - 'user_id' - 'created_at' - 'updated_at')
+    or current_row.updated_at is distinct from (p_base->>'updated_at')::timestamptz
+  then raise exception 'Wiki entry changed; review latest version' using errcode = '40001'; end if;
+  update public.wiki_entries set title=p_fields->>'title', category=p_fields->>'category',
+    content=p_fields->>'content', tags=field_tags, status=p_fields->>'status', updated_at=clock_timestamp()
+    where id=p_id and user_id=owner_id;
+  return p_id;
+end $function$;
+REVOKE ALL ON FUNCTION public.wiki_save_entry(uuid,jsonb,jsonb) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.wiki_save_entry(uuid,jsonb,jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.wiki_save_entry(uuid,jsonb,jsonb) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.wiki_search_entries(p_search text DEFAULT ''::text, p_category text DEFAULT NULL::text, p_tag text DEFAULT NULL::text, p_status text DEFAULT NULL::text, p_link_title text DEFAULT NULL::text, p_before_time timestamp with time zone DEFAULT NULL::timestamp with time zone, p_before_id uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 31)
+ RETURNS TABLE(id uuid, user_id uuid, title text, category text, tags text[], status text, created_at timestamp with time zone, updated_at timestamp with time zone)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO ''
+AS $function$
+  select w.id, w.user_id, w.title, w.category, w.tags, w.status,
+    w.created_at, w.updated_at
+  from public.wiki_entries w
+  where w.user_id = (select auth.uid())
+    and (p_category is null or w.category = p_category)
+    and (p_tag is null or w.tags @> array[p_tag])
+    and (p_status is null or w.status = p_status)
+    and (coalesce(btrim(p_search), '') = '' or
+      strpos(lower(w.title), lower(btrim(p_search))) > 0 or
+      strpos(lower(w.content), lower(btrim(p_search))) > 0 or
+      exists (select 1 from unnest(w.tags) t where strpos(lower(t), lower(btrim(p_search))) > 0))
+    and (p_link_title is null or exists (
+      select 1 from regexp_matches(w.content, '\[\[([^\]]+)\]\]', 'g') m
+      where btrim(m[1]) = p_link_title
+    ))
+    and (p_before_id is null or
+      (coalesce(w.created_at, '1970-01-01'::timestamptz), w.id) <
+      (coalesce(p_before_time, '1970-01-01'::timestamptz), p_before_id))
+  order by coalesce(w.created_at, '1970-01-01'::timestamptz) desc, w.id desc
+  limit greatest(1, least(coalesce(p_limit, 31), 100));
+$function$;
+REVOKE ALL ON FUNCTION public.wiki_search_entries(text,text,text,text,text,timestamp with time zone,uuid,integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.wiki_search_entries(text,text,text,text,text,timestamp with time zone,uuid,integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.wiki_search_entries(text,text,text,text,text,timestamp with time zone,uuid,integer) TO service_role;
+
+COMMENT ON FUNCTION public.normalize_agent_task_completed_status() IS 'Normalize running + completed_at to completed on write; preserve explicit failed/cancelled outcomes. No historical backfill.';
+COMMENT ON FUNCTION public.wiki_search_entries(text,text,text,text,text,timestamp with time zone,uuid,integer) IS 'App Wiki metadata search and backlinks; literal substring search, stable keyset paging, caller RLS.';
+
+-- ---------- 触发器 ----------
+DROP TRIGGER IF EXISTS agent_tasks_completed_status_guard ON public.agent_tasks;
+CREATE TRIGGER agent_tasks_completed_status_guard BEFORE INSERT OR UPDATE ON public.agent_tasks FOR EACH ROW WHEN (((new.status = 'running'::text) AND (new.completed_at IS NOT NULL))) EXECUTE FUNCTION public.normalize_agent_task_completed_status();
+DROP TRIGGER IF EXISTS agent_feed_content_notification ON public.agent_feed_items;
+CREATE TRIGGER agent_feed_content_notification AFTER INSERT OR UPDATE OF content, type ON public.agent_feed_items FOR EACH ROW EXECUTE FUNCTION public.enqueue_feed_notification();
+DROP TRIGGER IF EXISTS lounge_legacy_to_canonical ON public.lounge_messages;
+CREATE TRIGGER lounge_legacy_to_canonical BEFORE INSERT ON public.lounge_messages FOR EACH ROW EXECUTE FUNCTION private.lounge_legacy_write();
+DROP TRIGGER IF EXISTS lounge_directory_guard ON public.lounge_sofas;
+CREATE TRIGGER lounge_directory_guard BEFORE INSERT OR DELETE OR UPDATE ON public.lounge_sofas FOR EACH ROW EXECUTE FUNCTION private.lounge_directory_write();
+DROP TRIGGER IF EXISTS lounge_directory_cleanup ON public.lounge_sofas;
+CREATE TRIGGER lounge_directory_cleanup AFTER DELETE ON public.lounge_sofas FOR EACH ROW EXECUTE FUNCTION private.lounge_directory_delete();
+DROP TRIGGER IF EXISTS lounge_canonical_guard ON public.messages;
+CREATE TRIGGER lounge_canonical_guard BEFORE INSERT OR UPDATE ON public.messages FOR EACH ROW EXECUTE FUNCTION private.lounge_guard();
+DROP TRIGGER IF EXISTS lounge_message_clock ON public.messages;
+CREATE TRIGGER lounge_message_clock BEFORE INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION private.lounge_message_clock();
+DROP TRIGGER IF EXISTS lounge_canonical_legacy_mirror ON public.messages;
+CREATE TRIGGER lounge_canonical_legacy_mirror AFTER INSERT OR UPDATE OF content, meta ON public.messages FOR EACH ROW EXECUTE FUNCTION private.lounge_legacy_mirror();
+DROP TRIGGER IF EXISTS lounge_reply_completed ON public.messages;
+CREATE TRIGGER lounge_reply_completed AFTER UPDATE OF content, meta ON public.messages FOR EACH ROW EXECUTE FUNCTION private.lounge_completed();
+DROP TRIGGER IF EXISTS lounge_z_notice ON public.messages;
+CREATE TRIGGER lounge_z_notice AFTER INSERT OR UPDATE OF content, meta ON public.messages FOR EACH ROW EXECUTE FUNCTION private.lounge_notice();
+
+-- ---------- 客厅按归属的 RLS 策略（替代原先的 authenticated_all 全开放） ----------
+DROP POLICY IF EXISTS lounge_sofa_owner_read ON public.lounge_sofas;
+CREATE POLICY lounge_sofa_owner_read ON public.lounge_sofas FOR SELECT TO authenticated
+  USING ((user_id = ( SELECT auth.uid() AS uid)));
+DROP POLICY IF EXISTS lounge_sofa_owner_write ON public.lounge_sofas;
+CREATE POLICY lounge_sofa_owner_write ON public.lounge_sofas FOR ALL TO authenticated
+  USING ((user_id = ( SELECT auth.uid() AS uid)))
+  WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+DROP POLICY IF EXISTS lounge_legacy_owner_read ON public.lounge_messages;
+CREATE POLICY lounge_legacy_owner_read ON public.lounge_messages FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM public.lounge_sofas s
+  WHERE ((s.id = lounge_messages.sofa_id) AND (s.user_id = ( SELECT auth.uid() AS uid))))));
+DROP POLICY IF EXISTS lounge_legacy_owner_insert ON public.lounge_messages;
+CREATE POLICY lounge_legacy_owner_insert ON public.lounge_messages FOR INSERT TO authenticated
+  WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.lounge_sofas s
+  WHERE ((s.id = lounge_messages.sofa_id) AND (s.user_id = ( SELECT auth.uid() AS uid))))));
+
+-- ---------- 定时任务（pg_cron；同名 schedule 会覆盖，可重跑） ----------
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+SELECT cron.schedule('feed-content-notifications', '* * * * *', 'select public.dispatch_feed_notifications();');
+SELECT cron.schedule('lounge-api-recovery', '* * * * *', 'select private.lounge_kick();');
 
 -- ============================================================================
 -- 完 · Hamster-Nest schema 到此结束

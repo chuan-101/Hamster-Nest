@@ -1,16 +1,10 @@
-const ALLOWED_CONVERSATION_ORIGINS = [
-  'https://chuan-101.github.io',
-  /^http:\/\/localhost:\d+$/u,
-  /^http:\/\/127\.0\.0\.1:\d+$/u,
-]
+import { isAllowedBrowserOrigin } from './cors.ts'
 
 export const isAllowedConversationOrigin = (origin: string | null) => {
   if (!origin) {
     return true
   }
-  return ALLOWED_CONVERSATION_ORIGINS.some((candidate) =>
-    typeof candidate === 'string' ? candidate === origin : candidate.test(origin)
-  )
+  return isAllowedBrowserOrigin(origin)
 }
 
 export const buildConversationCorsHeaders = (origin: string | null) => ({

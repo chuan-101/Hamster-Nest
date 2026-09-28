@@ -6,6 +6,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { isMcpKeyAuthorized } from './mcp_key_auth.ts'
 import { getOwnerUserId } from './owner.ts'
 import { getSupabaseAdminKey } from './supabase_secret.ts'
+import { isAllowedBrowserOrigin } from './cors.ts'
 
 export const MCP_VERSION = '5.18.1'
 export const USER_ID = getOwnerUserId()
@@ -15,12 +16,7 @@ export const supabase = createClient(
   getSupabaseAdminKey(),
 )
 
-const allowedOrigins = ['https://chuan-101.github.io', /^http:\/\/localhost:\d+$/]
-
-const isAllowedOrigin = (origin: string) =>
-  allowedOrigins.some((pattern) =>
-    typeof pattern === 'string' ? pattern === origin : pattern.test(origin)
-  )
+const isAllowedOrigin = (origin: string) => isAllowedBrowserOrigin(origin)
 
 const buildCorsHeaders = (origin: string): Record<string, string> => ({
   'Access-Control-Allow-Origin': origin,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildEdgeAuthHeaders } from '../lib/edgeAuth'
 
-const TTS_GENERATE_ENDPOINT = 'https://crfhiumxzmaszkapanrb.supabase.co/functions/v1/tts-generate'
+const TTS_GENERATE_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tts-generate`
 export const TTS_TEXT_LIMIT = 2000
 
 export type TtsPlaybackState = 'loading' | 'playing'
