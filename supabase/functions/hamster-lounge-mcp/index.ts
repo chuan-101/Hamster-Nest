@@ -326,7 +326,7 @@ serveMcp('hamster-lounge-mcp', (server) => {
 
   server.registerTool('add_diary_entry', {
     title: 'Add Diary Entry',
-    description: '写一页日记（默认 private 上锁）；自由活动回执用 activity_type=free_activity。',
+    description: '写一页日记（默认 private 上锁）。自由活动回执必须用 activity_type=free_activity 并在 metadata.task_id 记录原活动任务 ID；重试或补写沿用原 ID，自动幂等，不重复推送。',
     inputSchema: {
       author: DIARY_AUTHOR_SCHEMA.describe('执笔端口（署名）'),
       content: z.string().describe('正文（Markdown）'),
@@ -342,6 +342,11 @@ serveMcp('hamster-lounge-mcp', (server) => {
       const normalized = normalizeDiaryEntryInput(input)
       if (!normalized.ok) return { content: [{ type: 'text' as const, text: `Error: ${normalized.error}` }] }
       const { data, error } = await supabase.from('diary_entries').insert({ user_id: USER_ID, ...normalized.row }).select(DIARY_COLUMNS).single()
+      if (error?.code === '23505' && normalized.row.activity_type === 'free_activity' && input.metadata?.task_id) {
+        const existing = await supabase.from('diary_entries').select(DIARY_COLUMNS).eq('user_id', USER_ID)
+          .eq('author', normalized.row.author).eq('activity_type', 'free_activity').eq('metadata->>task_id', String(input.metadata.task_id)).single()
+        return existing.error ? errorResult(existing.error) : jsonResult({ ...existing.data, replayed: true })
+      }
       if (error) return errorResult(error)
       return { content: [{ type: 'text' as const, text: `日记已写入: ${JSON.stringify(data)}` }] }
     } catch (err) {

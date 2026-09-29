@@ -22,6 +22,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { timingSafeEqual } from '../_shared/auth.ts'
 import { consumeQuota } from '../_shared/quota.ts'
+import { isDiaryQuietTime } from './diary-policy.ts'
 import { getBeijingDate } from '../_shared/time.ts'
 import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 import {
@@ -171,11 +172,13 @@ const dispatchEvent = async (
   if (event.importance === 'low') {
     return skipEvent(supabase, event, 'low importance')
   }
-  if (event.importance !== 'urgent' && isQuietHour(getBeijingDate().hour)) {
+  const isCliDiary = event.event_type === 'cli_diary_created' && event.entity_type === 'diary_entry'
+  if (isCliDiary ? (isDiaryQuietTime(new Date(event.created_at)) || isDiaryQuietTime())
+    : event.importance !== 'urgent' && isQuietHour(getBeijingDate().hour)) {
     return skipEvent(supabase, event, 'quiet hours')
   }
 
-  const quota = await consumeQuota('push', event.user_id, PUSH_DAILY_LIMIT)
+  const quota = isCliDiary ? { allowed: true } : await consumeQuota('push', event.user_id, PUSH_DAILY_LIMIT)
   if (!quota.allowed) {
     return skipEvent(supabase, event, 'daily push quota exceeded')
   }

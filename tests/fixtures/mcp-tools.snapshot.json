@@ -52,6 +52,7 @@
     "add_memo",
     "add_timeline",
     "add_todo",
+    "cli_set_self_alarm",
     "complete_todo",
     "delete_memo",
     "get_monthly_overview",
