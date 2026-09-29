@@ -868,6 +868,91 @@ export type Database = {
         }
         Relationships: []
       }
+      cli_wake_schedule: {
+        Row: {
+          command_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by_task_id: string | null
+          deadline: string | null
+          delayed: boolean
+          diary_missing: boolean | null
+          id: string
+          kind: string
+          local_date: string
+          note: string
+          role: string
+          skip_reason: string | null
+          started_at: string | null
+          status: string
+          task_id: string | null
+          user_id: string
+          wake_at: string
+        }
+        Insert: {
+          command_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_task_id?: string | null
+          deadline?: string | null
+          delayed?: boolean
+          diary_missing?: boolean | null
+          id?: string
+          kind: string
+          local_date: string
+          note?: string
+          role: string
+          skip_reason?: string | null
+          started_at?: string | null
+          status?: string
+          task_id?: string | null
+          user_id: string
+          wake_at: string
+        }
+        Update: {
+          command_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_task_id?: string | null
+          deadline?: string | null
+          delayed?: boolean
+          diary_missing?: boolean | null
+          id?: string
+          kind?: string
+          local_date?: string
+          note?: string
+          role?: string
+          skip_reason?: string | null
+          started_at?: string | null
+          status?: string
+          task_id?: string | null
+          user_id?: string
+          wake_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cli_wake_schedule_command_id_fkey"
+            columns: ["command_id"]
+            isOneToOne: false
+            referencedRelation: "syzygy_commands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cli_wake_schedule_created_by_task_id_fkey"
+            columns: ["created_by_task_id"]
+            isOneToOne: false
+            referencedRelation: "agent_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cli_wake_schedule_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "agent_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       codex_control: {
         Row: {
           action: string
@@ -3904,6 +3989,49 @@ export type Database = {
           source: string
           user_id: string
         }[]
+      }
+      cli_set_self_alarm: {
+        Args: { p_at: string; p_note?: string; p_task: string; p_user: string }
+        Returns: Json
+      }
+      cli_wake_dispatch: {
+        Args: {
+          p_command?: string
+          p_paused?: boolean
+          p_roles: Json
+          p_task?: string
+          p_user: string
+          p_wake?: string
+        }
+        Returns: Json
+      }
+      cli_wake_finish: {
+        Args: {
+          p_reason?: string
+          p_status: string
+          p_task: string
+          p_user: string
+          p_wake: string
+        }
+        Returns: Json
+      }
+      cli_wake_plan_day: {
+        Args: { p_date: string; p_user: string }
+        Returns: undefined
+      }
+      cli_wake_recover: {
+        Args: { p_before: string; p_user: string }
+        Returns: number
+      }
+      cli_wake_slot_available: {
+        Args: {
+          p_at: string
+          p_exclude?: string
+          p_kind: string
+          p_role: string
+          p_user: string
+        }
+        Returns: boolean
       }
       complete_quest: {
         Args: { p_note?: string; p_quest_id: string; p_user_id?: string }

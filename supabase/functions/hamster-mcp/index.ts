@@ -118,11 +118,11 @@ const fetchTagNamesByEntryIds = async (entryIds: string[]): Promise<Map<string, 
   if (entryIds.length === 0) return tagNames
   const { data, error } = await supabase.from('memo_entry_tags').select('memo_entry_id, memo_tags(name)').in('memo_entry_id', entryIds)
   if (error) throw error
-  for (const row of (data ?? []) as { memo_entry_id: string; memo_tags: { name: string } | null }[]) {
-    if (!row.memo_tags?.name) continue
-    const current = tagNames.get(row.memo_entry_id) ?? []
-    current.push(row.memo_tags.name)
-    tagNames.set(row.memo_entry_id, current)
+  for (const row of (data ?? []) as { memo_entry_id: string; memo_tags: { name: string } | { name: string }[] | null }[]) {
+    const tags = Array.isArray(row.memo_tags) ? row.memo_tags : [row.memo_tags]
+    const names = tags.flatMap((tag) => tag?.name ? [tag.name] : [])
+    if (!names.length) continue
+    tagNames.set(row.memo_entry_id, [...(tagNames.get(row.memo_entry_id) ?? []), ...names])
   }
   return tagNames
 }
@@ -184,6 +184,22 @@ const fetchEventThread = async (threadId: string): Promise<EventThreadRow | null
 const eventThreadNotFound = (threadId: string) => ({ content: [{ type: 'text' as const, text: `Error: 未找到事件线: ${threadId}（用 list_event_threads 核对 id）` }] })
 
 serveMcp('hamster-mcp', (server) => {
+  server.registerTool('cli_set_self_alarm', {
+    title: 'Set CLI Self Alarm',
+    description: 'CLI 给自己预约当天一次自由活动闹钟。角色由本轮运行任务派生；09:00–21:00 上海时间，避开固定任务、随机活动和另一 CLI。冲突返回附近可用时间；不支持改期或取消。',
+    inputSchema: {
+      current_task_id: z.string().uuid().describe('运行器注入的本轮 agent_task_id；不可借用其他任务'),
+      wake_at: z.string().datetime({ offset: true }).describe('当天未来时刻，ISO8601，必须带时区，如 +08:00'),
+      note: z.string().max(2000).optional().describe('留给未来自己的一句话，不进入群聊'),
+    },
+  }, async ({ current_task_id, wake_at, note }) => {
+    const { data, error } = await supabase.rpc('cli_set_self_alarm', {
+      p_user: USER_ID, p_task: current_task_id, p_at: wake_at, p_note: note ?? '',
+    })
+    return error ? errorResult(error) : jsonResult(data)
+  })
+
+
   server.registerTool('get_today_syzygy_feed', {
     title: 'Get Today Syzygy Feed',
     description: '读取今天的 Syzygy Feed 摘要列表。',

@@ -65,7 +65,7 @@ const enqueueJob = async (
 // 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
 const PRINT_MCP_INSTRUCTIONS = [
   '外设动作域：任务投递到 syzygy_commands 队列，由 Mac mini 常驻 worker 领取执行；状态用对应 get_*_status 查询（pending=等待领取 / running=已领取 / done=完成 / failed=失败）。',
-  'print_document / post_tweet 是真实世界动作：只有串串明确要求时才调用，confirmed 必须为 true；同一 request_id 或同日同内容默认幂等，重试请复用同一个 request_id。',
+  'print_document 仅在串串明确要求时调用；post_tweet 也可依照串串已授权的 CLI 自由活动指南自主发布。两者 confirmed 必须为 true；同一 request_id 或同日同内容默认幂等，重试复用 request_id。自主发推须在日记里记录链接。',
 ].join('\n')
 
 serveMcp('hamster-print-mcp', (server) => {
@@ -150,14 +150,14 @@ serveMcp('hamster-print-mcp', (server) => {
 
   server.registerTool('post_tweet', {
     title: 'Post Tweet',
-    description: '把推文投递给 Mac mini worker 真实发布到 X/Twitter。仅在串串明确要求时调用，confirmed 必须为 true。',
+    description: '把推文投递给 Mac mini worker 真实发布到 X/Twitter。可由串串明确要求，或由 CLI 按已授权的自由活动指南自主发布；confirmed 必须为 true，自主发推在日记回执记录链接。',
     annotations: { openWorldHint: true },
     inputSchema: {
       text: z.string().min(1).refine(
         (value) => countTweetCharacters(value.replace(/\r\n?/gu, '\n').trim()) <= MAX_TWEET_TEXT_LENGTH,
         `推文最长 ${MAX_TWEET_TEXT_LENGTH} 个 Unicode 字符`,
       ).describe(`推文正文，最长 ${MAX_TWEET_TEXT_LENGTH} 个 Unicode 字符；X/Twitter 仍会执行平台侧最终校验`),
-      confirmed: z.literal(true).describe('串串已明确授权这次真实发推，必须为 true'),
+      confirmed: z.literal(true).describe('确认本次真实发推符合串串的直接指令或已授权自由活动指南，必须为 true'),
       request_id: z.string().max(120).optional().describe('本次逻辑请求的稳定幂等键；重试时复用同一个值'),
       allow_duplicate: z.boolean().optional().describe('明确需要再次发布相同正文时设为 true；默认 false'),
     },
