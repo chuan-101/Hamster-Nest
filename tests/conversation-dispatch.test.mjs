@@ -165,7 +165,8 @@ test('Edge handler re-verifies the owner before using the service-only durable R
   ])
 
   assert.match(config, /\[functions\.conversation-dispatch\][\s\S]*?verify_jwt = false/iu)
-  assert.match(source, /new URL\('\/auth\/v1\/user', supabaseUrl\)/u)
+  assert.match(source, /await verifyConversationUser\(supabaseUrl/u)
+  assert.ok(source.indexOf('if (!identity.ok)') < source.indexOf('let ownerId'))
   assert.match(source, /getOwnerUserId\(\)/u)
   assert.match(source, /Authorization: authorization/u)
   assert.match(source, /getSupabaseAdminKey\(\)/u)
