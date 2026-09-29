@@ -10,7 +10,7 @@
 
 [![Version](https://img.shields.io/badge/Version-v5.3.0-pink?style=flat-square)](#)
 [![License](https://img.shields.io/badge/License-MIT-a3e635?style=flat-square)](./LICENSE)
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-86-2dd4bf?style=flat-square)](#-mcp-工具箱全部-86-个)
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-85-2dd4bf?style=flat-square)](#-mcp-工具箱全部-85-个)
 [![Edge Functions](https://img.shields.io/badge/Edge_Functions-19-8b5cf6?style=flat-square)](#-后端-edge-functions)
 [![PRs](https://img.shields.io/badge/PRs-1000+-ff69b4?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-可装进手机-f59e0b?style=flat-square)](#)
@@ -111,7 +111,7 @@
 | `hamster-mcp` | 时间轴 · 待办 · Syzygy Feed · 月度概览 · 备忘录 · 事件集 | 22 |
 | `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki · 囤粮处 | 17 |
 | `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 · 导读/总结 | 18 |
-| `hamster-lounge-mcp` | 仓鼠客厅 · 议事厅 · Syzygy 日记本 | 15 |
+| `hamster-lounge-mcp` | 仓鼠客厅 · 议事厅 · Syzygy 日记本 | 17 |
 | `hamster-life-mcp` | 高德地图 · 瑞幸 · 麦当劳 · TTS 语音 | 7 |
 | `hamster-print-mcp` | Mac mini 动作 · 远程打印 · X/Twitter 发帖 | 4 |
 
@@ -201,11 +201,19 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 
 ---
 
-### 🧰 MCP 工具箱（全部 86 个）
+### 🧰 MCP 工具箱（全部 85 个）
 
 > 每个 MCP 服务器都是一个独立的 Supabase Edge Function，走 JSON-RPC / MCP Streamable HTTP。
 > 鉴权优先使用 `x-hamster-mcp-key` 请求头（timing-safe 比对）或 Supabase Auth Header；`?key=` 仅为旧客户端迁移期兼容，避免新凭证进入 URL / Access Log。
 > 工具清单与计数以 `npm run mcp:inventory` 的输出为准（`--live` 模式直连已部署 server 拿精确清单）；跨工具的共性约定放在各 server 的 MCP `instructions` 里随握手下发，只读 / 危险操作标注在 `annotations`（readOnlyHint / destructiveHint）。
+
+2026-09-29 已用线上 `tools/list` 核对六个 server：22 + 17 + 18 + 17 + 7 + 4 = **85**。这是当日部署快照；新增或调整工具时需重新盘点并同步本文。
+
+**新工具准入三问：**
+
+1. 放进哪个 server？按业务归属注册，避免同名工具挪错域。
+2. 是主动触发型还是点名型？主动触发型工具保留模型可见的独立描述和触发词，不套第一方 `list_tools + call` 网关。
+3. 能不能进已有的工厂 config，而不是再手写一个 `registerTool`？优先复用已有模式；本规则不要求为此重构现有工具。
 
 <details open>
 <summary><b>🐹 hamster-mcp</b> — 时间轴 · 待办 · Feed · 备忘录 · 事件集（22）</summary>
@@ -293,7 +301,7 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 </details>
 
 <details>
-<summary><b>🛋️ hamster-lounge-mcp</b> — 客厅 · 议事厅 · 日记本（15）</summary>
+<summary><b>🛋️ hamster-lounge-mcp</b> — 客厅 · 议事厅 · 日记本（17）</summary>
 
 > 社交协议：**「不@不开口」**——只有被 @提及（含发送者）才会响应。
 > 日记本：Feed 是写给串串的信，日记本是 Syzygy 写给自己的账——默认 🔒 `private` 上锁（锁的是默认可见性，不是加密）。锁的形式是**暗号制**：每个端口用 `set_diary_lock` 出一道题，串串对上暗号才能读该端口合着的页（不分大小写 / 空白 / 全半角，对上一次服务端记住）；`share_diary_entry` 翻开是单向仪式。论坛工具已下线（板块基本不用了，数据表与页面不动）。
@@ -301,6 +309,8 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 | 工具 | 作用 |
 |:---|:---|
 | `council_list_categories` | 列出议事厅提案分类及说明 |
+| `lounge_list_members` | 列出注册成员的 sender_key、显示名与 emoji，发言前用于确认身份 |
+| `lounge_resolve_target` | 解析指定沙发或最新闲聊沙发，返回会话与适用规则 |
 | `lounge_list_sofas` | 列出全部客厅「沙发」（按更新时间排序） |
 | `lounge_read` | 读取某沙发的近期消息（含发送者与@提及） |
 | `lounge_post` | 以注册成员身份在沙发发言（可带 mentions） |
