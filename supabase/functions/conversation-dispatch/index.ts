@@ -1,4 +1,5 @@
 import { handleLoungeRequest, handleLoungeWorker } from './lounge.ts'
+import { verifyConversationUser } from './auth.ts'
 import '@supabase/functions-js/edge-runtime.d.ts'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getOwnerUserId } from '../_shared/owner.ts'
@@ -655,22 +656,14 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: '服务未配置' }, 500, corsHeaders)
   }
 
-  let userId = ''
-  try {
-    const authResponse = await fetch(new URL('/auth/v1/user', supabaseUrl), {
-      headers: {
-        apikey: apiKey,
-        Authorization: authorization,
-      },
-    })
-    if (!authResponse.ok) {
-      return jsonResponse({ error: '身份令牌无效' }, 401, corsHeaders)
-    }
-    const authData = (await authResponse.json()) as { id?: unknown }
-    userId = typeof authData.id === 'string' ? authData.id : ''
-  } catch {
-    return jsonResponse({ error: '身份令牌无效' }, 401, corsHeaders)
+  const identity = await verifyConversationUser(supabaseUrl, {
+    apikey: apiKey,
+    Authorization: authorization,
+  })
+  if (!identity.ok) {
+    return jsonResponse({ error: identity.error, code: identity.code }, identity.status, corsHeaders)
   }
+  const userId = identity.userId
 
   let ownerId = ''
   try {
@@ -680,9 +673,6 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: '服务未配置' }, 500, corsHeaders)
   }
 
-  if (!userId) {
-    return jsonResponse({ error: '身份令牌无效' }, 401, corsHeaders)
-  }
   if (userId !== ownerId) {
     return jsonResponse({ error: '无权访问' }, 403, corsHeaders)
   }
