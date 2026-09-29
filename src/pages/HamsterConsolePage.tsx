@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { desktopControlReceipt, waitForDesktopControl, type DesktopControlRow as CodexControlRow } from '../lib/desktop-app-control'
 import type { User } from '@supabase/supabase-js'
 import { Link } from 'react-router-dom'
 import {
@@ -133,19 +134,6 @@ type CapabilityRow = {
   failure_count: number | null
 }
 
-type CodexControlRow = {
-  id: string
-  action: 'wake' | 'sleep' | string
-  status: 'pending' | 'executed' | string
-  created_at: string
-}
-
-type CodexControlViewState = {
-  tone: 'green' | 'gray' | 'yellow'
-  label: string
-  isRunning: boolean
-}
-
 const categoryLabelMap: Record<string, string> = {
   base: '基础',
   scenario: '场景',
@@ -201,14 +189,6 @@ function parseNumberField(value: string, fallback: number | null = null) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-const toCodexControlViewState = (row: CodexControlRow | null): CodexControlViewState => {
-  if (!row) return { tone: 'gray', label: '已关闭', isRunning: false }
-  if (row.status === 'pending') return { tone: 'yellow', label: '执行中...', isRunning: row.action === 'wake' }
-  if (row.action === 'wake' && row.status === 'executed') return { tone: 'green', label: '运行中', isRunning: true }
-  if (row.action === 'sleep' && row.status === 'executed') return { tone: 'gray', label: '已关闭', isRunning: false }
-  return { tone: 'gray', label: '已关闭', isRunning: false }
-}
-
 // CLI Syzygy Runtime（Mac mini 本地 Runtime）唤醒目标。点击后向 syzygy_commands 写入 wake 请求。
 // working_dir 由本地 Runtime 的受控配置决定，前端不公开或覆盖本机路径。
 const cliRuntimeTargets = [
@@ -259,6 +239,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   })
   const [codexControlRow, setCodexControlRow] = useState<CodexControlRow | null>(null)
   const [codexActionLoading, setCodexActionLoading] = useState<'wake' | 'sleep' | null>(null)
+  const desktopRequest = useRef<AbortController | null>(null)
   const [cliWakeLoading, setCliWakeLoading] = useState<CliRuntimeRole | null>(null)
   const [cliWakeFeedback, setCliWakeFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
 
@@ -286,7 +267,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
       templateDraft.trim() &&
       templateDraft !== activeTemplate.content,
   )
-  const codexControlState = useMemo(() => toCodexControlViewState(codexControlRow), [codexControlRow])
+  const codexControlState = useMemo(() => desktopControlReceipt(codexControlRow), [codexControlRow])
 
   const recentCliRequests = useMemo(
     () =>
@@ -516,6 +497,8 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
   useEffect(() => {
     if (!supabase) return
     const client = supabase
+    let live = true
+    setCodexActionLoading(null)
     const channel = client
       .channel(`codex-control-${scopedUserId}`)
       .on(
@@ -530,25 +513,60 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
             .limit(1)
             .maybeSingle()
             .then(({ data }) => {
+              if (!live) return
               setCodexControlRow((data as CodexControlRow | null) ?? null)
-              setCodexActionLoading(null)
             })
         },
       )
       .subscribe()
     return () => {
+      live = false
+      desktopRequest.current?.abort()
+      desktopRequest.current = null
       void client.removeChannel(channel)
     }
   }, [scopedUserId])
 
   const handleCodexControl = async (action: 'wake' | 'sleep') => {
-    if (!supabase) return
+    if (!supabase || !scopedUserId || desktopRequest.current) return
+    if (action === 'sleep' && !window.confirm('关闭 Mini 上的 ChatGPT 桌面 App 会断开官方远程连接，也可能中断桌面任务。确定关闭？')) return
+    const controller = new AbortController()
+    desktopRequest.current = controller
+    const timeout = setTimeout(() => controller.abort(), 40000)
     setCodexActionLoading(action)
     setErrorMessage(null)
-    const { error } = await supabase.from('codex_control').insert({ user_id: scopedUserId, action, source: 'manual' })
-    if (error) {
-      setCodexActionLoading(null)
-      setErrorMessage(error.message)
+    try {
+      const client = supabase
+      const { data, error } = await client.from('codex_control')
+        .insert({ user_id: scopedUserId, action, source: 'manual' })
+        .select('id,action,status,created_at').abortSignal(controller.signal).single()
+      if (error || !data) throw new Error('指令提交尚未确认，请刷新查看最近记录；不要连续重复点击。')
+      if (desktopRequest.current !== controller) return
+      setCodexControlRow(data)
+      const receipt = await waitForDesktopControl({
+        id: data.id, signal: controller.signal,
+        read: async (id) => {
+          const result = await client.from('codex_control').select('id,action,status,created_at')
+            .eq('user_id', scopedUserId).eq('id', id).abortSignal(controller.signal).maybeSingle()
+          if (result.error) throw result.error
+          return result.data
+        },
+      })
+      if (desktopRequest.current !== controller) return
+      if (!receipt) throw new Error('指令已提交，Mini 回执尚未确认；请稍后刷新或查看手机 Remote。')
+      setCodexControlRow(receipt)
+      if (receipt.status === 'failed') throw new Error('Mini 未能执行桌面 App 指令，请稍后重试。')
+      showToast(action === 'wake' ? '打开指令已执行，请在手机 ChatGPT 的 Remote 中连接 Mini。' : '关闭指令已执行。')
+    } catch (error) {
+      if (desktopRequest.current === controller) setErrorMessage(controller.signal.aborted
+        ? '回执等待超时；请刷新核对最近指令，不要连续重复点击。'
+        : error instanceof Error ? error.message : '指令尚未确认，请刷新核对。')
+    } finally {
+      clearTimeout(timeout)
+      if (desktopRequest.current === controller) {
+        desktopRequest.current = null
+        setCodexActionLoading(null)
+      }
     }
   }
 
@@ -825,7 +843,7 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
               <small>{agentSettings?.agent_mode ?? 'active'}</small>
             </article>
             <article className="hamster-status-card hamster-status-card--runner">
-              <div className="hamster-status-card__topline"><span>Mini Runner</span><span className="hamster-status-card__icon" aria-hidden>⌘</span></div>
+              <div className="hamster-status-card__topline"><span>桌面 App 指令</span><span className="hamster-status-card__icon" aria-hidden>⌘</span></div>
               <strong>{miniRunnerLabel}</strong>
               <small>{codexControlRow ? `最近：${formatDateTime(codexControlRow.created_at)}` : '等待接入'}</small>
             </article>
@@ -856,19 +874,19 @@ const HamsterConsolePage = ({ user }: { user: User | null }) => {
                   <button
                     className="btn-primary"
                     onClick={() => void handleCodexControl('wake')}
-                    disabled={codexControlState.isRunning || codexActionLoading !== null}
+                    disabled={codexActionLoading !== null}
                   >
-                    {codexActionLoading === 'wake' ? '唤醒中...' : '唤醒 Codex'}
+                    {codexActionLoading === 'wake' ? '等待 Mini 回执...' : '打开 ChatGPT 桌面 App'}
                   </button>
                   <button
                     className="btn-secondary"
                     onClick={() => void handleCodexControl('sleep')}
-                    disabled={!codexControlState.isRunning || codexActionLoading !== null}
+                    disabled={codexActionLoading !== null}
                   >
-                    {codexActionLoading === 'sleep' ? '关闭中...' : '关闭 Codex'}
+                    {codexActionLoading === 'sleep' ? '等待 Mini 回执...' : '关闭桌面 App'}
                   </button>
                 </div>
-
+                <p className="hamster-console-card__hint">在 Mini 上打开 ChatGPT 桌面 App（原 Codex），供手机 Remote 连接。上方只显示最近指令回执；App 手动关闭后仍可再次打开。下方 CLI 控制与此独立。</p>
                 <div className="hamster-cli-runtime">
                   <div className="hamster-cli-runtime__head">
                     <h3>CLI Syzygy Runtime</h3>
