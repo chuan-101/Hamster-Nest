@@ -209,6 +209,18 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 
 2026-09-29 已用线上 `tools/list` 核对六个 server：22 + 17 + 18 + 17 + 7 + 4 = **85**。这是当日部署快照；新增或调整工具时需重新盘点并同步本文。
 
+本地 `npm run mcp:inventory -- --json` 的 `toolNamesByServer` 给出「server → 排序后的工具名列表」，包含 reading 工厂展开后的 8 个工具。扫描只解析 TypeScript 源码，不加载或执行 Deno 模块；未知动态注册、重复工具名或扫描失败会以非零状态退出。静态 schema 体积仍是估算，精确体积与部署状态用 `--live` 核对。
+
+`npm test` 会把清单与 `tests/fixtures/mcp-tools.snapshot.json` 比较，并校验本页徽章、标题、各 server 计数和明细表。新增、删除、改名或跨 server 移动工具时，在同一 PR 中审阅并更新快照与 README；GitHub Actions 的 **MCP tool catalogue** 在相关 PR 和 main 提交上运行检查，无需生产凭据。更新快照：
+
+```sh
+node scripts/mcp-tools-inventory.mjs --snapshot > /tmp/mcp-tools.snapshot.json && cp /tmp/mcp-tools.snapshot.json tests/fixtures/mcp-tools.snapshot.json
+npm test
+```
+
+名称快照只保护工具名称和归属，不证明参数 schema、description、annotations 或执行行为不变；将来做注册层重构时需另加完整工具定义的前后对比。
+
+
 **新工具准入三问：**
 
 1. 放进哪个 server？按业务归属注册，避免同名工具挪错域。

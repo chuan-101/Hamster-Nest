@@ -3,14 +3,14 @@
 //
 // 两种模式：
 //   静态扫描（默认，无网络）——解析 supabase/functions/*-mcp/ 里的 registerTool 注册。
-//     模板字符串命名的动态注册（如 reading 的 COMPANION_CONFIGS 工厂）无法静态展开，
-//     会单独标注，精确数量以 --live 为准。
+//     使用 TypeScript AST 展开 COMPANION_CONFIGS 等字面量数组工厂，未知注册表达式报错。
 //   live 直连（--live <functions-base-url>）——按 MCP Streamable HTTP 调 tools/list，
 //     返回已部署的精确清单与真实 JSON 体积。鉴权用环境变量 HAMSTER_MCP_KEY。
 //
 // 用法：
 //   node ./scripts/mcp-tools-inventory.mjs
 //   node ./scripts/mcp-tools-inventory.mjs --json > mcp-tools.json
+//   node ./scripts/mcp-tools-inventory.mjs --snapshot  # server → 排序后的工具名列表
 //   HAMSTER_MCP_KEY=xxx node ./scripts/mcp-tools-inventory.mjs --live https://<ref>.supabase.co/functions/v1
 
 import { readFileSync, readdirSync } from 'node:fs'
@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 
 const functionsDir = fileURLToPath(new URL('../supabase/functions', import.meta.url))
 const asJson = process.argv.includes('--json')
+const asSnapshot = process.argv.includes('--snapshot')
 const liveIndex = process.argv.indexOf('--live')
 const liveBaseUrl = liveIndex !== -1 ? process.argv[liveIndex + 1]?.replace(/\/$/, '') : null
 
@@ -35,15 +36,17 @@ const servers = readdirSync(functionsDir, { withFileTypes: true })
 // 中英混合的 schema 文本按 ~3 bytes/token 粗估（中文 UTF-8 3 字节 ≈ 1+ token，ASCII JSON 更省）。
 const estimateTokens = (bytes) => Math.round(bytes / 3)
 
-const staticScan = (server) => {
+const staticScan = async (server) => {
+  const { scanToolNames } = await import('./mcp-tool-names.mjs')
   const dir = join(functionsDir, server)
   const source = readdirSync(dir)
     .filter((file) => file.endsWith('.ts'))
+    .sort()
     .map((file) => readFileSync(join(dir, file), 'utf8'))
     .join('\n')
 
-  const staticNames = [...source.matchAll(/registerTool\(\s*'([^']+)'/g)].map((m) => m[1])
-  const dynamicTemplates = [...source.matchAll(/registerTool\(\s*`([^`]+)`/g)].map((m) => m[1])
+  const staticNames = scanToolNames(source, server)
+  const dynamicTemplates = []
 
   const textBytes = (regex) =>
     [...source.matchAll(regex)].reduce((total, m) => total + Buffer.byteLength(m[1], 'utf8'), 0)
@@ -127,7 +130,7 @@ const liveScan = async (server) => {
   const schemaBytes = Buffer.byteLength(JSON.stringify(tools), 'utf8')
   return {
     server,
-    tools: tools.map((tool) => tool.name),
+    tools: tools.map((tool) => tool.name).sort(),
     dynamicTemplates: [],
     schemaBytes,
     estTokens: estimateTokens(schemaBytes),
@@ -137,7 +140,7 @@ const liveScan = async (server) => {
 const rows = []
 for (const server of servers) {
   try {
-    rows.push(liveBaseUrl ? await liveScan(server) : staticScan(server))
+    rows.push(liveBaseUrl ? await liveScan(server) : await staticScan(server))
   } catch (error) {
     rows.push({ server, error: error instanceof Error ? error.message : String(error), tools: [], dynamicTemplates: [], schemaBytes: 0, estTokens: 0 })
   }
@@ -153,8 +156,17 @@ const totals = rows.reduce(
   { tools: 0, dynamic: 0, schemaBytes: 0, estTokens: 0 },
 )
 
-if (asJson) {
-  console.log(JSON.stringify({ mode: liveBaseUrl ? 'live' : 'static', servers: rows, totals }, null, 2))
+const toolNamesByServer = Object.fromEntries(rows.map((row) => [row.server, row.tools]))
+if (rows.some((row) => row.error)) process.exitCode = 1
+
+if (asSnapshot) {
+  if (process.exitCode) {
+    console.error('清单不完整，拒绝输出快照；运行 --json 查看错误。')
+  } else {
+    console.log(JSON.stringify(toolNamesByServer, null, 2))
+  }
+} else if (asJson) {
+  console.log(JSON.stringify({ toolNamesByServer, mode: liveBaseUrl ? 'live' : 'static', servers: rows, totals }, null, 2))
 } else {
   console.log(`模式: ${liveBaseUrl ? `live (${liveBaseUrl})` : '静态扫描'}\n`)
   console.log('server                      tools  schema(B)  ~tokens')
