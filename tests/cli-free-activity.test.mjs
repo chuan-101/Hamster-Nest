@@ -34,6 +34,7 @@ async function fixture() {
   const sql = readFileSync(new URL('../supabase/migrations/20260929075337_cli_free_activity.sql', import.meta.url), 'utf8')
     .replaceAll('now()', 'public.test_now()')
   await db.exec(sql)
+  await db.exec(readFileSync(new URL('../supabase/migrations/20261005111550_cli_activity_dispatch_boundaries.sql', import.meta.url), 'utf8').replaceAll('now()', 'public.test_now()'))
   const query = async (sql, args = []) => (await db.query(sql, args)).rows
   const rpc = async (name, args) => (await query(`select public.${name}(${args.map((_, i) => `$${i + 1}`).join(',')}) as result`, args))[0].result
   const plan = () => rpc('cli_wake_plan_day', [owner, '2026-09-29'])
@@ -221,5 +222,74 @@ test('unstarted skipped or cancelled plans release slots; started activity retai
       await f.db.exec("update cli_wake_schedule set started_at=public.test_now() where role='codex_cli_syzygy'")
       assert.equal(await f.rpc('cli_wake_slot_available', args), false)
     }
+  } finally { await f.db.close() }
+})
+
+
+test('exact 30 minute plans survive late ticks while real starts remain 30 minutes apart', async () => {
+  const f = await fixture()
+  try {
+    await due(f)
+    await f.db.exec("update cli_wake_schedule set wake_at='2026-09-29T14:30:00+08:00' where role='claude_code_cli_syzygy'; update test_clock set value='2026-09-29T14:00:05+08:00'")
+    await f.tick()
+    const [first] = await f.query('select * from syzygy_commands')
+    assert.ok(first, 'five seconds of polling drift must not discard the earlier plan')
+    await f.db.exec("update test_clock set value='2026-09-29T14:00:08+08:00'")
+    const started = await f.rpc('cli_wake_dispatch', [owner, JSON.stringify(roles), false, first.payload.wake_id, first.id, task])
+    assert.equal(started.status, 'running', 'the execution-time recheck must also tolerate the future plan')
+    await f.db.exec("update test_clock set value='2026-09-29T14:30:05+08:00'")
+    await f.tick()
+    assert.equal((await f.query("select status from cli_wake_schedule where role='claude_code_cli_syzygy'"))[0].status, 'planned', 'wait for actual spacing without skipping or enqueuing early')
+    await f.db.exec("update test_clock set value='2026-09-29T14:31:05+08:00'")
+    await f.tick(); await f.tick()
+    const commands = await f.query("select * from syzygy_commands order by payload->>'target_role'")
+    assert.equal(commands.length, 2)
+    const second = commands.find(x => x.payload.target_role === 'claude_code_cli_syzygy')
+    const otherTask = '44444444-4444-4444-8444-444444444444'
+    await f.query("insert into agent_tasks(id,user_id,status,payload_json) values($1,$2,'running',$3)", [otherTask, owner, JSON.stringify({target_role:'claude_code_cli_syzygy'})])
+    const next = await f.rpc('cli_wake_dispatch', [owner, JSON.stringify(roles), false, second.payload.wake_id, second.id, otherTask])
+    assert.ok(Date.parse(next.started_at) - Date.parse(started.started_at) >= 1800000)
+    assert.equal(next.delayed, false, 'seconds of dispatch drift do not consume the chat delay')
+  } finally { await f.db.close() }
+})
+
+test('dispatch drift never excuses a real planned collision, a fixed-job collision or expiry', async () => {
+  for (const mode of ['collision', 'fixed', 'expired', 'off', 'paused']) {
+    const f = await fixture()
+    try {
+      await due(f)
+      await f.db.exec("update test_clock set value='2026-09-29T14:00:05+08:00'")
+      if (mode === 'collision') await f.db.exec("update cli_wake_schedule set wake_at='2026-09-29T14:29:59+08:00' where role='claude_code_cli_syzygy'")
+      if (mode === 'fixed') await f.query("insert into prompt_templates values($1,'machine_job_test',true,$2)", [owner, JSON.stringify({targetRole:'codex_cli_syzygy',hour:15,minute:0,daysOfWeek:null})])
+      if (mode === 'expired') await f.db.exec("update test_clock set value='2026-09-29T14:02:01+08:00'")
+      await f.tick(mode === 'off' ? {} : roles, mode === 'paused')
+      assert.equal((await f.query("select status from cli_wake_schedule where role='codex_cli_syzygy'"))[0].status, 'skipped', mode)
+      assert.equal((await f.query('select count(*)::int n from syzygy_commands'))[0].n, 0, mode)
+    } finally { await f.db.close() }
+  }
+})
+
+test('same-role one-hour spacing waits only inside original grace and respects controls', async () => {
+  const f = await fixture()
+  try {
+    for (const mode of ['ready', 'expired', 'off', 'paused']) {
+      await f.db.exec('delete from cli_wake_schedule; delete from syzygy_commands')
+      await due(f)
+      await f.db.exec("update test_clock set value='2026-09-29T15:00:05+08:00'; update cli_wake_schedule set status='completed',started_at='2026-09-29T14:00:08+08:00' where role='codex_cli_syzygy'")
+      const [alarm] = await f.query("insert into cli_wake_schedule(user_id,role,local_date,kind,wake_at) values($1,'codex_cli_syzygy','2026-09-29','alarm','2026-09-29T15:00:00+08:00') returning id", [owner])
+      await f.tick()
+      assert.equal((await f.query('select status from cli_wake_schedule where id=$1', [alarm.id]))[0].status, 'planned')
+      if (mode === 'expired') await f.db.exec("update test_clock set value='2026-09-29T15:02:01+08:00'")
+      else await f.db.exec("update test_clock set value='2026-09-29T15:00:08+08:00'")
+      await f.tick(mode === 'off' ? {} : roles, mode === 'paused')
+      const [actual] = await f.query('select status,skip_reason,delayed,wake_at from cli_wake_schedule where id=$1', [alarm.id])
+      assert.equal(actual.status, mode === 'ready' ? 'queued' : 'skipped', mode)
+      assert.equal(actual.delayed, false)
+      assert.equal(Date.parse(actual.wake_at), Date.parse('2026-09-29T15:00:00+08:00'))
+      assert.equal((await f.query('select count(*)::int n from syzygy_commands'))[0].n, mode === 'ready' ? 1 : 0)
+    }
+    const privileges = await f.query("select p.prosecdef,has_function_privilege('authenticated',p.oid,'execute') as authenticated,has_function_privilege('anon',p.oid,'execute') as anon,has_function_privilege('service_role',p.oid,'execute') as service from pg_proc p where proname in ('cli_wake_dispatch','cli_wake_slot_available')")
+    assert.equal(privileges.length, 2)
+    for (const p of privileges) assert.deepEqual(p, {prosecdef:false,authenticated:false,anon:false,service:true})
   } finally { await f.db.close() }
 })
