@@ -34,7 +34,7 @@ async function fixture() {
   const sql = readFileSync(new URL('../supabase/migrations/20260929075337_cli_free_activity.sql', import.meta.url), 'utf8')
     .replaceAll('now()', 'public.test_now()')
   await db.exec(sql)
-  await db.exec(readFileSync(new URL('../supabase/migrations/20261005111550_cli_activity_dispatch_boundaries.sql', import.meta.url), 'utf8').replaceAll('now()', 'public.test_now()'))
+  await db.exec(readFileSync(new URL('../supabase/migrations/20261005114642_cli_activity_dispatch_boundaries.sql', import.meta.url), 'utf8').replaceAll('now()', 'public.test_now()'))
   const query = async (sql, args = []) => (await db.query(sql, args)).rows
   const rpc = async (name, args) => (await query(`select public.${name}(${args.map((_, i) => `$${i + 1}`).join(',')}) as result`, args))[0].result
   const plan = () => rpc('cli_wake_plan_day', [owner, '2026-09-29'])
