@@ -53,18 +53,32 @@ export const buildLlmUsageRow = (
   }
 }
 
-// Bookkeeping must never fail a reply: every error is logged and swallowed.
+const RECORD_TIMEOUT_MS = 3000
+
+// Bookkeeping must never fail or stall a reply: every error is logged and
+// swallowed, and a slow insert is abandoned after RECORD_TIMEOUT_MS.
 export const recordLlmUsage = async (
   client: InsertClient,
   context: LlmUsageContext,
   usage: unknown,
+  timeoutMs = RECORD_TIMEOUT_MS,
 ): Promise<void> => {
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
     const row = buildLlmUsageRow(context, usage)
     if (!row) return
-    const { error } = await client.from('llm_usage').insert(row)
-    if (error) console.error('[llm-usage] insert failed', error.message)
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), timeoutMs)
+    })
+    const result = await Promise.race([client.from('llm_usage').insert(row), timeout])
+    if (result === 'timeout') {
+      console.error('[llm-usage] insert timed out')
+    } else if (result.error) {
+      console.error('[llm-usage] insert failed', result.error.message)
+    }
   } catch (error) {
     console.error('[llm-usage] insert failed', error instanceof Error ? error.message : 'unknown')
+  } finally {
+    clearTimeout(timer)
   }
 }
