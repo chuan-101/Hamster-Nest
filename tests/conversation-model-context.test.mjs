@@ -44,7 +44,7 @@ test('App companion replies resolve the same model channel used by proactive mes
   assert.match(source, /profileKey === 'app_companion'/u)
   assert.match(source, /generation\.activeModel/u)
   assert.match(source, /withCanonicalMessageTimestamp/u)
-  assert.match(source, /buildCurrentShanghaiTimePrompt/u)
+  assert.match(source, /buildCurrentShanghaiTimeNote/u)
 })
 
 test('completed App replies publish one idempotent push fact routed back to the conversation', async () => {

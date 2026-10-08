@@ -27,9 +27,10 @@ import {
   startOfShanghaiDayIso,
 } from './context.ts'
 import {
-  buildCurrentShanghaiTimePrompt,
+  buildCurrentShanghaiTimeNote,
   withCanonicalMessageTimestamp,
 } from './model-context.ts'
+import { recordLlmUsage } from '../_shared/llm_usage.ts'
 
 declare const EdgeRuntime:
   | {
@@ -480,11 +481,11 @@ const loadConversationRequest = async (
 
   const messages = [
     ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
-    {
-      role: 'system' as const,
-      content: buildCurrentShanghaiTimePrompt(),
-    },
     ...canonicalMessages,
+    {
+      role: 'user' as const,
+      content: buildCurrentShanghaiTimeNote(),
+    },
   ]
 
   return {
@@ -576,6 +577,11 @@ const proxyAndPersistStream = async (
       // because the secondary push fact could not be published.
       console.error('[conversation-dispatch] failed to publish reply completion event', eventError)
     }
+    await recordLlmUsage(
+      eventClient,
+      { module: 'chitchat', conversationId: sessionId, model: accumulator.model },
+      accumulator.usage,
+    )
     await writer.close()
   } catch (error) {
     const errorCode = error instanceof Error && error.message === 'EMPTY_MODEL_CONTENT'

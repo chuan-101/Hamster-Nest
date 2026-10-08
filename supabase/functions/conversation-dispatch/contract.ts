@@ -129,6 +129,7 @@ type StreamDelta = {
     message?: { content?: unknown }
   }>
   model?: unknown
+  usage?: unknown
 }
 
 const extractContentValue = (value: unknown): string => {
@@ -155,6 +156,8 @@ export class OpenAiSseAccumulator {
   #buffer = ''
   content = ''
   model: string | null = null
+  // OpenRouter sends token usage (incl. prompt-cache reads/writes) on the final chunk.
+  usage: Record<string, unknown> | null = null
   done = false
 
   push(text: string) {
@@ -196,6 +199,9 @@ export class OpenAiSseAccumulator {
 
     if (typeof payload.model === 'string' && payload.model.trim()) {
       this.model = payload.model.trim()
+    }
+    if (payload.usage && typeof payload.usage === 'object' && !Array.isArray(payload.usage)) {
+      this.usage = payload.usage as Record<string, unknown>
     }
 
     const choice = payload.choices?.[0]
