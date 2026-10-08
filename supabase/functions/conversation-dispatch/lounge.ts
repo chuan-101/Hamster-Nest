@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
 import { getOwnerUserId } from '../_shared/owner.ts'
 import { timingSafeEqual } from '../_shared/auth.ts'
+import { recordLlmUsage } from '../_shared/llm_usage.ts'
 
 export const LOUNGE_MEMBERS = {
   chuanchuan: '串串（人类用户）', api_syzygy: 'Syzygy（API）',
@@ -37,16 +38,27 @@ export async function handleLoungeRequest(owner: string, raw: Record<string, unk
   return json(data, 202, headers)
 }
 
-export function loungeIdentity(self: keyof typeof LOUNGE_MEMBERS, sofa: { id: string; title: string }, source: { sender_key: string; id: string }) {
+// Stable per sofa, so it can sit in the cached system prompt. Anything that
+// changes per reply (time, who called) goes into loungeTurnNote instead.
+export function loungeIdentity(self: keyof typeof LOUNGE_MEMBERS, sofa: { id: string; title: string }) {
   return [
-    `当前时间：${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })}（Asia/Shanghai）。历史时间戳带 UTC 时需换算为北京时间。`,
+    '历史时间戳带 UTC 时需换算为北京时间。',
     `你是 ${LOUNGE_MEMBERS[self]}，固定 sender_key=${self}。不同端口共享 Syzygy 之名，但不是同一个发言者。`,
     `当前沙发：${sofa.title}；session_id=${sofa.id}。仅本沙发历史属于本次上下文。`,
-    `本次叫你接话的是 ${source.sender_key}，消息ID=${source.id}；不要将对方的发言当作自己或串串说的话。`,
     '成员名册（@时使用右侧固定标识）：',
     ...Object.entries(LOUNGE_MEMBERS).map(([key, label]) => `${label} → @${key}`),
     '只以自己的身份发言。正文可明确 @另一成员接话；不要 @自己，不为续轮而互相客套点名。',
     '最终正文会自动回写原沙发一次，不要再用 lounge_post 复制这条回复。群聊讨论不自动构成修改共享资源的授权。',
+  ].join('\n')
+}
+
+// Sent as the last message of the request, after the history, so its per-reply
+// values don't invalidate the prompt cache of the system prompt and history.
+export function loungeTurnNote(source: { sender_key: string; id: string }, now = new Date()) {
+  return [
+    '（运行时附注，不是任何成员的发言）',
+    `当前时间：${now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })}（Asia/Shanghai）。`,
+    `本次叫你接话的是 ${source.sender_key}，消息ID=${source.id}；不要将对方的发言当作自己或串串说的话。`,
   ].join('\n')
 }
 
@@ -83,14 +95,16 @@ export async function handleLoungeWorker(request: Request) {
       const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/openrouter-chat`, {
         method:'POST', headers:{'Content-Type':'application/json',apikey:getSupabaseAdminKey(),Authorization:`Bearer ${getSupabaseAdminKey()}`},
         body:JSON.stringify({module:'lounge',model:modelResult.data.active_model,temperature:settings.temperature,top_p:settings.top_p,
-          max_tokens:settings.max_tokens,stream:false,messages:[{role:'system',content:prompt+'\n\n'+loungeIdentity('api_syzygy',sofa,source)},
-            ...history.map(m => ({role:m.sender_key==='api_syzygy'?'assistant':'user',content:`[${m.created_at} | ${m.sender_key}] ${m.content}`}))]}),
+          max_tokens:settings.max_tokens,stream:false,messages:[{role:'system',content:prompt+'\n\n'+loungeIdentity('api_syzygy',sofa)},
+            ...history.map(m => ({role:m.sender_key==='api_syzygy'?'assistant':'user',content:`[${m.created_at} | ${m.sender_key}] ${m.content}`})),
+            {role:'user',content:loungeTurnNote(source)}]}),
         signal:AbortSignal.timeout(110000),
       })
       if (!response.ok) throw new Error(`model HTTP ${response.status}`)
       const body = await response.json()
       const content = body.choices?.[0]?.message?.content ?? body.content
       if (typeof content!=='string' || !content.trim()) throw new Error('empty model output')
+      await recordLlmUsage(db, {module:'lounge',conversationId:sofa.id,model:typeof body.model==='string'?body.model:modelResult.data.active_model}, body.usage)
       const { error: saveError } = await db.from('messages').update({content,meta:{...reply.meta,api_queue:'done',delivery_state:'completed',completed_at:new Date().toISOString(),
         prompt_versions:promptResult.data.map(p=>({name:p.name,version:p.version,id:p.id}))}})
         .eq('id',reply.id).eq('user_id',owner).eq('meta->>api_queue','running').eq('meta->>api_started_at',reply.meta.api_started_at)

@@ -24,5 +24,12 @@ export const formatShanghaiTimestamp = (value: string | Date) => {
 export const buildCurrentShanghaiTimePrompt = (now = new Date()) =>
   `当前上海时间：${formatShanghaiTimestamp(now)}（Asia/Shanghai）`
 
-export const withCanonicalMessageTimestamp = (content: string, createdAt: string) =>
+// The current time changes on every request, so it rides at the very end of the
+// request as a user-role note: a system message would be hoisted into the
+// Anthropic `system` block, which precedes the history and would invalidate the
+// history's prompt cache on every turn.
+export const buildCurrentShanghaiTimeNote = (now = new Date()) =>
+  `（运行时附注，不是串串的发言）${buildCurrentShanghaiTimePrompt(now)}`
+
+export const withCanonicalMessageTimestamp =(content: string, createdAt: string) =>
   `[${formatShanghaiTimestamp(createdAt)}] ${content}`
