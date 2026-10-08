@@ -107,9 +107,10 @@ export async function handleLoungeWorker(request: Request) {
       const { error: saveError } = await db.from('messages').update({content,meta:{...reply.meta,api_queue:'done',delivery_state:'completed',completed_at:new Date().toISOString(),
         prompt_versions:promptResult.data.map(p=>({name:p.name,version:p.version,id:p.id}))}})
         .eq('id',reply.id).eq('user_id',owner).eq('meta->>api_queue','running').eq('meta->>api_started_at',reply.meta.api_started_at)
-      if (saveError) throw new Error('reply commit failed')
-      // Bookkeeping only after the reply is committed, so it can never hold a finished reply in `running`.
+      // Bookkeeping after the commit attempt, so it can never hold a finished reply in `running`,
+      // and before the error check, so a billed call is recorded even when the commit failed.
       await recordLlmUsage(db, {module:'lounge',conversationId:sofa.id,model:typeof body.model==='string'?body.model:modelResult.data.active_model}, body.usage)
+      if (saveError) throw new Error('reply commit failed')
     } catch (e) {
       await db.from('messages').update({meta:{...reply.meta,api_queue:'failed',delivery_state:'failed',delivery_error:'回复没有完成，请重试',delivery_error_code:'LOUNGE_API_FAILED'}})
         .eq('id',reply.id).eq('user_id',owner).eq('meta->>api_queue','running').eq('meta->>api_started_at',reply.meta.api_started_at)

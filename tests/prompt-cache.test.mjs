@@ -180,10 +180,14 @@ test('usage bookkeeping never throws into the reply path', async () => {
   assert.ok(Date.now() - started < 1000)
 })
 
-test('lounge commits the reply before recording usage', async () => {
+test('lounge records usage after the reply commit attempt, even if it failed', async () => {
   const source = await readFile(
     new URL('../supabase/functions/conversation-dispatch/lounge.ts', import.meta.url),
     'utf8',
   )
-  assert.ok(source.indexOf("throw new Error('reply commit failed')") < source.indexOf('await recordLlmUsage('))
+  const commit = source.indexOf("api_queue:'done'")
+  const record = source.indexOf('await recordLlmUsage(')
+  const commitCheck = source.indexOf("throw new Error('reply commit failed')")
+  assert.ok(commit >= 0 && commit < record)
+  assert.ok(record < commitCheck)
 })
