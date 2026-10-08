@@ -168,4 +168,22 @@ test('usage bookkeeping never throws into the reply path', async () => {
     { module: 'lounge' },
     { prompt_tokens: 1 },
   )
+
+  // A hanging insert is abandoned instead of stalling the caller.
+  const started = Date.now()
+  await recordLlmUsage(
+    { from: () => ({ insert: () => new Promise(() => {}) }) },
+    { module: 'lounge' },
+    { prompt_tokens: 1 },
+    50,
+  )
+  assert.ok(Date.now() - started < 1000)
+})
+
+test('lounge commits the reply before recording usage', async () => {
+  const source = await readFile(
+    new URL('../supabase/functions/conversation-dispatch/lounge.ts', import.meta.url),
+    'utf8',
+  )
+  assert.ok(source.indexOf("throw new Error('reply commit failed')") < source.indexOf('await recordLlmUsage('))
 })
