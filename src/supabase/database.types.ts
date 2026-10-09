@@ -4454,6 +4454,11 @@ export type Database = {
       }
       text_soundex: { Args: { "": string }; Returns: string }
       unaccent: { Args: { "": string }; Returns: string }
+      wallet_app_mutate: {
+        Args: { p_payload: Json; p_request_id: string }
+        Returns: Json
+      }
+      wallet_app_read: { Args: never; Returns: Json }
       wiki_save_entry: {
         Args: { p_base?: Json; p_fields: Json; p_id: string }
         Returns: string
