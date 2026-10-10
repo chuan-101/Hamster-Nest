@@ -1,6 +1,6 @@
 import { z } from 'npm:zod@^4.1.13'
 import { serveMcp, supabase } from '../_shared/mcp_common.ts'
-import { formatToolCallResult, pruneJson, slimLuckinPayload, slimToolList } from './slim.ts'
+import { formatToolCallResult, pruneJson, slimLuckinPayload, slimMcdPayload, slimToolList } from './slim.ts'
 
 const TTS_DEFAULTS = {
   model_id: 'eleven_multilingual_v2',
@@ -92,6 +92,19 @@ const LUCKIN_CALL_DESCRIPTION = [
   '- previewOrder {deptId, productList: [{productId, skuCode, amount}]}：预览价格，返回 couponCodeList',
   '- createOrder {deptId, productList, longitude, latitude, couponCodeList?, remark?}：真实下单，须串串确认；couponCodeList 取自 previewOrder',
   '- queryOrderDetailInfo {orderId} / cancelOrder {orderId}',
+].join('\n')
+
+// 麦当劳的完整工具清单约 3 万字符，常规点餐所需的工具与参数写在 mcd_call 描述里。
+const MCD_CALL_DESCRIPTION = [
+  '调用麦当劳 MCP 的工具。常用工具与参数（完整清单见 mcd_list_tools）：',
+  '- 取餐方式：到店自取 beType=1 + orderType=1，不传 beCode；麦乐送 beType=2 + orderType=2，beCode 取自 delivery-query-stores',
+  '- query-nearby-stores {beType, searchType: 2, city, keyword}：按城市 + 关键词找门店，得 storeCode（searchType=1 查收藏餐厅）',
+  '- query-meals {storeCode, orderType, beType}：菜单，得餐品 code；这里的价格单位为元',
+  '- query-meal-detail {storeCode, orderType, beType, code}：查套餐子项与特制选项（modification）',
+  '- query-store-coupons {storeCode, orderType, beType}：本店可用券；query-my-coupons {}：券包',
+  '- calculate-price {storeCode, orderType, beType, items: [{productCode, quantity, couponId?, couponCode?}]}：算价，价格单位为分；到店场景返回 takeWayList',
+  '- create-order {同 calculate-price 参数, takeWayCode (到店必传，取自 takeWayList[].code)}：真实下单，须串串确认；返回支付链接由串串自己付',
+  '- query-order {orderId}：查订单状态',
 ].join('\n')
 
 const LUCKIN_ENDPOINT = 'https://gwmcp.lkcoffee.com/order/user/mcp'
@@ -218,7 +231,7 @@ serveMcp('hamster-life-mcp', (server) => {
 
   server.registerTool('mcd_call', {
     title: "Call McDonald's Tool",
-    description: '调用麦当劳 MCP 的工具（先 mcd_list_tools 查清单）。',
+    description: MCD_CALL_DESCRIPTION,
     annotations: { openWorldHint: true },
     inputSchema: {
       tool_name: z.string().describe('工具名称'),
@@ -228,7 +241,7 @@ serveMcp('hamster-life-mcp', (server) => {
   }, async ({ tool_name, arguments: args, raw }) => {
     try {
       const response = await mcdMcpCall('tools/call', { name: tool_name, arguments: args ?? {} })
-      return { content: [{ type: 'text' as const, text: formatToolCallResult(response, raw ? (payload) => payload : pruneJson) }] }
+      return { content: [{ type: 'text' as const, text: formatToolCallResult(response, raw ? (payload) => payload : slimMcdPayload) }] }
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${String(err)}` }] }
     }

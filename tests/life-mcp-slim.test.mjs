@@ -3,9 +3,11 @@ import test from 'node:test'
 
 const {
   compactLuckinAttrs,
+  compactMcdMenu,
   formatToolCallResult,
   pruneJson,
   slimLuckinPayload,
+  slimMcdPayload,
   slimToolList,
   unwrapToolCall,
 } = await import('../supabase/functions/hamster-life-mcp/slim.ts')
@@ -132,4 +134,54 @@ test('slimToolList keeps name, description and input schema only', () => {
     name: 'query-meals', description: '查餐品',
     inputSchema: { type: 'object', properties: { storeCode: { type: 'string' } } },
   }])
+})
+
+// McDonald's replies carry a Markdown field guide in content[].text and the
+// same data clean in structuredContent.
+const mcdRpc = (payload) => ({
+  jsonrpc: '2.0',
+  id: 2,
+  result: {
+    content: [{ type: 'text', text: `# API Response Information\n字段说明……\n${JSON.stringify(payload)}` }],
+    isError: false,
+    structuredContent: payload,
+  },
+})
+
+test('unwrapToolCall prefers structuredContent over the Markdown copy', () => {
+  const payload = { success: true, code: 200, message: '请求成功', data: { orderId: 'M1' } }
+  assert.deepEqual(unwrapToolCall(mcdRpc(payload)), { payload, isError: false })
+})
+
+test('slimMcdPayload unwraps data, drops trace fields and zero coordinates', () => {
+  const text = formatToolCallResult(mcdRpc({
+    success: true, code: 200, message: '请求成功', datetime: '2026-10-10 09:05:00', traceId: 'abc',
+    data: [{ storeCode: '0001', storeName: '测试餐厅', longitude: 0, latitude: 0, businessStatus: true }],
+  }), slimMcdPayload)
+  assert.equal(text, '[{"storeCode":"0001","storeName":"测试餐厅","businessStatus":true}]')
+  assert.deepEqual(slimMcdPayload({ success: false, code: 600050, message: '收藏餐厅列表为空', traceId: 'x' }),
+    { code: 600050, message: '收藏餐厅列表为空' })
+})
+
+test('compactMcdMenu folds the menu into code lists and one line per meal', () => {
+  const card = { cardId: 'CARD1', cardType: 2 }
+  assert.deepEqual(compactMcdMenu({
+    categories: [
+      { name: '人气\n热卖', meals: [{ code: 'A', tags: ['人气产品'] }, { code: 'B' }] },
+      { name: '早餐', meals: [{ code: 'A', tags: ['超值早餐'] }] },
+    ],
+    meals: {
+      A: { name: '测试堡', image: 'https://cdn/a.png', currentPrice: '8.1', originalPrice: '13.5',
+        discountType: '随单购早餐卡优惠', withOrder: card, canWithOrder: true },
+      B: { name: '测试豆浆', currentPrice: '9.5', originalPrice: '9.5', canWithOrder: false },
+    },
+  }), {
+    categories: { '人气 热卖': 'A,B', 早餐: 'A' },
+    meals: {
+      A: '测试堡 ¥8.1（原¥13.5，随单购早餐卡优惠，随单购卡#0）[人气产品/超值早餐]',
+      B: '测试豆浆 ¥9.5',
+    },
+    withOrderCards: [card],
+  })
+  assert.deepEqual(compactMcdMenu({ orderId: 'M1' }), { orderId: 'M1' })
 })
