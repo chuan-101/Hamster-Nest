@@ -125,14 +125,22 @@ test('slimToolList keeps name, description and input schema only', () => {
     result: {
       tools: [{
         name: 'query-meals', description: '查餐品',
-        inputSchema: { type: 'object', properties: { storeCode: { type: 'string' } }, additionalProperties: false, returnDirect: false },
+        inputSchema: {
+          type: 'object',
+          properties: { storeCode: { type: 'string' }, extras: { type: 'object', additionalProperties: { type: 'string' } } },
+          additionalProperties: false,
+          returnDirect: false,
+        },
         outputSchema: { type: 'object', properties: { huge: { type: 'array' } } },
       }],
     },
   })
   assert.deepEqual(list, [{
     name: 'query-meals', description: '查餐品',
-    inputSchema: { type: 'object', properties: { storeCode: { type: 'string' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { storeCode: { type: 'string' }, extras: { type: 'object', additionalProperties: { type: 'string' } } },
+    },
   }])
 })
 

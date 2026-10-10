@@ -79,7 +79,10 @@ export const slimToolList = (response: Json): Json => {
     if (!node) return schema
     const out: JsonRecord = {}
     for (const [key, child] of Object.entries(node)) {
-      if (key === 'additionalProperties' || key === 'returnDirect' || key === '$schema') continue
+      // Boolean flags only: a schema-valued additionalProperties describes a
+      // dictionary argument's values and must survive.
+      if ((key === 'additionalProperties' || key === 'returnDirect') && typeof child === 'boolean') continue
+      if (key === '$schema') continue
       out[key] = stripSchema(child)
     }
     return out
