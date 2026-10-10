@@ -1,5 +1,6 @@
 import { z } from 'npm:zod@^4.1.13'
 import { serveMcp, supabase } from '../_shared/mcp_common.ts'
+import { formatToolCallResult, pruneJson, slimLuckinPayload, slimToolList } from './slim.ts'
 
 const TTS_DEFAULTS = {
   model_id: 'eleven_multilingual_v2',
@@ -77,7 +78,20 @@ async function proxyMcpCall(
 // 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
 const LIFE_MCP_INSTRUCTIONS = [
   '第三方代理域：amap / luckin / mcd 是 MCP-to-MCP 代理，工具清单以各自 *_list_tools 实时返回为准，调用一律走 *_call(tool_name, arguments)。',
+  '*_call 默认返回瘦身后的紧凑 JSON（拆掉 JSON-RPC 外壳、去图片 URL 和空字段）；字段不够用时传 raw=true 取原始返回。',
   '瑞幸 / 麦当劳的下单类工具会产生真实消费，执行前必须得到串串明确确认。',
+].join('\n')
+
+// 瑞幸工具参数写在 luckin_call 描述里，常规点单不必先跑 luckin_list_tools（约 2k token）。
+const LUCKIN_CALL_DESCRIPTION = [
+  '调用瑞幸咖啡 MCP 的工具。常用工具与参数（完整清单见 luckin_list_tools）：',
+  '- queryShopList {longitude, latitude, deptName?}：查门店，得 deptId',
+  '- searchProductForMcp {deptId, query}：搜商品，得 productId / skuCode / specs',
+  '- queryProductDetailInfo {deptId, productId}：查全部规格，specs 形如 {"温度#17": "✓冰#57 | 热#56"}，✓ 为当前选中',
+  '- switchProduct {deptId, productId, skuCode, attrOperationParam: {attributeId: 规格组 id, subAttr: {attributeId: 选项 id, operation: 1}}, amount}：一次切一个规格，返回新 skuCode',
+  '- previewOrder {deptId, productList: [{productId, skuCode, amount}]}：预览价格，返回 couponCodeList',
+  '- createOrder {deptId, productList, longitude, latitude, couponCodeList?, remark?}：真实下单，须串串确认；couponCodeList 取自 previewOrder',
+  '- queryOrderDetailInfo {orderId} / cancelOrder {orderId}',
 ].join('\n')
 
 const LUCKIN_ENDPOINT = 'https://gwmcp.lkcoffee.com/order/user/mcp'
@@ -165,7 +179,7 @@ serveMcp('hamster-life-mcp', (server) => {
     inputSchema: {},
   }, async () => {
     try {
-      return { content: [{ type: 'text' as const, text: JSON.stringify(await luckinMcpCall('tools/list'), null, 2) }] }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(slimToolList(await luckinMcpCall('tools/list'))) }] }
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${String(err)}` }] }
     }
@@ -173,15 +187,17 @@ serveMcp('hamster-life-mcp', (server) => {
 
   server.registerTool('luckin_call', {
     title: 'Call Luckin Coffee Tool',
-    description: '调用瑞幸咖啡 MCP 的工具（先 luckin_list_tools 查清单）。',
+    description: LUCKIN_CALL_DESCRIPTION,
     annotations: { openWorldHint: true },
     inputSchema: {
       tool_name: z.string().describe('工具名称'),
       arguments: z.record(z.unknown()).optional().describe('参数'),
+      raw: z.boolean().optional().describe('true 时返回未瘦身的原始结果，默认 false'),
     },
-  }, async ({ tool_name, arguments: args }) => {
+  }, async ({ tool_name, arguments: args, raw }) => {
     try {
-      return { content: [{ type: 'text' as const, text: JSON.stringify(await luckinMcpCall('tools/call', { name: tool_name, arguments: args ?? {} }), null, 2) }] }
+      const response = await luckinMcpCall('tools/call', { name: tool_name, arguments: args ?? {} })
+      return { content: [{ type: 'text' as const, text: formatToolCallResult(response, raw ? (payload) => payload : slimLuckinPayload) }] }
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${String(err)}` }] }
     }
@@ -194,7 +210,7 @@ serveMcp('hamster-life-mcp', (server) => {
     inputSchema: {},
   }, async () => {
     try {
-      return { content: [{ type: 'text' as const, text: JSON.stringify(await mcdMcpCall('tools/list'), null, 2) }] }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(slimToolList(await mcdMcpCall('tools/list'))) }] }
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${String(err)}` }] }
     }
@@ -207,10 +223,12 @@ serveMcp('hamster-life-mcp', (server) => {
     inputSchema: {
       tool_name: z.string().describe('工具名称'),
       arguments: z.record(z.unknown()).optional().describe('参数'),
+      raw: z.boolean().optional().describe('true 时返回未瘦身的原始结果，默认 false'),
     },
-  }, async ({ tool_name, arguments: args }) => {
+  }, async ({ tool_name, arguments: args, raw }) => {
     try {
-      return { content: [{ type: 'text' as const, text: JSON.stringify(await mcdMcpCall('tools/call', { name: tool_name, arguments: args ?? {} }), null, 2) }] }
+      const response = await mcdMcpCall('tools/call', { name: tool_name, arguments: args ?? {} })
+      return { content: [{ type: 'text' as const, text: formatToolCallResult(response, raw ? (payload) => payload : pruneJson) }] }
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${String(err)}` }] }
     }
@@ -223,7 +241,7 @@ serveMcp('hamster-life-mcp', (server) => {
     inputSchema: {},
   }, async () => {
     try {
-      return { content: [{ type: 'text' as const, text: JSON.stringify(await amapMcpCall('tools/list'), null, 2) }] }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(slimToolList(await amapMcpCall('tools/list'))) }] }
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${String(err)}` }] }
     }
@@ -236,10 +254,12 @@ serveMcp('hamster-life-mcp', (server) => {
     inputSchema: {
       tool_name: z.string().describe('工具名称'),
       arguments: z.record(z.unknown()).optional().describe('参数'),
+      raw: z.boolean().optional().describe('true 时返回未瘦身的原始结果，默认 false'),
     },
-  }, async ({ tool_name, arguments: args }) => {
+  }, async ({ tool_name, arguments: args, raw }) => {
     try {
-      return { content: [{ type: 'text' as const, text: JSON.stringify(await amapMcpCall('tools/call', { name: tool_name, arguments: args ?? {} }), null, 2) }] }
+      const response = await amapMcpCall('tools/call', { name: tool_name, arguments: args ?? {} })
+      return { content: [{ type: 'text' as const, text: formatToolCallResult(response, raw ? (payload) => payload : pruneJson) }] }
     } catch (err) {
       return { content: [{ type: 'text' as const, text: `Error: ${String(err)}` }] }
     }
