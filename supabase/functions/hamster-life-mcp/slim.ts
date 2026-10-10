@@ -168,7 +168,9 @@ export const slimLuckinPayload = (payload: Json): Json => {
   if (envelope.code !== 0 || envelope.success === false) {
     return pruneJson({ code: envelope.code, msg: envelope.msg, data: slimLuckinNode(envelope.data) })
   }
-  return isEmpty(envelope.data) ? { msg: envelope.msg ?? 'success' } : pruneJson(slimLuckinNode(envelope.data))
+  // An explicit empty list ("no shops", "no coupons") is an answer; only a
+  // missing data field falls back to the message.
+  return envelope.data == null ? { msg: envelope.msg ?? 'success' } : pruneJson(slimLuckinNode(envelope.data))
 }
 
 // ── McDonald's ────────────────────────────────────────────────────────────
@@ -243,7 +245,7 @@ export const slimMcdPayload = (payload: Json): Json => {
   if (envelope.success !== true) {
     return pruneJson({ code: envelope.code, message: envelope.message, data: envelope.data })
   }
-  return isEmpty(envelope.data)
+  return envelope.data == null
     ? { message: envelope.message ?? 'success' }
     : pruneJson(compactMcdMenu(dropZeroCoordinates(envelope.data)))
 }

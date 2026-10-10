@@ -97,13 +97,14 @@ const LUCKIN_CALL_DESCRIPTION = [
 // 麦当劳的完整工具清单约 3 万字符，常规点餐所需的工具与参数写在 mcd_call 描述里。
 const MCD_CALL_DESCRIPTION = [
   '调用麦当劳 MCP 的工具。常用工具与参数（完整清单见 mcd_list_tools）：',
-  '- 取餐方式：到店自取 beType=1 + orderType=1，不传 beCode；麦乐送 beType=2 + orderType=2，beCode 取自 delivery-query-stores',
+  '- 取餐方式：到店自取 beType=1 + orderType=1，不传 beCode；麦乐送 beType=2 + orderType=2，需 addressId 和 beCode',
+  '- 麦乐送选店：delivery-query-addresses {} 得 addressId → delivery-query-stores {addressId, beType: 2} 得 storeCode + beCode',
   '- query-nearby-stores {beType, searchType: 2, city, keyword}：按城市 + 关键词找门店，得 storeCode（searchType=1 查收藏餐厅）',
   '- query-meals {storeCode, orderType, beType}：菜单，得餐品 code；这里的价格单位为元',
   '- query-meal-detail {storeCode, orderType, beType, code}：查套餐子项与特制选项（modification）',
   '- query-store-coupons {storeCode, orderType, beType}：本店可用券；query-my-coupons {}：券包',
   '- calculate-price {storeCode, orderType, beType, items: [{productCode, quantity, couponId?, couponCode?}]}：算价，价格单位为分；到店场景返回 takeWayList',
-  '- create-order {同 calculate-price 参数, takeWayCode (到店必传，取自 takeWayList[].code)}：真实下单，须串串确认；返回支付链接由串串自己付',
+  '- create-order {同 calculate-price 参数, takeWayCode (到店必传，取自 takeWayList[].code), addressId (麦乐送必传), remark?}：真实下单，须串串确认；返回支付链接由串串自己付',
   '- query-order {orderId}：查订单状态',
 ].join('\n')
 

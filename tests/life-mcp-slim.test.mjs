@@ -114,6 +114,9 @@ test('slimLuckinPayload: failures keep code and message; empty success says so',
   assert.deepEqual(slimLuckinPayload({ code: 5001, msg: '门店休息中', success: false, data: null }),
     { code: 5001, msg: '门店休息中' })
   assert.deepEqual(slimLuckinPayload({ code: 0, msg: 'success', success: true, data: null }), { msg: 'success' })
+  assert.deepEqual(slimLuckinPayload({ code: 0, msg: 'success', success: true, data: [] }), [])
+  assert.deepEqual(slimMcdPayload({ success: true, code: 200, message: '请求成功', data: [] }), [])
+  assert.deepEqual(slimMcdPayload({ success: true, code: 200, message: '请求成功' }), { message: '请求成功' })
 })
 
 test('formatToolCallResult emits compact JSON and prefixes tool errors', () => {
