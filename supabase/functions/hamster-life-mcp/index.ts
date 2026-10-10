@@ -178,7 +178,7 @@ serveMcp('hamster-life-mcp', (server) => {
             text_length: text.length,
             speaker: 'Syzygy',
             voice: 'Syzygy-1',
-          }, null, 2),
+          }),
         }],
       }
     } catch (err) {
