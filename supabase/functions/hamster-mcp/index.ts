@@ -414,7 +414,7 @@ serveMcp('hamster-mcp', (server) => {
         sort_order: count ?? 0,
       }).select(TODO_COLUMNS).single()
       if (error) return errorResult(error)
-      return { content: [{ type: 'text' as const, text: `已添加: ${JSON.stringify({ ...data, category: categoryRow.name }, null, 2)}` }] }
+      return { content: [{ type: 'text' as const, text: `已添加: ${JSON.stringify({ ...data, category: categoryRow.name })}` }] }
     } catch (err) {
       return errorResult(err)
     }
@@ -433,14 +433,14 @@ serveMcp('hamster-mcp', (server) => {
       if (findError) return errorResult(findError)
       if (!existing) return { content: [{ type: 'text' as const, text: `Error: 未找到待办: ${id}` }] }
       if ((existing as Record<string, unknown>).status === 'completed') {
-        return { content: [{ type: 'text' as const, text: `该待办已是完成状态: ${JSON.stringify(existing, null, 2)}` }] }
+        return { content: [{ type: 'text' as const, text: `该待办已是完成状态: ${JSON.stringify(existing)}` }] }
       }
       const { data, error } = await supabase.from('todos').update({
         status: 'completed',
         completed_at: new Date().toISOString(),
       }).eq('user_id', USER_ID).eq('id', id).select(`${TODO_COLUMNS}, todo_categories(name)`).single()
       if (error) return errorResult(error)
-      return { content: [{ type: 'text' as const, text: `已完成: ${JSON.stringify(data, null, 2)}` }] }
+      return { content: [{ type: 'text' as const, text: `已完成: ${JSON.stringify(data)}` }] }
     } catch (err) {
       return errorResult(err)
     }
@@ -522,7 +522,7 @@ serveMcp('hamster-mcp', (server) => {
         const { error: linkError } = await supabase.from('memo_entry_tags').insert(tagRows.map((tag) => ({ memo_entry_id: entry.id, memo_tag_id: tag.id })))
         if (linkError) return errorResult(linkError)
       }
-      return { content: [{ type: 'text' as const, text: `已创建: ${JSON.stringify({ ...entry, tags: tagRows.map((tag) => tag.name) }, null, 2)}` }] }
+      return { content: [{ type: 'text' as const, text: `已创建: ${JSON.stringify({ ...entry, tags: tagRows.map((tag) => tag.name) })}` }] }
     } catch (err) {
       return errorResult(err)
     }
@@ -553,10 +553,10 @@ serveMcp('hamster-mcp', (server) => {
       if (tags !== undefined) {
         const tagRows = await ensureMemoTags(normalizeTagNames(tags))
         await replaceMemoTagLinks(id, tagRows.map((tag) => tag.id))
-        return { content: [{ type: 'text' as const, text: `已更新: ${JSON.stringify({ ...entry, tags: tagRows.map((tag) => tag.name) }, null, 2)}` }] }
+        return { content: [{ type: 'text' as const, text: `已更新: ${JSON.stringify({ ...entry, tags: tagRows.map((tag) => tag.name) })}` }] }
       }
       const [entryWithTags] = await withTagNames([entry as Record<string, unknown>])
-      return { content: [{ type: 'text' as const, text: `已更新: ${JSON.stringify(entryWithTags, null, 2)}` }] }
+      return { content: [{ type: 'text' as const, text: `已更新: ${JSON.stringify(entryWithTags)}` }] }
     } catch (err) {
       return errorResult(err)
     }
@@ -678,7 +678,7 @@ serveMcp('hamster-mcp', (server) => {
         started_on: started_on?.trim() || shanghaiDateString(),
       }).select(EVENT_THREAD_COLUMNS).single()
       if (error) return errorResult(error)
-      return { content: [{ type: 'text' as const, text: `已开线: ${JSON.stringify(data, null, 2)}` }] }
+      return { content: [{ type: 'text' as const, text: `已开线: ${JSON.stringify(data)}` }] }
     } catch (err) {
       return errorResult(err)
     }
@@ -720,7 +720,7 @@ serveMcp('hamster-mcp', (server) => {
       const { data, error } = await supabase.from('event_threads').update(patch).eq('user_id', USER_ID).eq('id', thread_id).select(EVENT_THREAD_COLUMNS).single()
       if (error) return errorResult(error)
       const verb = status === 'closed' ? '已结项' : status === 'active' && existing.status === 'closed' ? '已重开' : '已更新'
-      return { content: [{ type: 'text' as const, text: `${verb}: ${JSON.stringify(data, null, 2)}` }] }
+      return { content: [{ type: 'text' as const, text: `${verb}: ${JSON.stringify(data)}` }] }
     } catch (err) {
       return errorResult(err)
     }
@@ -757,7 +757,7 @@ serveMcp('hamster-mcp', (server) => {
         statusLine = current_status.trim()
       }
       const closedHint = thread.status === 'closed' ? '（注意：该事件线已结项，如需继续请 update_event_thread 重开）' : ''
-      return { content: [{ type: 'text' as const, text: `已追加到「${thread.title}」${closedHint}: ${JSON.stringify({ ...data, thread_current_status: statusLine }, null, 2)}` }] }
+      return { content: [{ type: 'text' as const, text: `已追加到「${thread.title}」${closedHint}: ${JSON.stringify({ ...data, thread_current_status: statusLine })}` }] }
     } catch (err) {
       return errorResult(err)
     }
@@ -784,7 +784,7 @@ serveMcp('hamster-mcp', (server) => {
       if (error) return errorResult(error)
       const entry = data?.[0]
       if (!entry) return { content: [{ type: 'text' as const, text: `Error: 未找到条目: ${entry_id}` }] }
-      return { content: [{ type: 'text' as const, text: `已更新: ${JSON.stringify(entry, null, 2)}` }] }
+      return { content: [{ type: 'text' as const, text: `已更新: ${JSON.stringify(entry)}` }] }
     } catch (err) {
       return errorResult(err)
     }

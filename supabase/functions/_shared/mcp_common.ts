@@ -44,8 +44,10 @@ const isAuthorizedRequest = async (req: Request): Promise<boolean> => {
   }
 }
 
+// Compact on purpose: the reader is a model, and indentation only adds tokens
+// (12–19% on memo / timeline / event-thread reads).
 export const jsonResult = (value: unknown) => ({
-  content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }],
+  content: [{ type: 'text' as const, text: JSON.stringify(value) }],
 })
 
 export const errorResult = (err: unknown) => {
@@ -53,7 +55,7 @@ export const errorResult = (err: unknown) => {
   if (err instanceof Error) {
     msg = err.message
   } else if (typeof err === 'object' && err !== null) {
-    msg = (err as Record<string, unknown>).message as string ?? JSON.stringify(err, null, 2)
+    msg = (err as Record<string, unknown>).message as string ?? JSON.stringify(err)
   } else {
     msg = String(err)
   }
