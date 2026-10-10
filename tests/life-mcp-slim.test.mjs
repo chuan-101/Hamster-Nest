@@ -32,7 +32,11 @@ test('unwrapToolCall parses the double-escaped text payload and reports errors',
   assert.deepEqual(unwrapToolCall(rpc({ code: 0 })), { payload: { code: 0 }, isError: false })
   assert.deepEqual(unwrapToolCall(rpc('库存不足', true)), { payload: '库存不足', isError: true })
   const rpcError = { code: -32602, message: 'bad params', data: { field: 'deptId' } }
-  assert.deepEqual(unwrapToolCall({ jsonrpc: '2.0', id: 2, error: rpcError }), { payload: rpcError, isError: true })
+  assert.deepEqual(unwrapToolCall({ jsonrpc: '2.0', id: 2, error: rpcError }),
+    { payload: rpcError, isError: true, protocolError: true })
+  // Vendor slimmers never see protocol errors (Luckin's would read code and drop message).
+  assert.equal(formatToolCallResult({ jsonrpc: '2.0', id: 2, error: rpcError }, slimLuckinPayload),
+    'Error: {"code":-32602,"message":"bad params","data":{"field":"deptId"}}')
   assert.equal(formatToolCallResult({ jsonrpc: '2.0', id: 2, error: rpcError }, (payload) => payload),
     'Error: {"code":-32602,"message":"bad params","data":{"field":"deptId"}}')
   const plain = { jsonrpc: '2.0', id: 2, result: { content: [{ type: 'text', text: '门店已打烊' }] } }

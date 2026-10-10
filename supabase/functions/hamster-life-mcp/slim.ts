@@ -48,12 +48,14 @@ export const pruneJson = (value: Json): Json => {
  * parsing text content that is itself JSON. Errors come back as text so the
  * caller sees them instead of an empty object.
  */
-export const unwrapToolCall = (response: Json): { payload: Json; isError: boolean } => {
+export const unwrapToolCall = (
+  response: Json,
+): { payload: Json; isError: boolean; protocolError?: true } => {
   const record = asRecord(response)
   const rpcError = asRecord(record?.error)
   // Keep the whole error: code and data carry validation details, and raw=true
   // can't recover what this step drops.
-  if (rpcError) return { payload: rpcError, isError: true }
+  if (rpcError) return { payload: rpcError, isError: true, protocolError: true }
   const result = asRecord(record?.result)
   if (!result) return { payload: response, isError: false }
   const isError = result.isError === true
@@ -251,7 +253,9 @@ export const formatToolCallResult = (
   response: Json,
   slim: (payload: Json) => Json = pruneJson,
 ): string => {
-  const { payload, isError } = unwrapToolCall(response)
-  const body = typeof payload === 'string' ? payload : JSON.stringify(slim(payload))
+  const { payload, isError, protocolError } = unwrapToolCall(response)
+  // A JSON-RPC error is the protocol's shape, not the vendor's: vendor
+  // slimmers would misread its code/message, so it goes out as is.
+  const body = typeof payload === 'string' ? payload : JSON.stringify(protocolError ? payload : slim(payload))
   return isError ? `Error: ${body}` : body
 }
