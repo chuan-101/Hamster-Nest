@@ -51,7 +51,9 @@ export const pruneJson = (value: Json): Json => {
 export const unwrapToolCall = (response: Json): { payload: Json; isError: boolean } => {
   const record = asRecord(response)
   const rpcError = asRecord(record?.error)
-  if (rpcError) return { payload: rpcError.message ?? rpcError, isError: true }
+  // Keep the whole error: code and data carry validation details, and raw=true
+  // can't recover what this step drops.
+  if (rpcError) return { payload: rpcError, isError: true }
   const result = asRecord(record?.result)
   if (!result) return { payload: response, isError: false }
   const isError = result.isError === true
@@ -79,9 +81,10 @@ export const slimToolList = (response: Json): Json => {
     if (!node) return schema
     const out: JsonRecord = {}
     for (const [key, child] of Object.entries(node)) {
-      // Boolean flags only: a schema-valued additionalProperties describes a
-      // dictionary argument's values and must survive.
-      if ((key === 'additionalProperties' || key === 'returnDirect') && typeof child === 'boolean') continue
+      // additionalProperties: true is the same as leaving it out; false and a
+      // schema both narrow the contract and must survive.
+      if (key === 'additionalProperties' && child === true) continue
+      if (key === 'returnDirect' && typeof child === 'boolean') continue
       if (key === '$schema') continue
       out[key] = stripSchema(child)
     }

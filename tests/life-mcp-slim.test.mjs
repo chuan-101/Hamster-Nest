@@ -31,8 +31,10 @@ const attr = (id, name, options) => ({
 test('unwrapToolCall parses the double-escaped text payload and reports errors', () => {
   assert.deepEqual(unwrapToolCall(rpc({ code: 0 })), { payload: { code: 0 }, isError: false })
   assert.deepEqual(unwrapToolCall(rpc('库存不足', true)), { payload: '库存不足', isError: true })
-  assert.deepEqual(unwrapToolCall({ jsonrpc: '2.0', id: 2, error: { code: -32602, message: 'bad params' } }),
-    { payload: 'bad params', isError: true })
+  const rpcError = { code: -32602, message: 'bad params', data: { field: 'deptId' } }
+  assert.deepEqual(unwrapToolCall({ jsonrpc: '2.0', id: 2, error: rpcError }), { payload: rpcError, isError: true })
+  assert.equal(formatToolCallResult({ jsonrpc: '2.0', id: 2, error: rpcError }, (payload) => payload),
+    'Error: {"code":-32602,"message":"bad params","data":{"field":"deptId"}}')
   const plain = { jsonrpc: '2.0', id: 2, result: { content: [{ type: 'text', text: '门店已打烊' }] } }
   assert.equal(formatToolCallResult(plain), '门店已打烊')
 })
@@ -119,7 +121,7 @@ test('formatToolCallResult emits compact JSON and prefixes tool errors', () => {
   assert.equal(formatToolCallResult(rpc({ a: null }), (payload) => payload), '{"a":null}')
 })
 
-test('slimToolList keeps name, description and input schema only', () => {
+test('slimToolList keeps name, description and input schema, minus no-op flags', () => {
   const list = slimToolList({
     jsonrpc: '2.0', id: 2,
     result: {
@@ -127,7 +129,11 @@ test('slimToolList keeps name, description and input schema only', () => {
         name: 'query-meals', description: '查餐品',
         inputSchema: {
           type: 'object',
-          properties: { storeCode: { type: 'string' }, extras: { type: 'object', additionalProperties: { type: 'string' } } },
+          properties: {
+            storeCode: { type: 'string' },
+            extras: { type: 'object', additionalProperties: { type: 'string' } },
+            loose: { type: 'object', additionalProperties: true },
+          },
           additionalProperties: false,
           returnDirect: false,
         },
@@ -139,7 +145,12 @@ test('slimToolList keeps name, description and input schema only', () => {
     name: 'query-meals', description: '查餐品',
     inputSchema: {
       type: 'object',
-      properties: { storeCode: { type: 'string' }, extras: { type: 'object', additionalProperties: { type: 'string' } } },
+      properties: {
+        storeCode: { type: 'string' },
+        extras: { type: 'object', additionalProperties: { type: 'string' } },
+        loose: { type: 'object' },
+      },
+      additionalProperties: false,
     },
   }])
 })
