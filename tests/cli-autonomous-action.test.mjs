@@ -43,7 +43,7 @@ async function fixture({legacy=false}={}) {
   const plan = () => rpc('cli_wake_plan_day', [owner, '2026-09-29'])
   const tick = (enabled = roles, paused = false) => rpc('cli_wake_dispatch', [owner, JSON.stringify(enabled), paused])
   await db.exec(readFileSync(new URL('../supabase/migrations/20261031065834_cli_autonomous_action.sql', import.meta.url), 'utf8').replaceAll('now()', 'public.test_now()'))
-  if (!legacy) await db.exec(readFileSync(new URL('../supabase/migrations/20261101100045_cli_autonomous_two_windows.sql', import.meta.url), 'utf8').replaceAll('now()', 'public.test_now()'))
+  if (!legacy) await db.exec(readFileSync(new URL('../supabase/migrations/20261101100422_cli_autonomous_two_windows.sql', import.meta.url), 'utf8').replaceAll('now()', 'public.test_now()'))
   await db.exec("update sessions set session_key='syzygy_codex_cli' where conversation_profile_key='codex_cli'")
   return { db, query, rpc, plan, tick }
 }
@@ -183,7 +183,7 @@ test('migration preserves legacy IDs, completed rounds and appointments; elapsed
  const f=await fixture({legacy:true});try{
  await f.query("insert into cli_wake_schedule(user_id,role,local_date,kind,wake_at,status) values($1,$2,'2026-09-29','random','2026-09-29T13:00:00+08:00','completed'),($1,$3,'2026-09-29','random','2026-09-29T20:48:00+08:00','planned'),($1,$2,'2026-09-29','alarm','2026-09-29T18:30:00+08:00','planned')",[owner,claude,codex])
  const before=await f.query('select id,role,kind,wake_at,status from cli_wake_schedule order by id')
- await f.db.exec(readFileSync(new URL('../supabase/migrations/20261101100045_cli_autonomous_two_windows.sql',import.meta.url),'utf8').replaceAll('now()','public.test_now()'))
+ await f.db.exec(readFileSync(new URL('../supabase/migrations/20261101100422_cli_autonomous_two_windows.sql',import.meta.url),'utf8').replaceAll('now()','public.test_now()'))
  await f.db.exec("update test_clock set value='2026-09-29T18:00:00+08:00'");await f.plan();await f.plan()
  assert.deepEqual(await f.query('select id,role,kind,wake_at,status from cli_wake_schedule where id=any($1::uuid[]) order by id',[before.map(w=>w.id)]),before)
  const [missed]=await f.query("select * from cli_wake_schedule where role=$1 and kind='random' and random_slot=1",[codex]);assert.equal(missed.status,'skipped');assert.equal(missed.skip_reason,'missed_window')
