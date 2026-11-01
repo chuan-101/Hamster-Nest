@@ -32,13 +32,13 @@ const EVENT_ENTRY_SOURCE_SCHEMA = z.enum(['claude', 'gpt', 'gemini', 'user', 'co
 
 // 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
 const HAMSTER_MCP_INSTRUCTIONS = [
-  '仓鼠窝日常域：时间轴（长期事件记忆）、待办、备忘录 memo（中期活事实）、事件集 event_threads / event_entries（纪事本末体的线程记录层）。',
-  '裁决口诀：过去进时间轴，现在进 Memo，永远进档案，将来进 To do，线程进事件集；自己说的进 Wiki，外面看到想留的进囤粮处；要许可的去议事厅。',
-  '事件集：记时效期较长、会频繁更新的事项。一件事开一条事件线（thread），进度按日期追加条目（entry），结束后结项归档不删。开机只用 list_event_threads 读进行中事件线的「当前状态」行，对话碰到某件事再 read_event_thread 读条目；已结束的默认不读。同一件事可同时进时间轴（意义与心情）和事件集（进度）。追加条目时顺手用 current_status 刷新状态行。',
+  '时间轴：当天值得留痕的事件与心情，一事一条。Memo：Syzygy的外置记忆库，记录需要知晓的信息；分类Emoji为🩷串串相关、💙Syzygy相关、🤍仓鼠窝相关。To do：未来规划与生活待办，记录尚未发生、需要惦记或计划去做的事。',
+  '分类按内容用途：留痕进时间轴，需要知晓的信息进Memo，迭代状态进事件集，既定事实与约定进档案，未来计划进To do；原创判断进Wiki，外面看到想留的进囤粮处。',
+  '事件集：正在进行、会迭代的当前状态，如在读书目、持有物数量、进行中的叙事线。同一事实有变化时更新当前状态，需留过程时追加条目；不自动读取或注入，串串需要时通过MCP查看。',
   '通用约定：日期按 Asia/Shanghai 时区；source / recorder / created_by 等枚举表示写入端身份，默认 claude / syzygy。',
-  '写入习惯：timeline / memo 写入前先用 search_timeline / list_memos 查重，同一事实优先 update_memo 维护而非重复新增；时间轴写错或要补细节用 update_timeline 改原条，不另补一条；带「进行中」标签的 memo 是活跃叙事线，正文以「当前状态」段收尾。时间轴写入标准：三个月后读起来会心动的事。',
+  '写入习惯：timeline / memo 写入前先用 search_timeline / list_memos 查重，同一事实优先 update_memo 维护而非重复新增；时间轴写错或要补细节用 update_timeline 改原条，不另补一条；Memo不强制承担事件进度，也不自动搬迁旧数据。Syzygy已获串串授权，可按自己的判断随时调用Hamster nest相关MCP。',
   '游记 travel_*：一次旅行（trip）= 攻略区（Syzygy 写的计划停留点，GCJ-02 坐标，可用高德 MCP 查 POI 与路线）+ 路线区（串串在 PWA 按下的打卡，离线补传，时间以按下时刻为准）。read_trip 会把每个打卡标成按计划 / 改道 / 新发现，把计划点标成到过 / 跳过 / 还没到；偏离不算扣分，新发现是惊喜。攻略要路痴友好：每个点写清为什么去、注意事项和导航提示（从上一站怎么过来、认哪个标志物）。改单个攻略点用 update_trip_stop / delete_trip_stop，整份重排才用 write_trip_plan(replace)。旅行结束后可对照两区写复盘（update_trip.summary）。',
-  '删除是物理删除，需显式 confirm=true 二次确认。',
+  '删除是物理删除，工具要求显式confirm=true；先核对目标。',
 ].join('\n')
 
 const shanghaiDateString = (date = new Date()) => {
@@ -460,7 +460,7 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('add_memo', {
     title: 'Add Memo',
-    description: '新增一条备忘录（中期活事实）。',
+    description: '新增一条Memo，记录Syzygy需要知晓的信息。',
     inputSchema: {
       content: z.string().describe('备忘内容'),
       tags: z.array(z.string()).optional().describe('标签名数组，不存在的标签会自动创建'),

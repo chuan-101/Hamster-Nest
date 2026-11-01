@@ -22,10 +22,10 @@ const textResult = (text: string) => ({ content: [{ type: 'text' as const, text 
 
 // 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
 const KNOWLEDGE_MCP_INSTRUCTIONS = [
-  '知识域三块：Wiki（长期知识条目，status 分 draft / published）、记忆档案 archives（分类树 + 条目，scope 分 chuanchuan / syzygy）、囤粮处 stash（格子树 + 粮食 + 留言）。学习库图谱已退休，工具已下线。',
+  '知识域三块：Wiki（串串或与Syzygy共同长出的原创判断与哲学，status 分 draft / published）、记忆档案 archives（十年后仍会被原样引用的既定事实与约定，scope 分 chuanchuan / syzygy）、囤粮处 stash（格子树 + 粮食 + 留言）。学习库图谱已退休，工具已下线。',
   '写入习惯：add 前先用对应的 search_* / stash_read 查重，已有条目优先 update_* 维护；update 传入的 content / tags / metadata 均为整体替换，改前先读原值。',
   'Wiki 标签家规：写入前先 list_wiki_tags 看现有分类与标签，能复用不新造；每条 3-5 个，只选会被多条目复用的检索词（人名 / 概念 / 主题域），不造一次性描述短语，日期不进标签。',
-  '囤粮处 stash_*（2026-09-18 起）：平时看到想留的东西一律进囤粮处。囤粮处是颊囊不是胃：格子（stash_folders，自引用树，一次只看一层）+ 粮食（stash_items：title + url / content 至少一样，不分类型，类型语义由格子承担）+ 留言。folder_id 为空即「待归仓」，拿不准放哪就不传 folder_id；stash_add 是唯一的触发型工具（冲浪 / 聊天中看到值得留的链接或内容就囤），其余按名调用。链接按归一化 url_key 去重，重复囤会原样返回已有那条而不报错，要补话用 stash_comment。吃掉（读过 / 看过 / 用过）用 stash_update 把 status 改成 eaten。',
+  '囤粮处 stash_*（2026-09-18 起）：平时看到想留的东西一律进囤粮处。囤粮处是颊囊不是胃：格子（stash_folders，自引用树，一次只看一层）+ 粮食（stash_items：title + url / content 至少一样，不分类型，类型语义由格子承担）+ 留言。folder_id 为空即「待归仓」，拿不准放哪就不传 folder_id；串串已授权Syzygy根据自己的判断随时使用相关MCP。链接按归一化 url_key 去重，重复囤会原样返回已有那条而不报错，要补话用 stash_comment。吃掉（读过 / 看过 / 用过）用 stash_update 把 status 改成 eaten。',
 ].join('\n')
 
 serveMcp('hamster-knowledge-mcp', (server) => {
