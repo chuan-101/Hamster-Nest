@@ -909,6 +909,7 @@ export type Database = {
           next_wake_at: string | null
           note: string
           predecessor_id: string | null
+          random_slot: number | null
           requested_wake_at: string | null
           role: string
           share_message_id: string | null
@@ -939,6 +940,7 @@ export type Database = {
           next_wake_at?: string | null
           note?: string
           predecessor_id?: string | null
+          random_slot?: number | null
           requested_wake_at?: string | null
           role: string
           share_message_id?: string | null
@@ -969,6 +971,7 @@ export type Database = {
           next_wake_at?: string | null
           note?: string
           predecessor_id?: string | null
+          random_slot?: number | null
           requested_wake_at?: string | null
           role?: string
           share_message_id?: string | null
