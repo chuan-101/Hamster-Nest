@@ -231,14 +231,14 @@ serveMcp('hamster-mcp', (server) => {
 
   server.registerTool('cli_set_self_alarm', {
     title: '安排自主行动闹钟',
-    description: 'Claude/Codex 自主行动：每天13–21点随机一次，之后由CLI自己决定是否预约，可多次；不预约就没有自动续链。当前运行任务可约未来24小时（可跨日），同CLI至少隔1小时、跨CLI半小时、固定任务前后1小时。窗口外须reason并在干活沙发留言；target_role可托付另一CLI，note写明为何来、先看什么。只有ok=true才算安排成功。close_day取消本人当天未执行预约，当天不重开。旧relay模式仍沿用原规则。',
+    description: 'Claude/Codex 自主行动：北京时间每端每天11–16点、17–21点各安排一次随机唤醒；CLI可另行自主预约多次闹钟；不预约就没有自动续链。当前运行任务可约未来24小时（可跨日），同CLI至少隔1小时、跨CLI半小时、固定任务前后1小时。自定闹钟不限时段，无需额外理由或沙发报备；target_role可托付另一CLI，note写明为何来、先看什么。只有ok=true才算安排成功。close_day取消本人当天未执行预约，当天不重开。旧relay模式仍沿用原规则。',
     inputSchema: {
       current_task_id: z.string().uuid().describe('运行器注入的本轮 agent_task_id'),
       wake_at: z.string().datetime({ offset: true }).optional().describe('未来24小时内，带时区；close_day省略'),
       action: z.enum(['schedule', 'close_day']).default('schedule'),
       note: z.string().max(2000).optional().describe('下轮行动和要读的线索；托付必填，串串可见'),
       target_role: z.enum(['codex_cli_syzygy','claude_code_cli_syzygy']).optional().describe('省略为自己；托付时填接手端口'),
-      reason: z.string().max(2000).optional().describe('13–21点以外必须说明理由，并在干活沙发留一句'),
+      reason: z.string().max(2000).optional().describe('可选补充说明；任意时段均不强制理由或沙发报备'),
     },
   }, async ({ current_task_id, wake_at, note, action, target_role, reason }) => {
     if (action === 'schedule' && !wake_at) return errorResult(new Error('schedule requires wake_at'))
