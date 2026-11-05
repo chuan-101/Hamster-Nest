@@ -136,6 +136,8 @@ export async function executeApiTool(options: {
       args.source = 'api'
       args.recorder = 'syzygy'
     }
+    if (entry.name === 'add_memo') args.source = 'api'
+    if (entry.name === 'add_todo') args.created_by = 'syzygy'
     if (entry.name === 'add_excerpt_resonance') {
       args.speaker = speaker
       delete args.book_id

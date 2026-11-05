@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ApiModelStream } from '../supabase/functions/conversation-dispatch/api-model-stream.ts'
-import { API_TOOL_CATALOG, normalizeToolSelection, toolResult, summarizeApiUsage } from '../supabase/functions/conversation-dispatch/api-tool-contract.ts'
-import { executeApiTool } from '../supabase/functions/conversation-dispatch/api-tool-runtime.ts'
+import { API_TOOL_CATALOG, apiToolCatalogForVersion, mergeApiToolSelection, normalizeToolSelection, toolResult, summarizeApiUsage } from '../supabase/functions/conversation-dispatch/api-tool-contract.ts'
+import { executeApiTool, discoverTools } from '../supabase/functions/conversation-dispatch/api-tool-runtime.ts'
 import { startApiConversation } from '../supabase/functions/conversation-dispatch/api-conversation-runner.ts'
 
 function memoryClient(selected = []) {
@@ -117,4 +117,49 @@ test('AAB does not borrow GPT identity for an unrelated model', async()=>{
   const client=memoryClient(['reading__add_book_answer'])
   const result=await executeApiTool({...baseOptions(client),selected:['reading__add_book_answer'],name:'reading__add_book_answer',model:'google/gemini-test',argumentsText:'{"question_id":"q","content":"answer"}'})
   assert.equal(result.ok,false);assert.equal(client.tables.api_tool_executions.length,0)
+})
+
+test('catalog rollout preserves invisible permissions for old Apps and permits explicit v2 revocation',()=>{
+  assert.equal(apiToolCatalogForVersion(undefined).length,20)
+  assert.equal(apiToolCatalogForVersion(2).length,27)
+  const current=['memo__add_memo','timeline__recent_timeline']
+  assert.deepEqual(mergeApiToolSelection([],current,undefined),['memo__add_memo'])
+  assert.deepEqual(mergeApiToolSelection([],current,2),[])
+  assert.throws(()=>mergeApiToolSelection(['memo__add_memo'],[],undefined))
+  assert.throws(()=>mergeApiToolSelection(['memo__delete_memo'],[],2))
+})
+test('Memo and To do share the correct MCP and only selected schemas reach the model',async t=>{
+  const requests=[]
+  t.mock.method(globalThis,'fetch',async(url,init)=>{
+    assert.ok(String(url).endsWith('/hamster-mcp'))
+    const body=JSON.parse(init.body);requests.push(body.method)
+    return new Response(JSON.stringify({id:body.id,result:body.method==='initialize'?{instructions:'context'}:{tools:[
+      {name:'add_memo',inputSchema:{type:'object'},description:'memo'},
+      {name:'add_todo',inputSchema:{type:'object'},description:'todo'},
+      {name:'delete_memo',inputSchema:{type:'object'},description:'not permitted'},
+    ]}}),{headers:{'content-type':'application/json'}})
+  })
+  const discovered=await discoverTools(['memo__add_memo','todo__add_todo'],'https://test.invalid',{},AbortSignal.timeout(5000))
+  assert.deepEqual(discovered.definitions.map(x=>x.function.name),['memo__add_memo','todo__add_todo'])
+  assert.deepEqual(requests.sort(),['initialize','tools/list'])
+})
+test('Memo and To do writes use truthful provenance, preserve receipts and honor revocation',async t=>{
+  const selected=['memo__add_memo','todo__add_todo','todo__complete_todo'];const client=memoryClient(selected)
+  const bodies=[]
+  t.mock.method(globalThis,'fetch',async(url,init)=>{
+    assert.ok(String(url).endsWith('/hamster-mcp'))
+    const body=JSON.parse(init.body);bodies.push(body)
+    return new Response(JSON.stringify({id:body.id,result:{content:[{text:'saved'}]}}),{headers:{'content-type':'application/json'}})
+  })
+  for (const [name,args] of [['memo__add_memo',{content:'test',source:'user'}],['todo__add_todo',{title:'test',created_by:'串串'}],['todo__complete_todo',{id:'test'}]]) {
+    const opts={...baseOptions(client),selected,name,argumentsText:JSON.stringify(args)}
+    assert.equal((await executeApiTool(opts)).ok,true)
+    assert.equal((await executeApiTool(opts)).ok,true)
+  }
+  assert.equal(bodies.length,3)
+  assert.equal(bodies[0].params.arguments.source,'api')
+  assert.equal(bodies[1].params.arguments.created_by,'syzygy')
+  client.tables.api_conversation_tools[0].enabled_tools=[]
+  assert.equal((await executeApiTool({...baseOptions(client),selected,name:'todo__complete_todo',argumentsText:'{"id":"another"}'})).ok,false)
+  assert.equal(bodies.length,3)
 })

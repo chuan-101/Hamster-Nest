@@ -4,6 +4,13 @@ export const API_TOOL_CATALOG = [
   ['timeline', 'search_timeline', '搜索时间轴', 'read'],
   ['timeline', 'add_timeline', '新增时间轴', 'write'],
   ['timeline', 'update_timeline', '修改时间轴', 'write'],
+  ['memo', 'list_memos', '读取 Memo', 'read'],
+  ['memo', 'list_memo_tags', '读取 Memo 标签', 'read'],
+  ['memo', 'add_memo', '新增 Memo', 'write'],
+  ['memo', 'update_memo', '修改 Memo 与标签', 'write'],
+  ['todo', 'read_todos', '读取待办', 'read'],
+  ['todo', 'add_todo', '新增待办', 'write'],
+  ['todo', 'complete_todo', '完成待办', 'write'],
   ['reading', 'reading_status', '当前阅读与最近摘抄', 'read'],
   ['reading', 'reading_history', '查找书目', 'read'],
   ['reading', 'reading_stats', '阅读统计', 'read'],
@@ -26,8 +33,28 @@ export const API_TOOL_CATALOG = [
   name,
   label,
   access,
-  server: group === 'timeline' ? 'hamster-mcp' : 'hamster-reading-mcp',
+  server: group === 'reading' ? 'hamster-reading-mcp' : 'hamster-mcp',
 }))
+
+// The first OTA rejects unknown groups. Keep its settings readable during rollout.
+export function apiToolCatalogForVersion(version: unknown) {
+  return version === 2 ? API_TOOL_CATALOG : API_TOOL_CATALOG.filter((tool) =>
+    tool.group === 'timeline' || tool.group === 'reading'
+  )
+}
+
+export function mergeApiToolSelection(value: unknown, current: string[], version: unknown) {
+  const selected = normalizeToolSelection(value)
+  const visible = apiToolCatalogForVersion(version)
+  if (selected.some((id) => !visible.some((tool) => tool.id === id))) {
+    throw new Error('工具选择无效，请刷新后重试')
+  }
+  // An older App must not silently revoke permissions it cannot display.
+  return normalizeToolSelection([
+    ...selected,
+    ...current.filter((id) => !visible.some((tool) => tool.id === id)),
+  ])
+}
 
 export function normalizeToolSelection(value: unknown): string[] {
   if (
