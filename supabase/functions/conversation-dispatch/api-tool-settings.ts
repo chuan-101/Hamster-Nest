@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { getSupabaseAdminKey } from '../_shared/supabase_secret.ts'
-import { API_TOOL_CATALOG, normalizeToolSelection } from './api-tool-contract.ts'
+import { apiToolCatalogForVersion, mergeApiToolSelection } from './api-tool-contract.ts'
 
 export async function handleApiToolSettings(
   body: Record<string, unknown>,
@@ -36,8 +36,14 @@ export async function handleApiToolSettings(
     if (
       !session.data || session.data.handler !== 'api' || session.data.conversation_kind !== 'direct'
     ) return respond({ error: '仅 API 私聊可设置工具' }, 403)
+    const catalog = apiToolCatalogForVersion(body.catalog_version)
     if (body.enabled_tools !== undefined) {
-      const selected = normalizeToolSelection(body.enabled_tools)
+      const current = await client.from('api_conversation_tools').select('enabled_tools')
+        .eq('session_id', sessionId).maybeSingle()
+      if (current.error) throw current.error
+      const selected = mergeApiToolSelection(
+        body.enabled_tools, current.data?.enabled_tools ?? [], body.catalog_version,
+      )
       const saved = await admin.from('api_conversation_tools').upsert({
         session_id: sessionId,
         user_id: userId,
@@ -55,8 +61,10 @@ export async function handleApiToolSettings(
     ])
     if (settings.error || usage.error) throw settings.error ?? usage.error
     return respond({
-      catalog: API_TOOL_CATALOG,
-      enabled_tools: settings.data?.enabled_tools ?? [],
+      catalog,
+      enabled_tools: (settings.data?.enabled_tools ?? []).filter((id: string) =>
+        catalog.some((tool) => tool.id === id)
+      ),
       usage: usage.data,
       updated_at: settings.data?.updated_at ?? null,
     })
