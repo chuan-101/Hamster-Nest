@@ -57,8 +57,8 @@ test('completed App replies publish one idempotent push fact routed back to the 
   assert.match(source, /params: \{ id: sessionId \}/u)
   assert.match(source, /error\.code !== '23505'/u)
   assert.match(
-    source,
-    /persistReply\([\s\S]*?'completed'[\s\S]*?publishApiReplyCompletedEvent/iu,
+    await readFile(new URL('../supabase/functions/conversation-dispatch/api-conversation-runner.ts', import.meta.url), 'utf8'),
+    /options\.persist\(content, 'completed'[\s\S]*?options\.completed\(\)/iu,
   )
 })
 

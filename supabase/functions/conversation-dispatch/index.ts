@@ -10,7 +10,6 @@ import {
   ConversationDispatchRequestError,
   isAllowedConversationOrigin,
   normalizeConversationDispatchRequest,
-  OpenAiSseAccumulator,
   resolveConversationDispatchHttpStatus,
 } from './contract.ts'
 import {
@@ -29,7 +28,8 @@ import {
 import {
   buildConversationModelMessages,
 } from './model-context.ts'
-import { recordLlmUsage } from '../_shared/llm_usage.ts'
+import { startApiConversation, type ApiRunMeta } from './api-conversation-runner.ts'
+import { handleApiToolSettings } from './api-tool-settings.ts'
 
 declare const EdgeRuntime:
   | {
@@ -81,7 +81,6 @@ type UserClient = SupabaseClient<any, 'public', 'public', any, any>
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const HISTORY_PAGE_SIZE = 100
-const STREAM_PERSIST_INTERVAL_MS = 450
 
 const loadActiveConversationProfile = async (
   client: UserClient,
@@ -335,6 +334,7 @@ const buildReplyMeta = (
     model?: string | null
     errorCode?: string
     errorMessage?: string
+    api?: ApiRunMeta
   } = {},
 ) => ({
   schema_version: 1,
@@ -343,6 +343,7 @@ const buildReplyMeta = (
   delivery_attempt: dispatch.reply.delivery_attempt,
   responder_sender_key: dispatch.responder_sender_key,
   ...(options.model ? { model: options.model } : {}),
+  ...(options.api ? { api_tools: options.api.api_tools, api_usage: options.api.api_usage, api_updated_at: new Date().toISOString() } : {}),
   ...(deliveryState === 'completed' ? { completed_at: new Date().toISOString() } : {}),
   ...(options.errorCode ? { delivery_error_code: options.errorCode } : {}),
   ...(options.errorMessage ? { delivery_error: options.errorMessage.slice(0, 180) } : {}),
@@ -358,6 +359,7 @@ const persistReply = async (
     model?: string | null
     errorCode?: string
     errorMessage?: string
+    api?: ApiRunMeta
   },
 ) => {
   const { data, error } = await client
@@ -500,123 +502,6 @@ const loadConversationRequest = async (
   }
 }
 
-const proxyAndPersistStream = async (
-  upstreamBody: ReadableStream<Uint8Array>,
-  writable: WritableStream<Uint8Array>,
-  client: UserClient,
-  eventClient: UserClient,
-  userId: string,
-  sessionId: string,
-  dispatch: ConversationDispatchPrepareResult,
-) => {
-  const reader = upstreamBody.getReader()
-  const writer = writable.getWriter()
-  const decoder = new TextDecoder()
-  const accumulator = new OpenAiSseAccumulator()
-  let lastPersistedAt = 0
-  let lastPersistedContent = ''
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) {
-        break
-      }
-
-      await writer.write(value)
-      accumulator.push(decoder.decode(value, { stream: true }))
-
-      const now = Date.now()
-      if (
-        accumulator.content !== lastPersistedContent &&
-        now - lastPersistedAt >= STREAM_PERSIST_INTERVAL_MS
-      ) {
-        await persistReply(
-          client,
-          userId,
-          dispatch,
-          accumulator.content,
-          'generating',
-          { model: accumulator.model },
-        )
-        lastPersistedContent = accumulator.content
-        lastPersistedAt = now
-      }
-    }
-
-    accumulator.push(decoder.decode())
-    accumulator.finish()
-    if (!accumulator.content.trim()) {
-      throw new Error('EMPTY_MODEL_CONTENT')
-    }
-
-    await persistReply(
-      client,
-      userId,
-      dispatch,
-      accumulator.content,
-      'completed',
-      { model: accumulator.model },
-    )
-    try {
-      await publishApiReplyCompletedEvent(eventClient, userId, sessionId, dispatch)
-    } catch (eventError) {
-      // Canonical reply completion must not be rolled back to failed merely
-      // because the secondary push fact could not be published.
-      console.error('[conversation-dispatch] failed to publish reply completion event', eventError)
-    }
-    await recordLlmUsage(
-      eventClient,
-      { module: 'chitchat', conversationId: sessionId, model: accumulator.model },
-      accumulator.usage,
-    )
-    await writer.close()
-  } catch (error) {
-    const errorCode = error instanceof Error && error.message === 'EMPTY_MODEL_CONTENT'
-      ? 'EMPTY_MODEL_CONTENT'
-      : 'STREAM_INTERRUPTED'
-    const publicMessage = errorCode === 'EMPTY_MODEL_CONTENT'
-      ? '模型未返回可用内容'
-      : '回复流中断，请重试'
-
-    try {
-      await persistReply(
-        client,
-        userId,
-        dispatch,
-        accumulator.content,
-        'failed',
-        {
-          model: accumulator.model,
-          errorCode,
-          errorMessage: publicMessage,
-        },
-      )
-    } catch (persistError) {
-      console.error('[conversation-dispatch] failed to persist stream failure', persistError)
-    }
-
-    try {
-      const errorEvent = new TextEncoder().encode(
-        `event: error\ndata: ${
-          JSON.stringify({
-            error: publicMessage,
-            code: errorCode,
-            reply_id: dispatch.reply.id,
-          })
-        }\n\n`,
-      )
-      await writer.write(errorEvent)
-      await writer.close()
-    } catch {
-      // The client may already have disconnected; the canonical reply state is
-      // still persisted above for a safe retry.
-    }
-  } finally {
-    reader.releaseLock()
-  }
-}
-
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin')
   const originAllowed = isAllowedConversationOrigin(origin)
@@ -673,6 +558,7 @@ Deno.serve(async (request) => {
 
   const loungeBody = await request.clone().json().catch(() => null)
   if (loungeBody?.mode === 'lounge') return handleLoungeRequest(userId, loungeBody, corsHeaders)
+  if (loungeBody?.mode === 'api_tools') return handleApiToolSettings(loungeBody, userId, supabaseUrl, authorization, apiKey, corsHeaders)
 
   let payload
   try {
@@ -805,82 +691,15 @@ Deno.serve(async (request) => {
     )
   }
 
-  let upstream: Response
-  try {
-    upstream = await fetch(new URL('/functions/v1/openrouter-chat', supabaseUrl), {
-      method: 'POST',
-      headers: {
-        apikey: apiKey,
-        Authorization: authorization,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ...modelRequest,
-        modelId: modelRequest.model,
-        conversationId: payload.session_id,
-        module: 'chitchat',
-        stream: true,
-      }),
-    })
-  } catch (upstreamError) {
-    console.error('[conversation-dispatch] model function network failure', upstreamError)
-    try {
-      await persistReply(client, userId, dispatch, '', 'failed', {
-        model: modelRequest.model,
-        errorCode: 'UPSTREAM_NETWORK_ERROR',
-        errorMessage: '模型服务暂时无法连接',
-      })
-    } catch (persistError) {
-      console.error('[conversation-dispatch] failed to persist network error', persistError)
-    }
-    return jsonResponse(
-      {
-        ...basePayload,
-        error: '模型服务暂时无法连接',
-        code: 'UPSTREAM_NETWORK_ERROR',
-      },
-      502,
-      corsHeaders,
-      dispatch,
-    )
-  }
-
-  if (!upstream.ok || !upstream.body) {
-    console.error('[conversation-dispatch] model function failed', {
-      status: upstream.status,
-      hasBody: Boolean(upstream.body),
-    })
-    try {
-      await persistReply(client, userId, dispatch, '', 'failed', {
-        model: modelRequest.model,
-        errorCode: 'UPSTREAM_HTTP_ERROR',
-        errorMessage: '模型服务请求失败',
-      })
-    } catch (persistError) {
-      console.error('[conversation-dispatch] failed to persist upstream error', persistError)
-    }
-    return jsonResponse(
-      {
-        ...basePayload,
-        error: '模型服务请求失败',
-        code: 'UPSTREAM_HTTP_ERROR',
-      },
-      upstream.ok ? 502 : upstream.status,
-      corsHeaders,
-      dispatch,
-    )
-  }
-
-  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()
-  const streamWork = proxyAndPersistStream(
-    upstream.body,
-    writable,
-    client,
-    serviceClient,
-    userId,
-    payload.session_id,
-    dispatch,
-  )
+  const { readable, work: streamWork } = startApiConversation({
+    client: serviceClient, userId, sessionId: payload.session_id,
+    replyId: dispatch.reply.id, attempt: dispatch.reply.delivery_attempt,
+    url: supabaseUrl, modelUrl: new URL('/functions/v1/openrouter-chat', supabaseUrl),
+    headers: { apikey: apiKey, Authorization: authorization }, request: modelRequest,
+    persist: (content, state, api, errorMessage) => persistReply(serviceClient, userId, dispatch, content, state,
+      { model: api.model, api, errorMessage, ...(errorMessage ? { errorCode: 'API_EXECUTION_FAILED' } : {}) }),
+    completed: () => publishApiReplyCompletedEvent(serviceClient, userId, payload.session_id, dispatch),
+  })
 
   if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
     EdgeRuntime.waitUntil(streamWork)
