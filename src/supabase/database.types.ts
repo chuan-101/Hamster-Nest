@@ -375,6 +375,143 @@ export type Database = {
           },
         ]
       }
+      api_conversation_tools: {
+        Row: {
+          enabled_tools: string[]
+          session_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          enabled_tools?: string[]
+          session_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          enabled_tools?: string[]
+          session_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_conversation_tools_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_model_calls: {
+        Row: {
+          attempt: number
+          created_at: string
+          id: string
+          model: string | null
+          reply_id: string
+          round: number
+          session_id: string
+          status: string
+          usage: Json | null
+          user_id: string
+        }
+        Insert: {
+          attempt: number
+          created_at?: string
+          id?: string
+          model?: string | null
+          reply_id: string
+          round: number
+          session_id: string
+          status: string
+          usage?: Json | null
+          user_id: string
+        }
+        Update: {
+          attempt?: number
+          created_at?: string
+          id?: string
+          model?: string | null
+          reply_id?: string
+          round?: number
+          session_id?: string
+          status?: string
+          usage?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_model_calls_reply_id_fkey"
+            columns: ["reply_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_model_calls_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_tool_executions: {
+        Row: {
+          created_at: string
+          fingerprint: string
+          id: string
+          reply_id: string
+          result: Json | null
+          session_id: string
+          status: string
+          tool_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          fingerprint: string
+          id?: string
+          reply_id: string
+          result?: Json | null
+          session_id: string
+          status: string
+          tool_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          fingerprint?: string
+          id?: string
+          reply_id?: string
+          result?: Json | null
+          session_id?: string
+          status?: string
+          tool_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_tool_executions_reply_id_fkey"
+            columns: ["reply_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_tool_executions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       approval_executions: {
         Row: {
           approval_id: string
@@ -4577,6 +4714,7 @@ export type Database = {
       }
     }
     Functions: {
+      api_conversation_usage: { Args: { p_session: string }; Returns: Json }
       archive_apply_change: { Args: { p_operation: Json }; Returns: Json }
       archive_category_index: {
         Args: { p_after?: string; p_scope: string }
