@@ -28,6 +28,7 @@ export const resolveConversationProfileKey = ({
   if (sessionKey === 'syzygy_cli' || sessionKey === 'syzygy_codex_cli') {
     return 'codex_cli'
   }
+  if (sessionKey === 'syzygy_gemini_cli') return 'gemini_cli'
   if (sessionKey === 'syzygy_claude_cli') {
     return 'claude_cli'
   }

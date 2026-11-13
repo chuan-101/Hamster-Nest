@@ -35,6 +35,7 @@ test('runtime-control normalizes the narrow action and target contract', () => {
   assert.deepEqual(RUNTIME_CONTROL_TARGET_ROLES, [
     'codex_cli_syzygy',
     'claude_code_cli_syzygy',
+    'gemini_cli_syzygy',
   ])
 })
 

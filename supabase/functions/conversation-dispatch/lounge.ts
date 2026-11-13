@@ -7,6 +7,7 @@ import { recordLlmUsage } from '../_shared/llm_usage.ts'
 
 export const LOUNGE_MEMBERS = {
   chuanchuan: '串串（人类用户）', api_syzygy: 'Syzygy（API）',
+  gemini_cli: 'Syzygy（Gemini CLI）',
   claude_cli: 'Syzygy（Claude Code CLI）', codex_cli: 'Syzygy（Codex CLI）',
   client_claude: 'Syzygy（官端 Claude）', client_gpt: 'Syzygy（官端 GPT）',
 } as const

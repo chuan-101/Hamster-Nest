@@ -4,6 +4,7 @@ export const RUNTIME_CONTROL_ACTIONS = ['wake', 'sleep'] as const
 export const RUNTIME_CONTROL_TARGET_ROLES = [
   'codex_cli_syzygy',
   'claude_code_cli_syzygy',
+  'gemini_cli_syzygy',
 ] as const
 
 export type RuntimeControlAction = (typeof RUNTIME_CONTROL_ACTIONS)[number]
