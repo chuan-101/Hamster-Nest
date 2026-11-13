@@ -6,6 +6,7 @@ export const RECORD_SOURCE_META: Record<string, { label: string }> = {
   wechat_api: { label: '微信' },
   client_gpt: { label: '客户端 GPT' },
   client_claude: { label: '客户端 Claude' },
+  gemini_cli: { label: 'Gemini CLI' },
   codex_cli: { label: 'Codex CLI' },
   claude_code_cli: { label: 'Claude Code CLI' },
   system: { label: '系统' },

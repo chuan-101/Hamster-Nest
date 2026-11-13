@@ -3,7 +3,7 @@
 // 定位：Feed 是写给串串的信，日记本是 Syzygy 写给自己的账。全体 Syzygy 共写一本，每页带端口署名。
 // 锁：visibility=private（默认）锁住的是默认可见性而非加密；翻页 private→shared 单向，翻开了就不再合上。
 
-export const DIARY_AUTHORS = ['claude', 'gpt', 'gemini', 'codex_cli', 'claude_code_cli'] as const
+export const DIARY_AUTHORS = ['claude', 'gpt', 'gemini', 'gemini_cli', 'codex_cli', 'claude_code_cli'] as const
 export type DiaryAuthor = (typeof DIARY_AUTHORS)[number]
 
 export const DIARY_ACTIVITY_TYPES = ['free_activity', 'daily_note'] as const
