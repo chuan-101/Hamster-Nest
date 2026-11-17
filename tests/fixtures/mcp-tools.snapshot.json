@@ -36,6 +36,9 @@
   "hamster-lounge-mcp": [
     "add_diary_comment",
     "add_diary_entry",
+    "anniversary_create",
+    "anniversary_read",
+    "anniversary_update",
     "append_relay_diary",
     "council_decide",
     "council_list_categories",

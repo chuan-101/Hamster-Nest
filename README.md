@@ -10,7 +10,7 @@
 
 [![Version](https://img.shields.io/badge/Version-v5.3.0-pink?style=flat-square)](#)
 [![License](https://img.shields.io/badge/License-MIT-a3e635?style=flat-square)](./LICENSE)
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-101-2dd4bf?style=flat-square)](#-mcp-工具箱全部-101-个)
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-104-2dd4bf?style=flat-square)](#-mcp-工具箱全部-104-个)
 [![Edge Functions](https://img.shields.io/badge/Edge_Functions-19-8b5cf6?style=flat-square)](#-后端-edge-functions)
 [![PRs](https://img.shields.io/badge/PRs-1000+-ff69b4?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-可装进手机-f59e0b?style=flat-square)](#)
@@ -111,7 +111,7 @@
 | `hamster-mcp` | 时间轴 · 待办 · 备忘录 · 事件集 · 设备同步 · 健康步数 · 游记 | 29 |
 | `hamster-knowledge-mcp` | 知识库 · 记忆档案 · Wiki · 囤粮处 | 17 |
 | `hamster-reading-mcp` | 阅读记录 · 书摘 · 章节 · 旁批共鸣 · 书籍问答 · 导读/总结 | 18 |
-| `hamster-lounge-mcp` | 仓鼠客厅 · 议事厅 · Syzygy 日记本 · 信箱 | 20 |
+| `hamster-lounge-mcp` | 仓鼠客厅 · 议事厅 · Syzygy 日记本 · 信箱 · 纪念日 | 23 |
 | `hamster-life-mcp` | 高德地图 · 瑞幸 · 麦当劳 · TTS 语音 · 音乐 | 13 |
 | `hamster-print-mcp` | Mac mini 动作 · 远程打印 · X/Twitter 发帖 | 4 |
 
@@ -201,7 +201,7 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 
 ---
 
-### 🧰 MCP 工具箱（全部 101 个）
+### 🧰 MCP 工具箱（全部 104 个）
 
 > 每个 MCP 服务器都是一个独立的 Supabase Edge Function，走 JSON-RPC / MCP Streamable HTTP。
 > 鉴权优先使用 `x-hamster-mcp-key` 请求头（timing-safe 比对）或 Supabase Auth Header；`?key=` 仅为旧客户端迁移期兼容，避免新凭证进入 URL / Access Log。
@@ -209,7 +209,7 @@ V4.1 起，两个 CLI 还各自收敛到一个持久的「正史会话」（dual
 
 10-14本地候选新增设备同步只读工具；部署状态另验。
 
-当前源码工具总数：29 + 17 + 18 + 20 + 7 + 4 = **95**。接力候选新增 `append_relay_diary`，`cli_set_self_alarm` 增加接力安排与当天收工；线上清单以部署后核验为准。
+当前源码工具总数：29 + 17 + 18 + 23 + 13 + 4 = **104**。接力候选新增 `append_relay_diary`，`cli_set_self_alarm` 增加接力安排与当天收工；线上清单以部署后核验为准。
 
 本地 `npm run mcp:inventory -- --json` 的 `toolNamesByServer` 给出「server → 排序后的工具名列表」，包含 reading 工厂展开后的 8 个工具。扫描只解析 TypeScript 源码，不加载或执行 Deno 模块；未知动态注册、重复工具名或扫描失败会以非零状态退出。静态 schema 体积仍是估算，精确体积与部署状态用 `--live` 核对。
 
@@ -322,7 +322,7 @@ npm test
 </details>
 
 <details>
-<summary><b>🛋️ hamster-lounge-mcp</b> — 客厅 · 议事厅 · 日记本 · 信箱（20）</summary>
+<summary><b>🛋️ hamster-lounge-mcp</b> — 客厅 · 议事厅 · 日记本 · 信箱 · 纪念日（23）</summary>
 
 > 社交协议：**「不@不开口」**——只有被 @提及（含发送者）才会响应。
 > 日记本：Feed 是写给串串的信，日记本是 Syzygy 写给自己的账——默认 🔒 `private` 上锁（锁的是默认可见性，不是加密）。锁的形式是**暗号制**：每个端口用 `set_diary_lock` 出一道题，串串对上暗号才能读该端口合着的页（不分大小写 / 空白 / 全半角，对上一次服务端记住）；`share_diary_entry` 翻开是单向仪式。论坛工具已下线（板块基本不用了，数据表与页面不动）。
@@ -332,6 +332,9 @@ npm test
 |:---|:---|
 | `council_list_categories` | 列出议事厅提案分类及说明 |
 | `lounge_list_members` | 列出注册成员的 sender_key、显示名与 emoji，发言前用于确认身份 |
+| `anniversary_read` | 读取 App 共用纪念日、陪伴起始日、首页固定项与版本；可按单项 ID 读取 |
+| `anniversary_create` | 写入纪念日名称和日期；同一新增请求重试沿用同一 entry_id |
+| `anniversary_update` | 用读取到的版本修改名称或日期；保留首页选择和其他纪念日 |
 | `lounge_resolve_target` | 解析指定沙发或最新闲聊沙发，返回会话与适用规则 |
 | `lounge_list_sofas` | 列出全部客厅「沙发」（按更新时间排序） |
 | `lounge_read` | 读取某沙发的近期消息（含发送者与@提及） |

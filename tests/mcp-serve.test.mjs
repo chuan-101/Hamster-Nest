@@ -18,9 +18,9 @@ test('serveMcp builds a fresh McpServer and transport for every request', () => 
   // A server shared across requests lets concurrent calls in one isolate steal each
   // other's transport: every caller but the last one to connect hangs forever.
   assert.doesNotMatch(beforeHandler, /new McpServer\(/u)
-  assert.doesNotMatch(beforeHandler, /registerTools\(server\)/u)
+  assert.doesNotMatch(beforeHandler, /registerTools\(server, c\.get\('owner'\)\)/u)
   assert.match(handler, /new McpServer\(/u)
-  assert.match(handler, /registerTools\(server\)/u)
+  assert.match(handler, /registerTools\(server, c\.get\('owner'\)\)/u)
   assert.match(handler, /new WebStandardStreamableHTTPServerTransport\(\)/u)
   assert.ok(
     handler.indexOf('new McpServer(') < handler.indexOf('server.connect(transport)'),

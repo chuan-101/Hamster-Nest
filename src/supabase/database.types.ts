@@ -2015,6 +2015,30 @@ export type Database = {
         }
         Relationships: []
       }
+      home_anniversary_books: {
+        Row: {
+          entries: Json
+          featured_id: string | null
+          revision: string
+          since: string | null
+          user_id: string
+        }
+        Insert: {
+          entries?: Json
+          featured_id?: string | null
+          revision?: string
+          since?: string | null
+          user_id: string
+        }
+        Update: {
+          entries?: Json
+          featured_id?: string | null
+          revision?: string
+          since?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       ideas: {
         Row: {
           captured_by: string
@@ -4860,6 +4884,45 @@ export type Database = {
         }
         Returns: boolean
       }
+      commit_gemini_daily_digest: {
+        Args: {
+          p_date: string
+          p_draft: Json
+          p_overview_id: string
+          p_overview_version: string
+          p_read_at: string
+          p_revision: string
+          p_sources: string[]
+          p_task: string
+        }
+        Returns: Json
+      }
+      commit_gemini_job_recovery: {
+        Args: {
+          p_before: Json
+          p_command: string
+          p_draft: Json
+          p_read_at: string
+          p_revision: string
+          p_sources: string[]
+          p_task: string
+          p_user: string
+        }
+        Returns: Json
+      }
+      commit_gemini_morning_share: {
+        Args: {
+          p_date: string
+          p_draft: Json
+          p_overview_id: string
+          p_overview_version: string
+          p_read_at: string
+          p_revision: string
+          p_sources: string[]
+          p_task: string
+        }
+        Returns: Json
+      }
       complete_quest: {
         Args: { p_note?: string; p_quest_id: string; p_user_id?: string }
         Returns: Json
@@ -5083,8 +5146,16 @@ export type Database = {
       dispatch_feed_notifications: { Args: never; Returns: number }
       dmetaphone: { Args: { "": string }; Returns: string }
       dmetaphone_alt: { Args: { "": string }; Returns: string }
+      enqueue_gemini_job_recoveries: {
+        Args: { p_user: string }
+        Returns: undefined
+      }
       exchange_points_to_coins: {
         Args: { p_points: number; p_user_id?: string }
+        Returns: Json
+      }
+      gemini_job_products: {
+        Args: { p_date: string; p_kind: string; p_user: string }
         Returns: Json
       }
       generation_port_publish: {

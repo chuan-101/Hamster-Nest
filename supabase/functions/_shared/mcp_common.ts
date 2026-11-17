@@ -26,21 +26,23 @@ const buildCorsHeaders = (origin: string): Record<string, string> => ({
   Vary: 'Origin',
 })
 
-const isAuthorizedRequest = async (req: Request): Promise<boolean> => {
+const authorizedOwner = async (req: Request): Promise<string | null> => {
   const expectedKey = Deno.env.get('HAMSTER_MCP_KEY') ?? ''
-  if (isMcpKeyAuthorized(req, expectedKey)) return true
+  if (isMcpKeyAuthorized(req, expectedKey)) return USER_ID
 
   const authHeader = req.headers.get('authorization')
-  if (!authHeader) return false
+  if (!authHeader) return null
   const apikey = req.headers.get('apikey')?.trim() ?? ''
-  if (!apikey) return false
+  if (!apikey) return null
   try {
     const authResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/user`, {
       headers: { apikey, Authorization: authHeader },
     })
-    return authResponse.ok
+    if (!authResponse.ok) return null
+    const user = await authResponse.json()
+    return typeof user.id === 'string' && user.id ? user.id : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -75,12 +77,12 @@ type ServeMcpOptions = {
 
 export function serveMcp(
   functionName: string,
-  registerTools: (server: McpServer) => void,
+  registerTools: (server: McpServer, owner: string) => void,
   options: string | ServeMcpOptions = {},
 ) {
   const { serverName = 'hamster-nest', instructions } =
     typeof options === 'string' ? { serverName: options, instructions: undefined } : options
-  const app = new Hono().basePath(`/${functionName}`)
+  const app = new Hono<{ Variables: { owner: string } }>().basePath(`/${functionName}`)
 
   app.use('*', async (c, next) => {
     const origin = c.req.header('origin') ?? null
@@ -93,13 +95,15 @@ export function serveMcp(
         headers: { 'Content-Type': 'application/json' },
       })
     }
-    if (!(await isAuthorizedRequest(c.req.raw))) {
+    const owner = await authorizedOwner(c.req.raw)
+    if (!owner) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), {
         status: 401,
         headers: { ...(corsHeaders ?? {}), 'Content-Type': 'application/json' },
       })
     }
 
+    c.set('owner', owner)
     await next()
 
     if (corsHeaders) {
@@ -116,7 +120,7 @@ export function serveMcp(
       { name: serverName, version: MCP_VERSION },
       instructions ? { instructions } : undefined,
     )
-    registerTools(server)
+    registerTools(server, c.get('owner'))
     const transport = new WebStandardStreamableHTTPServerTransport()
     await server.connect(transport)
     return transport.handleRequest(c.req.raw)

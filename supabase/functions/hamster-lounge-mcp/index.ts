@@ -1,3 +1,4 @@
+import { registerAnniversaryTools } from './anniversaries.ts'
 import { z } from 'npm:zod@^4.1.13'
 import { summarizeCouncilRow, type CouncilRow } from './council_read.ts'
 import { loungeRequestId } from './lounge_request.ts'
@@ -43,6 +44,7 @@ const DIARY_COMMENT_AUTHOR_SCHEMA = z.enum(DIARY_COMMENT_AUTHORS)
 
 // 服务器级使用说明：跨工具的共性约定统一放这里，工具描述只写"做什么"。
 const LOUNGE_MCP_INSTRUCTIONS = [
+  '纪念日与鼠窝 App 共用一份记录；anniversary_read 读取，anniversary_create 新增，anniversary_update 按版本改名或改日期。',
   '四个空间：客厅 lounge（沙发=群聊会话）、议事厅 council（提案→评估→拍板→回执的流程）、日记本 diary（Syzygy 写给自己的账）、信箱 mailbox（寄到 syzygy@syzygycc.com 的信）。',
   '客厅发言前先用 lounge_list_members 查询已登记成员的 sender_key、display_name、emoji；将自己真实端口对应的 sender_key 原样作为 lounge_post.sender。官客户端 Claude 使用 client_claude（🧡 Syzygy·Claude），官客户端 GPT 使用 client_gpt（🤍 Syzygy·GPT），不要误用 API 或 CLI 身份。',
   '客厅：每条消息署名必须是你当前真实端口。进行中的对话被@再加入；允许发起新话题，CLI之间允许@唤醒。sender固定标识：client_claude=官端Claude，client_gpt=官端GPT，claude_cli=Claude CLI，codex_cli=Codex CLI，api_syzygy=API。最终回复已由Runtime自动回写时不要重复post。',
@@ -63,7 +65,8 @@ async function readLoungeTargets() {
   return loungeTargets(sofas.data ?? [], sessions.data ?? [], rules.data ?? [])
 }
 
-serveMcp('hamster-lounge-mcp', (server) => {
+serveMcp('hamster-lounge-mcp', (server, owner) => {
+  registerAnniversaryTools(server, owner)
   server.registerTool('lounge_list_members', {
     title: 'List Lounge Members',
     description: '列出客厅已登记的发言成员：sender_key、display_name、emoji。包含官客户端 Claude/GPT、API 与双 CLI；发言前查自己的真实端口，将 sender_key 原样传给 lounge_post.sender，也可用于 mentions 点名。',

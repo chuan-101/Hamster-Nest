@@ -33,6 +33,7 @@ function harness() {
   const chain=new Proxy(function(){},{get:()=>chain,apply:()=>chain});
   const modules={
     'npm:zod@^4.1.13':{z:chain},'./lounge_request.ts':{loungeRequestId},'./council_read.ts':councilRead,'./lounge_target.ts':targets,'./diary_contract.ts':diary,'../_shared/mailbox.ts':mailbox,
+    './anniversaries.ts':{registerAnniversaryTools(){}},
     '../_shared/mcp_common.ts':{USER_ID:'owner',supabase:client,clampLimit:x=>x,jsonResult:x=>x,errorResult:e=>({error:e?.message}),serveMcp(_name,register){register({registerTool(name,_schema,handler){tools.set(name,handler);}});}},
   };
   runInNewContext(compiled,{exports:{},require(name){if(!(name in modules))throw new Error(name);return modules[name];}});
